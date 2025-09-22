@@ -111,6 +111,36 @@ class Case(CaseBase):
         from_attributes = True
 
 
+class CaseStatusHistoryBase(BaseModel):
+    """Base schema for case status history"""
+    old_status: Optional[str] = None
+    new_status: str
+    reason: str
+    notes: Optional[str] = None
+
+
+class CaseStatusHistoryCreate(CaseStatusHistoryBase):
+    """Schema for creating case status history"""
+    pass
+
+
+class CaseStatusHistory(CaseStatusHistoryBase):
+    """Schema for case status history response"""
+    id: uuid.UUID
+    case_id: uuid.UUID
+    changed_by: uuid.UUID
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CaseStatusChangeRequest(BaseModel):
+    """Schema for status change requests"""
+    reason: str
+    notes: Optional[str] = None
+
+
 class CaseSummary(BaseModel):
     """Schema for case summary in lists"""
     id: uuid.UUID

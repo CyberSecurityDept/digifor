@@ -73,8 +73,8 @@ Lihat **[API Documentation](docs/api-forensix-analytics.md)** untuk dokumentasi 
 
 **Default Test Credentials:**
 ```
-Username: admin
-Password: admin123
+Username: test
+Password: test123
 ```
 
 ## 🛡️ Security & Technology Stack

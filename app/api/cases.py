@@ -5,15 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import uuid
 
 from app.database import get_db
 from app.models.user import User
 from app.models.case import Case, CasePerson
 from app.schemas.case import (
     CaseCreate, CaseUpdate, Case as CaseSchema, 
-    CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema
+    CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema,
+    CaseStatusHistory, CaseStatusChangeRequest
 )
 from app.api.auth import get_current_active_user
+from app.services.case_service import CaseService, CaseStatusTransitionError
 
 router = APIRouter()
 
@@ -93,7 +96,7 @@ def get_cases(
 
 @router.get("/{case_id}", response_model=CaseSchema)
 def get_case(
-    case_id: int,
+    case_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -110,7 +113,7 @@ def get_case(
 
 @router.put("/{case_id}", response_model=CaseSchema)
 def update_case(
-    case_id: int,
+    case_id: uuid.UUID,
     case_update: CaseUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -138,7 +141,7 @@ def update_case(
 
 @router.delete("/{case_id}")
 def delete_case(
-    case_id: int,
+    case_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -161,7 +164,7 @@ def delete_case(
 
 @router.post("/{case_id}/persons", response_model=CasePersonSchema)
 def add_case_person(
-    case_id: int,
+    case_id: uuid.UUID,
     person: CasePersonCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -201,7 +204,7 @@ def add_case_person(
 
 @router.get("/{case_id}/persons", response_model=List[CasePersonSchema])
 def get_case_persons(
-    case_id: int,
+    case_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -220,8 +223,8 @@ def get_case_persons(
 
 @router.put("/{case_id}/persons/{person_id}", response_model=CasePersonSchema)
 def update_case_person(
-    case_id: int,
-    person_id: int,
+    case_id: uuid.UUID,
+    person_id: uuid.UUID,
     person_update: CasePersonUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -253,8 +256,8 @@ def update_case_person(
 
 @router.delete("/{case_id}/persons/{person_id}")
 def delete_case_person(
-    case_id: int,
-    person_id: int,
+    case_id: uuid.UUID,
+    person_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -278,7 +281,7 @@ def delete_case_person(
 
 @router.get("/{case_id}/stats")
 def get_case_stats(
-    case_id: int,
+    case_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -312,3 +315,117 @@ def get_case_stats(
         "status": case.status,
         "priority": case.priority
     }
+
+
+@router.post("/{case_id}/close", response_model=CaseStatusHistory)
+def close_case(
+    case_id: uuid.UUID,
+    request: CaseStatusChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Close a case with reason"""
+    case = CaseService.get_case_by_id(db, case_id)
+    if not case:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found"
+        )
+    
+    try:
+        status_history = CaseService.close_case(
+            db=db,
+            case=case,
+            reason=request.reason,
+            changed_by=current_user,
+            notes=request.notes
+        )
+        return status_history
+    except CaseStatusTransitionError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+
+@router.post("/{case_id}/reopen", response_model=CaseStatusHistory)
+def reopen_case(
+    case_id: uuid.UUID,
+    request: CaseStatusChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Reopen a case with reason"""
+    case = CaseService.get_case_by_id(db, case_id)
+    if not case:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found"
+        )
+    
+    try:
+        status_history = CaseService.reopen_case(
+            db=db,
+            case=case,
+            reason=request.reason,
+            changed_by=current_user,
+            notes=request.notes
+        )
+        return status_history
+    except CaseStatusTransitionError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+
+@router.get("/{case_id}/status-history", response_model=List[CaseStatusHistory])
+def get_case_status_history(
+    case_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get status history for a case"""
+    case = CaseService.get_case_by_id(db, case_id)
+    if not case:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found"
+        )
+    
+    status_history = CaseService.get_case_status_history(db, case_id, limit)
+    return status_history
+
+
+@router.put("/{case_id}/status", response_model=CaseStatusHistory)
+def change_case_status(
+    case_id: uuid.UUID,
+    new_status: str,
+    request: CaseStatusChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Change case status with validation and logging"""
+    case = CaseService.get_case_by_id(db, case_id)
+    if not case:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found"
+        )
+    
+    try:
+        status_history = CaseService.change_case_status(
+            db=db,
+            case=case,
+            new_status=new_status,
+            reason=request.reason,
+            changed_by=current_user,
+            notes=request.notes
+        )
+        return status_history
+    except CaseStatusTransitionError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
