@@ -48,6 +48,35 @@ Arsitektur sistem Forenlytic Backend menggunakan FastAPI dengan SQLite database 
 - **ReDoc**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
 
+### 📋 Complete API Documentation
+Lihat **[API Documentation](docs/api-forensix-analytics.md)** untuk dokumentasi lengkap semua endpoints.
+
+### 🧪 Postman Testing
+
+**Base URL:** `http://localhost:8000`
+
+**Authentication Endpoints:**
+- `POST /api/v1/auth/token` - Login
+- `GET /api/v1/auth/me` - Get user profile
+- `POST /api/v1/auth/register` - User registration
+- `POST /api/v1/auth/refresh` - Refresh token
+- `POST /api/v1/auth/logout` - Logout
+
+**Case Management Endpoints:**
+- `GET /api/v1/cases/` - Get all cases
+- `POST /api/v1/cases/` - Create new case
+- `GET /api/v1/cases/{case_id}` - Get case by ID
+
+**Report Generation Endpoints:**
+- `POST /api/v1/reports/generate` - Generate case report
+- `GET /api/v1/reports/{report_id}` - Get report by ID
+
+**Default Test Credentials:**
+```
+Username: admin
+Password: admin123
+```
+
 ## 🛡️ Security & Technology Stack
 
 **Teknologi yang digunakan:**
@@ -110,6 +139,35 @@ python tests/test_reports.py
 ### **API Documentation**
 - **[API Manual](docs/API_MANUAL.md)** - Complete API testing guide
 - **[cURL Examples](docs/CURL_EXAMPLES.md)** - Ready-to-use cURL commands
+- **[Complete API Reference](docs/api-forensix-analytics.md)** - Detailed API documentation
+
+### **Postman Collection Setup**
+
+1. **Import Collection:**
+   - Download atau copy API endpoints dari dokumentasi
+   - Import ke Postman dengan Base URL: `http://localhost:8000`
+
+2. **Environment Variables:**
+   ```
+   base_url: http://localhost:8000
+   access_token: {{access_token}}
+   refresh_token: {{refresh_token}}
+   ```
+
+3. **Testing Workflow:**
+   ```
+   1. POST /api/v1/auth/token (Login)
+   2. Set access_token dari response
+   3. Test protected endpoints dengan Bearer token
+   ```
+
+4. **Sample Request Body (Login):**
+   ```json
+   {
+     "username": "admin",
+     "password": "admin123"
+   }
+   ```
 
 ## 📜 Scripts
 
