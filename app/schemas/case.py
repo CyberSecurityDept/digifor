@@ -105,40 +105,13 @@ class Case(CaseBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
+    reopened_count: int = 0
+    last_status_change: Optional[datetime] = None
+    status_change_reason: Optional[str] = None
     persons: List[CasePerson] = []
 
     class Config:
         from_attributes = True
-
-
-class CaseStatusHistoryBase(BaseModel):
-    """Base schema for case status history"""
-    old_status: Optional[str] = None
-    new_status: str
-    reason: str
-    notes: Optional[str] = None
-
-
-class CaseStatusHistoryCreate(CaseStatusHistoryBase):
-    """Schema for creating case status history"""
-    pass
-
-
-class CaseStatusHistory(CaseStatusHistoryBase):
-    """Schema for case status history response"""
-    id: uuid.UUID
-    case_id: uuid.UUID
-    changed_by: uuid.UUID
-    changed_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class CaseStatusChangeRequest(BaseModel):
-    """Schema for status change requests"""
-    reason: str
-    notes: Optional[str] = None
 
 
 class CaseSummary(BaseModel):

@@ -536,9 +536,612 @@ Authorization: Bearer <access_token>
 }
 ```
 
+### 15. Update Case
+**Endpoint:** `PUT /api/v1/cases/{case_id}`
+
+**Description:** Mengupdate informasi kasus forensik.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus yang akan diupdate
+
+**Request Body:**
+```json
+{
+    "title": "Updated Case Title",
+    "description": "Updated case description",
+    "case_type": "civil",
+    "priority": "high",
+    "incident_date": "2025-09-22T10:00:00",
+    "reported_date": "2025-09-22T11:00:00",
+    "jurisdiction": "Bandung",
+    "case_officer": "Detective Brown",
+    "assigned_to": "user-uuid-here",
+    "tags": ["updated", "digital"],
+    "notes": "Updated case notes",
+    "is_confidential": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case updated successfully",
+    "data": {
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "case_number": "CASE-001",
+        "title": "Updated Case Title",
+        "description": "Updated case description",
+        "case_type": "civil",
+        "status": "open",
+        "priority": "high",
+        "incident_date": "2025-09-22T10:00:00",
+        "reported_date": "2025-09-22T11:00:00",
+        "jurisdiction": "Bandung",
+        "case_officer": "Detective Brown",
+        "evidence_count": 5,
+        "analysis_progress": 75,
+        "created_by": "user-uuid-here",
+        "assigned_to": "user-uuid-here",
+        "created_at": "2025-09-20T12:00:00",
+        "updated_at": "2025-09-22T14:00:00",
+        "closed_at": null,
+        "reopened_count": 0,
+        "last_status_change": null,
+        "status_change_reason": null,
+        "tags": ["updated", "digital"],
+        "notes": "Updated case notes",
+        "is_confidential": true
+    }
+}
+```
+
+### 16. Close Case
+**Endpoint:** `POST /api/v1/cases/{case_id}/close`
+
+**Description:** Menutup kasus forensik dengan alasan dan tracking aktivitas.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus yang akan ditutup
+
+**Request Body:**
+```json
+{
+    "reason": "Investigation completed successfully",
+    "notes": "All evidence analyzed and report generated"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case closed successfully",
+    "data": {
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "case_number": "CASE-001",
+        "title": "Digital Forensics Investigation",
+        "status": "closed",
+        "priority": "high",
+        "closed_at": "2025-09-22T15:00:00",
+        "last_status_change": "2025-09-22T15:00:00",
+        "status_change_reason": "Investigation completed successfully",
+        "reopened_count": 0
+    }
+}
+```
+
+**Response (400 Bad Request):**
+```json
+{
+    "status": 400,
+    "message": "Case is already closed"
+}
+```
+
+### 17. Reopen Case
+**Endpoint:** `POST /api/v1/cases/{case_id}/reopen`
+
+**Description:** Membuka kembali kasus yang sudah ditutup dengan alasan dan tracking aktivitas.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus yang akan dibuka kembali
+
+**Request Body:**
+```json
+{
+    "reason": "New evidence found",
+    "notes": "Additional witness testimony received"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case reopened successfully",
+    "data": {
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "case_number": "CASE-001",
+        "title": "Digital Forensics Investigation",
+        "status": "reopened",
+        "priority": "high",
+        "closed_at": null,
+        "last_status_change": "2025-09-22T16:00:00",
+        "status_change_reason": "New evidence found",
+        "reopened_count": 1
+    }
+}
+```
+
+**Response (400 Bad Request):**
+```json
+{
+    "status": 400,
+    "message": "Only closed cases can be reopened"
+}
+```
+
+### 18. Change Case Status
+**Endpoint:** `POST /api/v1/cases/{case_id}/change-status`
+
+**Description:** Mengubah status kasus dengan alasan dan tracking aktivitas.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus yang statusnya akan diubah
+
+**Request Body:**
+```json
+{
+    "status": "in_progress",
+    "reason": "Investigation started",
+    "notes": "Assigned to senior investigator"
+}
+```
+
+**Valid Status Values:**
+- `open` - Case baru dibuka
+- `in_progress` - Investigasi sedang berlangsung
+- `closed` - Case ditutup
+- `reopened` - Case dibuka kembali
+- `archived` - Case diarsipkan
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case status changed successfully",
+    "data": {
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "case_number": "CASE-001",
+        "title": "Digital Forensics Investigation",
+        "status": "in_progress",
+        "last_status_change": "2025-09-22T17:00:00",
+        "status_change_reason": "Investigation started",
+        "reopened_count": 0
+    }
+}
+```
+
+### 19. Get Case Activities
+**Endpoint:** `GET /api/v1/cases/{case_id}/activities`
+
+**Description:** Mendapatkan log aktivitas kasus dengan pagination.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Query Parameters:**
+- `limit` (optional): Maximum number of records to return (default: 50, max: 100)
+- `offset` (optional): Number of records to skip (default: 0)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case activities retrieved successfully",
+    "data": [
+        {
+            "id": "activity-uuid-1",
+            "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "user_id": "user-uuid-here",
+            "activity_type": "created",
+            "description": "Case 'CASE-001' created",
+            "old_value": null,
+            "new_value": {
+                "case_number": "CASE-001",
+                "title": "Digital Forensics Investigation",
+                "status": "open"
+            },
+            "changed_fields": null,
+            "status_change_reason": null,
+            "previous_status": null,
+            "new_status": null,
+            "timestamp": "2025-09-20T12:00:00",
+            "ip_address": "192.168.1.100",
+            "user_agent": "Mozilla/5.0..."
+        },
+        {
+            "id": "activity-uuid-2",
+            "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "user_id": "user-uuid-here",
+            "activity_type": "status_change",
+            "description": "Case 'CASE-001' status changed from 'open' to 'closed' - Reason: Investigation completed",
+            "old_value": {"status": "open"},
+            "new_value": {"status": "closed"},
+            "changed_fields": ["status"],
+            "status_change_reason": "Investigation completed",
+            "previous_status": "open",
+            "new_status": "closed",
+            "timestamp": "2025-09-22T15:00:00",
+            "ip_address": "192.168.1.100",
+            "user_agent": "Mozilla/5.0..."
+        }
+    ]
+}
+```
+
+### 20. Get Recent Case Activities
+**Endpoint:** `GET /api/v1/cases/{case_id}/activities/recent`
+
+**Description:** Mendapatkan aktivitas terbaru kasus dengan informasi user.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Query Parameters:**
+- `limit` (optional): Maximum number of records to return (default: 10, max: 50)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Recent case activities retrieved successfully",
+    "data": [
+        {
+            "id": "activity-uuid-2",
+            "activity_type": "status_change",
+            "description": "Case 'CASE-001' status changed from 'open' to 'closed' - Reason: Investigation completed",
+            "timestamp": "2025-09-22T15:00:00",
+            "user_name": "John Investigator",
+            "user_role": "investigator"
+        },
+        {
+            "id": "activity-uuid-1",
+            "activity_type": "created",
+            "description": "Case 'CASE-001' created",
+            "timestamp": "2025-09-20T12:00:00",
+            "user_name": "Admin User",
+            "user_role": "admin"
+        }
+    ]
+}
+```
+
+### 21. Get Case Status History
+**Endpoint:** `GET /api/v1/cases/{case_id}/status-history`
+
+**Description:** Mendapatkan history perubahan status kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Query Parameters:**
+- `limit` (optional): Maximum number of records to return (default: 50, max: 100)
+- `offset` (optional): Number of records to skip (default: 0)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case status history retrieved successfully",
+    "data": [
+        {
+            "id": "history-uuid-1",
+            "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "user_id": "user-uuid-here",
+            "previous_status": "open",
+            "new_status": "closed",
+            "reason": "Investigation completed successfully",
+            "notes": "All evidence analyzed and report generated",
+            "changed_at": "2025-09-22T15:00:00",
+            "ip_address": "192.168.1.100"
+        },
+        {
+            "id": "history-uuid-2",
+            "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "user_id": "user-uuid-here",
+            "previous_status": "closed",
+            "new_status": "reopened",
+            "reason": "New evidence found",
+            "notes": "Additional witness testimony received",
+            "changed_at": "2025-09-22T16:00:00",
+            "ip_address": "192.168.1.100"
+        }
+    ]
+}
+```
+
+### 22. Add Person to Case
+**Endpoint:** `POST /api/v1/cases/{case_id}/persons`
+
+**Description:** Menambahkan orang (suspect, victim, witness) ke dalam kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Request Body:**
+```json
+{
+    "person_type": "suspect",
+    "full_name": "John Doe",
+    "alias": "JD",
+    "date_of_birth": "1990-01-15T00:00:00",
+    "nationality": "Indonesian",
+    "address": "Jl. Merdeka No. 123, Jakarta",
+    "phone": "+6281234567890",
+    "email": "john.doe@email.com",
+    "social_media_accounts": {
+        "facebook": "john.doe.fb",
+        "instagram": "@johndoe",
+        "twitter": "@johndoe_tw"
+    },
+    "device_identifiers": {
+        "imei": "123456789012345",
+        "mac_address": "00:11:22:33:44:55"
+    },
+    "description": "Primary suspect in the case",
+    "is_primary": true
+}
+```
+
+**Valid Person Types:**
+- `suspect` - Tersangka
+- `victim` - Korban
+- `witness` - Saksi
+- `other` - Lainnya
+
+**Response (201 Created):**
+```json
+{
+    "status": 201,
+    "message": "Person added to case successfully",
+    "data": {
+        "id": "person-uuid-1",
+        "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "person_type": "suspect",
+        "full_name": "John Doe",
+        "alias": "JD",
+        "date_of_birth": "1990-01-15T00:00:00",
+        "nationality": "Indonesian",
+        "address": "Jl. Merdeka No. 123, Jakarta",
+        "phone": "+6281234567890",
+        "email": "john.doe@email.com",
+        "social_media_accounts": {
+            "facebook": "john.doe.fb",
+            "instagram": "@johndoe",
+            "twitter": "@johndoe_tw"
+        },
+        "device_identifiers": {
+            "imei": "123456789012345",
+            "mac_address": "00:11:22:33:44:55"
+        },
+        "description": "Primary suspect in the case",
+        "is_primary": true,
+        "created_at": "2025-09-22T18:00:00",
+        "updated_at": "2025-09-22T18:00:00"
+    }
+}
+```
+
+### 23. Get Case Persons
+**Endpoint:** `GET /api/v1/cases/{case_id}/persons`
+
+**Description:** Mendapatkan daftar semua orang yang terlibat dalam kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case persons retrieved successfully",
+    "data": [
+        {
+            "id": "person-uuid-1",
+            "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "person_type": "suspect",
+            "full_name": "John Doe",
+            "alias": "JD",
+            "date_of_birth": "1990-01-15T00:00:00",
+            "nationality": "Indonesian",
+            "address": "Jl. Merdeka No. 123, Jakarta",
+            "phone": "+6281234567890",
+            "email": "john.doe@email.com",
+            "social_media_accounts": {
+                "facebook": "john.doe.fb",
+                "instagram": "@johndoe",
+                "twitter": "@johndoe_tw"
+            },
+            "device_identifiers": {
+                "imei": "123456789012345",
+                "mac_address": "00:11:22:33:44:55"
+            },
+            "description": "Primary suspect in the case",
+            "is_primary": true,
+            "created_at": "2025-09-22T18:00:00",
+            "updated_at": "2025-09-22T18:00:00"
+        }
+    ]
+}
+```
+
+### 24. Update Case Person
+**Endpoint:** `PUT /api/v1/cases/{case_id}/persons/{person_id}`
+
+**Description:** Mengupdate informasi orang dalam kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+- `person_id`: ID orang yang akan diupdate
+
+**Request Body:**
+```json
+{
+    "full_name": "John Doe Updated",
+    "phone": "+6281234567891",
+    "email": "john.doe.updated@email.com",
+    "description": "Updated suspect information"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case person updated successfully",
+    "data": {
+        "id": "person-uuid-1",
+        "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "person_type": "suspect",
+        "full_name": "John Doe Updated",
+        "alias": "JD",
+        "date_of_birth": "1990-01-15T00:00:00",
+        "nationality": "Indonesian",
+        "address": "Jl. Merdeka No. 123, Jakarta",
+        "phone": "+6281234567891",
+        "email": "john.doe.updated@email.com",
+        "social_media_accounts": {
+            "facebook": "john.doe.fb",
+            "instagram": "@johndoe",
+            "twitter": "@johndoe_tw"
+        },
+        "device_identifiers": {
+            "imei": "123456789012345",
+            "mac_address": "00:11:22:33:44:55"
+        },
+        "description": "Updated suspect information",
+        "is_primary": true,
+        "created_at": "2025-09-22T18:00:00",
+        "updated_at": "2025-09-22T19:00:00"
+    }
+}
+```
+
+### 25. Delete Case Person
+**Endpoint:** `DELETE /api/v1/cases/{case_id}/persons/{person_id}`
+
+**Description:** Menghapus orang dari kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+- `person_id`: ID orang yang akan dihapus
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Person deleted successfully"
+}
+```
+
+### 26. Get Case Statistics
+**Endpoint:** `GET /api/v1/cases/{case_id}/stats`
+
+**Description:** Mendapatkan statistik kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case statistics retrieved successfully",
+    "data": {
+        "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "evidence_count": 5,
+        "analysis_count": 3,
+        "completed_analysis": 2,
+        "analysis_progress": 75,
+        "status": "in_progress",
+        "priority": "high",
+        "reopened_count": 0,
+        "last_status_change": "2025-09-22T17:00:00"
+    }
+}
+```
+
 ## Report Generation
 
-### 15. Generate Case Report
+### 27. Generate Case Report
 **Endpoint:** `POST /api/v1/reports/generate`
 
 **Description:** Membuat laporan forensik untuk kasus tertentu.

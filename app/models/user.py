@@ -30,6 +30,8 @@ class User(Base):
     # Relationships
     created_cases = relationship("Case", foreign_keys="Case.created_by", back_populates="creator")
     assigned_cases = relationship("Case", foreign_keys="Case.assigned_to", back_populates="assignee")
+    case_activities = relationship("CaseActivity", back_populates="user")
+    case_status_history = relationship("CaseStatusHistory", back_populates="user")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"

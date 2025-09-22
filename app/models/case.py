@@ -44,41 +44,22 @@ class Case(Base):
     notes = Column(Text)
     is_confidential = Column(Boolean, default=False)
     
+    # Status tracking
+    reopened_count = Column(Integer, default=0)
+    last_status_change = Column(DateTime(timezone=True))
+    status_change_reason = Column(Text)
+    status_history = Column(JSON)  # Track status changes with reasons
+    
     # Relationships
     creator = relationship("User", foreign_keys=[created_by], back_populates="created_cases")
     assignee = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_cases")
     evidence_items = relationship("EvidenceItem", back_populates="case", cascade="all, delete-orphan")
     analyses = relationship("Analysis", back_populates="case", cascade="all, delete-orphan")
+    activities = relationship("CaseActivity", back_populates="case", cascade="all, delete-orphan")
     status_history = relationship("CaseStatusHistory", back_populates="case", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"
-
-
-class CaseStatusHistory(Base):
-    """Case status change history with reason logs"""
-    
-    __tablename__ = "case_status_history"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    
-    # Status transition details
-    old_status = Column(String(20))
-    new_status = Column(String(20), nullable=False)
-    reason = Column(Text, nullable=False)  # Required reason for status change
-    notes = Column(Text)  # Additional notes
-    
-    # Audit information
-    changed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    changed_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Relationships
-    case = relationship("Case")
-    user = relationship("User")
-    
-    def __repr__(self):
-        return f"<CaseStatusHistory(id={self.id}, case_id={self.case_id}, {self.old_status}->{self.new_status})>"
 
 
 class CasePerson(Base):
