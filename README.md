@@ -164,8 +164,8 @@ python tests/test_reports.py
 4. **Sample Request Body (Login):**
    ```json
    {
-     "username": "admin",
-     "password": "admin123"
+     "username": "test",
+     "password": "TesPassword123"
    }
    ```
 
