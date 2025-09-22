@@ -4,6 +4,17 @@ Sistem backend untuk analisis forensik digital yang komprehensif.
 
 Platform analisis forensik digital dengan kemampuan big data analytics, case management, dan report generation.
 
+## 📋 Requirements
+
+**Python Version:** 3.11+  
+**Main Dependencies:**
+- FastAPI 0.104.1
+- Uvicorn 0.24.0
+- SQLAlchemy 2.0.23
+- Pydantic 2.5.0
+
+Lihat [requirements.txt](requirements.txt) untuk daftar lengkap dependencies.
+
 ## 🚀 Quick Start
 
 ```bash
@@ -40,15 +51,14 @@ Arsitektur sistem Forenlytic Backend menggunakan FastAPI dengan SQLite database 
 ## 🛡️ Security & Technology Stack
 
 **Teknologi yang digunakan:**
-- **Backend**: Python, FastAPI, Uvicorn
-- **Database**: SQLite
-- **Authentication**: JWT (JSON Web Tokens)
+- **Backend**: Python 3.11+, FastAPI 0.104.1, Uvicorn 0.24.0
+- **Database**: SQLite dengan SQLAlchemy 2.0.23
+- **Authentication**: JWT (JSON Web Tokens) dengan python-jose 3.3.0
 - **Security**: Data encryption, secure API endpoints
+- **HTTP Client**: httpx 0.25.2, requests 2.31.0
+- **Testing**: pytest 7.4.3, pytest-asyncio 0.21.1
+- **Logging**: loguru 0.7.2
 
-## 🔐 Default Credentials
-
-- **Username**: admin
-- **Password**: admin123
 
 ## ⚙️ Environment Configuration
 
