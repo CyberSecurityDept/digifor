@@ -1,6 +1,23 @@
 # Forenlytic Backend (digifor)
 
-Sistem backend untuk analisis forensik digital yang komprehensif.
+<div align="center">
+  <img src="https://img.shields.io/badge/Forensic-Digital%20Analytics-blue?style=for-the-badge&logo=shield" alt="Forensic Digital Analytics">
+  <img src="https://img.shields.io/badge/Python-FastAPI-green?style=for-the-badge&logo=python" alt="Python FastAPI">
+  <img src="https://img.shields.io/badge/Database-SQLite-orange?style=for-the-badge&logo=sqlite" alt="SQLite Database">
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT License">
+</div>
+
+<div align="center">
+  <h3>🔍 Sistem backend untuk analisis forensik digital yang komprehensif</h3>
+  <p>Platform analisis forensik digital dengan kemampuan big data analytics, case management, dan report generation</p>
+</div>
+
+---
+
+<div align="center">
+  <img src="https://via.placeholder.com/800x400/1e3a8a/ffffff?text=Forensic+Digital+Analytics+Platform" alt="Forensic Analytics Platform" width="800" height="400">
+  <p><em>Platform analisis forensik digital untuk investigasi cybercrime</em></p>
+</div>
 
 ## 🚀 Quick Start
 
@@ -25,11 +42,32 @@ Semua dokumentasi tersedia di folder `docs/`:
 - **[Implementation Details](docs/IMPLEMENTATION.md)** - Detail implementasi
 - **[Final Summary](docs/FINAL_SUMMARY.md)** - Ringkasan lengkap fitur
 
+## 🏗️ System Architecture
+
+<div align="center">
+  <img src="https://via.placeholder.com/800x500/1e40af/ffffff?text=Forensic+Analytics+Architecture" alt="System Architecture" width="800" height="500">
+  <p><em>Arsitektur sistem Forenlytic Backend</em></p>
+</div>
+
 ## 🔧 API Endpoints
+
+<div align="center">
+  <img src="https://via.placeholder.com/600x200/0891b2/ffffff?text=API+Documentation+%7C+ReDoc+%7C+Health+Check" alt="API Endpoints" width="600" height="200">
+</div>
 
 - **API Documentation**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
+
+## 🛡️ Security & Technology Stack
+
+<div align="center">
+  <img src="https://via.placeholder.com/800x300/dc2626/ffffff?text=JWT+Authentication+%7C+Data+Encryption+%7C+Secure+API" alt="Security Features" width="800" height="300">
+</div>
+
+<div align="center">
+  <img src="https://via.placeholder.com/900x200/1f2937/ffffff?text=Python+%7C+FastAPI+%7C+SQLite+%7C+JWT+%7C+Uvicorn" alt="Technology Stack" width="900" height="200">
+</div>
 
 ## 🔐 Default Credentials
 
@@ -46,7 +84,21 @@ File `.env` sudah dikonfigurasi untuk development. Lihat **[docs/ENVIRONMENT.md]
 - **env.test** - Testing template
 - **env.example** - Template untuk custom configuration
 
+## 🔬 Digital Forensics Process
+
+<div align="center">
+  <img src="https://via.placeholder.com/900x300/be123c/ffffff?text=Evidence+Acquisition+%7C+Analysis+%7C+Correlation+%7C+Reporting" alt="Digital Forensics Process" width="900" height="300">
+</div>
+
+<div align="center">
+  <img src="https://via.placeholder.com/800x400/0f766e/ffffff?text=Hash+Analysis+%7C+Contact+Correlation+%7C+Timeline+Analysis" alt="Forensic Analytics" width="800" height="400">
+</div>
+
 ## 🧪 Testing
+
+<div align="center">
+  <img src="https://via.placeholder.com/600x150/7c2d12/ffffff?text=Automated+Testing+%7C+Manual+Testing+%7C+API+Testing" alt="Testing Framework" width="600" height="150">
+</div>
 
 ### **Automated Testing**
 ```bash
@@ -99,13 +151,35 @@ Python tools dan utilities tersedia di folder `tools/`:
 
 ## 🎯 Features
 
+<div align="center">
+  <img src="https://via.placeholder.com/600x300/059669/ffffff?text=Digital+Forensics+Workflow" alt="Digital Forensics Workflow" width="600" height="300">
+</div>
+
 - ✅ **Case Management** - Manajemen kasus forensik
-- ✅ **Evidence Management** - Manajemen bukti digital
+- ✅ **Evidence Management** - Manajemen bukti digital  
 - ✅ **Big Data Analytics** - Analisis data forensik
 - ✅ **Report Generation** - Generasi laporan
 - ✅ **Authentication** - Sistem autentikasi JWT
 - ✅ **API Documentation** - Dokumentasi API lengkap
 
+<div align="center">
+  <img src="https://via.placeholder.com/700x200/7c3aed/ffffff?text=Evidence+Collection+%7C+Analysis+%7C+Reporting" alt="Forensic Process" width="700" height="200">
+</div>
+
+## 🚀 Deployment & Monitoring
+
+<div align="center">
+  <img src="https://via.placeholder.com/800x300/059669/ffffff?text=Production+Deployment+%7C+Health+Monitoring+%7C+Log+Analysis" alt="Deployment & Monitoring" width="800" height="300">
+</div>
+
+<div align="center">
+  <img src="https://via.placeholder.com/700x200/7c3aed/ffffff?text=Forensic+Data+Pipeline+%7C+Real-time+Analytics+%7C+Automated+Reporting" alt="Data Pipeline" width="700" height="200">
+</div>
+
 ---
+
+<div align="center">
+  <img src="https://via.placeholder.com/600x100/1e40af/ffffff?text=🎉+Forenlytic+Backend+Digital+Forensics+Analytics+Platform+🎉" alt="Forenlytic Platform" width="600" height="100">
+</div>
 
 **🎉 Forenlytic Backend analisis forensik digital!**
