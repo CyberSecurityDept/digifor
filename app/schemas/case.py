@@ -1,6 +1,3 @@
-"""
-Case schemas for API serialization
-"""
 import uuid
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -128,3 +125,33 @@ class CaseSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaginationInfo(BaseModel):
+    """Schema for pagination information"""
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+
+class CaseListResponse(BaseModel):
+    """Schema for case list response with pagination"""
+    status: int
+    message: str
+    data: List[CaseSummary]
+    pagination: PaginationInfo
+
+
+class CaseResponse(BaseModel):
+    """Schema for single case response"""
+    status: int
+    message: str
+    data: Case
+
+
+class CaseCreateResponse(BaseModel):
+    """Schema for case creation response"""
+    status: int
+    message: str
+    data: Case

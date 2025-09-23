@@ -5,13 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import uuid
 
 from app.database import get_db
 from app.models.user import User
 from app.models.case import Case, CasePerson
 from app.schemas.case import (
     CaseCreate, CaseUpdate, Case as CaseSchema, 
-    CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema
+    CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema,
+    CaseListResponse, PaginationInfo, CaseResponse, CaseCreateResponse
 )
 from app.schemas.case_activity import (
     CaseActivity, CaseStatusHistory, CaseCloseRequest, 
@@ -23,7 +25,18 @@ from app.api.auth import get_current_active_user
 router = APIRouter()
 
 
-@router.post("/", response_model=CaseSchema)
+def parse_case_id(case_id: str) -> uuid.UUID:
+    """Parse and validate case ID as UUID"""
+    try:
+        return uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid case ID format"
+        )
+
+
+@router.post("/", response_model=CaseCreateResponse)
 def create_case(
     case: CaseCreate,
     request: Request,
@@ -76,10 +89,14 @@ def create_case(
         user_agent=user_agent
     )
     
-    return db_case
+    return CaseCreateResponse(
+        status=201,
+        message="Case created successfully",
+        data=db_case
+    )
 
 
-@router.get("/", response_model=List[CaseSummary])
+@router.get("/", response_model=CaseListResponse)
 def get_cases(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -107,38 +124,62 @@ def get_cases(
             (Case.description.contains(search))
         )
     
+    # Get total count for pagination
+    total = query.count()
+    
     # Apply pagination
     cases = query.offset(skip).limit(limit).all()
-    return cases
+    
+    # Calculate pagination info
+    page = (skip // limit) + 1
+    pages = (total + limit - 1) // limit  # Ceiling division
+    
+    return CaseListResponse(
+        status=200,
+        message="Cases retrieved successfully",
+        data=cases,
+        pagination=PaginationInfo(
+            total=total,
+            page=page,
+            per_page=limit,
+            pages=pages
+        )
+    )
 
 
-@router.get("/{case_id}", response_model=CaseSchema)
+@router.get("/{case_id}", response_model=CaseResponse)
 def get_case(
-    case_id: int,
+    case_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Get a specific case by ID"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
             detail="Case not found"
         )
     
-    return case
+    return CaseResponse(
+        status=200,
+        message="Case retrieved successfully",
+        data=case
+    )
 
 
-@router.put("/{case_id}", response_model=CaseSchema)
+@router.put("/{case_id}", response_model=CaseResponse)
 def update_case(
-    case_id: int,
+    case_id: str,
     case_update: CaseUpdate,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Update a case"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
@@ -181,17 +222,22 @@ def update_case(
             user_agent=user_agent
         )
     
-    return case
+    return CaseResponse(
+        status=200,
+        message="Case updated successfully",
+        data=case
+    )
 
 
 @router.delete("/{case_id}")
 def delete_case(
-    case_id: int,
+    case_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Delete a case (soft delete by changing status)"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
@@ -362,16 +408,17 @@ def get_case_stats(
     }
 
 
-@router.post("/{case_id}/close", response_model=CaseSchema)
+@router.post("/{case_id}/close", response_model=CaseResponse)
 def close_case(
-    case_id: int,
+    case_id: str,
     close_request: CaseCloseRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Close a case with reason and activity tracking"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
@@ -400,19 +447,24 @@ def close_case(
         user_agent=user_agent
     )
     
-    return updated_case
+    return CaseResponse(
+        status=200,
+        message="Case closed successfully",
+        data=updated_case
+    )
 
 
-@router.post("/{case_id}/reopen", response_model=CaseSchema)
+@router.post("/{case_id}/reopen", response_model=CaseResponse)
 def reopen_case(
-    case_id: int,
+    case_id: str,
     reopen_request: CaseReopenRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Reopen a case with reason and activity tracking"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
@@ -441,19 +493,24 @@ def reopen_case(
         user_agent=user_agent
     )
     
-    return updated_case
+    return CaseResponse(
+        status=200,
+        message="Case reopened successfully",
+        data=updated_case
+    )
 
 
-@router.post("/{case_id}/change-status", response_model=CaseSchema)
+@router.post("/{case_id}/change-status", response_model=CaseResponse)
 def change_case_status(
-    case_id: int,
+    case_id: str,
     status_request: CaseStatusChangeRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Change case status with reason and activity tracking"""
-    case = db.query(Case).filter(Case.id == case_id).first()
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=404,
@@ -490,7 +547,11 @@ def change_case_status(
         user_agent=user_agent
     )
     
-    return updated_case
+    return CaseResponse(
+        status=200,
+        message="Case status changed successfully",
+        data=updated_case
+    )
 
 
 @router.get("/{case_id}/activities", response_model=List[CaseActivity])
