@@ -1,8 +1,8 @@
 # Forenlytic Backend (digifor)
 
-Sistem backend untuk analisis forensik digital yang komprehensif.
+Forensik digital memainkan peran penting dalam penyelidikan di berbagai konteks seperti penegakan hukum, pemerintahan, keamanan korporasi, dan ranah hukum. Namun, para penyidik sering menghadapi tantangan seperti alur kerja yang terfragmentasi, risiko manipulasi barang bukti, keterbatasan analisis data, serta kesulitan dalam menghasilkan laporan yang terstandarisasi.
 
-Platform analisis forensik digital dengan kemampuan big data analytics, case management, dan report generation.
+Platform ini hadir untuk menjawab tantangan tersebut dengan menyediakan solusi yang komprehensif, aman, dan terintegrasi untuk mengelola kasus forensik digital, barang bukti, rantai penguasaan (chain of custody), analitik lanjutan, serta pelaporan.
 
 ## 📋 Requirements
 
@@ -385,7 +385,13 @@ Semua dokumentasi tersedia di folder `docs/`:
 
 ## 🏗️ System Architecture
 
-Arsitektur sistem Forenlytic Backend menggunakan FastAPI dengan SQLite database untuk analisis forensik digital.
+Forenlytic Backend dibangun dengan arsitektur modern yang mengutamakan keamanan, skalabilitas, dan integritas data. Sistem ini menggunakan FastAPI sebagai framework backend dengan SQLite database yang dirancang khusus untuk memenuhi standar forensik digital, termasuk:
+
+- **Chain of Custody Management** - Pelacakan lengkap perpindahan barang bukti
+- **Secure Evidence Storage** - Penyimpanan aman dengan enkripsi dan audit trail
+- **Advanced Analytics Engine** - Analisis data forensik dengan machine learning
+- **Standardized Reporting** - Generasi laporan yang memenuhi standar hukum
+- **Role-based Access Control** - Kontrol akses berbasis peran untuk keamanan
 
 ## 🔧 API Endpoints
 
@@ -424,14 +430,30 @@ Password: test123
 
 ## 🛡️ Security & Technology Stack
 
-**Teknologi yang digunakan:**
-- **Backend**: Python 3.11+, FastAPI 0.104.1, Uvicorn 0.24.0
-- **Database**: SQLite dengan SQLAlchemy 2.0.23
+### 🔧 **Core Technologies**
+- **Backend Framework**: Python 3.11+, FastAPI 0.104.1, Uvicorn 0.24.0
+- **Database**: SQLite dengan SQLAlchemy 2.0.23 (forensic-grade)
 - **Authentication**: JWT (JSON Web Tokens) dengan python-jose 3.3.0
-- **Security**: Data encryption, secure API endpoints
 - **HTTP Client**: httpx 0.25.2, requests 2.31.0
 - **Testing**: pytest 7.4.3, pytest-asyncio 0.21.1
 - **Logging**: loguru 0.7.2
+
+### 🔐 **Forensic Security Features**
+- **Data Encryption**: AES-256 encryption untuk data sensitif
+- **Chain of Custody**: Pelacakan lengkap dengan cryptographic signatures
+- **Audit Logging**: Log komprehensif semua aktivitas dan akses
+- **Role-based Access Control**: Kontrol akses granular berdasarkan peran
+- **Secure API**: Endpoint dengan validasi dan sanitasi input
+- **Hash Verification**: MD5, SHA-1, SHA-256 untuk integritas data
+- **Write Protection**: Perlindungan bukti dari modifikasi
+
+### 📊 **Forensic Analysis Tools**
+- **Hash Analysis**: Verifikasi integritas file dan data
+- **Metadata Extraction**: Ekstraksi metadata dari berbagai format file
+- **Timeline Analysis**: Analisis temporal kejadian
+- **Pattern Recognition**: Deteksi pola menggunakan machine learning
+- **Data Correlation**: Korelasi data dari berbagai sumber
+- **Export Capabilities**: Ekspor dalam format yang dapat diterima di pengadilan
 
 
 ## ⚙️ Environment Configuration
@@ -446,17 +468,41 @@ File `.env` sudah dikonfigurasi untuk development. Lihat **[docs/ENVIRONMENT.md]
 
 ## 🔬 Digital Forensics Process
 
-Platform ini mendukung proses forensik digital yang lengkap:
+Platform ini mendukung proses forensik digital yang lengkap sesuai standar internasional:
 
-1. **Evidence Acquisition** - Pengumpulan bukti digital
-2. **Analysis** - Analisis data forensik
-3. **Correlation** - Korelasi data dan kontak
-4. **Reporting** - Generasi laporan forensik
+### 📥 **1. Evidence Acquisition & Preservation**
+- **Digital Evidence Collection** - Pengumpulan bukti digital dengan metode forensik
+- **Chain of Custody** - Dokumentasi lengkap perpindahan barang bukti
+- **Hash Verification** - Verifikasi integritas menggunakan MD5, SHA-1, SHA-256
+- **Write Protection** - Perlindungan bukti dari modifikasi
+- **Metadata Preservation** - Pelestarian metadata asli
 
-**Fitur Analisis:**
-- Hash Analysis - Analisis hash file
-- Contact Correlation - Korelasi kontak dan komunikasi
-- Timeline Analysis - Analisis timeline kejadian
+### 🔍 **2. Analysis & Examination**
+- **File System Analysis** - Analisis sistem file dan struktur data
+- **Deleted File Recovery** - Pemulihan file yang terhapus
+- **Registry Analysis** - Analisis registry Windows
+- **Network Forensics** - Analisis traffic jaringan
+- **Mobile Device Forensics** - Analisis perangkat mobile
+- **Email & Communication Analysis** - Analisis komunikasi digital
+
+### 🔗 **3. Correlation & Intelligence**
+- **Timeline Reconstruction** - Rekonstruksi timeline kejadian
+- **Contact Correlation** - Korelasi kontak dan komunikasi
+- **Pattern Recognition** - Deteksi pola dan anomali
+- **Cross-Reference Analysis** - Analisis silang berbagai sumber data
+- **Geolocation Analysis** - Analisis lokasi geografis
+
+### 📋 **4. Reporting & Documentation**
+- **Forensic Reports** - Laporan forensik yang dapat diterima di pengadilan
+- **Expert Testimony Support** - Dukungan untuk kesaksian ahli
+- **Audit Trail** - Log lengkap semua aktivitas dan akses
+- **Legal Compliance** - Kepatuhan terhadap standar hukum
+- **Export & Archival** - Ekspor dan arsip data forensik
+
+**Standar Forensik yang Didukung:**
+- ISO/IEC 27037:2012 (Digital Evidence Guidelines)
+- NIST SP 800-86 (Computer Security Incident Handling Guide)
+- RFC 3227 (Evidence Collection and Archiving)
 
 ## 🧪 Testing
 
@@ -539,29 +585,80 @@ Python tools dan utilities tersedia di folder `tools/`:
 
 ## 🎯 Features
 
-- ✅ **Case Management** - Manajemen kasus forensik
-- ✅ **Evidence Management** - Manajemen bukti digital  
-- ✅ **Big Data Analytics** - Analisis data forensik
-- ✅ **Report Generation** - Generasi laporan
-- ✅ **Authentication** - Sistem autentikasi JWT
-- ✅ **API Documentation** - Dokumentasi API lengkap
+### 🔍 **Core Forensic Capabilities**
+- ✅ **Case Management** - Manajemen kasus forensik dengan tracking lengkap
+- ✅ **Evidence Management** - Manajemen bukti digital dengan chain of custody
+- ✅ **Chain of Custody** - Pelacakan perpindahan dan akses barang bukti
+- ✅ **Digital Evidence Analysis** - Analisis mendalam bukti digital
+- ✅ **Timeline Reconstruction** - Rekonstruksi timeline kejadian
+- ✅ **Hash Verification** - Verifikasi integritas file dan data
 
-**Workflow Forensik:**
-- Evidence Collection → Analysis → Reporting
+### 📊 **Analytics & Intelligence**
+- ✅ **Advanced Analytics** - Analisis data forensik dengan AI/ML
+- ✅ **Pattern Recognition** - Deteksi pola dan anomali
+- ✅ **Data Correlation** - Korelasi data dari berbagai sumber
+- ✅ **Contact Analysis** - Analisis komunikasi dan kontak
+- ✅ **Device Forensics** - Analisis perangkat digital
+
+### 📋 **Reporting & Compliance**
+- ✅ **Standardized Reports** - Laporan sesuai standar hukum
+- ✅ **Audit Trail** - Log lengkap semua aktivitas
+- ✅ **Legal Documentation** - Dokumentasi yang dapat diterima di pengadilan
+- ✅ **Export Capabilities** - Ekspor data dalam berbagai format
+
+### 🔐 **Security & Access Control**
+- ✅ **Role-based Authentication** - Sistem autentikasi berbasis peran
+- ✅ **Data Encryption** - Enkripsi data sensitif
+- ✅ **Secure API** - API dengan keamanan tingkat enterprise
+- ✅ **Access Logging** - Log akses dan aktivitas pengguna
+
+**Workflow Forensik Digital:**
+```
+Evidence Collection → Chain of Custody → Analysis → Correlation → Reporting → Legal Documentation
+```
 
 ## 🚀 Deployment & Monitoring
 
-**Production Deployment:**
-- Health monitoring
-- Log analysis
-- Real-time analytics
-- Automated reporting
+### 🏭 **Production Deployment**
+- **High Availability**: Deployment dengan redundancy dan failover
+- **Security Hardening**: Konfigurasi keamanan tingkat enterprise
+- **Performance Monitoring**: Monitoring performa real-time
+- **Backup & Recovery**: Backup otomatis dengan disaster recovery
+- **Compliance Monitoring**: Monitoring kepatuhan standar forensik
 
-**Data Pipeline:**
-- Forensic data processing
-- Real-time analytics
-- Automated report generation
+### 📊 **Forensic Data Pipeline**
+- **Evidence Processing**: Pipeline pemrosesan bukti digital
+- **Chain of Custody Tracking**: Pelacakan real-time chain of custody
+- **Automated Analysis**: Analisis otomatis dengan machine learning
+- **Report Generation**: Generasi laporan forensik otomatis
+- **Audit Trail**: Log komprehensif untuk audit dan compliance
+
+### 🔍 **Monitoring & Alerting**
+- **System Health**: Monitoring kesehatan sistem 24/7
+- **Security Alerts**: Alerting untuk aktivitas mencurigakan
+- **Performance Metrics**: Metrik performa dan throughput
+- **Compliance Checks**: Pengecekan kepatuhan standar forensik
+- **Data Integrity**: Monitoring integritas data dan chain of custody
 
 ---
 
-**🎉 Forenlytic Backend analisis forensik digital!**
+## 🎯 **Target Users**
+
+Platform ini dirancang untuk:
+- **Penegak Hukum** - Polisi, jaksa, dan investigator
+- **Ahli Forensik Digital** - Digital forensics examiner dan analyst
+- **Keamanan Korporasi** - CSIRT, security analyst, dan incident responder
+- **Konsultan Hukum** - Lawyer dan legal consultant
+- **Pemerintah** - Badan intelijen dan keamanan nasional
+- **Akademisi** - Peneliti dan dosen forensik digital
+
+## 📞 **Support & Community**
+
+- **Documentation**: [docs/](docs/) - Dokumentasi lengkap
+- **API Reference**: [docs/api-forensix-analytics.md](docs/api-forensix-analytics.md)
+- **Issues**: GitHub Issues untuk bug reports dan feature requests
+- **Contributing**: Lihat [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan kontribusi
+
+---
+
+**🔍 Forenlytic Backend - Solusi Komprehensif untuk Forensik Digital**
