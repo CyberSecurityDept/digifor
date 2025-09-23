@@ -642,23 +642,4 @@ Evidence Collection → Chain of Custody → Analysis → Correlation → Report
 
 ---
 
-## 🎯 **Target Users**
-
-Platform ini dirancang untuk:
-- **Penegak Hukum** - Polisi, jaksa, dan investigator
-- **Ahli Forensik Digital** - Digital forensics examiner dan analyst
-- **Keamanan Korporasi** - CSIRT, security analyst, dan incident responder
-- **Konsultan Hukum** - Lawyer dan legal consultant
-- **Pemerintah** - Badan intelijen dan keamanan nasional
-- **Akademisi** - Peneliti dan dosen forensik digital
-
-## 📞 **Support & Community**
-
-- **Documentation**: [docs/](docs/) - Dokumentasi lengkap
-- **API Reference**: [docs/api-forensix-analytics.md](docs/api-forensix-analytics.md)
-- **Issues**: GitHub Issues untuk bug reports dan feature requests
-- **Contributing**: Lihat [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan kontribusi
-
----
-
 **🔍 Forenlytic Backend - Solusi Komprehensif untuk Forensik Digital**
