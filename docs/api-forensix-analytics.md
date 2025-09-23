@@ -27,22 +27,22 @@ Content-Type: application/json
 
 **Response (200 OK):**
 ```json
-    {
-        "status": 200,
-        "message": "Login Successfully",
+{
+    "status": 200,
+    "message": "Login Successfully",
     "data": {
-            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1ODI2NjE2Nn0.sO6Rwm1Xh8oEKz7cvbMDrGvrgzAO4Il13cZKlX2VZt8",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1ODI2NjE2Nn0.sO6Rwm1Xh8oEKz7cvbMDrGvrgzAO4Il13cZKlX2VZt8",
         "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInRvbGUiOiJhZG1pbiIsInR5cGUiOiJyZWZyZXNoIiwiZXhwIjoxNzU5MTMwMDA4fQ.refresh_token_signature",
         "token_type": "bearer",
         "expires_in": 1800
-        }
     }
+}
 ```
 
 **Response (401 Unauthorized):**
 ```json
-    {
-        "status": "401",
+{
+    "status": "401",
     "messages": "Invalid username or password"
 }
 ```
@@ -113,7 +113,7 @@ Content-Type: application/json
     "status": 201,
     "message": "User registered successfully",
     "data": {
-        "id": 3,
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c8",
         "username": "newuser",
         "email": "newuser@example.com",
         "full_name": "New User",
@@ -306,7 +306,7 @@ Authorization: Bearer <access_token>
     "status": 200,
     "message": "Session information retrieved successfully",
     "data": {
-        "user_id": 2,
+        "user_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "username": "testuser",
         "role": "investigator",
         "login_time": "2025-09-22T06:41:18.698214",
@@ -349,7 +349,7 @@ Authorization: Bearer <access_token>
 ```json
 {
     "status": 200,
-    "message": "Logged out from 3 sessions"
+    "message": "Logged out from 3 sessions and 2 refresh tokens"
 }
 ```
 
@@ -362,8 +362,9 @@ Authorization: Bearer <access_token>
 ```json
 {
     "status": 200,
-    "message": "Cleaned up 5 expired sessions",
-    "active_sessions": 12
+    "message": "Cleaned up 5 expired sessions and 3 expired refresh tokens",
+    "active_sessions": 12,
+    "active_refresh_tokens": 8
 }
 ```
 
@@ -381,9 +382,11 @@ Authorization: Bearer <access_token>
 
 **Query Parameters:**
 - `skip` (optional): Number of records to skip (default: 0)
-- `limit` (optional): Maximum number of records to return (default: 100)
-- `status` (optional): Filter by case status (open, in_progress, closed, archived)
+- `limit` (optional): Maximum number of records to return (default: 100, max: 1000)
+- `status` (optional): Filter by case status (open, in_progress, closed, reopened, archived)
 - `priority` (optional): Filter by priority (low, medium, high, critical)
+- `case_type` (optional): Filter by case type (criminal, civil, administrative)
+- `search` (optional): Search in title, case_number, or description
 
 **Response (200 OK):**
 ```json
@@ -405,12 +408,15 @@ Authorization: Bearer <access_token>
             "case_officer": "Detective Smith",
             "evidence_count": 5,
             "analysis_progress": 75,
-            "created_by": 1,
-            "assigned_to": 2,
+            "created_by": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+            "assigned_to": "135df21b-c0ab-4bcc-b438-95874333f1c7",
             "created_at": "2025-09-20T12:00:00",
             "updated_at": "2025-09-22T08:00:00",
             "closed_at": null,
-            "tags": ["cybercrime", "malware"],
+            "tags": {
+                "category": "cybercrime",
+                "type": "malware"
+            },
             "notes": "High priority case",
             "is_confidential": true
         }
@@ -442,12 +448,16 @@ Content-Type: application/json
     "title": "New Digital Investigation",
     "description": "Description of the case",
     "case_type": "criminal",
+    "status": "open",
     "priority": "medium",
     "incident_date": "2025-09-22T10:00:00",
     "reported_date": "2025-09-22T11:00:00",
     "jurisdiction": "Surabaya",
     "case_officer": "Detective Johnson",
-    "tags": ["fraud", "digital"],
+    "tags": {
+        "category": "fraud",
+        "type": "digital"
+    },
     "notes": "Initial case notes",
     "is_confidential": false
 }
@@ -459,7 +469,7 @@ Content-Type: application/json
     "status": 201,
     "message": "Case created successfully",
     "data": {
-        "id": 2,
+        "id": "135df21b-c0ab-4bcc-b438-95874333f1c8",
         "case_number": "CASE-002",
         "title": "New Digital Investigation",
         "description": "Description of the case",
@@ -472,12 +482,15 @@ Content-Type: application/json
         "case_officer": "Detective Johnson",
         "evidence_count": 0,
         "analysis_progress": 0,
-        "created_by": 1,
+        "created_by": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "assigned_to": null,
         "created_at": "2025-09-22T12:00:00",
         "updated_at": "2025-09-22T12:00:00",
         "closed_at": null,
-        "tags": ["fraud", "digital"],
+        "tags": {
+            "category": "fraud",
+            "type": "digital"
+        },
         "notes": "Initial case notes",
         "is_confidential": false
     }
@@ -495,7 +508,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus yang akan diambil
+- `case_id`: UUID kasus yang akan diambil (format: UUID string)
 
 **Response (200 OK):**
 ```json
@@ -516,12 +529,15 @@ Authorization: Bearer <access_token>
         "case_officer": "Detective Smith",
         "evidence_count": 5,
         "analysis_progress": 75,
-        "created_by": 1,
-        "assigned_to": 2,
+        "created_by": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "assigned_to": "135df21b-c0ab-4bcc-b438-95874333f1c7",
         "created_at": "2025-09-20T12:00:00",
         "updated_at": "2025-09-22T08:00:00",
         "closed_at": null,
-        "tags": ["cybercrime", "malware"],
+        "tags": {
+            "category": "cybercrime",
+            "type": "malware"
+        },
         "notes": "High priority case",
         "is_confidential": true
     }
@@ -548,7 +564,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus yang akan diupdate
+- `case_id`: UUID kasus yang akan diupdate (format: UUID string)
 
 **Request Body:**
 ```json
@@ -561,8 +577,11 @@ Content-Type: application/json
     "reported_date": "2025-09-22T11:00:00",
     "jurisdiction": "Bandung",
     "case_officer": "Detective Brown",
-    "assigned_to": "user-uuid-here",
-    "tags": ["updated", "digital"],
+    "assigned_to": "135df21b-c0ab-4bcc-b438-95874333f1c7",
+    "tags": {
+        "category": "updated",
+        "type": "digital"
+    },
     "notes": "Updated case notes",
     "is_confidential": true
 }
@@ -587,15 +606,18 @@ Content-Type: application/json
         "case_officer": "Detective Brown",
         "evidence_count": 5,
         "analysis_progress": 75,
-        "created_by": "user-uuid-here",
-        "assigned_to": "user-uuid-here",
+        "created_by": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "assigned_to": "135df21b-c0ab-4bcc-b438-95874333f1c7",
         "created_at": "2025-09-20T12:00:00",
         "updated_at": "2025-09-22T14:00:00",
         "closed_at": null,
         "reopened_count": 0,
         "last_status_change": null,
         "status_change_reason": null,
-        "tags": ["updated", "digital"],
+        "tags": {
+            "category": "updated",
+            "type": "digital"
+        },
         "notes": "Updated case notes",
         "is_confidential": true
     }
@@ -614,7 +636,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus yang akan ditutup
+- `case_id`: UUID kasus yang akan ditutup (format: UUID string)
 
 **Request Body:**
 ```json
@@ -663,7 +685,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus yang akan dibuka kembali
+- `case_id`: UUID kasus yang akan dibuka kembali (format: UUID string)
 
 **Request Body:**
 ```json
@@ -712,7 +734,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus yang statusnya akan diubah
+- `case_id`: UUID kasus yang statusnya akan diubah (format: UUID string)
 
 **Request Body:**
 ```json
@@ -758,7 +780,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Query Parameters:**
 - `limit` (optional): Maximum number of records to return (default: 50, max: 100)
@@ -773,7 +795,7 @@ Authorization: Bearer <access_token>
         {
             "id": "activity-uuid-1",
             "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-            "user_id": "user-uuid-here",
+            "user_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
             "activity_type": "created",
             "description": "Case 'CASE-001' created",
             "old_value": null,
@@ -793,7 +815,7 @@ Authorization: Bearer <access_token>
         {
             "id": "activity-uuid-2",
             "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-            "user_id": "user-uuid-here",
+            "user_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
             "activity_type": "status_change",
             "description": "Case 'CASE-001' status changed from 'open' to 'closed' - Reason: Investigation completed",
             "old_value": {"status": "open"},
@@ -821,7 +843,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Query Parameters:**
 - `limit` (optional): Maximum number of records to return (default: 10, max: 50)
@@ -863,7 +885,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Query Parameters:**
 - `limit` (optional): Maximum number of records to return (default: 50, max: 100)
@@ -878,7 +900,7 @@ Authorization: Bearer <access_token>
         {
             "id": "history-uuid-1",
             "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-            "user_id": "user-uuid-here",
+            "user_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
             "previous_status": "open",
             "new_status": "closed",
             "reason": "Investigation completed successfully",
@@ -889,7 +911,7 @@ Authorization: Bearer <access_token>
         {
             "id": "history-uuid-2",
             "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-            "user_id": "user-uuid-here",
+            "user_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
             "previous_status": "closed",
             "new_status": "reopened",
             "reason": "New evidence found",
@@ -913,7 +935,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Request Body:**
 ```json
@@ -990,7 +1012,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Response (200 OK):**
 ```json
@@ -1039,7 +1061,7 @@ Content-Type: application/json
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 - `person_id`: ID orang yang akan diupdate
 
 **Request Body:**
@@ -1096,7 +1118,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 - `person_id`: ID orang yang akan dihapus
 
 **Response (200 OK):**
@@ -1118,7 +1140,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `case_id`: ID kasus
+- `case_id`: UUID kasus (format: UUID string)
 
 **Response (200 OK):**
 ```json
@@ -1139,9 +1161,38 @@ Authorization: Bearer <access_token>
 }
 ```
 
+### 27. Delete Case
+**Endpoint:** `DELETE /api/v1/cases/{case_id}`
+
+**Description:** Menghapus kasus forensik (soft delete/archive).
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus yang akan dihapus (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case deleted successfully"
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "status": 404,
+    "message": "Case not found"
+}
+```
+
 ## Report Generation
 
-### 27. Generate Case Report
+### 28. Generate Case Report
 **Endpoint:** `POST /api/v1/reports/generate`
 
 **Description:** Membuat laporan forensik untuk kasus tertentu.
@@ -1155,7 +1206,7 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-    "case_id": 1,
+    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
     "report_type": "summary",
     "include_evidence": true,
     "include_analysis": true,
@@ -1170,7 +1221,7 @@ Content-Type: application/json
     "message": "Report generated successfully",
     "data": {
         "report_id": "RPT-001",
-        "case_id": 1,
+        "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "report_type": "summary",
         "file_path": "/data/reports/case_1_summary_RPT-001.json",
         "generated_at": "2025-09-22T12:00:00",
@@ -1180,7 +1231,7 @@ Content-Type: application/json
 }
 ```
 
-### 16. Download Report
+### 29. Download Report
 **Endpoint:** `GET /api/v1/reports/download/{report_id}`
 
 **Description:** Mengunduh file laporan yang sudah dibuat.
@@ -1208,7 +1259,7 @@ File download (application/octet-stream)
 
 ## System Endpoints
 
-### 17. Health Check
+### 30. Health Check
 **Endpoint:** `GET /health`
 
 **Description:** Memeriksa status kesehatan sistem.
@@ -1222,7 +1273,7 @@ File download (application/octet-stream)
 }
 ```
 
-### 18. Root Endpoint
+### 31. Root Endpoint
 **Endpoint:** `GET /`
 
 **Description:** Informasi dasar API.
