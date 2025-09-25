@@ -1,4 +1,4 @@
-# Forenlytic Backend (digifor)
+# Backend (digifor)
 
 Forensik digital memainkan peran penting dalam penyelidikan di berbagai konteks seperti penegakan hukum, pemerintahan, keamanan korporasi, dan ranah hukum. Namun, para penyidik sering menghadapi tantangan seperti alur kerja yang terfragmentasi, risiko manipulasi barang bukti, keterbatasan analisis data, serta kesulitan dalam menghasilkan laporan yang terstandarisasi.
 
