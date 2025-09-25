@@ -1,11 +1,7 @@
-"""
-User model for authentication and authorization
-"""
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -28,10 +24,10 @@ class User(Base):
     last_login = Column(DateTime(timezone=True))
     
     # Relationships
-    created_cases = relationship("Case", foreign_keys="Case.created_by", back_populates="creator")
-    assigned_cases = relationship("Case", foreign_keys="Case.assigned_to", back_populates="assignee")
-    case_activities = relationship("CaseActivity", back_populates="user")
-    case_status_history = relationship("CaseStatusHistory", back_populates="user")
+    # created_cases = relationship("Case", foreign_keys="Case.created_by", back_populates="creator")
+    # assigned_cases = relationship("Case", foreign_keys="Case.assigned_to", back_populates="assignee")
+    # case_activities = relationship("CaseActivity", back_populates="user")
+    # case_status_history = relationship("CaseStatusHistory", back_populates="user")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"

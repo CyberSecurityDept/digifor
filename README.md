@@ -12,6 +12,8 @@ Platform ini hadir untuk menjawab tantangan tersebut dengan menyediakan solusi y
 - Uvicorn 0.24.0
 - SQLAlchemy 2.0.23
 - Pydantic 2.5.0
+- PostgreSQL (psycopg2-binary 2.9.9)
+- Analytics (pandas 2.1.4, numpy 1.24.3, python-magic 0.4.27)
 
 Lihat [requirements.txt](requirements.txt) untuk daftar lengkap dependencies.
 
@@ -37,7 +39,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip -y
 
 # Install system dependencies
-sudo apt install build-essential libssl-dev libffi-dev -y
+sudo apt install build-essential libssl-dev libffi-dev libmagic1-dev -y
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -52,8 +54,8 @@ cp .env.example .env
 # Edit .env file if needed
 nano .env
 
-# Initialize database
-python tools/init_db.py
+# Initialize database (PostgreSQL)
+python tools/setup_postgres.py
 
 # Run application
 python tools/run_dev.py
@@ -65,8 +67,8 @@ python tools/run_dev.py
 # Install Homebrew (if not installed)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Install Python 3.11+
-brew install python@3.11
+# Install Python 3.11+ and system dependencies
+brew install python@3.11 libmagic
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -81,8 +83,8 @@ cp .env.example .env
 # Edit .env file if needed
 nano .env
 
-# Initialize database
-python tools/init_db.py
+# Initialize database (PostgreSQL)
+python tools/setup_postgres.py
 
 # Run application
 python tools/run_dev.py
@@ -140,37 +142,70 @@ python tools/run_dev.py
 ### 🚀 Quick Start (All Platforms)
 
 ```bash
-# Cara termudah - auto setup dan run
-./run.sh
+# Cara termudah - auto setup dan run (FULL SETUP)
+./scripts/run.sh
 
-# Atau manual step by step
+# Development mode (quick start)
+./scripts/run_dev.sh
+
+# Production mode (with full validation)
+./scripts/run_prod.sh
+
+# Manual step by step
 ./scripts/setup.sh
 ./scripts/start.sh
-
-# Atau script lengkap
-./scripts/start_backend.sh
 ```
 
 ### 🔧 Environment Configuration
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# Install system dependencies (required for analytics)
+./scripts/install_system_deps.sh
 
-# Edit configuration (optional)
+# Copy environment template
+cp env.example .env
+
+# Edit configuration dengan credentials PostgreSQL Anda
 nano .env  # Linux/macOS
 notepad .env  # Windows
+
+# Test konfigurasi environment variables
+python tools/check_env.py
+```
+
+### 📦 System Dependencies
+
+**Required for Analytics:**
+- **libmagic** - File type detection (required for python-magic)
+- **PostgreSQL** - Database server (required for data storage)
+
+**Installation:**
+```bash
+# Linux (Ubuntu/Debian)
+sudo apt install libmagic1-dev postgresql postgresql-contrib
+
+# macOS
+brew install libmagic postgresql
+
+# Windows
+# Download PostgreSQL from postgresql.org
+# Install libmagic via conda: conda install libmagic
 ```
 
 **Environment Variables:**
 ```env
-# Database
-DATABASE_URL=sqlite:///./data/forenlytic.db
+# Database (PostgreSQL)
+DATABASE_URL=postgresql://forenlytic:password@localhost:5432/forenlytic_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=forenlytic
+POSTGRES_PASSWORD=password
+POSTGRES_DB=forenlytic_db
 
 # Security
 SECRET_KEY=your-secret-key-here
+ENCRYPTION_KEY=your-encryption-key-here
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # API
 API_V1_STR=/api/v1
@@ -225,12 +260,32 @@ pip install --no-cache-dir package-name
 
 **4. Database Issues**
 ```bash
-# Remove existing database and recreate
-rm -f data/forenlytic.db
-python tools/init_db.py
+# Check environment variables
+python tools/check_env.py
 
-# Check database file permissions
-ls -la data/
+# For PostgreSQL setup
+python tools/setup_postgres.py
+
+# Check database connection
+python -c "from app.database import engine; print('Database OK')"
+
+# Test PostgreSQL connection
+python -c "import psycopg2; conn = psycopg2.connect(host='localhost', port=5432, user='forenlytic', password='password', database='forenlytic_db'); print('PostgreSQL OK')"
+```
+
+**5. Environment Variables Issues**
+```bash
+# Check if .env file exists
+ls -la .env
+
+# Copy template if missing
+cp env.example .env
+
+# Test environment variables
+python tools/check_env.py
+
+# Check specific variable
+python -c "from app.config import settings; print(settings.database_url)"
 ```
 
 **5. Port Already in Use**
@@ -339,27 +394,12 @@ LOG_LEVEL=DEBUG
 RELOAD=True
 
 # Database (development)
-DATABASE_URL=sqlite:///./data/forenlytic_dev.db
+DATABASE_URL=postgresql://forenlytic:password@localhost:5432/forenlytic_dev
 
 # Security (development - use different keys in production)
 SECRET_KEY=dev-secret-key-change-in-production
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=30
-```
-
-### 🔧 Advanced Configuration
-
-**Custom Database Setup:**
-```bash
-# PostgreSQL (production)
-pip install psycopg2-binary
-# Update DATABASE_URL in .env:
-# DATABASE_URL=postgresql://user:password@localhost/forenlytic
-
-# MySQL (production)
-pip install PyMySQL
-# Update DATABASE_URL in .env:
-# DATABASE_URL=mysql+pymysql://user:password@localhost/forenlytic
 ```
 
 **Production Deployment:**
@@ -379,6 +419,7 @@ python tools/run.py
 Semua dokumentasi tersedia di folder `docs/`:
 
 - **[Quick Start Guide](docs/QUICK_START.md)** - Panduan cepat untuk memulai
+- **[Complete Environment Guide](docs/COMPLETE_ENVIRONMENT_GUIDE.md)** - Panduan lengkap konfigurasi environment
 - **[Usage Guide](docs/USAGE.md)** - Panduan penggunaan lengkap
 - **[Implementation Details](docs/IMPLEMENTATION.md)** - Detail implementasi
 - **[Final Summary](docs/FINAL_SUMMARY.md)** - Ringkasan lengkap fitur
@@ -432,8 +473,9 @@ Password: test123
 
 ### 🔧 **Core Technologies**
 - **Backend Framework**: Python 3.11+, FastAPI 0.104.1, Uvicorn 0.24.0
-- **Database**: SQLite dengan SQLAlchemy 2.0.23 (forensic-grade)
+- **Database**: PostgreSQL dengan SQLAlchemy 2.0.23 (forensic-grade)
 - **Authentication**: JWT (JSON Web Tokens) dengan python-jose 3.3.0
+- **Analytics**: pandas 2.1.4, numpy 1.24.3, python-magic 0.4.27
 - **HTTP Client**: httpx 0.25.2, requests 2.31.0
 - **Testing**: pytest 7.4.3, pytest-asyncio 0.21.1
 - **Logging**: loguru 0.7.2
@@ -448,17 +490,18 @@ Password: test123
 - **Write Protection**: Perlindungan bukti dari modifikasi
 
 ### 📊 **Forensic Analysis Tools**
-- **Hash Analysis**: Verifikasi integritas file dan data
-- **Metadata Extraction**: Ekstraksi metadata dari berbagai format file
-- **Timeline Analysis**: Analisis temporal kejadian
-- **Pattern Recognition**: Deteksi pola menggunakan machine learning
-- **Data Correlation**: Korelasi data dari berbagai sumber
+- **Hash Analysis**: Verifikasi integritas file dan data (MD5, SHA-1, SHA-256, SHA-512)
+- **Metadata Extraction**: Ekstraksi metadata dari berbagai format file dengan python-magic
+- **Timeline Analysis**: Analisis temporal kejadian dengan pandas
+- **Pattern Recognition**: Deteksi pola menggunakan machine learning dan numpy
+- **Data Correlation**: Korelasi data dari berbagai sumber dengan advanced analytics
+- **Contact Analysis**: Analisis kontak dan komunikasi dengan correlation engine
 - **Export Capabilities**: Ekspor dalam format yang dapat diterima di pengadilan
 
 
 ## ⚙️ Environment Configuration
 
-File `.env` sudah dikonfigurasi untuk development. Lihat **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)** untuk detail konfigurasi.
+File `.env` sudah dikonfigurasi untuk development. Lihat **[docs/COMPLETE_ENVIRONMENT_GUIDE.md](docs/COMPLETE_ENVIRONMENT_GUIDE.md)** untuk detail konfigurasi lengkap.
 
 ### **Environment Files**
 - **.env** - Development (default)
@@ -562,8 +605,13 @@ python tests/test_reports.py
 
 ## 📜 Scripts
 
-### **Quick Run**
-- **[run.sh](run.sh)** - Script termudah (auto setup + run)
+### **Quick Run Scripts**
+- **[scripts/run.sh](scripts/run.sh)** - Full setup script (auto setup + run)
+- **[scripts/run_dev.sh](scripts/run_dev.sh)** - Development mode (quick start)
+- **[scripts/run_prod.sh](scripts/run_prod.sh)** - Production mode (full validation)
+
+### **System Dependencies**
+- **[scripts/install_system_deps.sh](scripts/install_system_deps.sh)** - Install system dependencies (libmagic)
 
 ### **Manual Scripts**
 Semua script shell tersedia di folder `scripts/`:
@@ -578,7 +626,8 @@ Semua script shell tersedia di folder `scripts/`:
 Python tools dan utilities tersedia di folder `tools/`:
 
 - **[tools/README.md](tools/README.md)** - Dokumentasi tools
-- **[tools/init_db.py](tools/init_db.py)** - Initialize database
+- **[tools/setup_postgres.py](tools/setup_postgres.py)** - PostgreSQL setup script
+- **[tools/check_env.py](tools/check_env.py)** - Environment variables checker
 - **[tools/create_admin.py](tools/create_admin.py)** - Create admin user
 - **[tools/run.py](tools/run.py)** - Production runner
 - **[tools/run_dev.py](tools/run_dev.py)** - Development runner
@@ -642,4 +691,4 @@ Evidence Collection → Chain of Custody → Analysis → Correlation → Report
 
 ---
 
-**🔍 Forenlytic Backend - Solusi Komprehensif untuk Forensik Digital**
+**🔍 Forenlytic Backend - Forensik Digital**

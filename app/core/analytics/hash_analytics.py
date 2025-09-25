@@ -1,10 +1,7 @@
-"""
-Hash File Analytics Engine
-"""
 import hashlib
 import os
 import json
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 import magic
 

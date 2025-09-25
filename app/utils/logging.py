@@ -1,6 +1,3 @@
-"""
-Centralized logging configuration for Forenlytic Backend
-"""
 import logging
 import sys
 from datetime import datetime

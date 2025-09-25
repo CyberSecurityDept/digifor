@@ -2,10 +2,9 @@ import secrets
 import hashlib
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status
 from app.config import settings
 
 # Password hashing

@@ -1,6 +1,3 @@
-"""
-Case Activity schemas for API serialization
-"""
 import uuid
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List

@@ -15,7 +15,7 @@ echo "🔧 Activating virtual environment..."
 source venv/bin/activate
 
 # Check if database exists
-if [ ! -f "data/forenlytic.db" ]; then
+if [ ! -f "data/digifor.db" ]; then
     echo "🗄️ Database not found. Initializing..."
     python tools/init_db.py
 fi

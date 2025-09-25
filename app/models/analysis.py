@@ -1,11 +1,7 @@
-"""
-Analysis model for forensic analysis results
-"""
 import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -50,9 +46,9 @@ class Analysis(Base):
     is_automated = Column(Boolean, default=True)
     
     # Relationships
-    case = relationship("Case", back_populates="analyses")
-    evidence_item = relationship("EvidenceItem", back_populates="analyses")
-    creator = relationship("User")
+    # case = relationship("Case", back_populates="analyses")
+    # evidence_item = relationship("EvidenceItem", back_populates="analyses")
+    # creator = relationship("User")
     
     def __repr__(self):
         return f"<Analysis(id={self.id}, type='{self.analysis_type}', status='{self.status}')>"
@@ -82,8 +78,8 @@ class AnalysisResult(Base):
     verified_at = Column(DateTime(timezone=True))
     
     # Relationships
-    analysis = relationship("Analysis")
-    verifier = relationship("User")
+    # analysis = relationship("Analysis")
+    # verifier = relationship("User")
     
     def __repr__(self):
         return f"<AnalysisResult(id={self.id}, type='{self.result_type}', confidence={self.confidence})>"
@@ -117,8 +113,8 @@ class Correlation(Base):
     is_verified = Column(Boolean, default=False)
     
     # Relationships
-    case = relationship("Case")
-    creator = relationship("User")
+    # case = relationship("Case")
+    # creator = relationship("User")
     
     def __repr__(self):
         return f"<Correlation(id={self.id}, type='{self.correlation_type}', score={self.match_score})>"

@@ -124,7 +124,7 @@ curl http://localhost:8000/health
 ### **Database Errors**
 ```bash
 # Recreate database
-rm data/forenlytic.db
+rm data/digifor.db
 python init_db.py
 python create_admin.py
 ```

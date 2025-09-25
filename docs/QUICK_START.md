@@ -102,7 +102,7 @@ lsof -ti:8000 | xargs kill
 ### **Database error**
 ```bash
 # Recreate database
-rm data/forenlytic.db
+rm data/your_database.db
 python init_db.py
 python create_admin.py
 ```
@@ -143,7 +143,7 @@ backend/
 4. **Generate reports** untuk testing
 5. **Integrate dengan frontend** (jika ada)
 
-## 📞 Support
+## Support
 
 Jika ada masalah:
 1. Check logs di `logs/forenlytic.log`

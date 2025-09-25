@@ -1,6 +1,3 @@
-"""
-Database configuration and session management
-"""
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -10,7 +7,9 @@ from app.config import settings
 engine = create_engine(
     settings.database_url,
     echo=settings.database_echo,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {}
+    pool_pre_ping=True,  # Verify connections before use
+    pool_recycle=300,    # Recycle connections every 5 minutes
+    connect_args={"options": "-c timezone=utc"} if "postgresql" in settings.database_url else {}
 )
 
 # Create SessionLocal class

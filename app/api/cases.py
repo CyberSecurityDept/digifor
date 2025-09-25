@@ -1,6 +1,3 @@
-"""
-Case Management API endpoints
-"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -13,7 +10,8 @@ from app.models.case import Case, CasePerson
 from app.schemas.case import (
     CaseCreate, CaseUpdate, Case as CaseSchema, 
     CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema,
-    CaseListResponse, PaginationInfo, CaseResponse, CaseCreateResponse
+    CaseListResponse, PaginationInfo, CaseResponse, CaseCreateResponse,
+    CaseCreateForm, CaseResponse as CaseResponseSchema
 )
 from app.schemas.case_activity import (
     CaseActivity, CaseStatusHistory, CaseCloseRequest, 
@@ -36,16 +34,48 @@ def parse_case_id(case_id: str) -> uuid.UUID:
         )
 
 
-@router.post("/", response_model=CaseCreateResponse)
+@router.post("/create-cases/", response_model=CaseCreateResponse)
 def create_case(
-    case: CaseCreate,
+    case_form: CaseCreateForm,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Create a new forensic case"""
+    """Create a new forensic case using form-based approach with auto-generated case ID option"""
+    
+    from datetime import datetime
+    
+    # Generate case number if auto-generated is enabled
+    if case_form.use_auto_generated_id:
+        # Generate case number with format: CASE-YYYY-NNNN
+        current_year = datetime.now().year
+        # Get the last case number for this year
+        last_case = db.query(Case).filter(
+            Case.case_number.like(f"CASE-{current_year}-%")
+        ).order_by(Case.created_at.desc()).first()
+        
+        if last_case:
+            # Extract number from last case and increment
+            try:
+                last_number = int(last_case.case_number.split('-')[-1])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+        
+        case_number = f"CASE-{current_year}-{new_number:04d}"
+    else:
+        # Use manual case number
+        if not case_form.case_number:
+            raise HTTPException(
+                status_code=400,
+                detail="Case number is required when auto-generated ID is disabled"
+            )
+        case_number = case_form.case_number
+    
     # Check if case number already exists
-    existing_case = db.query(Case).filter(Case.case_number == case.case_number).first()
+    existing_case = db.query(Case).filter(Case.case_number == case_number).first()
     if existing_case:
         raise HTTPException(
             status_code=400,
@@ -54,19 +84,20 @@ def create_case(
     
     # Create new case
     db_case = Case(
-        case_number=case.case_number,
-        title=case.title,
-        description=case.description,
-        case_type=case.case_type,
-        status=case.status,
-        priority=case.priority,
-        incident_date=case.incident_date,
-        reported_date=case.reported_date,
-        jurisdiction=case.jurisdiction,
-        case_officer=case.case_officer,
-        tags=case.tags,
-        notes=case.notes,
-        is_confidential=case.is_confidential,
+        case_number=case_number,
+        title=case_form.title,
+        description=case_form.description,
+        case_type=case_form.case_type,
+        status=case_form.status,
+        priority=case_form.priority,
+        incident_date=None,  # Not in UI form
+        reported_date=None,   # Not in UI form
+        jurisdiction=case_form.jurisdiction,
+        case_officer=case_form.case_officer,
+        work_unit=case_form.work_unit,
+        tags=None,           # Not in UI form
+        notes=None,          # Not in UI form
+        is_confidential=case_form.is_confidential,
         created_by=current_user.id
     )
     
@@ -96,7 +127,7 @@ def create_case(
     )
 
 
-@router.get("/", response_model=CaseListResponse)
+@router.get("/get-all-cases/", response_model=CaseListResponse)
 def get_cases(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -147,9 +178,216 @@ def get_cases(
     )
 
 
-@router.get("/{case_id}", response_model=CaseResponse)
+@router.get("/search")
+def search_cases(
+    q: str = Query(..., description="Search query"),
+    status: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    case_type: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Search cases with advanced filtering for dashboard"""
+    query = db.query(Case)
+    
+    # Apply search filter
+    if q:
+        query = query.filter(
+            (Case.title.contains(q)) |
+            (Case.case_number.contains(q)) |
+            (Case.description.contains(q)) |
+            (Case.case_officer.contains(q)) |
+            (Case.jurisdiction.contains(q))
+        )
+    
+    # Apply additional filters
+    if status:
+        query = query.filter(Case.status == status)
+    if priority:
+        query = query.filter(Case.priority == priority)
+    if case_type:
+        query = query.filter(Case.case_type == case_type)
+    
+    # Get total count
+    total = query.count()
+    
+    # Apply pagination and ordering
+    cases = query.order_by(Case.created_at.desc()).offset(skip).limit(limit).all()
+    
+    # Format cases for dashboard display
+    case_list = []
+    for case in cases:
+        # Get investigator name
+        investigator_name = case.case_officer or "Unassigned"
+        if case.assigned_to:
+            assigned_user = db.query(User).filter(User.id == case.assigned_to).first()
+            if assigned_user:
+                investigator_name = assigned_user.full_name or assigned_user.username
+        
+        # Format date for display
+        created_date = case.created_at.strftime("%m/%d/%y") if case.created_at else "N/A"
+        
+        case_list.append({
+            "id": str(case.id),
+            "case_name": case.title,
+            "case_number": case.case_number,
+            "investigator": investigator_name,
+            "agency": case.jurisdiction or "N/A",
+            "date_created": created_date,
+            "status": case.status.title(),
+            "priority": case.priority,
+            "case_type": case.case_type,
+            "evidence_count": case.evidence_count,
+            "analysis_progress": case.analysis_progress,
+            "created_at": case.created_at.isoformat() if case.created_at else None,
+            "updated_at": case.updated_at.isoformat() if case.updated_at else None
+        })
+    
+    # Calculate pagination info
+    page = (skip // limit) + 1
+    pages = (total + limit - 1) // limit
+    
+    return {
+        "status": 200,
+        "message": "Case search completed successfully",
+        "data": {
+            "cases": case_list,
+            "total": total,
+            "pagination": {
+                "page": page,
+                "per_page": limit,
+                "pages": pages,
+                "has_next": page < pages,
+                "has_prev": page > 1
+            },
+            "filters_applied": {
+                "search_query": q,
+                "status": status,
+                "priority": priority,
+                "case_type": case_type
+            }
+        }
+    }
+
+
+@router.get("/filter-options")
+def get_filter_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get available filter options for case management dashboard"""
+    
+    # Get unique statuses
+    statuses = db.query(Case.status).distinct().all()
+    status_list = [status[0] for status in statuses if status[0]]
+    
+    # Get unique priorities
+    priorities = db.query(Case.priority).distinct().all()
+    priority_list = [priority[0] for priority in priorities if priority[0]]
+    
+    # Get unique case types
+    case_types = db.query(Case.case_type).distinct().all()
+    case_type_list = [case_type[0] for case_type in case_types if case_type[0]]
+    
+    # Get unique jurisdictions
+    jurisdictions = db.query(Case.jurisdiction).distinct().all()
+    jurisdiction_list = [jurisdiction[0] for jurisdiction in jurisdictions if jurisdiction[0]]
+    
+    # Get unique case officers
+    case_officers = db.query(Case.case_officer).distinct().all()
+    officer_list = [officer[0] for officer in case_officers if officer[0]]
+    
+    return {
+        "status": 200,
+        "message": "Filter options retrieved successfully",
+        "data": {
+            "statuses": status_list,
+            "priorities": priority_list,
+            "case_types": case_type_list,
+            "jurisdictions": jurisdiction_list,
+            "case_officers": officer_list
+        }
+    }
+
+
+@router.get("/form-options")
+def get_form_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get available options for case creation form"""
+    
+    # Get available investigators (users with investigator role or all users)
+    investigators = db.query(User).filter(
+        (User.role == "investigator") | (User.role == "admin")
+    ).all()
+    
+    investigator_list = []
+    for user in investigators:
+        investigator_list.append({
+            "id": str(user.id),
+            "name": user.full_name or user.username,
+            "username": user.username,
+            "role": user.role
+        })
+    
+    # Get unique agencies from existing cases
+    agencies = db.query(Case.jurisdiction).distinct().all()
+    agency_list = [agency[0] for agency in agencies if agency[0]]
+    
+    # Get unique work units from existing cases
+    work_units = db.query(Case.work_unit).distinct().all()
+    work_unit_list = [unit[0] for unit in work_units if unit[0]]
+    
+    # Get case types for dropdown
+    case_types = ["criminal", "civil", "corporate", "cybercrime", "fraud", "other"]
+    
+    # Get priorities for dropdown
+    priorities = ["low", "medium", "high", "critical"]
+    
+    return {
+        "status": 200,
+        "message": "Form options retrieved successfully",
+        "data": {
+            "investigators": investigator_list,
+            "agencies": agency_list,
+            "work_units": work_unit_list,
+            "case_types": case_types,
+            "priorities": priorities
+        }
+    }
+
+
+@router.get("/overview")
+def get_case_management_overview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get case management overview with statistics only"""
+    
+    # Get case statistics for dashboard cards
+    open_cases = db.query(Case).filter(Case.status == "open").count()
+    closed_cases = db.query(Case).filter(Case.status == "closed").count()
+    reopened_cases = db.query(Case).filter(Case.status == "reopened").count()
+    
+    return {
+        "status": 200,
+        "message": "Case management overview retrieved successfully",
+        "data": {
+            "dashboard_cards": {
+                "case_open": open_cases,
+                "case_closed": closed_cases,
+                "case_reopen": reopened_cases
+            }
+        }
+    }
+
+
+@router.get("/case-by-id", response_model=CaseResponse)
 def get_case(
-    case_id: str,
+    case_id: str = Query(..., description="Case ID to retrieve"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -169,7 +407,7 @@ def get_case(
     )
 
 
-@router.put("/{case_id}", response_model=CaseResponse)
+@router.put("/update-case/{case_id}", response_model=CaseResponse)
 def update_case(
     case_id: str,
     case_update: CaseUpdate,
@@ -209,14 +447,29 @@ def update_case(
         
         new_values = {field: getattr(case, field) for field in changed_fields}
         
+        # Convert datetime and UUID objects to strings for JSON serialization
+        def serialize_for_json(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, uuid.UUID):
+                return str(obj)
+            elif obj is None:
+                return None
+            else:
+                return obj
+        
+        # Serialize old_values and new_values
+        serialized_old_values = {k: serialize_for_json(v) for k, v in old_values.items()}
+        serialized_new_values = {k: serialize_for_json(v) for k, v in new_values.items()}
+        
         CaseActivityService.create_activity(
             db=db,
             case_id=case.id,
             user_id=current_user.id,
             activity_type="updated",
             description=f"Case '{case.case_number}' updated - Fields: {', '.join(changed_fields)}",
-            old_value=old_values,
-            new_value=new_values,
+            old_value=serialized_old_values,
+            new_value=serialized_new_values,
             changed_fields=changed_fields,
             ip_address=client_ip,
             user_agent=user_agent
@@ -236,6 +489,30 @@ def delete_case(
     current_user: User = Depends(get_current_active_user)
 ):
     """Delete a case (soft delete by changing status)"""
+    case_uuid = parse_case_id(case_id)
+    case = db.query(Case).filter(Case.id == case_uuid).first()
+    if not case:
+        raise HTTPException(
+            status_code=404,
+            detail="Case not found"
+        )
+    
+    # Soft delete by changing status to archived
+    case.status = "archived"
+    case.updated_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"message": "Case archived successfully"}
+
+
+@router.delete("/")
+def delete_case_by_query(
+    case_id: str = Query(..., description="Case ID to delete"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete a case by query parameter (soft delete by changing status)"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
@@ -347,15 +624,18 @@ def update_case_person(
 
 @router.delete("/{case_id}/persons/{person_id}")
 def delete_case_person(
-    case_id: int,
-    person_id: int,
+    case_id: str,
+    person_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Delete a case person"""
+    case_uuid = parse_case_id(case_id)
+    person_uuid = parse_case_id(person_id)
+    
     person = db.query(CasePerson).filter(
-        CasePerson.id == person_id,
-        CasePerson.case_id == case_id
+        CasePerson.id == person_uuid,
+        CasePerson.case_id == case_uuid
     ).first()
     
     if not person:
@@ -518,7 +798,7 @@ def change_case_status(
         )
     
     # Validate status transition
-    valid_statuses = ["open", "in_progress", "closed", "reopened", "archived"]
+    valid_statuses = ["open", "closed", "reopened"]
     if status_request.status not in valid_statuses:
         raise HTTPException(
             status_code=400,

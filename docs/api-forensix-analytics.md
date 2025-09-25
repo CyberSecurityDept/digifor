@@ -368,10 +368,194 @@ Authorization: Bearer <access_token>
 }
 ```
 
+## Dashboard
+
+### 12. Get Main Dashboard
+**Endpoint:** `GET /api/v1/dashboard/`
+
+**Description:** Mendapatkan halaman utama dashboard dengan menu Analytics dan Case.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Main dashboard retrieved successfully",
+    "data": {
+        "user": {
+            "id": "db236fde-41fe-423c-af6a-f5d5a97cacf2",
+            "username": "admin",
+            "full_name": "System Administrator",
+            "role": "admin"
+        },
+        "menu_options": [
+            {
+                "id": "analytics",
+                "name": "Analytics",
+                "description": "Digital forensics analytics and analysis tools",
+                "icon": "analytics",
+                "route": "/analytics"
+            },
+            {
+                "id": "case",
+                "name": "Case",
+                "description": "Case management and investigation tools",
+                "icon": "case",
+                "route": "/case"
+            }
+        ]
+    }
+}
+```
+
+
+### 13. Get Analytics Dashboard
+**Endpoint:** `GET /api/v1/dashboard/analytics`
+
+**Description:** Mendapatkan dashboard analytics dengan statistik analisis dan evidence.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Analytics dashboard retrieved successfully",
+    "data": {
+        "statistics": {
+            "total_analyses": 0,
+            "completed_analyses": 0,
+            "in_progress_analyses": 0,
+            "pending_analyses": 0,
+            "total_evidence": 0,
+            "processed_evidence": 0
+        },
+        "analysis_types": [],
+        "recent_analyses": []
+    }
+}
+```
+
 ## Case Management
 
-### 12. Get All Cases
-**Endpoint:** `GET /api/v1/cases/`
+### 14. Get Case Management Overview
+**Endpoint:** `GET /api/v1/cases/overview`
+
+**Description:** Mendapatkan overview case management dengan statistik cards saja.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case management overview retrieved successfully",
+    "data": {
+        "dashboard_cards": {
+            "case_open": 7,
+            "case_closed": 1,
+            "case_reopen": 0
+        }
+    }
+}
+```
+
+### 15. Search Cases
+**Endpoint:** `GET /api/v1/cases/search`
+
+**Description:** Mencari kasus dengan query dan filter untuk dashboard case management.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Query Parameters:**
+- `q` (required): Search query string
+- `status` (optional): Filter by case status (open, closed, reopened)
+- `priority` (optional): Filter by priority (low, medium, high, critical)
+- `case_type` (optional): Filter by case type (criminal, civil, corporate)
+- `skip` (optional): Number of records to skip (default: 0)
+- `limit` (optional): Maximum number of records to return (default: 50, max: 100)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case search completed successfully",
+    "data": {
+        "cases": [
+            {
+                "id": "eca36d41-1385-47a0-984b-706900336f5b",
+                "case_name": "Test Case 3",
+                "case_number": "TEST-003",
+                "investigator": "Unassigned",
+                "agency": "N/A",
+                "date_created": "09/23/25",
+                "status": "Closed",
+                "priority": "low",
+                "case_type": "corporate",
+                "evidence_count": 0,
+                "analysis_progress": 0,
+                "created_at": "2025-09-23T03:12:53",
+                "updated_at": null
+            }
+        ],
+        "total": 3,
+        "pagination": {
+            "page": 1,
+            "per_page": 50,
+            "pages": 1,
+            "has_next": false,
+            "has_prev": false
+        },
+        "filters_applied": {
+            "search_query": "test",
+            "status": null,
+            "priority": null,
+            "case_type": null
+        }
+    }
+}
+```
+
+### 16. Get Filter Options
+**Endpoint:** `GET /api/v1/cases/filter-options`
+
+**Description:** Mendapatkan opsi filter yang tersedia untuk dashboard case management.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Filter options retrieved successfully",
+    "data": {
+        "statuses": ["open", "closed", "reopened"],
+        "priorities": ["high", "medium", "low", "critical"],
+        "case_types": ["criminal", "civil", "corporate"],
+        "jurisdictions": ["Jakarta"],
+        "case_officers": ["Detective Smith"]
+    }
+}
+```
+
+### 17. Get All Cases
+**Endpoint:** `GET /api/v1/cases/get-all-cases/`
 
 **Description:** Mendapatkan daftar semua kasus forensik.
 
@@ -383,7 +567,7 @@ Authorization: Bearer <access_token>
 **Query Parameters:**
 - `skip` (optional): Number of records to skip (default: 0)
 - `limit` (optional): Maximum number of records to return (default: 100, max: 1000)
-- `status` (optional): Filter by case status (open, in_progress, closed, reopened, archived)
+- `status` (optional): Filter by case status (open, closed, reopened)
 - `priority` (optional): Filter by priority (low, medium, high, critical)
 - `case_type` (optional): Filter by case type (criminal, civil, administrative)
 - `search` (optional): Search in title, case_number, or description
@@ -430,10 +614,31 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 13. Create New Case
-**Endpoint:** `POST /api/v1/cases/`
+### 18. Create New Case
+**Endpoint:** `POST /api/v1/cases/create-cases/`
 
-**Description:** Membuat kasus forensik baru.
+**Description:** Membuat kasus forensik baru dengan form-based approach yang mendukung auto-generated case ID.
+
+**Features:**
+- ✅ **Auto-generated Case Numbers**: Format `CASE-YYYY-NNNN` (e.g., `CASE-2025-0001`)
+- ✅ **Manual Case Numbers**: Custom case number support
+- ✅ **Form-based Validation**: User-friendly form approach
+- ✅ **Activity Logging**: Automatic case creation tracking
+- ✅ **Duplicate Prevention**: Prevents duplicate case numbers
+
+**UI Form Fields:**
+- **Case name** (required) → `title`
+- **Case Description** (optional) → `description`
+- **Case ID** (Auto/Manual) → `use_auto_generated_id` + `case_number`
+- **Main Investigator** (optional) → `case_officer`
+- **Agency** (optional) → `jurisdiction`
+- **Work Unit** (optional) → `work_unit`
+
+**System Defaults:**
+- **Status**: `"open"` (default)
+- **Priority**: `"medium"` (default)
+- **Case Type**: `null` (default)
+- **Confidentiality**: `false` (default)
 
 **Request Headers:**
 ```
@@ -441,25 +646,28 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
-**Request Body:**
+**Request Body (Auto-generated Case ID):**
 ```json
 {
-    "case_number": "CASE-002",
-    "title": "New Digital Investigation",
-    "description": "Description of the case",
-    "case_type": "criminal",
-    "status": "open",
-    "priority": "medium",
-    "incident_date": "2025-09-22T10:00:00",
-    "reported_date": "2025-09-22T11:00:00",
-    "jurisdiction": "Surabaya",
-    "case_officer": "Detective Johnson",
-    "tags": {
-        "category": "fraud",
-        "type": "digital"
-    },
-    "notes": "Initial case notes",
-    "is_confidential": false
+    "title": "Digital Forensics Investigation",
+    "description": "Investigation of cybercrime case",
+    "use_auto_generated_id": true,
+    "case_officer": "Detective Smith",
+    "jurisdiction": "Jakarta Police",
+    "work_unit": "Cyber Crime Unit"
+}
+```
+
+**Request Body (Manual Case ID):**
+```json
+{
+    "title": "Digital Forensics Investigation",
+    "description": "Investigation of cybercrime case",
+    "use_auto_generated_id": false,
+    "case_number": "MANUAL-2024-001",
+    "case_officer": "Detective Smith",
+    "jurisdiction": "Jakarta Police",
+    "work_unit": "Cyber Crime Unit"
 }
 ```
 
@@ -469,36 +677,76 @@ Content-Type: application/json
     "status": 201,
     "message": "Case created successfully",
     "data": {
-        "id": "135df21b-c0ab-4bcc-b438-95874333f1c8",
-        "case_number": "CASE-002",
-        "title": "New Digital Investigation",
-        "description": "Description of the case",
-        "case_type": "criminal",
+        "id": "6b3b5cb2-42c6-4764-84a5-855e2686b1c1",
+        "case_number": "CASE-2025-0001",
+        "title": "Digital Forensics Investigation",
+        "description": "Investigation of cybercrime case",
+        "case_type": null,
         "status": "open",
         "priority": "medium",
-        "incident_date": "2025-09-22T10:00:00",
-        "reported_date": "2025-09-22T11:00:00",
-        "jurisdiction": "Surabaya",
-        "case_officer": "Detective Johnson",
+        "incident_date": null,
+        "reported_date": null,
+        "jurisdiction": "Jakarta Police",
+        "case_officer": "Detective Smith",
+        "work_unit": "Cyber Crime Unit",
         "evidence_count": 0,
         "analysis_progress": 0,
-        "created_by": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+        "created_by": "db236fde-41fe-423c-af6a-f5d5a97cacf2",
         "assigned_to": null,
-        "created_at": "2025-09-22T12:00:00",
-        "updated_at": "2025-09-22T12:00:00",
+        "created_at": "2024-01-16T10:00:00Z",
+        "updated_at": null,
         "closed_at": null,
-        "tags": {
-            "category": "fraud",
-            "type": "digital"
-        },
-        "notes": "Initial case notes",
-        "is_confidential": false
+        "reopened_count": 0,
+        "last_status_change": null,
+        "status_change_reason": null,
+        "tags": null,
+        "notes": null,
+        "is_confidential": false,
+        "persons": []
     }
 }
 ```
 
-### 14. Get Case by ID
-**Endpoint:** `GET /api/v1/cases/{case_id}`
+### 19. Get Form Options
+**Endpoint:** `GET /api/v1/cases/form-options`
+
+**Description:** Mendapatkan opsi untuk form create case (investigators, agencies, work units, dll).
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Form options retrieved successfully",
+    "data": {
+        "investigators": [
+            {
+                "id": "db236fde-41fe-423c-af6a-f5d5a97cacf2",
+                "name": "System Administrator",
+                "username": "admin",
+                "role": "admin"
+            },
+            {
+                "id": "35198401-f70f-4867-98d9-575017f9b43f",
+                "name": "Test User",
+                "username": "testuser",
+                "role": "investigator"
+            }
+        ],
+        "agencies": ["Jakarta"],
+        "work_units": [],
+        "case_types": ["criminal", "civil", "corporate", "cybercrime", "fraud", "other"],
+        "priorities": ["low", "medium", "high", "critical"]
+    }
+}
+```
+
+### 20. Get Case by ID
+**Endpoint:** `GET /api/v1/cases/case-by-id`
 
 **Description:** Mendapatkan detail kasus berdasarkan ID.
 
@@ -507,8 +755,13 @@ Content-Type: application/json
 Authorization: Bearer <access_token>
 ```
 
-**Path Parameters:**
-- `case_id`: UUID kasus yang akan diambil (format: UUID string)
+**Query Parameters:**
+- `case_id` (required): UUID kasus yang akan diambil (format: UUID string)
+
+**Example URL:**
+```
+GET /api/v1/cases/case-by-id?case_id=719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
+```
 
 **Response (200 OK):**
 ```json
@@ -552,8 +805,8 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 15. Update Case
-**Endpoint:** `PUT /api/v1/cases/{case_id}`
+### 21. Update Case
+**Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
 **Description:** Mengupdate informasi kasus forensik.
 
@@ -566,26 +819,36 @@ Content-Type: application/json
 **Path Parameters:**
 - `case_id`: UUID kasus yang akan diupdate (format: UUID string)
 
+**Example URL:**
+```
+PUT /api/v1/cases/update-case/719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
+```
+
 **Request Body:**
 ```json
 {
-    "title": "Updated Case Title",
-    "description": "Updated case description",
-    "case_type": "civil",
+    "title": "Updated Financial Fraud Investigation",
+    "description": "Updated investigation of suspected online banking fraud targeting multiple victims.",
+    "case_type": "financial",
+    "status": "open",
     "priority": "high",
-    "incident_date": "2025-09-22T10:00:00",
-    "reported_date": "2025-09-22T11:00:00",
-    "jurisdiction": "Bandung",
-    "case_officer": "Detective Brown",
-    "assigned_to": "135df21b-c0ab-4bcc-b438-95874333f1c7",
-    "tags": {
-        "category": "updated",
-        "type": "digital"
-    },
-    "notes": "Updated case notes",
+    "jurisdiction": "Updated OJK Cybersecurity Division",
+    "case_officer": "Detective Johnson",
+    "work_unit": "Updated Financial Crime Unit",
     "is_confidential": true
 }
 ```
+
+**Request Schema:**
+- `title` (string, optional): Updated case title
+- `description` (string, optional): Updated case description
+- `case_type` (string, optional): Updated case type (criminal, civil, financial, etc.)
+- `status` (string, optional): Updated case status (open, closed, reopened)
+- `priority` (string, optional): Updated priority level (low, medium, high, critical)
+- `jurisdiction` (string, optional): Updated jurisdiction/agency
+- `case_officer` (string, optional): Updated main investigator
+- `work_unit` (string, optional): Updated work unit
+- `is_confidential` (boolean, optional): Updated confidentiality status
 
 **Response (200 OK):**
 ```json
@@ -624,7 +887,7 @@ Content-Type: application/json
 }
 ```
 
-### 16. Close Case
+### 22. Close Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/close`
 
 **Description:** Menutup kasus forensik dengan alasan dan tracking aktivitas.
@@ -673,7 +936,7 @@ Content-Type: application/json
 }
 ```
 
-### 17. Reopen Case
+### 23. Reopen Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/reopen`
 
 **Description:** Membuka kembali kasus yang sudah ditutup dengan alasan dan tracking aktivitas.
@@ -722,7 +985,7 @@ Content-Type: application/json
 }
 ```
 
-### 18. Change Case Status
+### 24. Change Case Status
 **Endpoint:** `POST /api/v1/cases/{case_id}/change-status`
 
 **Description:** Mengubah status kasus dengan alasan dan tracking aktivitas.
@@ -739,7 +1002,7 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-    "status": "in_progress",
+    "status": "open",
     "reason": "Investigation started",
     "notes": "Assigned to senior investigator"
 }
@@ -747,10 +1010,8 @@ Content-Type: application/json
 
 **Valid Status Values:**
 - `open` - Case baru dibuka
-- `in_progress` - Investigasi sedang berlangsung
 - `closed` - Case ditutup
 - `reopened` - Case dibuka kembali
-- `archived` - Case diarsipkan
 
 **Response (200 OK):**
 ```json
@@ -761,7 +1022,7 @@ Content-Type: application/json
         "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "case_number": "CASE-001",
         "title": "Digital Forensics Investigation",
-        "status": "in_progress",
+        "status": "open",
         "last_status_change": "2025-09-22T17:00:00",
         "status_change_reason": "Investigation started",
         "reopened_count": 0
@@ -769,7 +1030,7 @@ Content-Type: application/json
 }
 ```
 
-### 19. Get Case Activities
+### 25. Get Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities`
 
 **Description:** Mendapatkan log aktivitas kasus dengan pagination.
@@ -832,7 +1093,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 20. Get Recent Case Activities
+### 26. Get Recent Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities/recent`
 
 **Description:** Mendapatkan aktivitas terbaru kasus dengan informasi user.
@@ -874,7 +1135,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 21. Get Case Status History
+### 27. Get Case Status History
 **Endpoint:** `GET /api/v1/cases/{case_id}/status-history`
 
 **Description:** Mendapatkan history perubahan status kasus.
@@ -923,7 +1184,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 22. Add Person to Case
+### 28. Add Person to Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/persons`
 
 **Description:** Menambahkan orang (suspect, victim, witness) ke dalam kasus.
@@ -1001,7 +1262,7 @@ Content-Type: application/json
 }
 ```
 
-### 23. Get Case Persons
+### 29. Get Case Persons
 **Endpoint:** `GET /api/v1/cases/{case_id}/persons`
 
 **Description:** Mendapatkan daftar semua orang yang terlibat dalam kasus.
@@ -1049,7 +1310,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 24. Update Case Person
+### 30. Update Case Person
 **Endpoint:** `PUT /api/v1/cases/{case_id}/persons/{person_id}`
 
 **Description:** Mengupdate informasi orang dalam kasus.
@@ -1107,7 +1368,7 @@ Content-Type: application/json
 }
 ```
 
-### 25. Delete Case Person
+### 31. Delete Case Person
 **Endpoint:** `DELETE /api/v1/cases/{case_id}/persons/{person_id}`
 
 **Description:** Menghapus orang dari kasus.
@@ -1129,7 +1390,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 26. Get Case Statistics
+### 32. Get Case Statistics
 **Endpoint:** `GET /api/v1/cases/{case_id}/stats`
 
 **Description:** Mendapatkan statistik kasus.
@@ -1153,7 +1414,7 @@ Authorization: Bearer <access_token>
         "analysis_count": 3,
         "completed_analysis": 2,
         "analysis_progress": 75,
-        "status": "in_progress",
+        "status": "open",
         "priority": "high",
         "reopened_count": 0,
         "last_status_change": "2025-09-22T17:00:00"
@@ -1161,10 +1422,10 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 27. Delete Case
+### 33. Delete Case
 **Endpoint:** `DELETE /api/v1/cases/{case_id}`
 
-**Description:** Menghapus kasus forensik (soft delete/archive).
+**Description:** Menghapus kasus forensik (soft delete/archive) menggunakan path parameter.
 
 **Request Headers:**
 ```
@@ -1177,22 +1438,47 @@ Authorization: Bearer <access_token>
 **Response (200 OK):**
 ```json
 {
-    "status": 200,
-    "message": "Case deleted successfully"
+    "message": "Case archived successfully"
 }
 ```
 
 **Response (404 Not Found):**
 ```json
 {
-    "status": 404,
-    "message": "Case not found"
+    "detail": "Case not found"
+}
+```
+
+### 34. Delete Case by Query Parameter
+**Endpoint:** `DELETE /api/v1/cases/?case_id={case_id}`
+
+**Description:** Menghapus kasus forensik (soft delete/archive) menggunakan query parameter.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Query Parameters:**
+- `case_id` (required): UUID kasus yang akan dihapus (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "message": "Case archived successfully"
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "detail": "Case not found"
 }
 ```
 
 ## Report Generation
 
-### 28. Generate Case Report
+### 35. Generate Case Report
 **Endpoint:** `POST /api/v1/reports/generate`
 
 **Description:** Membuat laporan forensik untuk kasus tertentu.
@@ -1231,7 +1517,7 @@ Content-Type: application/json
 }
 ```
 
-### 29. Download Report
+### 36. Download Report
 **Endpoint:** `GET /api/v1/reports/download/{report_id}`
 
 **Description:** Mengunduh file laporan yang sudah dibuat.
@@ -1259,7 +1545,7 @@ File download (application/octet-stream)
 
 ## System Endpoints
 
-### 30. Health Check
+### 37. Health Check
 **Endpoint:** `GET /health`
 
 **Description:** Memeriksa status kesehatan sistem.
@@ -1273,7 +1559,7 @@ File download (application/octet-stream)
 }
 ```
 
-### 31. Root Endpoint
+### 38. Root Endpoint
 **Endpoint:** `GET /`
 
 **Description:** Informasi dasar API.
@@ -1524,6 +1810,16 @@ File download (application/octet-stream)
 }
 ```
 
+## Dashboard Flow
+
+1. **Login:** POST `/api/v1/auth/token` untuk mendapatkan access token
+2. **Main Dashboard:** GET `/api/v1/dashboard/` untuk menampilkan halaman utama dengan menu Analytics dan Case
+3. **Case Dashboard:** GET `/api/v1/dashboard/case` untuk statistik case dengan chart dan trend
+4. **Case Management:** GET `/api/v1/dashboard/case/management` untuk dashboard case management dengan tabel case
+5. **Analytics Dashboard:** GET `/api/v1/dashboard/analytics` untuk dashboard analytics dengan statistik analisis
+6. **Search Cases:** GET `/api/v1/cases/search?q=query` untuk mencari case di dashboard
+7. **Filter Options:** GET `/api/v1/cases/filter-options` untuk mendapatkan opsi filter
+
 ## Authentication Flow
 
 1. **Register:** POST `/api/v1/auth/register` untuk membuat akun baru
@@ -1533,6 +1829,33 @@ File download (application/octet-stream)
 5. **Refresh Tokens:** Ketika access_token expired, gunakan POST `/api/v1/auth/refresh` dengan refresh_token
 6. **Auto Refresh:** Frontend dapat otomatis refresh token sebelum expired
 7. **Logout:** POST `/api/v1/auth/logout` untuk revoke session atau POST `/api/v1/auth/logout-with-refresh` dengan refresh_token
+
+## Dashboard Features
+
+### Main Dashboard
+- **User Information:** Menampilkan informasi user yang sedang login
+- **Menu Navigation:** Pilihan menu Analytics dan Case dengan deskripsi
+- **Role-based Access:** Menu disesuaikan dengan role user
+
+### Case Dashboard
+- **Statistics Cards:** Total cases, open, closed, reopened
+- **Priority Distribution:** Chart distribusi berdasarkan priority
+- **Type Distribution:** Chart distribusi berdasarkan case type
+- **Monthly Trend:** Trend pembuatan case per bulan
+- **Recent Cases:** Daftar case terbaru dengan informasi lengkap
+
+### Case Management Dashboard
+- **Dashboard Cards:** Statistik case dalam format card
+- **Case List Table:** Tabel case dengan informasi investigator, agency, tanggal
+- **Search Functionality:** Pencarian case dengan query
+- **Filter Options:** Filter berdasarkan status, priority, type, dll
+- **Pagination:** Navigasi halaman untuk data banyak
+
+### Analytics Dashboard
+- **Analysis Statistics:** Total analisis, completed, in progress, pending
+- **Evidence Statistics:** Total evidence dan yang sudah diproses
+- **Analysis Types:** Distribusi berdasarkan jenis analisis
+- **Recent Analyses:** Daftar analisis terbaru
 
 ## Security Features
 
@@ -1626,7 +1949,7 @@ API mendukung CORS untuk domain berikut:
 ## Database
 
 - **Type:** SQLite (development) / PostgreSQL (production)
-- **Location:** `./data/forenlytic.db`
+- **Location:** `./data/your_database.db`
 - **Backup:** Automatic daily backups
 
 ## Logging

@@ -1,11 +1,7 @@
-"""
-Evidence model for digital evidence management
-"""
 import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -58,9 +54,9 @@ class EvidenceItem(Base):
     is_sensitive = Column(Boolean, default=False)
     
     # Relationships
-    case = relationship("Case", back_populates="evidence_items")
-    creator = relationship("User")
-    analyses = relationship("Analysis", back_populates="evidence_item", cascade="all, delete-orphan")
+    # case = relationship("Case", back_populates="evidence_items")
+    # creator = relationship("User")
+    # analyses = relationship("Analysis", back_populates="evidence_item", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<EvidenceItem(id={self.id}, evidence_number='{self.evidence_number}', type='{self.item_type}')>"
@@ -93,7 +89,7 @@ class CustodyTransfer(Base):
     notes = Column(Text)
     
     # Relationships
-    evidence_item = relationship("EvidenceItem")
+    # evidence_item = relationship("EvidenceItem")
     
     def __repr__(self):
         return f"<CustodyTransfer(id={self.id}, evidence_id={self.evidence_id}, from='{self.from_custodian}')>"

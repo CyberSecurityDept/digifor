@@ -35,7 +35,7 @@ mkdir -p data/reports
 mkdir -p logs
 
 # Check if database exists
-if [ ! -f "data/forenlytic.db" ]; then
+if [ ! -f "data/digifor.db" ]; then
     echo "🗄️ Database not found. Initializing..."
     python tools/init_db.py
     python tools/create_admin.py

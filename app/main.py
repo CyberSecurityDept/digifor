@@ -1,17 +1,13 @@
-"""
-Forenlytic Backend - Main FastAPI Application
-"""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import uvicorn
 import os
 
 from app.config import settings
 from app.database import init_db
-from app.api import auth, cases, reports
+from app.api import auth, cases, reports, dashboard
 from app.utils.logging import setup_logging, log_startup_info, log_database_info, log_shutdown
 
 # Setup logging
@@ -81,6 +77,12 @@ app.include_router(
     reports.router,
     prefix=f"{settings.api_v1_str}/reports",
     tags=["Report Generation"]
+)
+
+app.include_router(
+    dashboard.router,
+    prefix=f"{settings.api_v1_str}/dashboard",
+    tags=["Dashboard"]
 )
 
 

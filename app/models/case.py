@@ -1,11 +1,7 @@
-"""
-Case model for forensic case management
-"""
 import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -19,7 +15,7 @@ class Case(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text)
     case_type = Column(String(50))  # criminal, civil, corporate, etc.
-    status = Column(String(20), default="open")  # open, in_progress, closed, reopened, archived
+    status = Column(String(20), default="open")  # open, closed, reopened
     priority = Column(String(10), default="medium")  # low, medium, high, critical
     
     # Case details
@@ -27,6 +23,7 @@ class Case(Base):
     reported_date = Column(DateTime(timezone=True))
     jurisdiction = Column(String(100))
     case_officer = Column(String(100))
+    work_unit = Column(String(100))  # Work unit field
     
     # Digital evidence info
     evidence_count = Column(Integer, default=0)
@@ -51,12 +48,11 @@ class Case(Base):
     status_history = Column(JSON)  # Track status changes with reasons
     
     # Relationships
-    creator = relationship("User", foreign_keys=[created_by], back_populates="created_cases")
-    assignee = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_cases")
-    evidence_items = relationship("EvidenceItem", back_populates="case", cascade="all, delete-orphan")
-    analyses = relationship("Analysis", back_populates="case", cascade="all, delete-orphan")
-    activities = relationship("CaseActivity", back_populates="case", cascade="all, delete-orphan")
-    status_history = relationship("CaseStatusHistory", back_populates="case", cascade="all, delete-orphan")
+    # creator = relationship("User", foreign_keys=[created_by])
+    # assignee = relationship("User", foreign_keys=[assigned_to])
+    # evidence_items = relationship("EvidenceItem", back_populates="case", cascade="all, delete-orphan")
+    # analyses = relationship("Analysis", back_populates="case", cascade="all, delete-orphan")
+    # activities = relationship("CaseActivity", back_populates="case", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"
@@ -91,7 +87,7 @@ class CasePerson(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    case = relationship("Case")
+    # case = relationship("Case")
     
     def __repr__(self):
         return f"<CasePerson(id={self.id}, name='{self.full_name}', type='{self.person_type}')>"

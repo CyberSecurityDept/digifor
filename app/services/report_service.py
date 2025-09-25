@@ -1,12 +1,8 @@
-"""
-Report Generation Service
-"""
 import json
 import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from jinja2 import Template
 
 from app.models.case import Case, CasePerson
 from app.models.evidence import EvidenceItem, CustodyTransfer

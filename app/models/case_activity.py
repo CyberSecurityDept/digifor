@@ -1,11 +1,7 @@
-"""
-Case Activity model for tracking case activities and status changes
-"""
 import uuid
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -38,8 +34,8 @@ class CaseActivity(Base):
     user_agent = Column(Text)  # User agent string
     
     # Relationships
-    case = relationship("Case", back_populates="activities")
-    user = relationship("User", back_populates="case_activities")
+    # case = relationship("Case", back_populates="activities")
+    # user = relationship("User", back_populates="case_activities")
     
     def __repr__(self):
         return f"<CaseActivity(id={self.id}, case_id={self.case_id}, type='{self.activity_type}')>"
@@ -65,8 +61,8 @@ class CaseStatusHistory(Base):
     ip_address = Column(String(45))
     
     # Relationships
-    case = relationship("Case", back_populates="status_history")
-    user = relationship("User", back_populates="case_status_history")
+    # case = relationship("Case", back_populates="status_history")
+    # user = relationship("User", back_populates="case_status_history")
     
     def __repr__(self):
         return f"<CaseStatusHistory(id={self.id}, case_id={self.case_id}, {self.previous_status}->{self.new_status})>"
