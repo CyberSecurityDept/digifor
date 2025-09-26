@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
@@ -19,21 +20,20 @@ def generate_case_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Generate report for a specific case"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Validate report type
     valid_types = ["comprehensive", "summary", "evidence", "analysis"]
     if report_type not in valid_types:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail=f"Invalid report type. Must be one of: {', '.join(valid_types)}"
+            content=f"Invalid report type. Must be one of: {', '.join(valid_types)}"
         )
     
     try:
@@ -55,9 +55,9 @@ def generate_case_report(
         }
     
     except Exception as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"Error generating report: {str(e)}"
+            content=f"Error generating report: {str(e)}"
         )
 
 
@@ -67,13 +67,12 @@ def list_case_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List all reports for a case"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Get reports directory
@@ -113,28 +112,27 @@ def get_case_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get a specific case report"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Check if report exists
     filepath = os.path.join("data", "reports", filename)
     if not os.path.exists(filepath):
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Report not found"
+            content="Report not found"
         )
     
     # Verify filename belongs to this case
     if not filename.startswith(f"case_{case_id}_"):
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Report does not belong to this case"
+            content="Report does not belong to this case"
         )
     
     try:
@@ -145,9 +143,9 @@ def get_case_report(
         return report_data
     
     except Exception as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"Error reading report: {str(e)}"
+            content=f"Error reading report: {str(e)}"
         )
 
 
@@ -158,28 +156,27 @@ def delete_case_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Delete a specific case report"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Check if report exists
     filepath = os.path.join("data", "reports", filename)
     if not os.path.exists(filepath):
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Report not found"
+            content="Report not found"
         )
     
     # Verify filename belongs to this case
     if not filename.startswith(f"case_{case_id}_"):
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Report does not belong to this case"
+            content="Report does not belong to this case"
         )
     
     try:
@@ -187,9 +184,9 @@ def delete_case_report(
         return {"message": "Report deleted successfully"}
     
     except Exception as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"Error deleting report: {str(e)}"
+            content=f"Error deleting report: {str(e)}"
         )
 
 
@@ -199,7 +196,6 @@ def generate_custody_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Generate Chain of Custody report for evidence item"""
     try:
         # Generate custody report
         report_generator = ReportGenerator()
@@ -218,14 +214,14 @@ def generate_custody_report(
         }
     
     except ValueError as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail=str(e)
+            content=str(e)
         )
     except Exception as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"Error generating custody report: {str(e)}"
+            content=f"Error generating custody report: {str(e)}"
         )
 
 
@@ -234,7 +230,6 @@ def get_report_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get report generation statistics"""
     reports_dir = os.path.join("data", "reports")
     
     if not os.path.exists(reports_dir):

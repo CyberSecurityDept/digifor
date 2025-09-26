@@ -5,7 +5,6 @@ import hashlib
 
 
 class ContactsCorrelationAnalyzer:
-    """Analyzer for contacts correlation across multiple sources"""
     
     def __init__(self):
         self.contact_patterns = {
@@ -43,7 +42,6 @@ class ContactsCorrelationAnalyzer:
         return contacts
     
     def normalize_phone(self, phone: str) -> str:
-        """Normalize phone number format"""
         # Remove non-digit characters
         digits = re.sub(r'\D', '', phone)
         
@@ -56,7 +54,6 @@ class ContactsCorrelationAnalyzer:
             return '62' + digits
     
     def create_contact_fingerprint(self, contact: str, contact_type: str) -> str:
-        """Create unique fingerprint for contact"""
         if contact_type == 'phone':
             normalized = self.normalize_phone(contact)
             return hashlib.sha256(normalized.encode()).hexdigest()
@@ -64,7 +61,6 @@ class ContactsCorrelationAnalyzer:
             return hashlib.sha256(contact.lower().encode()).hexdigest()
     
     def analyze_contacts_correlation(self, evidence_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze contacts correlation across evidence"""
         all_contacts = {}
         contact_sources = {}
         correlations = []
@@ -121,7 +117,6 @@ class ContactsCorrelationAnalyzer:
         }
     
     def _calculate_significance(self, contact_info: Dict[str, Any]) -> float:
-        """Calculate significance score for contact correlation"""
         frequency = contact_info['frequency']
         source_count = len(contact_info['sources'])
         
@@ -138,7 +133,6 @@ class ContactsCorrelationAnalyzer:
         return min(base_score / 10, 1.0)
     
     def generate_contact_network(self, correlations: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate contact network visualization data"""
         nodes = []
         edges = []
         

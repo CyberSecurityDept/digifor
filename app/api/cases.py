@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -18,19 +19,18 @@ from app.schemas.case_activity import (
     CaseReopenRequest, CaseStatusChangeRequest, CaseActivitySummary
 )
 from app.services.case_activity_service import CaseActivityService
-from app.api.auth import get_current_active_user
+from app.dependencies.auth import get_current_active_user_safe
 
 router = APIRouter()
 
 
 def parse_case_id(case_id: str) -> uuid.UUID:
-    """Parse and validate case ID as UUID"""
     try:
         return uuid.UUID(case_id)
     except ValueError:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Invalid case ID format"
+            content="Invalid case ID format"
         )
 
 
@@ -39,9 +39,8 @@ def create_case(
     case_form: CaseCreateForm,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Create a new forensic case using form-based approach with auto-generated case ID option"""
     
     from datetime import datetime
     
@@ -68,18 +67,18 @@ def create_case(
     else:
         # Use manual case number
         if not case_form.case_number:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=400,
-                detail="Case number is required when auto-generated ID is disabled"
+                content="Case number is required when auto-generated ID is disabled"
             )
         case_number = case_form.case_number
     
     # Check if case number already exists
     existing_case = db.query(Case).filter(Case.case_number == case_number).first()
     if existing_case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Case number already exists"
+            content="Case number already exists"
         )
     
     # Create new case
@@ -136,9 +135,8 @@ def get_cases(
     case_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get list of cases with filtering and pagination"""
     query = db.query(Case)
     
     # Apply filters
@@ -187,9 +185,8 @@ def search_cases(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Search cases with advanced filtering for dashboard"""
     query = db.query(Case)
     
     # Apply search filter
@@ -275,7 +272,7 @@ def search_cases(
 @router.get("/filter-options")
 def get_filter_options(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     """Get available filter options for case management dashboard"""
     
@@ -315,7 +312,7 @@ def get_filter_options(
 @router.get("/form-options")
 def get_form_options(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     """Get available options for case creation form"""
     
@@ -363,9 +360,8 @@ def get_form_options(
 @router.get("/overview")
 def get_case_management_overview(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get case management overview with statistics only"""
     
     # Get case statistics for dashboard cards
     open_cases = db.query(Case).filter(Case.status == "open").count()
@@ -389,15 +385,14 @@ def get_case_management_overview(
 def get_case(
     case_id: str = Query(..., description="Case ID to retrieve"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get a specific case by ID"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     return CaseResponse(
@@ -413,15 +408,14 @@ def update_case(
     case_update: CaseUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Update a case"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Track changes for activity log
@@ -482,43 +476,21 @@ def update_case(
     )
 
 
-@router.delete("/{case_id}")
-def delete_case(
-    case_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Delete a case (soft delete by changing status)"""
-    case_uuid = parse_case_id(case_id)
-    case = db.query(Case).filter(Case.id == case_uuid).first()
-    if not case:
-        raise HTTPException(
-            status_code=404,
-            detail="Case not found"
-        )
-    
-    # Soft delete by changing status to archived
-    case.status = "archived"
-    case.updated_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return {"message": "Case archived successfully"}
-
-
-@router.delete("/")
+@router.delete("/delete-case/")
 def delete_case_by_query(
     case_id: str = Query(..., description="Case ID to delete"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Delete a case by query parameter (soft delete by changing status)"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     # Soft delete by changing status to archived
@@ -535,15 +507,14 @@ def add_case_person(
     case_id: int,
     person: CasePersonCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Add a person to a case"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Create new case person
@@ -574,15 +545,14 @@ def add_case_person(
 def get_case_persons(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get all persons in a case"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     persons = db.query(CasePerson).filter(CasePerson.case_id == case_id).all()
@@ -595,18 +565,17 @@ def update_case_person(
     person_id: int,
     person_update: CasePersonUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Update a case person"""
     person = db.query(CasePerson).filter(
         CasePerson.id == person_id,
         CasePerson.case_id == case_id
     ).first()
     
     if not person:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Person not found"
+            content="Person not found"
         )
     
     # Update fields
@@ -627,9 +596,8 @@ def delete_case_person(
     case_id: str,
     person_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Delete a case person"""
     case_uuid = parse_case_id(case_id)
     person_uuid = parse_case_id(person_id)
     
@@ -639,9 +607,9 @@ def delete_case_person(
     ).first()
     
     if not person:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Person not found"
+            content="Person not found"
         )
     
     db.delete(person)
@@ -654,14 +622,13 @@ def delete_case_person(
 def get_case_stats(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get case statistics"""
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Get evidence count
@@ -694,21 +661,20 @@ def close_case(
     close_request: CaseCloseRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Close a case with reason and activity tracking"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     if case.status == "closed":
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Case is already closed"
+            content="Case is already closed"
         )
     
     # Get client IP and user agent
@@ -740,21 +706,20 @@ def reopen_case(
     reopen_request: CaseReopenRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Reopen a case with reason and activity tracking"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     if case.status != "closed":
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Only closed cases can be reopened"
+            content="Only closed cases can be reopened"
         )
     
     # Get client IP and user agent
@@ -786,29 +751,28 @@ def change_case_status(
     status_request: CaseStatusChangeRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Change case status with reason and activity tracking"""
     case_uuid = parse_case_id(case_id)
     case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     # Validate status transition
     valid_statuses = ["open", "closed", "reopened"]
     if status_request.status not in valid_statuses:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            content=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
         )
     
     if case.status == status_request.status:
-        raise HTTPException(
+        return JSONResponse(
             status_code=400,
-            detail="Case is already in the requested status"
+            content="Case is already in the requested status"
         )
     
     # Get client IP and user agent
@@ -840,15 +804,14 @@ def get_case_activities(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get case activities with pagination"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     activities = CaseActivityService.get_case_activities(
@@ -866,15 +829,14 @@ def get_recent_case_activities(
     case_id: int,
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get recent case activities with user information"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     activities = CaseActivityService.get_recent_activities(
@@ -906,15 +868,14 @@ def get_case_status_history(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get case status history with pagination"""
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
-        raise HTTPException(
+        return JSONResponse(
             status_code=404,
-            detail="Case not found"
+            content="Case not found"
         )
     
     history = CaseActivityService.get_case_status_history(

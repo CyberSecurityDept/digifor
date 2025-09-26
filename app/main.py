@@ -9,6 +9,8 @@ from app.config import settings
 from app.database import init_db
 from app.api import auth, cases, reports, dashboard
 from app.utils.logging import setup_logging, log_startup_info, log_database_info, log_shutdown
+from app.middleware.auto_refresh import AutoRefreshTokenMiddleware, TokenRotationMiddleware
+from app.middleware.response_interceptor import TokenRefreshResponseInterceptor
 
 # Setup logging
 logger = setup_logging()
@@ -22,7 +24,6 @@ os.makedirs(os.path.dirname(settings.log_file), exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events"""
     # Startup
     log_startup_info(logger)
     init_db()
@@ -59,6 +60,18 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["*"] if settings.debug else ["localhost", "127.0.0.1"]
 )
+
+# Add automatic token refresh middleware
+app.add_middleware(
+    AutoRefreshTokenMiddleware,
+    auto_refresh_threshold=300  # 5 minutes before expiry
+)
+
+# Add token rotation middleware for security
+app.add_middleware(TokenRotationMiddleware)
+
+# Add response interceptor for token refresh headers
+app.add_middleware(TokenRefreshResponseInterceptor)
 
 # Include API routers
 app.include_router(

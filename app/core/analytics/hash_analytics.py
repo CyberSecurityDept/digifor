@@ -7,7 +7,6 @@ import magic
 
 
 class HashAnalyticsEngine:
-    """Engine for hash file analysis and verification"""
     
     def __init__(self):
         self.supported_algorithms = ['md5', 'sha1', 'sha256', 'sha512']
@@ -18,7 +17,6 @@ class HashAnalyticsEngine:
         }
     
     def calculate_file_hash(self, file_path: str, algorithm: str = 'sha256') -> Optional[str]:
-        """Calculate hash of a file"""
         if algorithm not in self.supported_algorithms:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
         
@@ -33,7 +31,6 @@ class HashAnalyticsEngine:
             return None
     
     def calculate_multiple_hashes(self, file_path: str) -> Dict[str, str]:
-        """Calculate multiple hash algorithms for a file"""
         hashes = {}
         for algorithm in self.supported_algorithms:
             hash_value = self.calculate_file_hash(file_path, algorithm)
@@ -42,7 +39,6 @@ class HashAnalyticsEngine:
         return hashes
     
     def verify_file_integrity(self, file_path: str, expected_hash: str, algorithm: str = 'sha256') -> Dict[str, Any]:
-        """Verify file integrity against expected hash"""
         calculated_hash = self.calculate_file_hash(file_path, algorithm)
         
         if not calculated_hash:
@@ -64,7 +60,6 @@ class HashAnalyticsEngine:
         }
     
     def analyze_file_metadata(self, file_path: str) -> Dict[str, Any]:
-        """Analyze file metadata and characteristics"""
         try:
             stat = os.stat(file_path)
             file_size = stat.st_size
@@ -95,7 +90,6 @@ class HashAnalyticsEngine:
             return {'error': str(e)}
     
     def _calculate_entropy(self, file_path: str, chunk_size: int = 1024) -> float:
-        """Calculate Shannon entropy of file"""
         try:
             with open(file_path, 'rb') as f:
                 data = f.read(chunk_size)
@@ -122,12 +116,10 @@ class HashAnalyticsEngine:
             return 0.0
     
     def _is_likely_encrypted(self, file_path: str, entropy: float) -> bool:
-        """Check if file is likely encrypted based on entropy"""
         # High entropy (> 7.5) suggests encryption or compression
         return entropy > 7.5
     
     def _is_compressed_file(self, file_path: str) -> bool:
-        """Check if file is compressed"""
         compressed_extensions = ['.zip', '.rar', '.7z', '.gz', '.bz2', '.xz']
         compressed_mimes = [
             'application/zip',
@@ -149,7 +141,6 @@ class HashAnalyticsEngine:
             return False
     
     def search_hash_databases(self, hash_value: str) -> Dict[str, Any]:
-        """Search hash in known databases"""
         results = {
             'hash': hash_value,
             'found_in_databases': [],
@@ -178,7 +169,6 @@ class HashAnalyticsEngine:
         return results
     
     def analyze_file_similarity(self, file_paths: List[str]) -> List[Dict[str, Any]]:
-        """Analyze similarity between multiple files"""
         if len(file_paths) < 2:
             return []
         
@@ -209,7 +199,6 @@ class HashAnalyticsEngine:
         return sorted(similarities, key=lambda x: x['similarity_score'], reverse=True)
     
     def _calculate_file_similarity(self, hashes1: Dict[str, str], hashes2: Dict[str, str]) -> float:
-        """Calculate similarity between two files based on hashes"""
         if not hashes1 or not hashes2:
             return 0.0
         
@@ -223,7 +212,6 @@ class HashAnalyticsEngine:
         return 0.0
     
     def generate_hash_report(self, file_path: str) -> Dict[str, Any]:
-        """Generate comprehensive hash analysis report"""
         # Calculate all hashes
         hashes = self.calculate_multiple_hashes(file_path)
         
@@ -245,7 +233,6 @@ class HashAnalyticsEngine:
         }
     
     def _generate_recommendations(self, metadata: Dict[str, Any], db_results: Dict[str, Any]) -> List[str]:
-        """Generate recommendations based on analysis"""
         recommendations = []
         
         # Check for high entropy

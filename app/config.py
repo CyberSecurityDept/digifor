@@ -5,7 +5,6 @@ from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
-    """Application settings"""
     
     # Database Configuration - REQUIRED FROM ENV
     database_url: str = Field(alias="DATABASE_URL")

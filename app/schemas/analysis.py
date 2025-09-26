@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class AnalysisResultBase(BaseModel):
-    """Base analysis result schema"""
     result_type: str
     result_data: Dict[str, Any]
     confidence: float = 1.0
@@ -18,7 +17,6 @@ class AnalysisResultCreate(AnalysisResultBase):
 
 
 class AnalysisResult(AnalysisResultBase):
-    """Schema for analysis result response"""
     id: int
     analysis_id: int
     created_at: datetime
@@ -31,7 +29,6 @@ class AnalysisResult(AnalysisResultBase):
 
 
 class CorrelationBase(BaseModel):
-    """Base correlation schema"""
     correlation_type: str
     source_data: Dict[str, Any]
     target_data: Dict[str, Any]
@@ -48,7 +45,6 @@ class CorrelationCreate(CorrelationBase):
 
 
 class Correlation(CorrelationBase):
-    """Schema for correlation response"""
     id: int
     case_id: int
     created_at: datetime
@@ -60,7 +56,6 @@ class Correlation(CorrelationBase):
 
 
 class AnalysisBase(BaseModel):
-    """Base analysis schema"""
     analysis_type: str
     analysis_name: str
     description: Optional[str] = None
@@ -74,7 +69,6 @@ class AnalysisCreate(AnalysisBase):
 
 
 class AnalysisUpdate(BaseModel):
-    """Schema for updating an analysis"""
     analysis_name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
@@ -84,7 +78,6 @@ class AnalysisUpdate(BaseModel):
 
 
 class Analysis(AnalysisBase):
-    """Schema for analysis response"""
     id: int
     case_id: int
     evidence_id: Optional[int] = None
@@ -108,7 +101,6 @@ class Analysis(AnalysisBase):
 
 
 class AnalysisSummary(BaseModel):
-    """Schema for analysis summary in lists"""
     id: int
     analysis_type: str
     analysis_name: str
@@ -122,7 +114,6 @@ class AnalysisSummary(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
-    """Schema for analysis request"""
     analysis_type: str
     evidence_ids: Optional[List[int]] = None
     analysis_config: Optional[Dict[str, Any]] = None
@@ -130,7 +121,6 @@ class AnalysisRequest(BaseModel):
 
 
 class AnalysisStatus(BaseModel):
-    """Schema for analysis status response"""
     analysis_id: int
     status: str
     progress: int

@@ -55,7 +55,6 @@ class Analysis(Base):
 
 
 class AnalysisResult(Base):
-    """Detailed analysis results"""
     
     __tablename__ = "analysis_results"
     
@@ -86,7 +85,6 @@ class AnalysisResult(Base):
 
 
 class Correlation(Base):
-    """Data correlation results"""
     
     __tablename__ = "correlations"
     

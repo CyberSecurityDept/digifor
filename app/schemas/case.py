@@ -5,7 +5,6 @@ from datetime import datetime
 
 
 class CasePersonBase(BaseModel):
-    """Base case person schema"""
     person_type: str  # suspect, victim, witness, other
     full_name: str
     alias: Optional[str] = None
@@ -21,12 +20,10 @@ class CasePersonBase(BaseModel):
 
 
 class CasePersonCreate(CasePersonBase):
-    """Schema for creating a case person"""
     pass
 
 
 class CasePersonUpdate(BaseModel):
-    """Schema for updating a case person"""
     person_type: Optional[str] = None
     full_name: Optional[str] = None
     alias: Optional[str] = None
@@ -42,7 +39,6 @@ class CasePersonUpdate(BaseModel):
 
 
 class CasePerson(CasePersonBase):
-    """Schema for case person response"""
     id: uuid.UUID
     case_id: uuid.UUID
     created_at: datetime
@@ -53,7 +49,6 @@ class CasePerson(CasePersonBase):
 
 
 class CaseBase(BaseModel):
-    """Base case schema"""
     case_number: str
     title: str
     description: Optional[str] = None
@@ -76,7 +71,6 @@ class CaseCreate(CaseBase):
 
 
 class CaseCreateForm(BaseModel):
-    """Schema for case creation form with auto-generated case ID option"""
     # Required fields for UI
     title: str  # Case name
     description: Optional[str] = None  # Case Description
@@ -98,7 +92,6 @@ class CaseCreateForm(BaseModel):
 
 
 class CaseUpdate(BaseModel):
-    """Schema for updating a case"""
     case_number: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
@@ -116,7 +109,6 @@ class CaseUpdate(BaseModel):
 
 
 class Case(CaseBase):
-    """Schema for case response"""
     id: uuid.UUID
     evidence_count: int
     analysis_progress: int
@@ -135,7 +127,6 @@ class Case(CaseBase):
 
 
 class CaseResponseData(BaseModel):
-    """Schema for case response with custom field order"""
     id: uuid.UUID
     case_number: str
     title: str
@@ -168,7 +159,6 @@ class CaseResponseData(BaseModel):
 
 
 class CaseSummary(BaseModel):
-    """Schema for case summary in lists"""
     id: uuid.UUID
     case_number: str
     title: str
@@ -184,7 +174,6 @@ class CaseSummary(BaseModel):
 
 
 class PaginationInfo(BaseModel):
-    """Schema for pagination information"""
     total: int
     page: int
     per_page: int
@@ -192,7 +181,6 @@ class PaginationInfo(BaseModel):
 
 
 class CaseListResponse(BaseModel):
-    """Schema for case list response with pagination"""
     status: int
     message: str
     data: List[CaseSummary]
@@ -200,14 +188,12 @@ class CaseListResponse(BaseModel):
 
 
 class CaseResponse(BaseModel):
-    """Schema for single case response"""
     status: int
     message: str
     data: CaseResponseData
 
 
 class CaseCreateResponse(BaseModel):
-    """Schema for case creation response"""
     status: int
     message: str
     data: CaseResponseData

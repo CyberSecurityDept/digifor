@@ -10,8 +10,6 @@ from app.schemas.case_activity import CaseActivityCreate, CaseStatusHistoryCreat
 
 
 class CaseActivityService:
-    """Service for managing case activities and status tracking"""
-    
     @staticmethod
     def create_activity(
         db: Session,
@@ -28,7 +26,6 @@ class CaseActivityService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> CaseActivity:
-        """Create a new case activity"""
         
         activity = CaseActivity(
             case_id=case_id,
@@ -62,7 +59,6 @@ class CaseActivityService:
         notes: Optional[str] = None,
         ip_address: Optional[str] = None
     ) -> CaseStatusHistory:
-        """Create a new status history entry"""
         
         status_history = CaseStatusHistory(
             case_id=case_id,
@@ -91,7 +87,6 @@ class CaseActivityService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Case:
-        """Update case status with activity tracking"""
         
         previous_status = case.status
         old_value = {"status": previous_status}
@@ -169,7 +164,6 @@ class CaseActivityService:
         limit: int = 50,
         offset: int = 0
     ) -> List[CaseActivity]:
-        """Get case activities with pagination"""
         
         activities = db.query(CaseActivity)\
             .filter(CaseActivity.case_id == case_id)\
@@ -187,7 +181,6 @@ class CaseActivityService:
         limit: int = 50,
         offset: int = 0
     ) -> List[CaseStatusHistory]:
-        """Get case status history with pagination"""
         
         history = db.query(CaseStatusHistory)\
             .filter(CaseStatusHistory.case_id == case_id)\
@@ -204,7 +197,6 @@ class CaseActivityService:
         case_id: uuid.UUID,
         limit: int = 10
     ) -> List[CaseActivity]:
-        """Get recent case activities"""
         
         activities = db.query(CaseActivity)\
             .filter(CaseActivity.case_id == case_id)\

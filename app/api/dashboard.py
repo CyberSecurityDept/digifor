@@ -18,7 +18,6 @@ router = APIRouter()
 async def get_main_dashboard(
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get main dashboard with menu options"""
     return {
         "status": 200,
         "message": "Main dashboard retrieved successfully",
@@ -54,8 +53,6 @@ async def get_analytics_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get analytics dashboard with analysis statistics"""
-    
     # Get analysis statistics
     total_analyses = db.query(Analysis).count()
     completed_analyses = db.query(Analysis).filter(Analysis.status == "completed").count()

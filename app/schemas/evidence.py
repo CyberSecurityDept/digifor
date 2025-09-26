@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class CustodyTransferBase(BaseModel):
-    """Base custody transfer schema"""
     from_custodian: str
     to_custodian: str
     transfer_reason: Optional[str] = None
@@ -21,7 +20,6 @@ class CustodyTransferCreate(CustodyTransferBase):
 
 
 class CustodyTransfer(CustodyTransferBase):
-    """Schema for custody transfer response"""
     id: int
     evidence_id: int
     transfer_date: datetime
@@ -34,7 +32,6 @@ class CustodyTransfer(CustodyTransferBase):
 
 
 class EvidenceItemBase(BaseModel):
-    """Base evidence item schema"""
     evidence_number: str
     item_type: str
     description: str
@@ -51,12 +48,10 @@ class EvidenceItemBase(BaseModel):
 
 
 class EvidenceItemCreate(EvidenceItemBase):
-    """Schema for creating an evidence item"""
     pass
 
 
 class EvidenceItemUpdate(BaseModel):
-    """Schema for updating an evidence item"""
     evidence_number: Optional[str] = None
     item_type: Optional[str] = None
     description: Optional[str] = None
@@ -70,7 +65,6 @@ class EvidenceItemUpdate(BaseModel):
 
 
 class EvidenceItem(EvidenceItemBase):
-    """Schema for evidence item response"""
     id: int
     case_id: int
     file_path: str
@@ -90,7 +84,6 @@ class EvidenceItem(EvidenceItemBase):
 
 
 class EvidenceItemSummary(BaseModel):
-    """Schema for evidence item summary in lists"""
     id: int
     evidence_number: str
     item_type: str
@@ -105,7 +98,6 @@ class EvidenceItemSummary(BaseModel):
 
 
 class EvidenceUpload(BaseModel):
-    """Schema for evidence file upload"""
     evidence_number: str
     item_type: str
     description: str

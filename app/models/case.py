@@ -6,7 +6,6 @@ from app.database import Base
 
 
 class Case(Base):
-    """Forensic case model"""
     
     __tablename__ = "cases"
     
@@ -59,7 +58,6 @@ class Case(Base):
 
 
 class CasePerson(Base):
-    """Person involved in case (suspect, victim, witness)"""
     
     __tablename__ = "case_persons"
     

@@ -5,7 +5,6 @@ import uuid
 
 
 class UserBase(BaseModel):
-    """Base user schema"""
     username: str
     email: EmailStr
     full_name: str
@@ -17,7 +16,6 @@ class UserBase(BaseModel):
 
 
 class UserInDB(UserBase):
-    """Schema for user in database"""
     id: uuid.UUID
     is_superuser: bool
     created_at: datetime
@@ -29,50 +27,42 @@ class UserInDB(UserBase):
 
 
 class User(UserInDB):
-    """Schema for user response"""
     pass
 
 
 
 
 class Token(BaseModel):
-    """Schema for authentication token"""
     access_token: str
     token_type: str
 
 
 class TokenData(BaseModel):
-    """Schema for token data"""
     username: Optional[str] = None
 
 
 class LoginSuccessData(BaseModel):
-    """Schema for login success data"""
     access_token: str
     token_type: str
 
 
 class LoginSuccessResponse(BaseModel):
-    """Schema for login success response"""
     status: int
     messages: str
     data: LoginSuccessData
 
 
 class LoginErrorResponse(BaseModel):
-    """Schema for login error response"""
     status: str
     messages: str
 
 
 class LoginRequest(BaseModel):
-    """Schema for login request with JSON body"""
     username: str
     password: str
 
 
 class UserProfileData(BaseModel):
-    """Schema for user profile data in response"""
     id: uuid.UUID
     username: str
     email: str
@@ -90,14 +80,12 @@ class UserProfileData(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
-    """Schema for user profile response"""
     status: int
     message: str
     data: UserProfileData
 
 
 class UserRegistration(BaseModel):
-    """Schema for user registration"""
     username: str
     email: EmailStr
     full_name: str
@@ -107,31 +95,26 @@ class UserRegistration(BaseModel):
 
 
 class UserRegistrationResponse(BaseModel):
-    """Schema for user registration response"""
     status: int
     message: str
     data: UserProfileData
 
 
 class PasswordChange(BaseModel):
-    """Schema for password change"""
     current_password: str
     new_password: str
 
 
 class PasswordReset(BaseModel):
-    """Schema for password reset request"""
     email: EmailStr
 
 
 class PasswordResetConfirm(BaseModel):
-    """Schema for password reset confirmation"""
     token: str
     new_password: str
 
 
 class SessionInfo(BaseModel):
-    """Schema for session information"""
     user_id: uuid.UUID
     username: str
     role: str
@@ -142,14 +125,12 @@ class SessionInfo(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    """Schema for session response"""
     status: int
     message: str
     data: SessionInfo
 
 
 class RefreshTokenData(BaseModel):
-    """Schema for refresh token data"""
     access_token: str
     refresh_token: str
     token_type: str
@@ -157,14 +138,12 @@ class RefreshTokenData(BaseModel):
 
 
 class RefreshTokenResponse(BaseModel):
-    """Schema for refresh token response"""
     status: int
     message: str
     data: RefreshTokenData
 
 
 class TokenPair(BaseModel):
-    """Schema for token pair (access + refresh)"""
     access_token: str
     refresh_token: str
     token_type: str
@@ -172,5 +151,4 @@ class TokenPair(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    """Schema for refresh token request"""
     refresh_token: str

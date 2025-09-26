@@ -8,7 +8,6 @@ from app.config import settings
 
 
 class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors for console output"""
     
     # Color codes
     COLORS = {
@@ -95,7 +94,6 @@ def get_logger(name: str = "forenlytic") -> logging.Logger:
 
 
 def log_startup_info(logger: logging.Logger):
-    """Log startup information"""
     logger.info("Forenlytic Backend is starting up...")
     logger.info(f"Version: {settings.version}")
     logger.info(f"Debug mode: {settings.debug}")
@@ -103,7 +101,6 @@ def log_startup_info(logger: logging.Logger):
 
 
 def log_database_info(logger: logging.Logger):
-    """Log database information"""
     logger.info("Database initialized")
     logger.info(f"Upload directory: {settings.upload_dir}")
     logger.info(f"Analysis directory: {settings.analysis_dir}")
@@ -118,7 +115,6 @@ def log_database_info(logger: logging.Logger):
 
 
 def log_shutdown(logger: logging.Logger):
-    """Log shutdown information"""
     logger.info("Shutting down Forenlytic Backend...")
 
 

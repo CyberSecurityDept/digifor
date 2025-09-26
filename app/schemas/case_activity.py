@@ -5,7 +5,6 @@ from datetime import datetime
 
 
 class CaseActivityBase(BaseModel):
-    """Base case activity schema"""
     activity_type: str
     description: str
     old_value: Optional[Dict[str, Any]] = None
@@ -19,13 +18,11 @@ class CaseActivityBase(BaseModel):
 
 
 class CaseActivityCreate(CaseActivityBase):
-    """Schema for creating a case activity"""
     case_id: uuid.UUID
     user_id: uuid.UUID
 
 
 class CaseActivity(CaseActivityBase):
-    """Schema for case activity response"""
     id: uuid.UUID
     case_id: uuid.UUID
     user_id: uuid.UUID
@@ -36,7 +33,6 @@ class CaseActivity(CaseActivityBase):
 
 
 class CaseStatusHistoryBase(BaseModel):
-    """Base case status history schema"""
     previous_status: str
     new_status: str
     reason: Optional[str] = None
@@ -45,13 +41,11 @@ class CaseStatusHistoryBase(BaseModel):
 
 
 class CaseStatusHistoryCreate(CaseStatusHistoryBase):
-    """Schema for creating a case status history"""
     case_id: uuid.UUID
     user_id: uuid.UUID
 
 
 class CaseStatusHistory(CaseStatusHistoryBase):
-    """Schema for case status history response"""
     id: uuid.UUID
     case_id: uuid.UUID
     user_id: uuid.UUID
@@ -62,26 +56,22 @@ class CaseStatusHistory(CaseStatusHistoryBase):
 
 
 class CaseCloseRequest(BaseModel):
-    """Schema for closing a case"""
     reason: str
     notes: Optional[str] = None
 
 
 class CaseReopenRequest(BaseModel):
-    """Schema for reopening a case"""
     reason: str
     notes: Optional[str] = None
 
 
 class CaseStatusChangeRequest(BaseModel):
-    """Schema for changing case status"""
     status: str
     reason: str
     notes: Optional[str] = None
 
 
 class CaseActivitySummary(BaseModel):
-    """Schema for case activity summary"""
     id: uuid.UUID
     activity_type: str
     description: str

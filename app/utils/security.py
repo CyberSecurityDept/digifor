@@ -16,17 +16,14 @@ refresh_tokens: Dict[str, Dict[str, Any]] = {}
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password"""
     return pwd_context.hash(password)
 
 
 def create_access_token_legacy(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token (legacy version)"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -39,7 +36,6 @@ def create_access_token_legacy(data: dict, expires_delta: Optional[timedelta] = 
 
 
 def verify_token(token: str) -> Optional[str]:
-    """Verify JWT token and return username"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         username: str = payload.get("sub")
@@ -51,7 +47,6 @@ def verify_token(token: str) -> Optional[str]:
 
 
 def create_password_reset_token(email: str) -> str:
-    """Create password reset token"""
     # Use longer expiration time to avoid timezone issues
     delta = timedelta(hours=24)  # Token expires in 24 hours
     now = datetime.utcnow()
@@ -69,7 +64,6 @@ def create_password_reset_token(email: str) -> str:
 
 
 def verify_password_reset_token(token: str) -> Optional[str]:
-    """Verify password reset token and return email"""
     try:
         # Allow clock skew of 60 seconds to handle timezone issues
         decoded_token = jwt.decode(
@@ -86,7 +80,6 @@ def verify_password_reset_token(token: str) -> Optional[str]:
 
 
 def validate_password_strength(password: str) -> Dict[str, Any]:
-    """Validate password strength"""
     errors = []
     
     if len(password) < 8:
@@ -121,7 +114,6 @@ def validate_password_strength(password: str) -> Dict[str, Any]:
 
 
 def calculate_password_strength(password: str) -> str:
-    """Calculate password strength"""
     score = 0
     
     if len(password) >= 8:
@@ -150,7 +142,6 @@ def calculate_password_strength(password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token with session tracking"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -180,7 +171,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def verify_token(token: str) -> Optional[str]:
-    """Verify and decode a JWT token with session validation"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         username: str = payload.get("sub")
@@ -207,7 +197,6 @@ def verify_token(token: str) -> Optional[str]:
 
 
 def verify_token_with_error_info(token: str) -> tuple[Optional[str], Optional[str]]:
-    """Verify token and return username and error type"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         username: str = payload.get("sub")
@@ -241,7 +230,6 @@ def verify_token_with_error_info(token: str) -> tuple[Optional[str], Optional[st
 
 
 def get_session_info(token: str) -> Optional[Dict[str, Any]]:
-    """Get session information from token"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         jti: str = payload.get("jti")
@@ -254,7 +242,6 @@ def get_session_info(token: str) -> Optional[Dict[str, Any]]:
 
 
 def revoke_session(token: str) -> bool:
-    """Revoke a session"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         jti: str = payload.get("jti")
@@ -269,7 +256,6 @@ def revoke_session(token: str) -> bool:
 
 
 def revoke_all_user_sessions(username: str) -> int:
-    """Revoke all sessions for a user"""
     revoked_count = 0
     sessions_to_remove = []
     
@@ -285,7 +271,6 @@ def revoke_all_user_sessions(username: str) -> int:
 
 
 def cleanup_expired_sessions():
-    """Clean up expired sessions"""
     current_time = datetime.utcnow()
     expired_sessions = []
     
@@ -300,17 +285,14 @@ def cleanup_expired_sessions():
 
 
 def get_active_sessions_count() -> int:
-    """Get count of active sessions"""
     return len(active_sessions)
 
 
 def hash_file_content(content: bytes) -> str:
-    """Generate hash for file content"""
     return hashlib.sha256(content).hexdigest()
 
 
 def create_refresh_token(username: str, role: str = "investigator") -> str:
-    """Create a refresh token with longer expiration"""
     refresh_token_data = {
         "sub": username,
         "role": role,
@@ -344,7 +326,6 @@ def create_refresh_token(username: str, role: str = "investigator") -> str:
 
 
 def verify_refresh_token(token: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Verify refresh token and return username, role, and error type"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         username: str = payload.get("sub")
@@ -384,7 +365,6 @@ def verify_refresh_token(token: str) -> tuple[Optional[str], Optional[str], Opti
 
 
 def revoke_refresh_token(token: str) -> bool:
-    """Revoke a refresh token"""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         jti: str = payload.get("jti")
@@ -399,7 +379,6 @@ def revoke_refresh_token(token: str) -> bool:
 
 
 def revoke_all_refresh_tokens(username: str) -> int:
-    """Revoke all refresh tokens for a user"""
     revoked_count = 0
     tokens_to_remove = []
     
@@ -415,7 +394,6 @@ def revoke_all_refresh_tokens(username: str) -> int:
 
 
 def cleanup_expired_refresh_tokens():
-    """Clean up expired refresh tokens"""
     current_time = datetime.utcnow()
     expired_tokens = []
     
@@ -430,12 +408,10 @@ def cleanup_expired_refresh_tokens():
 
 
 def get_refresh_tokens_count() -> int:
-    """Get count of active refresh tokens"""
     return len(refresh_tokens)
 
 
 def create_token_pair(username: str, role: str = "investigator") -> tuple[str, str, int]:
-    """Create both access and refresh tokens"""
     # Create access token (30 minutes)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(

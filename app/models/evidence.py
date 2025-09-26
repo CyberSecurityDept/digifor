@@ -5,9 +5,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class EvidenceItem(Base):
-    """Digital evidence item model"""
-    
+class EvidenceItem(Base): 
     __tablename__ = "evidence_items"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -63,8 +61,6 @@ class EvidenceItem(Base):
 
 
 class CustodyTransfer(Base):
-    """Chain of custody transfer record"""
-    
     __tablename__ = "custody_transfers"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)

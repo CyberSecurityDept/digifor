@@ -7,6 +7,17 @@ http://localhost:8000
 
 ## Authentication
 
+### Overview
+Sistem authentication menggunakan JWT (JSON Web Token) dengan auto refresh token mechanism untuk keamanan dan user experience yang optimal.
+
+### Features
+- ✅ **JWT Access Token** - 30 menit expiration
+- ✅ **Refresh Token** - 7 hari expiration dengan rotation
+- ✅ **Auto Refresh** - Token otomatis di-refresh sebelum expired
+- ✅ **Token Rotation** - Security best practice
+- ✅ **Session Management** - Multi-device support
+- ✅ **Password Security** - Strong password requirements
+
 ### 1. Login
 **Endpoint:** `POST /api/v1/auth/token`
 
@@ -47,7 +58,105 @@ Content-Type: application/json
 }
 ```
 
-### 2. Get User Profile
+### 2. Auto Refresh Token
+**Endpoint:** `POST /api/v1/auth/auto-refresh`
+
+**Description:** Automatic refresh token endpoint untuk seamless token refresh tanpa user interaction.
+
+**Request Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Tokens refreshed automatically",
+    "data": {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer",
+        "expires_in": 1800
+    }
+}
+```
+
+**Response (401 Unauthorized):**
+```json
+{
+    "status": "401",
+    "message": "Auto refresh failed",
+    "error": "Invalid refresh token"
+}
+```
+
+### 3. Token Status Check
+**Endpoint:** `GET /api/v1/auth/token-status`
+
+**Description:** Check status token dan informasi refresh yang diperlukan.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Token status retrieved successfully",
+    "data": {
+        "valid": true,
+        "needs_refresh": false,
+        "time_until_expiry": 1200,
+        "expires_at": "2024-01-01T12:00:00Z",
+        "username": "admin",
+        "role": "admin"
+    }
+}
+```
+
+**Response (401 Unauthorized):**
+```json
+{
+    "status": "401",
+    "message": "Invalid token"
+}
+```
+
+### 4. Auto Refresh Headers
+Ketika token di-refresh otomatis, server akan menambahkan header berikut ke response:
+
+**Response Headers:**
+```
+X-New-Access-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-New-Refresh-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+X-Token-Expires-In: 1800
+X-Token-Refreshed: true
+```
+
+**Frontend Implementation:**
+```javascript
+// Check if token was refreshed
+if (response.headers.get('X-Token-Refreshed') === 'true') {
+    const newAccessToken = response.headers.get('X-New-Access-Token');
+    const newRefreshToken = response.headers.get('X-New-Refresh-Token');
+    
+    // Update stored tokens
+    localStorage.setItem('access_token', newAccessToken);
+    localStorage.setItem('refresh_token', newRefreshToken);
+}
+```
+
+### 5. Get User Profile
 **Endpoint:** `GET /api/v1/auth/me`
 
 **Description:** Mendapatkan informasi profil user yang sedang login.
@@ -85,7 +194,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 3. User Registration
+### 6. User Registration
 **Endpoint:** `POST /api/v1/auth/register`
 
 **Description:** Mendaftarkan user baru dengan validasi password yang kuat.
@@ -144,72 +253,7 @@ Content-Type: application/json
 }
 ```
 
-### 4. Refresh Token
-**Endpoint:** `POST /api/v1/auth/refresh`
-
-**Description:** Memperbarui access token menggunakan refresh token.
-
-**Request Headers:**
-```
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Request Schema:**
-- `refresh_token` (string, required): Valid refresh token dari login response
-
-**Response (200 OK):**
-```json
-{
-    "status": 200,
-    "message": "Tokens refreshed successfully",
-    "data": {
-        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        "token_type": "bearer",
-        "expires_in": 1800
-    }
-}
-```
-
-**Response (401 Unauthorized) - Invalid Refresh Token:**
-```json
-{
-    "status": "401",
-    "message": "Invalid refresh token"
-}
-```
-
-**Response (401 Unauthorized) - Refresh Token Expired:**
-```json
-{
-    "status": "401",
-    "message": "Refresh token has expired"
-}
-```
-
-**Response (422 Unprocessable Entity) - Missing Field:**
-```json
-{
-    "detail": [
-        {
-            "type": "missing",
-            "loc": ["body", "refresh_token"],
-            "msg": "Field required",
-            "input": {},
-            "url": "https://errors.pydantic.dev/2.5/v/missing"
-        }
-    ]
-}
-```
-
-### 5. Change Password
+### 7. Change Password
 **Endpoint:** `POST /api/v1/auth/change-password`
 
 **Description:** Mengubah password user dengan validasi password yang kuat.
@@ -237,7 +281,7 @@ Content-Type: application/json
 }
 ```
 
-### 6. Request Password Reset
+### 8. Request Password Reset
 **Endpoint:** `POST /api/v1/auth/request-password-reset`
 
 **Description:** Meminta reset password melalui email.
@@ -263,7 +307,7 @@ Content-Type: application/json
 }
 ```
 
-### 7. Reset Password
+### 9. Reset Password
 **Endpoint:** `POST /api/v1/auth/reset-password`
 
 **Description:** Reset password menggunakan token yang valid.
@@ -290,7 +334,7 @@ Content-Type: application/json
 }
 ```
 
-### 8. Get Session Information
+### 10. Get Session Information
 **Endpoint:** `GET /api/v1/auth/session`
 
 **Description:** Mendapatkan informasi session saat ini.
@@ -317,7 +361,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 9. Logout
+### 11. Logout
 **Endpoint:** `POST /api/v1/auth/logout`
 
 **Description:** Logout dan revoke session saat ini.
@@ -335,7 +379,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 10. Logout All Sessions
+### 12. Logout All Sessions
 **Endpoint:** `POST /api/v1/auth/logout-all`
 
 **Description:** Logout dari semua session user.
@@ -353,7 +397,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 11. Cleanup Expired Sessions
+### 13. Cleanup Expired Sessions
 **Endpoint:** `GET /api/v1/auth/sessions/cleanup`
 
 **Description:** Membersihkan session yang sudah expired (admin only).
@@ -370,7 +414,7 @@ Authorization: Bearer <access_token>
 
 ## Dashboard
 
-### 12. Get Main Dashboard
+### 14. Get Main Dashboard
 **Endpoint:** `GET /api/v1/dashboard/`
 
 **Description:** Mendapatkan halaman utama dashboard dengan menu Analytics dan Case.
@@ -413,7 +457,7 @@ Authorization: Bearer <access_token>
 ```
 
 
-### 13. Get Analytics Dashboard
+### 15. Get Analytics Dashboard
 **Endpoint:** `GET /api/v1/dashboard/analytics`
 
 **Description:** Mendapatkan dashboard analytics dengan statistik analisis dan evidence.
@@ -1423,34 +1467,7 @@ Authorization: Bearer <access_token>
 ```
 
 ### 33. Delete Case
-**Endpoint:** `DELETE /api/v1/cases/{case_id}`
-
-**Description:** Menghapus kasus forensik (soft delete/archive) menggunakan path parameter.
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Path Parameters:**
-- `case_id`: UUID kasus yang akan dihapus (format: UUID string)
-
-**Response (200 OK):**
-```json
-{
-    "message": "Case archived successfully"
-}
-```
-
-**Response (404 Not Found):**
-```json
-{
-    "detail": "Case not found"
-}
-```
-
-### 34. Delete Case by Query Parameter
-**Endpoint:** `DELETE /api/v1/cases/?case_id={case_id}`
+**Endpoint:** `DELETE /api/v1/cases/delete-case/?case_id={case_id}`
 
 **Description:** Menghapus kasus forensik (soft delete/archive) menggunakan query parameter.
 
@@ -1472,13 +1489,14 @@ Authorization: Bearer <access_token>
 **Response (404 Not Found):**
 ```json
 {
-    "detail": "Case not found"
+    "status": 404,
+    "message": "Case not found"
 }
 ```
 
 ## Report Generation
 
-### 35. Generate Case Report
+### 34. Generate Case Report
 **Endpoint:** `POST /api/v1/reports/generate`
 
 **Description:** Membuat laporan forensik untuk kasus tertentu.
@@ -1517,7 +1535,7 @@ Content-Type: application/json
 }
 ```
 
-### 36. Download Report
+### 35. Download Report
 **Endpoint:** `GET /api/v1/reports/download/{report_id}`
 
 **Description:** Mengunduh file laporan yang sudah dibuat.
@@ -1545,7 +1563,7 @@ File download (application/octet-stream)
 
 ## System Endpoints
 
-### 37. Health Check
+### 36. Health Check
 **Endpoint:** `GET /health`
 
 **Description:** Memeriksa status kesehatan sistem.
@@ -1559,7 +1577,7 @@ File download (application/octet-stream)
 }
 ```
 
-### 38. Root Endpoint
+### 37. Root Endpoint
 **Endpoint:** `GET /`
 
 **Description:** Informasi dasar API.
@@ -1822,13 +1840,36 @@ File download (application/octet-stream)
 
 ## Authentication Flow
 
+### Basic Flow
 1. **Register:** POST `/api/v1/auth/register` untuk membuat akun baru
 2. **Login:** POST `/api/v1/auth/token` dengan username dan password
 3. **Get Tokens:** Response berisi access_token dan refresh_token
 4. **Use Access Token:** Tambahkan header `Authorization: Bearer <access_token>` ke semua request yang memerlukan autentikasi
-5. **Refresh Tokens:** Ketika access_token expired, gunakan POST `/api/v1/auth/refresh` dengan refresh_token
-6. **Auto Refresh:** Frontend dapat otomatis refresh token sebelum expired
-7. **Logout:** POST `/api/v1/auth/logout` untuk revoke session atau POST `/api/v1/auth/logout-with-refresh` dengan refresh_token
+5. **Auto Refresh:** Middleware otomatis refresh token 5 menit sebelum expired
+6. **Token Rotation:** Refresh token lama di-revoke, token baru diberikan
+7. **Seamless UX:** User tidak perlu login ulang, token otomatis di-refresh
+
+### Auto Refresh Flow
+1. **Request dengan Token:** Frontend mengirim request dengan access_token + refresh_token
+2. **Middleware Detection:** Server mendeteksi token yang akan expired
+3. **Auto Refresh:** Server otomatis refresh menggunakan refresh_token
+4. **Token Rotation:** Refresh token lama di-revoke, token baru dibuat
+5. **Response Headers:** Server mengirim token baru via response headers
+6. **Frontend Update:** Frontend otomatis update token dari headers
+7. **Seamless Experience:** User tidak merasakan interupsi
+
+### Manual Refresh Flow
+1. **Token Expired:** Access token expired, request gagal dengan 401
+2. **Manual Refresh:** Frontend panggil POST `/api/v1/auth/auto-refresh` dengan refresh_token
+3. **New Tokens:** Server memberikan access_token dan refresh_token baru
+4. **Retry Request:** Frontend retry request dengan token baru
+5. **Continue:** Request berhasil dengan token baru
+
+### Logout Flow
+1. **Logout:** POST `/api/v1/auth/logout` untuk revoke session
+2. **Logout All:** POST `/api/v1/auth/logout-all` untuk revoke semua session
+3. **Clear Tokens:** Frontend clear access_token dan refresh_token
+4. **Redirect:** Redirect ke halaman login
 
 ## Dashboard Features
 
@@ -1871,6 +1912,149 @@ File download (application/octet-stream)
 - ✅ **Data Privacy** - ID tidak mengungkapkan informasi internal
 - ✅ **Collision Resistant** - Probabilitas duplikasi sangat rendah
 
+## Auto Refresh Token System
+
+### How It Works
+1. **Login** - User login dan mendapat access_token + refresh_token
+2. **Auto Detection** - Middleware mendeteksi token yang akan expired (5 menit sebelum)
+3. **Auto Refresh** - Server otomatis refresh token menggunakan refresh_token
+4. **Token Rotation** - Refresh token lama di-revoke, token baru diberikan
+5. **Header Response** - Server mengirim token baru via response headers
+6. **Frontend Update** - Frontend otomatis update token dari headers
+
+### Frontend Implementation Examples
+
+#### JavaScript/TypeScript
+```javascript
+class AutoRefreshTokenManager {
+    constructor(baseURL = 'http://localhost:8000') {
+        this.baseURL = baseURL;
+        this.accessToken = localStorage.getItem('access_token');
+        this.refreshToken = localStorage.getItem('refresh_token');
+    }
+
+    async request(url, options = {}) {
+        const headers = {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'X-Refresh-Token': this.refreshToken,
+            ...options.headers
+        };
+
+        const response = await fetch(url, { ...options, headers });
+
+        // Check if token was refreshed automatically
+        if (response.headers.get('X-Token-Refreshed') === 'true') {
+            const newAccessToken = response.headers.get('X-New-Access-Token');
+            const newRefreshToken = response.headers.get('X-New-Refresh-Token');
+            
+            if (newAccessToken && newRefreshToken) {
+                this.accessToken = newAccessToken;
+                this.refreshToken = newRefreshToken;
+                
+                localStorage.setItem('access_token', this.accessToken);
+                localStorage.setItem('refresh_token', this.refreshToken);
+                
+                console.log('🔄 Tokens refreshed automatically');
+            }
+        }
+
+        return response;
+    }
+}
+```
+
+#### React Hook
+```javascript
+import { useState, useEffect, useCallback } from 'react';
+
+const useAutoRefreshToken = (baseURL = 'http://localhost:8000') => {
+    const [accessToken, setAccessToken] = useState(null);
+    const [refreshToken, setRefreshToken] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    const request = useCallback(async (url, options = {}) => {
+        const headers = {
+            'Authorization': `Bearer ${accessToken}`,
+            'X-Refresh-Token': refreshToken,
+            ...options.headers
+        };
+
+        const response = await fetch(url, { ...options, headers });
+
+        // Handle auto refresh
+        if (response.headers.get('X-Token-Refreshed') === 'true') {
+            const newAccessToken = response.headers.get('X-New-Access-Token');
+            const newRefreshToken = response.headers.get('X-New-Refresh-Token');
+            
+            if (newAccessToken && newRefreshToken) {
+                setAccessToken(newAccessToken);
+                setRefreshToken(newRefreshToken);
+                localStorage.setItem('access_token', newAccessToken);
+                localStorage.setItem('refresh_token', newRefreshToken);
+            }
+        }
+
+        return response;
+    }, [accessToken, refreshToken]);
+
+    return { accessToken, refreshToken, isAuthenticated, request };
+};
+```
+
+#### Axios Interceptor
+```javascript
+import axios from 'axios';
+
+const api = axios.create({
+    baseURL: 'http://localhost:8000',
+});
+
+// Request interceptor
+api.interceptors.request.use((config) => {
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+    
+    if (refreshToken) {
+        config.headers['X-Refresh-Token'] = refreshToken;
+    }
+    
+    return config;
+});
+
+// Response interceptor
+api.interceptors.response.use(
+    (response) => {
+        // Check if token was refreshed
+        if (response.headers['x-token-refreshed'] === 'true') {
+            const newAccessToken = response.headers['x-new-access-token'];
+            const newRefreshToken = response.headers['x-new-refresh-token'];
+            
+            if (newAccessToken && newRefreshToken) {
+                localStorage.setItem('access_token', newAccessToken);
+                localStorage.setItem('refresh_token', newRefreshToken);
+                console.log('🔄 Tokens refreshed automatically');
+            }
+        }
+        
+        return response;
+    },
+    async (error) => {
+        if (error.response?.status === 401) {
+            // Handle token refresh failure
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login';
+        }
+        
+        return Promise.reject(error);
+    }
+);
+```
+
 ## Token Management
 
 ### Access Token
@@ -1890,6 +2074,8 @@ File download (application/octet-stream)
 - **Token Rotation:** Refresh token di-rotate setiap kali digunakan
 - **Session Tracking:** Access token terikat dengan session
 - **Automatic Cleanup:** Expired tokens otomatis dibersihkan
+- **Auto Refresh:** Token otomatis di-refresh 5 menit sebelum expired
+- **Seamless UX:** User tidak perlu login ulang
 
 ## Password Requirements
 

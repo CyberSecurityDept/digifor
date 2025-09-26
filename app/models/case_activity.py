@@ -6,7 +6,6 @@ from app.database import Base
 
 
 class CaseActivity(Base):
-    """Case activity tracking model"""
     
     __tablename__ = "case_activities"
     
@@ -42,7 +41,6 @@ class CaseActivity(Base):
 
 
 class CaseStatusHistory(Base):
-    """Case status history tracking"""
     
     __tablename__ = "case_status_history"
     

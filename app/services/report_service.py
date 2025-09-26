@@ -11,14 +11,12 @@ from app.config import settings
 
 
 class ReportGenerator:
-    """Service for generating forensic reports"""
     
     def __init__(self):
         self.reports_dir = settings.reports_dir
         self.template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
     
     def generate_case_report(self, case_id: int, db: Session, report_type: str = "comprehensive") -> Dict[str, Any]:
-        """Generate comprehensive case report"""
         # Get case data
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
@@ -60,7 +58,6 @@ class ReportGenerator:
             return self._generate_comprehensive_report(report_data)
     
     def generate_chain_of_custody_report(self, evidence_id: int, db: Session) -> Dict[str, Any]:
-        """Generate Chain of Custody report for evidence item"""
         evidence = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_id).first()
         if not evidence:
             raise ValueError(f"Evidence {evidence_id} not found")
@@ -82,7 +79,6 @@ class ReportGenerator:
         return self._generate_custody_report(report_data)
     
     def _generate_comprehensive_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate comprehensive case report"""
         return {
             'report_type': 'comprehensive',
             'title': f"Comprehensive Forensic Report - {data['case']['case_number']}",
@@ -98,7 +94,6 @@ class ReportGenerator:
         }
     
     def _generate_summary_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate summary report"""
         return {
             'report_type': 'summary',
             'title': f"Case Summary - {data['case']['case_number']}",
@@ -111,7 +106,6 @@ class ReportGenerator:
         }
     
     def _generate_evidence_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate evidence-focused report"""
         return {
             'report_type': 'evidence',
             'title': f"Evidence Report - {data['case']['case_number']}",
@@ -124,7 +118,6 @@ class ReportGenerator:
         }
     
     def _generate_analysis_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate analysis-focused report"""
         return {
             'report_type': 'analysis',
             'title': f"Analysis Report - {data['case']['case_number']}",
@@ -138,7 +131,6 @@ class ReportGenerator:
         }
     
     def _generate_custody_report(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate Chain of Custody report"""
         return {
             'report_type': 'custody',
             'title': f"Chain of Custody - {data['evidence']['evidence_number']}",
@@ -151,7 +143,6 @@ class ReportGenerator:
         }
     
     def _create_case_overview_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create case overview section"""
         case = data['case']
         return {
             'title': 'Case Overview',
@@ -172,7 +163,6 @@ class ReportGenerator:
         }
     
     def _create_persons_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create persons section"""
         persons = data['persons']
         return {
             'title': 'Persons Involved',
@@ -183,7 +173,6 @@ class ReportGenerator:
         }
     
     def _create_evidence_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create evidence section"""
         evidence_items = data['evidence_items']
         return {
             'title': 'Digital Evidence',
@@ -194,7 +183,6 @@ class ReportGenerator:
         }
     
     def _create_analysis_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create analysis section"""
         analyses = data['analyses']
         return {
             'title': 'Forensic Analysis',
@@ -205,7 +193,6 @@ class ReportGenerator:
         }
     
     def _create_correlations_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create correlations section"""
         correlations = data['correlations']
         return {
             'title': 'Data Correlations',
@@ -216,7 +203,6 @@ class ReportGenerator:
         }
     
     def _create_evidence_summary_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create evidence summary section"""
         evidence_items = data['evidence_items']
         return {
             'title': 'Evidence Summary',
@@ -228,7 +214,6 @@ class ReportGenerator:
         }
     
     def _create_analysis_summary_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create analysis summary section"""
         analyses = data['analyses']
         return {
             'title': 'Analysis Summary',
@@ -240,7 +225,6 @@ class ReportGenerator:
         }
     
     def _create_custody_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create custody section"""
         evidence_items = data['evidence_items']
         return {
             'title': 'Chain of Custody',
@@ -250,7 +234,6 @@ class ReportGenerator:
         }
     
     def _create_findings_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create findings section"""
         analyses = data['analyses']
         correlations = data['correlations']
         
@@ -272,7 +255,6 @@ class ReportGenerator:
         }
     
     def _create_evidence_overview_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create evidence overview section"""
         evidence = data['evidence']
         return {
             'title': 'Evidence Overview',
@@ -280,7 +262,6 @@ class ReportGenerator:
         }
     
     def _create_custody_timeline_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create custody timeline section"""
         transfers = data['custody_transfers']
         return {
             'title': 'Custody Timeline',
@@ -290,7 +271,6 @@ class ReportGenerator:
         }
     
     def _create_custody_verification_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create custody verification section"""
         transfers = data['custody_transfers']
         return {
             'title': 'Custody Verification',
@@ -302,7 +282,6 @@ class ReportGenerator:
         }
     
     def _create_conclusions_section(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create conclusions section"""
         return {
             'title': 'Conclusions',
             'content': {
@@ -317,7 +296,6 @@ class ReportGenerator:
         }
     
     def _group_evidence_by_type(self, evidence_items: List[Dict[str, Any]]) -> Dict[str, int]:
-        """Group evidence items by type"""
         groups = {}
         for item in evidence_items:
             item_type = item['item_type']
@@ -325,7 +303,6 @@ class ReportGenerator:
         return groups
     
     def _group_evidence_by_status(self, evidence_items: List[Dict[str, Any]]) -> Dict[str, int]:
-        """Group evidence items by status"""
         groups = {}
         for item in evidence_items:
             status = item['status']
@@ -333,7 +310,6 @@ class ReportGenerator:
         return groups
     
     def _group_analyses_by_type(self, analyses: List[Dict[str, Any]]) -> Dict[str, int]:
-        """Group analyses by type"""
         groups = {}
         for analysis in analyses:
             analysis_type = analysis['analysis_type']
@@ -341,7 +317,6 @@ class ReportGenerator:
         return groups
     
     def _group_analyses_by_status(self, analyses: List[Dict[str, Any]]) -> Dict[str, int]:
-        """Group analyses by status"""
         groups = {}
         for analysis in analyses:
             status = analysis['status']
@@ -349,7 +324,6 @@ class ReportGenerator:
         return groups
     
     def _serialize_case(self, case: Case) -> Dict[str, Any]:
-        """Serialize case object"""
         return {
             'id': case.id,
             'case_number': case.case_number,
@@ -373,7 +347,6 @@ class ReportGenerator:
         }
     
     def _serialize_person(self, person: CasePerson) -> Dict[str, Any]:
-        """Serialize person object"""
         return {
             'id': person.id,
             'person_type': person.person_type,
@@ -393,7 +366,6 @@ class ReportGenerator:
         }
     
     def _serialize_evidence(self, evidence: EvidenceItem) -> Dict[str, Any]:
-        """Serialize evidence object"""
         return {
             'id': evidence.id,
             'evidence_number': evidence.evidence_number,
@@ -421,7 +393,6 @@ class ReportGenerator:
         }
     
     def _serialize_analysis(self, analysis: Analysis) -> Dict[str, Any]:
-        """Serialize analysis object"""
         return {
             'id': analysis.id,
             'analysis_type': analysis.analysis_type,
@@ -442,7 +413,6 @@ class ReportGenerator:
         }
     
     def _serialize_correlation(self, correlation: Correlation) -> Dict[str, Any]:
-        """Serialize correlation object"""
         return {
             'id': correlation.id,
             'correlation_type': correlation.correlation_type,
@@ -458,7 +428,6 @@ class ReportGenerator:
         }
     
     def _serialize_custody_transfer(self, transfer: CustodyTransfer) -> Dict[str, Any]:
-        """Serialize custody transfer object"""
         return {
             'id': transfer.id,
             'from_custodian': transfer.from_custodian,
@@ -476,7 +445,6 @@ class ReportGenerator:
         }
     
     def save_report(self, report_data: Dict[str, Any], filename: Optional[str] = None) -> str:
-        """Save report to file"""
         if not filename:
             case_number = report_data['metadata']['case_id']
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
