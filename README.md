@@ -23,8 +23,8 @@ Lihat [requirements.txt](requirements.txt) untuk daftar lengkap dependencies.
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/forenlytic-backend.git
-cd forenlytic-backend
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor
 ```
 
 ### 🖥️ Platform-Specific Installation
@@ -337,13 +337,13 @@ If you prefer Docker, you can use the following commands:
 
 ```bash
 # Build Docker image
-docker build -t forenlytic-backend .
+docker build -t digifor-backend .
 
 # Run with Docker Compose (if available)
 docker-compose up -d
 
 # Or run directly
-docker run -p 8000:8000 -v $(pwd)/data:/app/data forenlytic-backend
+docker run -p 8000:8000 -v $(pwd)/data:/app/data digifor-backend
 ```
 
 **Docker Requirements:**
@@ -356,8 +356,8 @@ For developers who want to contribute or customize:
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/your-username/forenlytic-backend.git
-cd forenlytic-backend
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor
 
 # 2. Create development environment
 python3.11 -m venv venv
