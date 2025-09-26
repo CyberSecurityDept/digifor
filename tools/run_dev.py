@@ -19,9 +19,9 @@ def main():
     # Setup logging
     logger = setup_logging()
     
-    logger.info("========================================")
-    logger.info("Forenlytic Backend - Development Server")
-    logger.info("========================================")
+    logger.info("==============================================")
+    logger.info("Digital Forensik Backend - Development Server")
+    logger.info("==============================================")
     logger.info("Activating virtual environment...")
     logger.info("Starting server...")
     

@@ -78,7 +78,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if not token:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"status": "401", "message": "Token not provided"},
+            content={"status": 401, "message": "Token not provided"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -88,31 +88,31 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         if error_type == "invalid_token":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Invalid token"},
+                content={"status": 401, "message": "Invalid token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_not_found":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session not found"},
+                content={"status": 401, "message": "Session not found"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_inactive":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session is inactive"},
+                content={"status": 401, "message": "Session is inactive"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_expired":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session has expired"},
+                content={"status": 401, "message": "Session has expired"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         else:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Could not validate credentials"},
+                content={"status": 401, "message": "Could not validate credentials"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -120,7 +120,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"status": "401", "message": "User not found"},
+            content={"status": 401, "message": "User not found"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -131,7 +131,7 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     if not current_user.is_active:
         return JSONResponse(
             status_code=400,
-            content={"status": "400", "message": "Inactive user"}
+            content={"status": 400, "message": "Inactive user"}
         )
     return current_user
 
@@ -143,7 +143,7 @@ async def get_current_active_user_safe_auth(
     if not token:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"status": "401", "message": "Token not provided"},
+            content={"status": 401, "message": "Token not provided"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -153,31 +153,31 @@ async def get_current_active_user_safe_auth(
         if error_type == "invalid_token":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Invalid token"},
+                content={"status": 401, "message": "Invalid token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_not_found":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session not found"},
+                content={"status": 401, "message": "Session not found"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_inactive":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session is inactive"},
+                content={"status": 401, "message": "Session is inactive"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         elif error_type == "session_expired":
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Session has expired"},
+                content={"status": 401, "message": "Session has expired"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
         else:
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"status": "401", "message": "Could not validate credentials"},
+                content={"status": 401, "message": "Could not validate credentials"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -185,14 +185,14 @@ async def get_current_active_user_safe_auth(
     if user is None:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"status": "401", "message": "User not found"},
+            content={"status": 401, "message": "User not found"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not user.is_active:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"status": "400", "message": "Inactive user"}
+            content={"status": 400, "message": "Inactive user"}
         )
     
     return user
@@ -202,30 +202,36 @@ def login_for_access_token(
     login_data: LoginRequest,
     db: Session = Depends(get_db),
 ):
-    user = authenticate_user(db, login_data.username, login_data.password)
-    if not user:
-        return JSONResponse(
-            status_code=401,
-            content={"status": "401", "messages": "Invalid username or password"},
+    try:
+        user = authenticate_user(db, login_data.username, login_data.password)
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={"status": 401, "messages": "Invalid username or password"},
+            )
+
+        # Create token pair (access + refresh)
+        access_token, refresh_token, expires_in = create_token_pair(user.username, user.role)
+
+        # Update last login
+        user.last_login = datetime.utcnow()
+        db.commit()
+
+        return RefreshTokenResponse(
+            status=200,
+            message="Login Successfully",
+            data=RefreshTokenData(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=expires_in
+            ),
         )
-
-    # Create token pair (access + refresh)
-    access_token, refresh_token, expires_in = create_token_pair(user.username, user.role)
-
-    # Update last login
-    user.last_login = datetime.utcnow()
-    db.commit()
-
-    return RefreshTokenResponse(
-        status=200,
-        message="Login Successfully",
-        data=RefreshTokenData(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            expires_in=expires_in
-        ),
-    )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Login failed: {str(e)}"}
+        )
 
 
 @router.post("/token-form", response_model=LoginSuccessResponse, responses={401: {"model": LoginErrorResponse, "description": "Invalid credentials"}}, include_in_schema=False)
@@ -237,7 +243,7 @@ def login_for_access_token_form(
     if not user:
         return JSONResponse(
             status_code=401,
-            content={"status": "401", "messages": "Invalid username or password"},
+            content={"status": 401, "messages": "Invalid username or password"},
         )
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
@@ -265,7 +271,7 @@ def oauth2_login_for_access_token(
     if not user:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"status": "401", "message": "Incorrect username or password"},
+            content={"status": 401, "message": "Incorrect username or password"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -283,23 +289,29 @@ def oauth2_login_for_access_token(
 
 @router.get("/me", response_model=UserProfileResponse)
 def read_users_me(current_user: User = Depends(get_current_active_user_safe_auth)):
-    return UserProfileResponse(
-        status=200,
-        message="User profile retrieved successfully",
-        data=UserProfileData(
-            id=current_user.id,
-            username=current_user.username,
-            email=current_user.email,
-            full_name=current_user.full_name,
-            role=current_user.role,
-            department=current_user.department,
-            is_active=current_user.is_active,
-            is_superuser=current_user.is_superuser,
-            last_login=current_user.last_login,
-            created_at=current_user.created_at,
-            updated_at=current_user.updated_at
+    try:
+        return UserProfileResponse(
+            status=200,
+            message="User profile retrieved successfully",
+            data=UserProfileData(
+                id=current_user.id,
+                username=current_user.username,
+                email=current_user.email,
+                full_name=current_user.full_name,
+                role=current_user.role,
+                department=current_user.department,
+                is_active=current_user.is_active,
+                is_superuser=current_user.is_superuser,
+                last_login=current_user.last_login,
+                created_at=current_user.created_at,
+                updated_at=current_user.updated_at
+            )
         )
-    )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Failed to retrieve user profile: {str(e)}"}
+        )
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse)
@@ -307,67 +319,73 @@ def refresh_access_token(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
-    refresh_token = refresh_data.refresh_token
+    try:
+        refresh_token = refresh_data.refresh_token
+        
+        # Verify refresh token
+        username, role, error_type = verify_refresh_token(refresh_token)
+        
+        if username is None:
+            if error_type == "invalid_token":
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Invalid refresh token"}
+                )
+            elif error_type == "invalid_token_type":
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Invalid token type"}
+                )
+            elif error_type == "refresh_token_not_found":
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Refresh token not found"}
+                )
+            elif error_type == "refresh_token_inactive":
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Refresh token is inactive"}
+                )
+            elif error_type == "refresh_token_expired":
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Refresh token has expired"}
+                )
+            else:
+                return JSONResponse(
+                    status_code=401,
+                    content={"status": 401, "message": "Could not validate refresh token"}
+                )
+        
+        # Get user from database
+        user = get_user_by_username(db, username)
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={"status": 401, "message": "User not found"}
+            )
+        
+        # Create new token pair
+        access_token, new_refresh_token, expires_in = create_token_pair(user.username, user.role)
+        
+        # Revoke old refresh token for security (token rotation)
+        revoke_refresh_token(refresh_token)
     
-    # Verify refresh token
-    username, role, error_type = verify_refresh_token(refresh_token)
-    
-    if username is None:
-        if error_type == "invalid_token":
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Invalid refresh token"}
-            )
-        elif error_type == "invalid_token_type":
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Invalid token type"}
-            )
-        elif error_type == "refresh_token_not_found":
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Refresh token not found"}
-            )
-        elif error_type == "refresh_token_inactive":
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Refresh token is inactive"}
-            )
-        elif error_type == "refresh_token_expired":
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Refresh token has expired"}
-            )
-        else:
-            return JSONResponse(
-                status_code=401,
-                content={"status": "401", "message": "Could not validate refresh token"}
-            )
-    
-    # Get user from database
-    user = get_user_by_username(db, username)
-    if not user:
-        return JSONResponse(
-            status_code=401,
-            content={"status": "401", "message": "User not found"}
+        return RefreshTokenResponse(
+            status=200,
+            message="Tokens refreshed successfully",
+            data=RefreshTokenData(
+                access_token=access_token,
+                refresh_token=new_refresh_token,
+                token_type="bearer",
+                expires_in=expires_in
+            ),
         )
-    
-    # Create new token pair
-    access_token, new_refresh_token, expires_in = create_token_pair(user.username, user.role)
-    
-    # Revoke old refresh token for security (token rotation)
-    revoke_refresh_token(refresh_token)
-    
-    return RefreshTokenResponse(
-        status=200,
-        message="Tokens refreshed successfully",
-        data=RefreshTokenData(
-            access_token=access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer",
-            expires_in=expires_in
-        ),
-    )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Token refresh failed: {str(e)}"}
+        )
 
 
 @router.post("/auto-refresh", response_model=RefreshTokenResponse)
@@ -387,7 +405,7 @@ def auto_refresh_token(
         return JSONResponse(
             status_code=401,
             content={
-                "status": "401", 
+                "status": 401, 
                 "message": "Auto refresh failed",
                 "error": refresh_result["error"]
             }
@@ -432,7 +450,7 @@ def register_user(
         return JSONResponse(
             status_code=422,
             content={
-                "status": "422",
+                "status": 422,
                 "message": "Password validation failed",
                 "errors": password_validation["errors"],
                 "strength": password_validation["strength"]
@@ -443,14 +461,14 @@ def register_user(
     if get_user_by_username(db, user_data.username):
         return JSONResponse(
             status_code=400,
-            content={"status": "400", "message": "Username already exists"}
+            content={"status": 400, "message": "Username already exists"}
         )
     
     # Check if email already exists
     if get_user_by_email(db, user_data.email):
         return JSONResponse(
             status_code=400,
-            content={"status": "400", "message": "Email already exists"}
+            content={"status": 400, "message": "Email already exists"}
         )
     
     # Create new user
@@ -499,7 +517,7 @@ def change_password(
     if not verify_password(password_data.current_password, current_user.hashed_password):
         return JSONResponse(
             status_code=400,
-            content={"status": "400", "message": "Current password is incorrect"}
+            content={"status": 400, "message": "Current password is incorrect"}
         )
     
     # Validate new password strength
@@ -508,7 +526,7 @@ def change_password(
         return JSONResponse(
             status_code=422,
             content={
-                "status": "422",
+                "status": 422,
                 "message": "Password validation failed",
                 "errors": password_validation["errors"],
                 "strength": password_validation["strength"]
@@ -565,7 +583,7 @@ def reset_password(
     if not email:
         return JSONResponse(
             status_code=400,
-            content={"status": "400", "message": "Invalid or expired reset token"}
+            content={"status": 400, "message": "Invalid or expired reset token"}
         )
     
     # Find user by email
@@ -573,7 +591,7 @@ def reset_password(
     if not user:
         return JSONResponse(
             status_code=404,
-            content={"status": "404", "message": "User not found"}
+            content={"status": 404, "message": "User not found"}
         )
     
     # Validate new password strength
@@ -582,7 +600,7 @@ def reset_password(
         return JSONResponse(
             status_code=422,
             content={
-                "status": "422",
+                "status": 422,
                 "message": "Password validation failed",
                 "errors": password_validation["errors"],
                 "strength": password_validation["strength"]
@@ -609,26 +627,32 @@ def get_session_info_endpoint(
     current_user: User = Depends(get_current_active_user_safe_auth),
     token: str = Depends(oauth2_scheme)
 ):
-    session_info = get_session_info(token)
-    if not session_info:
+    try:
+        session_info = get_session_info(token)
+        if not session_info:
+            return JSONResponse(
+                status_code=401,
+                content={"status": 401, "message": "Session not found"}
+            )
+        
+        return SessionResponse(
+            status=200,
+            message="Session information retrieved successfully",
+            data=SessionInfo(
+                user_id=current_user.id,
+                username=session_info["username"],
+                role=session_info["role"],
+                login_time=session_info["login_time"],
+                last_activity=session_info["last_activity"],
+                expires_at=session_info["expires_at"],
+                is_active=session_info["is_active"]
+            )
+        )
+    except Exception as e:
         return JSONResponse(
-            status_code=401,
-            content={"status": "401", "message": "Session not found"}
+            status_code=500,
+            content={"status": 500, "message": f"Failed to retrieve session info: {str(e)}"}
         )
-    
-    return SessionResponse(
-        status=200,
-        message="Session information retrieved successfully",
-        data=SessionInfo(
-            user_id=current_user.id,
-            username=session_info["username"],
-            role=session_info["role"],
-            login_time=session_info["login_time"],
-            last_activity=session_info["last_activity"],
-            expires_at=session_info["expires_at"],
-            is_active=session_info["is_active"]
-        )
-    )
 
 
 @router.post("/logout", response_model=dict)
@@ -636,17 +660,23 @@ def logout(
     current_user: User = Depends(get_current_active_user_safe_auth),
     token: str = Depends(oauth2_scheme)
 ):
-    success = revoke_session(token)
-    if not success:
+    try:
+        success = revoke_session(token)
+        if not success:
+            return JSONResponse(
+                status_code=400,
+                content={"status": 400, "message": "Failed to revoke session"}
+            )
+        
+        return {
+            "status": 200,
+            "message": "Logged out successfully"
+        }
+    except Exception as e:
         return JSONResponse(
-            status_code=400,
-            content={"status": "400", "message": "Failed to revoke session"}
+            status_code=500,
+            content={"status": 500, "message": f"Logout failed: {str(e)}"}
         )
-    
-    return {
-        "status": 200,
-        "message": "Logged out successfully"
-    }
 
 
 @router.post("/logout-all", response_model=dict)

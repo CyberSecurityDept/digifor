@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Forenlytic Backend - Quick Run Script
+# Digital Forensik Backend - Quick Run Script
 # Script ini memudahkan menjalankan aplikasi dari root directory
 
-echo "Forenlytic Backend - Quick Run"
-echo "==============================="
+echo "Digital Forensik Backend - Quick Run"
+echo "====================================="
 
 # Check if we're in the right directory
 if [ ! -f "requirements.txt" ]; then

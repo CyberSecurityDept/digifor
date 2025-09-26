@@ -41,89 +41,94 @@ def create_case(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    
-    from datetime import datetime
-    
-    # Generate case number if auto-generated is enabled
-    if case_form.use_auto_generated_id:
-        # Generate case number with format: CASE-YYYY-NNNN
-        current_year = datetime.now().year
-        # Get the last case number for this year
-        last_case = db.query(Case).filter(
-            Case.case_number.like(f"CASE-{current_year}-%")
-        ).order_by(Case.created_at.desc()).first()
+    try:
+        from datetime import datetime
         
-        if last_case:
-            # Extract number from last case and increment
-            try:
-                last_number = int(last_case.case_number.split('-')[-1])
-                new_number = last_number + 1
-            except (ValueError, IndexError):
+        # Generate case number if auto-generated is enabled
+        if case_form.use_auto_generated_id:
+            # Generate case number with format: CASE-YYYY-NNNN
+            current_year = datetime.now().year
+            # Get the last case number for this year
+            last_case = db.query(Case).filter(
+                Case.case_number.like(f"CASE-{current_year}-%")
+            ).order_by(Case.created_at.desc()).first()
+            
+            if last_case:
+                # Extract number from last case and increment
+                try:
+                    last_number = int(last_case.case_number.split('-')[-1])
+                    new_number = last_number + 1
+                except (ValueError, IndexError):
+                    new_number = 1
+            else:
                 new_number = 1
+            
+            case_number = f"CASE-{current_year}-{new_number:04d}"
         else:
-            new_number = 1
+            # Use manual case number
+            if not case_form.case_number:
+                return JSONResponse(
+                    status_code=400,
+                    content="Case number is required when auto-generated ID is disabled"
+                )
+            case_number = case_form.case_number
         
-        case_number = f"CASE-{current_year}-{new_number:04d}"
-    else:
-        # Use manual case number
-        if not case_form.case_number:
+        # Check if case number already exists
+        existing_case = db.query(Case).filter(Case.case_number == case_number).first()
+        if existing_case:
             return JSONResponse(
                 status_code=400,
-                content="Case number is required when auto-generated ID is disabled"
+                content="Case number already exists"
             )
-        case_number = case_form.case_number
-    
-    # Check if case number already exists
-    existing_case = db.query(Case).filter(Case.case_number == case_number).first()
-    if existing_case:
-        return JSONResponse(
-            status_code=400,
-            content="Case number already exists"
+        
+        # Create new case
+        db_case = Case(
+            case_number=case_number,
+            title=case_form.title,
+            description=case_form.description,
+            case_type=case_form.case_type,
+            status=case_form.status,
+            priority=case_form.priority,
+            incident_date=None,  # Not in UI form
+            reported_date=None,   # Not in UI form
+            jurisdiction=case_form.jurisdiction,
+            case_officer=case_form.case_officer,
+            work_unit=case_form.work_unit,
+            tags=None,           # Not in UI form
+            notes=None,          # Not in UI form
+            is_confidential=case_form.is_confidential,
+            created_by=current_user.id
         )
-    
-    # Create new case
-    db_case = Case(
-        case_number=case_number,
-        title=case_form.title,
-        description=case_form.description,
-        case_type=case_form.case_type,
-        status=case_form.status,
-        priority=case_form.priority,
-        incident_date=None,  # Not in UI form
-        reported_date=None,   # Not in UI form
-        jurisdiction=case_form.jurisdiction,
-        case_officer=case_form.case_officer,
-        work_unit=case_form.work_unit,
-        tags=None,           # Not in UI form
-        notes=None,          # Not in UI form
-        is_confidential=case_form.is_confidential,
-        created_by=current_user.id
-    )
-    
-    db.add(db_case)
-    db.commit()
-    db.refresh(db_case)
-    
-    # Create activity log for case creation
-    client_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    
-    CaseActivityService.create_activity(
-        db=db,
-        case_id=db_case.id,
-        user_id=current_user.id,
-        activity_type="created",
-        description=f"Case '{db_case.case_number}' created",
-        new_value={"case_number": db_case.case_number, "title": db_case.title, "status": db_case.status},
-        ip_address=client_ip,
-        user_agent=user_agent
-    )
-    
-    return CaseCreateResponse(
-        status=201,
-        message="Case created successfully",
-        data=db_case
-    )
+        
+        db.add(db_case)
+        db.commit()
+        db.refresh(db_case)
+        
+        # Create activity log for case creation
+        client_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        
+        CaseActivityService.create_activity(
+            db=db,
+            case_id=db_case.id,
+            user_id=current_user.id,
+            activity_type="created",
+            description=f"Case '{db_case.case_number}' created",
+            new_value={"case_number": db_case.case_number, "title": db_case.title, "status": db_case.status},
+            ip_address=client_ip,
+            user_agent=user_agent
+        )
+        
+        return CaseCreateResponse(
+            status=201,
+            message="Case created successfully",
+            data=db_case
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Case creation failed: {str(e)}"}
+        )
 
 
 @router.get("/get-all-cases/", response_model=CaseListResponse)
@@ -137,43 +142,49 @@ def get_cases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    query = db.query(Case)
-    
-    # Apply filters
-    if status:
-        query = query.filter(Case.status == status)
-    if priority:
-        query = query.filter(Case.priority == priority)
-    if case_type:
-        query = query.filter(Case.case_type == case_type)
-    if search:
-        query = query.filter(
-            (Case.title.contains(search)) |
-            (Case.case_number.contains(search)) |
-            (Case.description.contains(search))
+    try:
+        query = db.query(Case)
+        
+        # Apply filters
+        if status:
+            query = query.filter(Case.status == status)
+        if priority:
+            query = query.filter(Case.priority == priority)
+        if case_type:
+            query = query.filter(Case.case_type == case_type)
+        if search:
+            query = query.filter(
+                (Case.title.contains(search)) |
+                (Case.case_number.contains(search)) |
+                (Case.description.contains(search))
+            )
+        
+        # Get total count for pagination
+        total = query.count()
+        
+        # Apply pagination
+        cases = query.offset(skip).limit(limit).all()
+        
+        # Calculate pagination info
+        page = (skip // limit) + 1
+        pages = (total + limit - 1) // limit  # Ceiling division
+        
+        return CaseListResponse(
+            status=200,
+            message="Cases retrieved successfully",
+            data=cases,
+            pagination=PaginationInfo(
+                total=total,
+                page=page,
+                per_page=limit,
+                pages=pages
+            )
         )
-    
-    # Get total count for pagination
-    total = query.count()
-    
-    # Apply pagination
-    cases = query.offset(skip).limit(limit).all()
-    
-    # Calculate pagination info
-    page = (skip // limit) + 1
-    pages = (total + limit - 1) // limit  # Ceiling division
-    
-    return CaseListResponse(
-        status=200,
-        message="Cases retrieved successfully",
-        data=cases,
-        pagination=PaginationInfo(
-            total=total,
-            page=page,
-            per_page=limit,
-            pages=pages
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Failed to retrieve cases: {str(e)}"}
         )
-    )
 
 
 @router.get("/search")
@@ -482,24 +493,30 @@ def delete_case_by_query(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    case_uuid = parse_case_id(case_id)
-    case = db.query(Case).filter(Case.id == case_uuid).first()
-    if not case:
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Soft delete by changing status to archived
+        case.status = "archived"
+        case.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        return {"message": "Case archived successfully"}
+    except Exception as e:
         return JSONResponse(
-            status_code=404,
-            content={
-                "status": 404,
-                "message": "Case not found"
-            }
+            status_code=500,
+            content={"status": 500, "message": f"Case deletion failed: {str(e)}"}
         )
-    
-    # Soft delete by changing status to archived
-    case.status = "archived"
-    case.updated_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return {"message": "Case archived successfully"}
 
 
 @router.post("/{case_id}/persons", response_model=CasePersonSchema)

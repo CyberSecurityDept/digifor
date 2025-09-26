@@ -57,7 +57,7 @@ def generate_case_report(
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content=f"Error generating report: {str(e)}"
+            content={"status": 500, "message": f"Report generation failed: {str(e)}"}
         )
 
 
@@ -145,7 +145,7 @@ def get_case_report(
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content=f"Error reading report: {str(e)}"
+            content={"status": 500, "message": f"Failed to read report: {str(e)}"}
         )
 
 
@@ -186,7 +186,7 @@ def delete_case_report(
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content=f"Error deleting report: {str(e)}"
+            content={"status": 500, "message": f"Failed to delete report: {str(e)}"}
         )
 
 
@@ -221,7 +221,7 @@ def generate_custody_report(
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content=f"Error generating custody report: {str(e)}"
+            content={"status": 500, "message": f"Failed to generate custody report: {str(e)}"}
         )
 
 

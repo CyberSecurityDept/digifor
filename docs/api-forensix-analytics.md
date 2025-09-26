@@ -53,8 +53,16 @@ Content-Type: application/json
 **Response (401 Unauthorized):**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "messages": "Invalid username or password"
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Login failed: Database connection error"
 }
 ```
 
@@ -92,9 +100,17 @@ Content-Type: application/json
 **Response (401 Unauthorized):**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "Auto refresh failed",
     "error": "Invalid refresh token"
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Token refresh failed: Session service unavailable"
 }
 ```
 
@@ -127,7 +143,7 @@ Authorization: Bearer <access_token>
 **Response (401 Unauthorized):**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "Invalid token"
 }
 ```
@@ -187,6 +203,14 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve user profile: Database connection error"
+}
+```
+
 **Response (401 Unauthorized):**
 ```json
 {
@@ -241,7 +265,7 @@ Content-Type: application/json
 ```json
 {
     "detail": {
-        "status": "422",
+        "status": 422,
         "message": "Password validation failed",
         "errors": [
             "Password must be at least 8 characters long",
@@ -250,6 +274,14 @@ Content-Type: application/json
         ],
         "strength": "weak"
     }
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "User registration failed: Database connection error"
 }
 ```
 
@@ -281,6 +313,14 @@ Content-Type: application/json
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Password change failed: Database connection error"
+}
+```
+
 ### 8. Request Password Reset
 **Endpoint:** `POST /api/v1/auth/request-password-reset`
 
@@ -304,6 +344,14 @@ Content-Type: application/json
     "status": 200,
     "message": "If the email exists, a password reset link has been sent",
     "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Password reset request failed: Email service unavailable"
 }
 ```
 
@@ -334,6 +382,14 @@ Content-Type: application/json
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Password reset failed: Database connection error"
+}
+```
+
 ### 10. Get Session Information
 **Endpoint:** `GET /api/v1/auth/session`
 
@@ -361,6 +417,14 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve session info: Session service unavailable"
+}
+```
+
 ### 11. Logout
 **Endpoint:** `POST /api/v1/auth/logout`
 
@@ -376,6 +440,14 @@ Authorization: Bearer <access_token>
 {
     "status": 200,
     "message": "Logged out successfully"
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Logout failed: Session revocation service unavailable"
 }
 ```
 
@@ -658,6 +730,14 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve cases: Database connection error"
+}
+```
+
 ### 18. Create New Case
 **Endpoint:** `POST /api/v1/cases/create-cases/`
 
@@ -748,6 +828,14 @@ Content-Type: application/json
         "is_confidential": false,
         "persons": []
     }
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Case creation failed: Database connection error"
 }
 ```
 
@@ -1494,6 +1582,14 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Case deletion failed: Database connection error"
+}
+```
+
 ## Report Generation
 
 ### 34. Generate Case Report
@@ -1532,6 +1628,14 @@ Content-Type: application/json
         "file_size": 2048,
         "download_url": "/api/v1/reports/download/RPT-001"
     }
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Report generation failed: Report service unavailable"
 }
 ```
 
@@ -1666,7 +1770,7 @@ File download (application/octet-stream)
 **Invalid Credentials:**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "messages": "Invalid username or password"
 }
 ```
@@ -1709,7 +1813,7 @@ File download (application/octet-stream)
 **Session Not Found:**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "Session not found"
 }
 ```
@@ -1724,7 +1828,7 @@ File download (application/octet-stream)
 **Token Not Provided:**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "Token not provided"
 }
 ```
@@ -1732,7 +1836,7 @@ File download (application/octet-stream)
 **User Not Found:**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "User not found"
 }
 ```
@@ -1740,7 +1844,7 @@ File download (application/octet-stream)
 **Session Inactive:**
 ```json
 {
-    "status": "401",
+    "status": 401,
     "message": "Session is inactive"
 }
 ```
