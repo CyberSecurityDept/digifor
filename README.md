@@ -691,4 +691,4 @@ Evidence Collection → Chain of Custody → Analysis → Correlation → Report
 
 ---
 
-**🔍 Forenlytic Backend - Forensik Digital**
+**🔍 Digifor Backend - Digital Forensik**
