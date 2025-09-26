@@ -50,6 +50,7 @@ from app.utils.security import (
     get_refresh_tokens_count,
     create_token_pair
 )
+from app.utils.token_manager import get_token_manager
 from app.config import settings
 
 router = APIRouter()
@@ -370,7 +371,7 @@ def refresh_access_token(
         
         # Revoke old refresh token for security (token rotation)
         revoke_refresh_token(refresh_token)
-    
+        
         return RefreshTokenResponse(
             status=200,
             message="Tokens refreshed successfully",
@@ -393,42 +394,44 @@ def auto_refresh_token(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
-    from app.utils.token_manager import get_token_manager
-    
-    token_manager = get_token_manager()
-    refresh_token = refresh_data.refresh_token
-    
-    # Attempt auto refresh
-    refresh_result = token_manager.attempt_auto_refresh("", refresh_token, db)
-    
-    if not refresh_result["success"]:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "status": 401, 
-                "message": "Auto refresh failed",
-                "error": refresh_result["error"]
-            }
+    try:
+        token_manager = get_token_manager()
+        refresh_token = refresh_data.refresh_token
+        
+        # Attempt auto refresh
+        refresh_result = token_manager.attempt_auto_refresh("", refresh_token, db)
+        
+        if not refresh_result["success"]:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "status": 401, 
+                    "message": "Auto refresh failed",
+                    "error": refresh_result["error"]
+                }
+            )
+        
+        return RefreshTokenResponse(
+            status=200,
+            message="Tokens refreshed automatically",
+            data=RefreshTokenData(
+                access_token=refresh_result["tokens"]["access_token"],
+                refresh_token=refresh_result["tokens"]["refresh_token"],
+                token_type="bearer",
+                expires_in=refresh_result["tokens"]["expires_in"]
+            ),
         )
-    
-    return RefreshTokenResponse(
-        status=200,
-        message="Tokens refreshed automatically",
-        data=RefreshTokenData(
-            access_token=refresh_result["tokens"]["access_token"],
-            refresh_token=refresh_result["tokens"]["refresh_token"],
-            token_type="bearer",
-            expires_in=refresh_result["tokens"]["expires_in"]
-        ),
-    )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"status": 500, "message": f"Auto refresh failed: {str(e)}"}
+        )
 
 
 @router.get("/token-status")
 def get_token_status(
     token: str = Depends(oauth2_scheme)
 ):
-    from app.utils.token_manager import get_token_manager
-    
     token_manager = get_token_manager()
     token_status = token_manager.check_token_status(token)
     
@@ -655,41 +658,21 @@ def get_session_info_endpoint(
         )
 
 
-@router.post("/logout", response_model=dict)
-def logout(
-    current_user: User = Depends(get_current_active_user_safe_auth),
-    token: str = Depends(oauth2_scheme)
-):
+@router.post("/logout-all", response_model=dict)
+def logout_all_sessions(current_user: User = Depends(get_current_active_user_safe_auth)):
     try:
-        success = revoke_session(token)
-        if not success:
-            return JSONResponse(
-                status_code=400,
-                content={"status": 400, "message": "Failed to revoke session"}
-            )
+        revoked_sessions = revoke_all_user_sessions(current_user.username)
+        revoked_refresh_tokens = revoke_all_refresh_tokens(current_user.username)
         
         return {
             "status": 200,
-            "message": "Logged out successfully"
+            "message": f"Logged out from {revoked_sessions} sessions and {revoked_refresh_tokens} refresh tokens"
         }
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"status": 500, "message": f"Logout failed: {str(e)}"}
+            content={"status": 500, "message": f"Failed to logout all sessions: {str(e)}"}
         )
-
-
-@router.post("/logout-all", response_model=dict)
-def logout_all_sessions(
-    current_user: User = Depends(get_current_active_user)
-):
-    revoked_sessions = revoke_all_user_sessions(current_user.username)
-    revoked_refresh_tokens = revoke_all_refresh_tokens(current_user.username)
-    
-    return {
-        "status": 200,
-        "message": f"Logged out from {revoked_sessions} sessions and {revoked_refresh_tokens} refresh tokens"
-    }
 
 
 @router.get("/sessions/cleanup", response_model=dict)

@@ -12,7 +12,7 @@ from app.schemas.case import (
     CaseCreate, CaseUpdate, Case as CaseSchema, 
     CaseSummary, CasePersonCreate, CasePersonUpdate, CasePerson as CasePersonSchema,
     CaseListResponse, PaginationInfo, CaseResponse, CaseCreateResponse,
-    CaseCreateForm, CaseResponse as CaseResponseSchema
+    CaseCreateForm
 )
 from app.schemas.case_activity import (
     CaseActivity, CaseStatusHistory, CaseCloseRequest, 
@@ -28,10 +28,7 @@ def parse_case_id(case_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(case_id)
     except ValueError:
-        return JSONResponse(
-            status_code=400,
-            content="Invalid case ID format"
-        )
+        raise ValueError("Invalid case ID format")
 
 
 @router.post("/create-cases/", response_model=CaseCreateResponse)
@@ -42,8 +39,6 @@ def create_case(
     current_user: User = Depends(get_current_active_user_safe)
 ):
     try:
-        from datetime import datetime
-        
         # Generate case number if auto-generated is enabled
         if case_form.use_auto_generated_id:
             # Generate case number with format: CASE-YYYY-NNNN
@@ -69,7 +64,10 @@ def create_case(
             if not case_form.case_number:
                 return JSONResponse(
                     status_code=400,
-                    content="Case number is required when auto-generated ID is disabled"
+                    content={
+                        "status": 400,
+                        "message": "Case number is required when auto-generated ID is disabled"
+                    }
                 )
             case_number = case_form.case_number
         
@@ -78,7 +76,10 @@ def create_case(
         if existing_case:
             return JSONResponse(
                 status_code=400,
-                content="Case number already exists"
+                content={
+                    "status": 400,
+                    "message": "Case number already exists"
+                }
             )
         
         # Create new case
@@ -398,19 +399,41 @@ def get_case(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    case_uuid = parse_case_id(case_id)
-    case = db.query(Case).filter(Case.id == case_uuid).first()
-    if not case:
-        return JSONResponse(
-            status_code=404,
-            content="Case not found"
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        return CaseResponse(
+            status=200,
+            message="Case retrieved successfully",
+            data=case
         )
-    
-    return CaseResponse(
-        status=200,
-        message="Case retrieved successfully",
-        data=case
-    )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to retrieve case",
+                "error": str(e)
+            }
+        )
 
 
 @router.put("/update-case/{case_id}", response_model=CaseResponse)
@@ -421,70 +444,92 @@ def update_case(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    case_uuid = parse_case_id(case_id)
-    case = db.query(Case).filter(Case.id == case_uuid).first()
-    if not case:
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+    
+        # Track changes for activity log
+        old_values = {}
+        changed_fields = []
+        update_data = case_update.dict(exclude_unset=True)
+        
+        for field, value in update_data.items():
+            old_value = getattr(case, field)
+            old_values[field] = old_value
+            setattr(case, field, value)
+            changed_fields.append(field)
+        
+        case.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(case)
+        
+        # Create activity log for case update
+        if changed_fields:
+            client_ip = request.client.host if request.client else None
+            user_agent = request.headers.get("user-agent")
+            
+            new_values = {field: getattr(case, field) for field in changed_fields}
+            
+            # Convert datetime and UUID objects to strings for JSON serialization
+            def serialize_for_json(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, uuid.UUID):
+                    return str(obj)
+                elif obj is None:
+                    return None
+                else:
+                    return obj
+            
+            # Serialize old_values and new_values
+            serialized_old_values = {k: serialize_for_json(v) for k, v in old_values.items()}
+            serialized_new_values = {k: serialize_for_json(v) for k, v in new_values.items()}
+            
+            CaseActivityService.create_activity(
+                db=db,
+                case_id=case.id,
+                user_id=current_user.id,
+                activity_type="updated",
+                description=f"Case '{case.case_number}' updated - Fields: {', '.join(changed_fields)}",
+                old_value=serialized_old_values,
+                new_value=serialized_new_values,
+                changed_fields=changed_fields,
+                ip_address=client_ip,
+                user_agent=user_agent
+            )
+        
+        return CaseResponse(
+            status=200,
+            message="Case updated successfully",
+            data=case
+        )
+    except ValueError as e:
         return JSONResponse(
-            status_code=404,
-            content="Case not found"
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
         )
-    
-    # Track changes for activity log
-    old_values = {}
-    changed_fields = []
-    update_data = case_update.dict(exclude_unset=True)
-    
-    for field, value in update_data.items():
-        old_value = getattr(case, field)
-        old_values[field] = old_value
-        setattr(case, field, value)
-        changed_fields.append(field)
-    
-    case.updated_at = datetime.utcnow()
-    
-    db.commit()
-    db.refresh(case)
-    
-    # Create activity log for case update
-    if changed_fields:
-        client_ip = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        
-        new_values = {field: getattr(case, field) for field in changed_fields}
-        
-        # Convert datetime and UUID objects to strings for JSON serialization
-        def serialize_for_json(obj):
-            if isinstance(obj, datetime):
-                return obj.isoformat()
-            elif isinstance(obj, uuid.UUID):
-                return str(obj)
-            elif obj is None:
-                return None
-            else:
-                return obj
-        
-        # Serialize old_values and new_values
-        serialized_old_values = {k: serialize_for_json(v) for k, v in old_values.items()}
-        serialized_new_values = {k: serialize_for_json(v) for k, v in new_values.items()}
-        
-        CaseActivityService.create_activity(
-            db=db,
-            case_id=case.id,
-            user_id=current_user.id,
-            activity_type="updated",
-            description=f"Case '{case.case_number}' updated - Fields: {', '.join(changed_fields)}",
-            old_value=serialized_old_values,
-            new_value=serialized_new_values,
-            changed_fields=changed_fields,
-            ip_address=client_ip,
-            user_agent=user_agent
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to update case",
+                "error": str(e)
+            }
         )
-    
-    return CaseResponse(
-        status=200,
-        message="Case updated successfully",
-        data=case
-    )
 
 
 @router.delete("/delete-case/")
@@ -531,7 +576,10 @@ def add_case_person(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     # Create new case person
@@ -569,7 +617,10 @@ def get_case_persons(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     persons = db.query(CasePerson).filter(CasePerson.case_id == case_id).all()
@@ -592,7 +643,10 @@ def update_case_person(
     if not person:
         return JSONResponse(
             status_code=404,
-            content="Person not found"
+            content={
+                "status": 404,
+                "message": "Person not found"
+            }
         )
     
     # Update fields
@@ -626,7 +680,10 @@ def delete_case_person(
     if not person:
         return JSONResponse(
             status_code=404,
-            content="Person not found"
+            content={
+                "status": 404,
+                "message": "Person not found"
+            }
         )
     
     db.delete(person)
@@ -645,7 +702,10 @@ def get_case_stats(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     # Get evidence count
@@ -685,13 +745,19 @@ def close_case(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     if case.status == "closed":
         return JSONResponse(
             status_code=400,
-            content="Case is already closed"
+            content={
+                "status": 400,
+                "message": "Case is already closed"
+            }
         )
     
     # Get client IP and user agent
@@ -730,13 +796,19 @@ def reopen_case(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     if case.status != "closed":
         return JSONResponse(
             status_code=400,
-            content="Only closed cases can be reopened"
+            content={
+                "status": 400,
+                "message": "Only closed cases can be reopened"
+            }
         )
     
     # Get client IP and user agent
@@ -775,7 +847,10 @@ def change_case_status(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     # Validate status transition
@@ -783,13 +858,19 @@ def change_case_status(
     if status_request.status not in valid_statuses:
         return JSONResponse(
             status_code=400,
-            content=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            content={
+                "status": 400,
+                "message": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            }
         )
     
     if case.status == status_request.status:
         return JSONResponse(
             status_code=400,
-            content="Case is already in the requested status"
+            content={
+                "status": 400,
+                "message": "Case is already in the requested status"
+            }
         )
     
     # Get client IP and user agent
@@ -828,7 +909,10 @@ def get_case_activities(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     activities = CaseActivityService.get_case_activities(
@@ -853,7 +937,10 @@ def get_recent_case_activities(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     activities = CaseActivityService.get_recent_activities(
@@ -892,7 +979,10 @@ def get_case_status_history(
     if not case:
         return JSONResponse(
             status_code=404,
-            content="Case not found"
+            content={
+                "status": 404,
+                "message": "Case not found"
+            }
         )
     
     history = CaseActivityService.get_case_status_history(

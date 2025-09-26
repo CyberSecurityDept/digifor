@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from jose import jwt, JWTError
 
 from app.utils.security import (
     verify_token_with_error_info,
@@ -23,8 +24,6 @@ class TokenManager:
     
     def check_token_status(self, token: str) -> Dict[str, Any]:
         try:
-            from jose import jwt, JWTError
-            
             # Decode token tanpa verification untuk check expiration
             payload = jwt.get_unverified_claims(token)
             exp_timestamp = payload.get("exp")
@@ -164,8 +163,6 @@ class TokenManager:
     
     def get_token_info(self, token: str) -> Dict[str, Any]:
         try:
-            from jose import jwt, JWTError
-            
             payload = jwt.get_unverified_claims(token)
             
             return {

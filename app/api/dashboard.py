@@ -9,14 +9,14 @@ from app.models.user import User
 from app.models.case import Case
 from app.models.analysis import Analysis
 from app.models.evidence import EvidenceItem
-from app.api.auth import get_current_active_user
+from app.dependencies.auth import get_current_active_user_safe
 
 router = APIRouter()
 
 
 @router.get("/")
 async def get_main_dashboard(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     return {
         "status": 200,
@@ -51,7 +51,7 @@ async def get_main_dashboard(
 @router.get("/analytics")
 async def get_analytics_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     # Get analysis statistics
     total_analyses = db.query(Analysis).count()

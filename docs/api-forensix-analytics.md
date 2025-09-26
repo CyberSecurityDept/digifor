@@ -425,33 +425,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 11. Logout
-**Endpoint:** `POST /api/v1/auth/logout`
-
-**Description:** Logout dan revoke session saat ini.
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-    "status": 200,
-    "message": "Logged out successfully"
-}
-```
-
-**Response (500 Internal Server Error):**
-```json
-{
-    "status": 500,
-    "message": "Logout failed: Session revocation service unavailable"
-}
-```
-
-### 12. Logout All Sessions
+### 11. Logout All Sessions
 **Endpoint:** `POST /api/v1/auth/logout-all`
 
 **Description:** Logout dari semua session user.
@@ -469,7 +443,15 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 13. Cleanup Expired Sessions
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to logout all sessions: Session revocation service unavailable"
+}
+```
+
+### 12. Cleanup Expired Sessions
 **Endpoint:** `GET /api/v1/auth/sessions/cleanup`
 
 **Description:** Membersihkan session yang sudah expired (admin only).
@@ -484,9 +466,17 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Session cleanup failed: Database connection error"
+}
+```
+
 ## Dashboard
 
-### 14. Get Main Dashboard
+### 13. Get Main Dashboard
 **Endpoint:** `GET /api/v1/dashboard/`
 
 **Description:** Mendapatkan halaman utama dashboard dengan menu Analytics dan Case.
@@ -528,8 +518,15 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve main dashboard: Database connection error"
+}
+```
 
-### 15. Get Analytics Dashboard
+### 14. Get Analytics Dashboard
 **Endpoint:** `GET /api/v1/dashboard/analytics`
 
 **Description:** Mendapatkan dashboard analytics dengan statistik analisis dan evidence.
@@ -556,6 +553,14 @@ Authorization: Bearer <access_token>
         "analysis_types": [],
         "recent_analyses": []
     }
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve analytics dashboard: Database connection error"
 }
 ```
 
@@ -670,7 +675,40 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 17. Get All Cases
+### 17. Get Case Management Overview
+**Endpoint:** `GET /api/v1/cases/overview`
+
+**Description:** Mendapatkan overview case management dengan statistik cards saja.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case management overview retrieved successfully",
+    "data": {
+        "dashboard_cards": {
+            "case_open": 7,
+            "case_closed": 1,
+            "case_reopen": 0
+        }
+    }
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to retrieve case management overview: Database connection error"
+}
+```
+
+### 18. Get All Cases
 **Endpoint:** `GET /api/v1/cases/get-all-cases/`
 
 **Description:** Mendapatkan daftar semua kasus forensik.
@@ -738,7 +776,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 18. Create New Case
+### 19. Create New Case
 **Endpoint:** `POST /api/v1/cases/create-cases/`
 
 **Description:** Membuat kasus forensik baru dengan form-based approach yang mendukung auto-generated case ID.
@@ -839,7 +877,7 @@ Content-Type: application/json
 }
 ```
 
-### 19. Get Form Options
+### 20. Get Form Options
 **Endpoint:** `GET /api/v1/cases/form-options`
 
 **Description:** Mendapatkan opsi untuk form create case (investigators, agencies, work units, dll).
@@ -877,7 +915,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 20. Get Case by ID
+### 21. Get Case by ID
 **Endpoint:** `GET /api/v1/cases/case-by-id`
 
 **Description:** Mendapatkan detail kasus berdasarkan ID.
@@ -937,7 +975,7 @@ GET /api/v1/cases/case-by-id?case_id=719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
 }
 ```
 
-### 21. Update Case
+### 22. Update Case
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
 **Description:** Mengupdate informasi kasus forensik.
@@ -1019,7 +1057,7 @@ PUT /api/v1/cases/update-case/719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
 }
 ```
 
-### 22. Close Case
+### 23. Close Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/close`
 
 **Description:** Menutup kasus forensik dengan alasan dan tracking aktivitas.
@@ -1068,7 +1106,7 @@ Content-Type: application/json
 }
 ```
 
-### 23. Reopen Case
+### 24. Reopen Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/reopen`
 
 **Description:** Membuka kembali kasus yang sudah ditutup dengan alasan dan tracking aktivitas.
@@ -1117,7 +1155,7 @@ Content-Type: application/json
 }
 ```
 
-### 24. Change Case Status
+### 25. Change Case Status
 **Endpoint:** `POST /api/v1/cases/{case_id}/change-status`
 
 **Description:** Mengubah status kasus dengan alasan dan tracking aktivitas.
@@ -1162,7 +1200,7 @@ Content-Type: application/json
 }
 ```
 
-### 25. Get Case Activities
+### 26. Get Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities`
 
 **Description:** Mendapatkan log aktivitas kasus dengan pagination.
@@ -1225,7 +1263,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 26. Get Recent Case Activities
+### 27. Get Recent Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities/recent`
 
 **Description:** Mendapatkan aktivitas terbaru kasus dengan informasi user.
@@ -1267,7 +1305,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 27. Get Case Status History
+### 28. Get Case Status History
 **Endpoint:** `GET /api/v1/cases/{case_id}/status-history`
 
 **Description:** Mendapatkan history perubahan status kasus.
@@ -1316,7 +1354,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 28. Add Person to Case
+### 29. Add Person to Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/persons`
 
 **Description:** Menambahkan orang (suspect, victim, witness) ke dalam kasus.
@@ -1394,7 +1432,7 @@ Content-Type: application/json
 }
 ```
 
-### 29. Get Case Persons
+### 30. Get Case Persons
 **Endpoint:** `GET /api/v1/cases/{case_id}/persons`
 
 **Description:** Mendapatkan daftar semua orang yang terlibat dalam kasus.
@@ -1442,7 +1480,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 30. Update Case Person
+### 31. Update Case Person
 **Endpoint:** `PUT /api/v1/cases/{case_id}/persons/{person_id}`
 
 **Description:** Mengupdate informasi orang dalam kasus.
@@ -1500,7 +1538,7 @@ Content-Type: application/json
 }
 ```
 
-### 31. Delete Case Person
+### 32. Delete Case Person
 **Endpoint:** `DELETE /api/v1/cases/{case_id}/persons/{person_id}`
 
 **Description:** Menghapus orang dari kasus.
@@ -1522,7 +1560,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 32. Get Case Statistics
+### 33. Get Case Statistics
 **Endpoint:** `GET /api/v1/cases/{case_id}/stats`
 
 **Description:** Mendapatkan statistik kasus.
@@ -1554,7 +1592,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 33. Delete Case
+### 34. Delete Case
 **Endpoint:** `DELETE /api/v1/cases/delete-case/?case_id={case_id}`
 
 **Description:** Menghapus kasus forensik (soft delete/archive) menggunakan query parameter.
@@ -1593,41 +1631,55 @@ Authorization: Bearer <access_token>
 ## Report Generation
 
 ### 34. Generate Case Report
-**Endpoint:** `POST /api/v1/reports/generate`
+**Endpoint:** `POST /api/v1/reports/cases/{case_id}/generate`
 
 **Description:** Membuat laporan forensik untuk kasus tertentu.
 
 **Request Headers:**
 ```
 Authorization: Bearer <access_token>
-Content-Type: application/json
 ```
 
-**Request Body:**
-```json
-{
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "report_type": "summary",
-    "include_evidence": true,
-    "include_analysis": true,
-    "format": "json"
-}
+**Path Parameters:**
+- `case_id`: ID kasus yang akan dibuat laporannya (integer)
+
+**Query Parameters:**
+- `report_type` (optional): Jenis laporan (default: "comprehensive")
+  - `comprehensive` - Laporan lengkap
+  - `summary` - Ringkasan kasus
+  - `evidence` - Laporan evidence
+  - `analysis` - Laporan analisis
+
+**Example URL:**
+```
+POST /api/v1/reports/cases/1/generate?report_type=summary
 ```
 
 **Response (200 OK):**
 ```json
 {
-    "status": 200,
     "message": "Report generated successfully",
-    "data": {
-        "report_id": "RPT-001",
-        "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-        "report_type": "summary",
-        "file_path": "/data/reports/case_1_summary_RPT-001.json",
-        "generated_at": "2025-09-22T12:00:00",
-        "file_size": 2048,
-        "download_url": "/api/v1/reports/download/RPT-001"
-    }
+    "case_id": 1,
+    "report_type": "summary",
+    "file_path": "/data/reports/case_1_summary_CASE-2025-0001.json",
+    "generated_at": "2025-09-22T12:00:00",
+    "file_size": 2048
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "status": 404,
+    "message": "Case not found"
+}
+```
+
+**Response (400 Bad Request):**
+```json
+{
+    "status": 400,
+    "message": "Invalid report type. Must be one of: comprehensive, summary, evidence, analysis"
 }
 ```
 
@@ -1639,10 +1691,10 @@ Content-Type: application/json
 }
 ```
 
-### 35. Download Report
-**Endpoint:** `GET /api/v1/reports/download/{report_id}`
+### 35. List Case Reports
+**Endpoint:** `GET /api/v1/reports/cases/{case_id}/reports`
 
-**Description:** Mengunduh file laporan yang sudah dibuat.
+**Description:** Mendapatkan daftar laporan yang sudah dibuat untuk kasus tertentu.
 
 **Request Headers:**
 ```
@@ -1650,14 +1702,72 @@ Authorization: Bearer <access_token>
 ```
 
 **Path Parameters:**
-- `report_id`: ID laporan yang akan diunduh
+- `case_id`: UUID kasus (format: UUID string)
 
 **Response (200 OK):**
-```
-File download (application/octet-stream)
+```json
+{
+    "case_id": 1,
+    "total_reports": 2,
+    "reports": [
+        {
+            "filename": "case_1_summary_CASE-2025-0001.json",
+            "filepath": "/data/reports/case_1_summary_CASE-2025-0001.json",
+            "size": 2048,
+            "created_at": 1695379200.0,
+            "modified_at": 1695379200.0
+        }
+    ]
+}
 ```
 
 **Response (404 Not Found):**
+```json
+{
+    "status": 404,
+    "message": "Case not found"
+}
+```
+
+### 36. Get Case Report
+**Endpoint:** `GET /api/v1/reports/cases/{case_id}/reports/{filename}`
+
+**Description:** Mengambil konten laporan JSON untuk kasus tertentu.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+- `filename`: Nama file laporan
+
+**Response (200 OK):**
+```json
+{
+    "case_id": 1,
+    "case_number": "CASE-2025-0001",
+    "report_type": "summary",
+    "generated_at": "2025-09-22T12:00:00",
+    "case_info": {
+        "title": "Digital Forensics Investigation",
+        "status": "open",
+        "priority": "high"
+    },
+    "summary": "Case investigation summary..."
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "status": 404,
+    "message": "Case not found"
+}
+```
+
+**Response (404 Not Found - Report):**
 ```json
 {
     "status": 404,
@@ -1665,9 +1775,119 @@ File download (application/octet-stream)
 }
 ```
 
+**Response (400 Bad Request):**
+```json
+{
+    "status": 400,
+    "message": "Report does not belong to this case"
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Failed to read report: File service unavailable"
+}
+```
+
+### 37. Delete Case Report
+**Endpoint:** `DELETE /api/v1/reports/cases/{case_id}/reports/{filename}`
+
+**Description:** Menghapus laporan kasus tertentu.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: ID kasus (integer)
+- `filename`: Nama file laporan
+
+**Response (200 OK):**
+```json
+{
+    "message": "Report deleted successfully"
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "status": 404,
+    "message": "Case not found"
+}
+```
+
+**Response (404 Not Found - Report):**
+```json
+{
+    "status": 404,
+    "message": "Report not found"
+}
+```
+
+### 38. Generate Custody Report
+**Endpoint:** `POST /api/v1/reports/evidence/{evidence_id}/custody-report`
+
+**Description:** Membuat laporan chain of custody untuk evidence tertentu.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `evidence_id`: ID evidence (integer)
+
+**Response (200 OK):**
+```json
+{
+    "message": "Custody report generated successfully",
+    "evidence_id": 1,
+    "file_path": "/data/reports/custody_evidence_1_2025-09-22.json",
+    "generated_at": "2025-09-22T12:00:00"
+}
+```
+
+### 39. Get Report Statistics
+**Endpoint:** `GET /api/v1/reports/reports/stats`
+
+**Description:** Mendapatkan statistik laporan yang telah dibuat.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Report statistics retrieved successfully",
+    "data": {
+        "total_reports": 15,
+        "reports_by_type": {
+            "comprehensive": 5,
+            "summary": 8,
+            "evidence": 2,
+            "analysis": 0
+        },
+        "reports_by_case": {
+            "case_1": 3,
+            "case_2": 2,
+            "case_3": 1
+        },
+        "total_size": 2048000,
+        "average_size": 136533
+    }
+}
+```
+
 ## System Endpoints
 
-### 36. Health Check
+### 40. Health Check
 **Endpoint:** `GET /health`
 
 **Description:** Memeriksa status kesehatan sistem.
@@ -1681,7 +1901,15 @@ File download (application/octet-stream)
 }
 ```
 
-### 37. Root Endpoint
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Health check failed: System service unavailable"
+}
+```
+
+### 41. Root Endpoint
 **Endpoint:** `GET /`
 
 **Description:** Informasi dasar API.
@@ -1693,6 +1921,14 @@ File download (application/octet-stream)
     "version": "1.0.0",
     "docs": "/docs",
     "redoc": "/redoc"
+}
+```
+
+**Response (500 Internal Server Error):**
+```json
+{
+    "status": 500,
+    "message": "Root endpoint failed: Application service unavailable"
 }
 ```
 

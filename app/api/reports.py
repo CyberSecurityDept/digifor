@@ -7,7 +7,7 @@ import os
 from app.database import get_db
 from app.models.user import User
 from app.models.case import Case
-from app.api.auth import get_current_active_user
+from app.dependencies.auth import get_current_active_user_safe
 from app.services.report_service import ReportGenerator
 
 router = APIRouter()
@@ -18,7 +18,7 @@ def generate_case_report(
     case_id: int,
     report_type: str = Query("comprehensive", description="Report type: comprehensive, summary, evidence, analysis"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
@@ -65,7 +65,7 @@ def generate_case_report(
 def list_case_reports(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
@@ -110,7 +110,7 @@ def get_case_report(
     case_id: int,
     filename: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
@@ -154,7 +154,7 @@ def delete_case_report(
     case_id: int,
     filename: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     # Check if case exists
     case = db.query(Case).filter(Case.id == case_id).first()
@@ -194,7 +194,7 @@ def delete_case_report(
 def generate_custody_report(
     evidence_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     try:
         # Generate custody report
@@ -228,7 +228,7 @@ def generate_custody_report(
 @router.get("/reports/stats")
 def get_report_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user_safe)
 ):
     reports_dir = os.path.join("data", "reports")
     
