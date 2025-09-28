@@ -37,8 +37,13 @@ class Case(Base):
     
     # Additional data
     tags = Column(JSON)  # For categorization
-    notes = Column(Text)
+    notes = Column(Text)  # Case notes as JSON string
     is_confidential = Column(Boolean, default=False)
+    
+    # Agency and jurisdiction details
+    agency = Column(String(200))  # Agency name (e.g., "Trikora agency")
+    jurisdiction_level = Column(String(50))  # Local, State, Federal, International
+    case_classification = Column(String(50))  # Public, Confidential, Secret, Top Secret
     
     # Status tracking
     reopened_count = Column(Integer, default=0)
@@ -89,3 +94,31 @@ class CasePerson(Base):
     
     def __repr__(self):
         return f"<CasePerson(id={self.id}, name='{self.full_name}', type='{self.person_type}')>"
+
+
+class EvidencePersonAssociation(Base):
+    """Junction table for many-to-many relationship between evidence and persons"""
+    
+    __tablename__ = "evidence_person_associations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    person_id = Column(UUID(as_uuid=True), ForeignKey("case_persons.id"), nullable=False)
+    
+    # Association details
+    association_type = Column(String(50), default="related")  # related, primary, secondary, witness
+    association_notes = Column(Text)
+    confidence_level = Column(String(20), default="medium")  # low, medium, high, confirmed
+    
+    # Metadata
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    # evidence_item = relationship("EvidenceItem")
+    # person = relationship("CasePerson")
+    # creator = relationship("User")
+    
+    def __repr__(self):
+        return f"<EvidencePersonAssociation(id={self.id}, evidence_id={self.evidence_id}, person_id={self.person_id})>"

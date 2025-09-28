@@ -326,8 +326,6 @@ def get_form_options(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user_safe)
 ):
-    """Get available options for case creation form"""
-    
     # Get available investigators (users with investigator role or all users)
     investigators = db.query(User).filter(
         (User.role == "investigator") | (User.role == "admin")
@@ -431,6 +429,193 @@ def get_case(
             content={
                 "status": 500,
                 "message": "Failed to retrieve case",
+                "error": str(e)
+            }
+        )
+
+
+@router.get("/{case_id}/detail")
+def get_case_detail(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Get comprehensive case details including persons, evidence, activities, and notes"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Get persons of interest
+        persons = db.query(CasePerson).filter(CasePerson.case_id == case_uuid).all()
+        
+        # Get evidence items
+        from app.models.evidence import EvidenceItem
+        evidence_items = db.query(EvidenceItem).filter(EvidenceItem.case_id == case_uuid).all()
+        
+        # Get recent activities (case log)
+        activities = db.query(CaseActivity).filter(
+            CaseActivity.case_id == case_uuid
+        ).order_by(CaseActivity.timestamp.desc()).limit(20).all()
+        
+        # Get case notes (stored in case.notes field for now)
+        case_notes = []
+        if case.notes:
+            # Parse notes if they're stored as JSON
+            try:
+                import json
+                case_notes = json.loads(case.notes) if isinstance(case.notes, str) else case.notes
+            except:
+                # If not JSON, treat as single note
+                case_notes = [{"content": case.notes, "timestamp": case.updated_at.isoformat() if case.updated_at else case.created_at.isoformat()}]
+        
+        # Get evidence-person associations
+        from app.models.case import EvidencePersonAssociation
+        associations = db.query(EvidencePersonAssociation).filter(
+            EvidencePersonAssociation.evidence_id.in_([str(e.id) for e in evidence_items])
+        ).all()
+        
+        # Create mapping of evidence to persons
+        evidence_to_persons = {}
+        for assoc in associations:
+            if str(assoc.evidence_id) not in evidence_to_persons:
+                evidence_to_persons[str(assoc.evidence_id)] = []
+            evidence_to_persons[str(assoc.evidence_id)].append({
+                "person_id": str(assoc.person_id),
+                "association_type": assoc.association_type,
+                "confidence_level": assoc.confidence_level,
+                "notes": assoc.association_notes
+            })
+        
+        # Format persons with their evidence
+        persons_with_evidence = []
+        for person in persons:
+            # Get evidence associated with this person through associations
+            person_evidence = []
+            for evidence in evidence_items:
+                evidence_id_str = str(evidence.id)
+                if evidence_id_str in evidence_to_persons:
+                    for assoc_info in evidence_to_persons[evidence_id_str]:
+                        if assoc_info["person_id"] == str(person.id):
+                            person_evidence.append({
+                                "id": str(evidence.id),
+                                "evidence_number": evidence.evidence_number,
+                                "description": evidence.description,
+                                "item_type": evidence.item_type,
+                                "analysis_status": evidence.analysis_status,
+                                "created_at": evidence.created_at.isoformat() if evidence.created_at else None,
+                                "association_type": assoc_info["association_type"],
+                                "confidence_level": assoc_info["confidence_level"],
+                                "association_notes": assoc_info["notes"]
+                            })
+                            break
+                
+                # Fallback: check if person name is in evidence description (for backward compatibility)
+                if not person_evidence or not any(e["id"] == str(evidence.id) for e in person_evidence):
+                    if person.full_name.lower() in evidence.description.lower():
+                        person_evidence.append({
+                            "id": str(evidence.id),
+                            "evidence_number": evidence.evidence_number,
+                            "description": evidence.description,
+                            "item_type": evidence.item_type,
+                            "analysis_status": evidence.analysis_status,
+                            "created_at": evidence.created_at.isoformat() if evidence.created_at else None,
+                            "association_type": "legacy",
+                            "confidence_level": "medium",
+                            "association_notes": "Legacy association based on description"
+                        })
+            
+            persons_with_evidence.append({
+                "id": str(person.id),
+                "full_name": person.full_name,
+                "person_type": person.person_type,
+                "alias": person.alias,
+                "description": person.description,
+                "evidence": person_evidence
+            })
+        
+        # Format case log (activities)
+        case_log = []
+        for activity in activities:
+            user = db.query(User).filter(User.id == activity.user_id).first()
+            case_log.append({
+                "id": str(activity.id),
+                "activity_type": activity.activity_type,
+                "description": activity.description,
+                "timestamp": activity.timestamp.isoformat(),
+                "user_name": user.full_name if user else "Unknown",
+                "user_role": user.role if user else "Unknown",
+                "old_value": activity.old_value,
+                "new_value": activity.new_value
+            })
+        
+        # Format case notes
+        formatted_notes = []
+        for note in case_notes:
+            if isinstance(note, dict):
+                formatted_notes.append({
+                    "content": note.get("content", ""),
+                    "timestamp": note.get("timestamp", ""),
+                    "status": note.get("status", "active")
+                })
+            else:
+                formatted_notes.append({
+                    "content": str(note),
+                    "timestamp": case.updated_at.isoformat() if case.updated_at else case.created_at.isoformat(),
+                    "status": "active"
+                })
+        
+        return {
+            "status": 200,
+            "message": "Case detail retrieved successfully",
+            "data": {
+                "case": {
+                    "id": str(case.id),
+                    "case_number": case.case_number,
+                    "title": case.title,
+                    "description": case.description,
+                    "status": case.status,
+                    "priority": case.priority,
+                    "case_type": case.case_type,
+                    "jurisdiction": case.jurisdiction,
+                    "work_unit": case.work_unit,
+                    "case_officer": case.case_officer,
+                    "created_at": case.created_at.isoformat() if case.created_at else None,
+                    "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+                    "closed_at": case.closed_at.isoformat() if case.closed_at else None,
+                    "evidence_count": case.evidence_count,
+                    "analysis_progress": case.analysis_progress
+                },
+                "persons_of_interest": persons_with_evidence,
+                "case_log": case_log,
+                "notes": formatted_notes,
+                "total_persons": len(persons),
+                "total_evidence": len(evidence_items)
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to retrieve case detail",
                 "error": str(e)
             }
         )
@@ -993,3 +1178,424 @@ def get_case_status_history(
     )
     
     return history
+
+
+@router.post("/{case_id}/notes")
+def add_case_note(
+    case_id: str,
+    note_content: str = Query(..., description="Note content to add"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Add a note to a case"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Parse existing notes
+        import json
+        existing_notes = []
+        if case.notes:
+            try:
+                existing_notes = json.loads(case.notes) if isinstance(case.notes, str) else case.notes
+            except:
+                # If not JSON, treat as single note
+                existing_notes = [{"content": case.notes, "timestamp": case.updated_at.isoformat() if case.updated_at else case.created_at.isoformat(), "status": "active"}]
+        
+        # Add new note
+        new_note = {
+            "content": note_content,
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "active",
+            "added_by": current_user.full_name or current_user.username
+        }
+        existing_notes.append(new_note)
+        
+        # Update case notes
+        case.notes = json.dumps(existing_notes)
+        case.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        # Create activity log
+        CaseActivityService.create_activity(
+            db=db,
+            case_id=case.id,
+            user_id=current_user.id,
+            activity_type="note_added",
+            description=f"Note added to case '{case.case_number}'",
+            new_value={"note_content": note_content}
+        )
+        
+        return {
+            "status": 200,
+            "message": "Note added successfully",
+            "data": {
+                "note": new_note,
+                "total_notes": len(existing_notes)
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to add note",
+                "error": str(e)
+            }
+        )
+
+
+@router.get("/{case_id}/notes")
+def get_case_notes(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Get all notes for a case"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Parse notes
+        import json
+        case_notes = []
+        if case.notes:
+            try:
+                case_notes = json.loads(case.notes) if isinstance(case.notes, str) else case.notes
+            except:
+                # If not JSON, treat as single note
+                case_notes = [{"content": case.notes, "timestamp": case.updated_at.isoformat() if case.updated_at else case.created_at.isoformat(), "status": "active"}]
+        
+        return {
+            "status": 200,
+            "message": "Case notes retrieved successfully",
+            "data": {
+                "notes": case_notes,
+                "total_notes": len(case_notes)
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to retrieve notes",
+                "error": str(e)
+            }
+        )
+
+
+@router.delete("/{case_id}/notes/{note_index}")
+def delete_case_note(
+    case_id: str,
+    note_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Delete a specific note from a case"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Parse existing notes
+        import json
+        existing_notes = []
+        if case.notes:
+            try:
+                existing_notes = json.loads(case.notes) if isinstance(case.notes, str) else case.notes
+            except:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "status": 400,
+                        "message": "Invalid notes format"
+                    }
+                )
+        
+        # Check if note index is valid
+        if note_index < 0 or note_index >= len(existing_notes):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Invalid note index"
+                }
+            )
+        
+        # Remove note
+        deleted_note = existing_notes.pop(note_index)
+        
+        # Update case notes
+        case.notes = json.dumps(existing_notes) if existing_notes else None
+        case.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        # Create activity log
+        CaseActivityService.create_activity(
+            db=db,
+            case_id=case.id,
+            user_id=current_user.id,
+            activity_type="note_deleted",
+            description=f"Note deleted from case '{case.case_number}'",
+            old_value={"note_content": deleted_note.get("content", "")}
+        )
+        
+        return {
+            "status": 200,
+            "message": "Note deleted successfully",
+            "data": {
+                "deleted_note": deleted_note,
+                "total_notes": len(existing_notes)
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to delete note",
+                "error": str(e)
+            }
+        )
+
+
+@router.post("/{case_id}/persons/{person_id}/evidence/{evidence_id}")
+def associate_evidence_with_person(
+    case_id: str,
+    person_id: str,
+    evidence_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Associate evidence with a person of interest"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        person_uuid = parse_case_id(person_id)
+        evidence_uuid = parse_case_id(evidence_id)
+        
+        # Verify case exists
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # Verify person exists and belongs to case
+        person = db.query(CasePerson).filter(
+            CasePerson.id == person_uuid,
+            CasePerson.case_id == case_uuid
+        ).first()
+        if not person:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Person not found in this case"
+                }
+            )
+        
+        # Verify evidence exists and belongs to case
+        from app.models.evidence import EvidenceItem
+        evidence = db.query(EvidenceItem).filter(
+            EvidenceItem.id == evidence_uuid,
+            EvidenceItem.case_id == case_uuid
+        ).first()
+        if not evidence:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Evidence not found in this case"
+                }
+            )
+        
+        # Check if association already exists
+        from app.models.case import EvidencePersonAssociation
+        existing_association = db.query(EvidencePersonAssociation).filter(
+            EvidencePersonAssociation.evidence_id == evidence_uuid,
+            EvidencePersonAssociation.person_id == person_uuid
+        ).first()
+        
+        if existing_association:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Evidence is already associated with this person"
+                }
+            )
+        
+        # Create new association
+        association = EvidencePersonAssociation(
+            evidence_id=evidence_uuid,
+            person_id=person_uuid,
+            association_type="related",
+            confidence_level="medium",
+            created_by=current_user.id
+        )
+        
+        db.add(association)
+        db.commit()
+        
+        # Create activity log
+        CaseActivityService.create_activity(
+            db=db,
+            case_id=case.id,
+            user_id=current_user.id,
+            activity_type="evidence_associated",
+            description=f"Evidence {evidence.evidence_number} associated with person {person.full_name}",
+            new_value={
+                "evidence_id": str(evidence.id),
+                "person_id": str(person.id),
+                "person_name": person.full_name,
+                "association_type": "related"
+            }
+        )
+        
+        return {
+            "status": 200,
+            "message": "Evidence associated with person successfully",
+            "data": {
+                "evidence": {
+                    "id": str(evidence.id),
+                    "evidence_number": evidence.evidence_number,
+                    "description": evidence.description
+                },
+                "person": {
+                    "id": str(person.id),
+                    "full_name": person.full_name,
+                    "person_type": person.person_type
+                }
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to associate evidence with person",
+                "error": str(e)
+            }
+        )
+
+
+@router.get("/{case_id}/export/pdf")
+def export_case_pdf(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_safe)
+):
+    """Export case details as PDF (placeholder for future implementation)"""
+    try:
+        case_uuid = parse_case_id(case_id)
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+        if not case:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": "Case not found"
+                }
+            )
+        
+        # For now, return a JSON response indicating PDF export is not yet implemented
+        # In a real implementation, you would generate a PDF using libraries like reportlab or weasyprint
+        return {
+            "status": 200,
+            "message": "PDF export functionality is not yet implemented",
+            "data": {
+                "case_id": str(case.id),
+                "case_number": case.case_number,
+                "title": case.title,
+                "note": "PDF generation will be implemented in a future version"
+            }
+        }
+        
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": 400,
+                "message": "Invalid case ID format",
+                "error": str(e)
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": "Failed to export case PDF",
+                "error": str(e)
+            }
+        )

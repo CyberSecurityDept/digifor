@@ -591,7 +591,246 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 15. Search Cases
+### 15. Get Case Detail (Enhanced)
+**Endpoint:** `GET /api/v1/cases/{case_id}/detail`
+
+**Description:** Mendapatkan detail lengkap kasus termasuk persons of interest, evidence, case log, dan notes.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case detail retrieved successfully",
+    "data": {
+        "case": {
+            "id": "uuid",
+            "case_number": "CASE-2024-0001",
+            "title": "Buronan Maroko Interpol",
+            "description": "Case description...",
+            "status": "closed",
+            "priority": "high",
+            "case_type": "criminal",
+            "jurisdiction": "Trikora agency",
+            "work_unit": "Dirjen Imigrasi 1",
+            "case_officer": "John Doe",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-15T10:30:00Z",
+            "closed_at": "2024-01-15T10:30:00Z",
+            "evidence_count": 5,
+            "analysis_progress": 80
+        },
+        "persons_of_interest": [
+            {
+                "id": "uuid",
+                "full_name": "Rafi ahmad",
+                "person_type": "suspect",
+                "alias": "Rafi",
+                "description": "Primary suspect",
+                "evidence": [
+                    {
+                        "id": "uuid",
+                        "evidence_number": "E001",
+                        "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
+                        "item_type": "phone",
+                        "analysis_status": "completed",
+                        "created_at": "2024-01-02T09:00:00Z",
+                        "association_type": "primary",
+                        "confidence_level": "high",
+                        "association_notes": "Direct evidence from suspect's phone"
+                    }
+                ]
+            }
+        ],
+        "case_log": [
+            {
+                "id": "uuid",
+                "activity_type": "reopened",
+                "description": "Case reopened",
+                "timestamp": "2024-01-16T08:12:00Z",
+                "user_name": "Wianu",
+                "user_role": "investigator",
+                "old_value": {"status": "closed"},
+                "new_value": {"status": "reopened"}
+            }
+        ],
+        "notes": [
+            {
+                "content": "Kasus ini memiliki indikasi adanya tersangka tambahan",
+                "timestamp": "2024-01-12T15:23:00Z",
+                "status": "active"
+            }
+        ],
+        "total_persons": 3,
+        "total_evidence": 5
+    }
+}
+```
+
+### 16. Add Case Note
+**Endpoint:** `POST /api/v1/cases/{case_id}/notes`
+
+**Description:** Menambahkan catatan ke kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+
+**Query Parameters:**
+- `note_content` (required): Konten catatan yang akan ditambahkan
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Note added successfully",
+    "data": {
+        "note": {
+            "content": "New note content",
+            "timestamp": "2024-01-16T10:30:00Z",
+            "status": "active",
+            "added_by": "John Doe"
+        },
+        "total_notes": 3
+    }
+}
+```
+
+### 17. Get Case Notes
+**Endpoint:** `GET /api/v1/cases/{case_id}/notes`
+
+**Description:** Mendapatkan semua catatan untuk kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Case notes retrieved successfully",
+    "data": {
+        "notes": [
+            {
+                "content": "Kasus ini memiliki indikasi adanya tersangka tambahan",
+                "timestamp": "2024-01-12T15:23:00Z",
+                "status": "active"
+            }
+        ],
+        "total_notes": 1
+    }
+}
+```
+
+### 18. Delete Case Note
+**Endpoint:** `DELETE /api/v1/cases/{case_id}/notes/{note_index}`
+
+**Description:** Menghapus catatan spesifik dari kasus.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+- `note_index`: Index catatan yang akan dihapus (0-based, integer)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Note deleted successfully",
+    "data": {
+        "deleted_note": {
+            "content": "Deleted note content",
+            "timestamp": "2024-01-12T15:23:00Z",
+            "status": "active"
+        },
+        "total_notes": 2
+    }
+}
+```
+
+### 19. Associate Evidence with Person
+**Endpoint:** `POST /api/v1/cases/{case_id}/persons/{person_id}/evidence/{evidence_id}`
+
+**Description:** Mengaitkan evidence dengan person of interest.
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+- `person_id`: UUID person (format: UUID string)
+- `evidence_id`: UUID evidence (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "Evidence associated with person successfully",
+    "data": {
+        "evidence": {
+            "id": "uuid",
+            "evidence_number": "E001",
+            "description": "Evidence description"
+        },
+        "person": {
+            "id": "uuid",
+            "full_name": "Rafi ahmad",
+            "person_type": "suspect"
+        }
+    }
+}
+```
+
+### 20. Export Case PDF
+**Endpoint:** `GET /api/v1/cases/{case_id}/export/pdf`
+
+**Description:** Export detail kasus sebagai PDF (placeholder implementation).
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `case_id`: UUID kasus (format: UUID string)
+
+**Response (200 OK):**
+```json
+{
+    "status": 200,
+    "message": "PDF export functionality is not yet implemented",
+    "data": {
+        "case_id": "uuid",
+        "case_number": "CASE-2024-0001",
+        "title": "Buronan Maroko Interpol",
+        "note": "PDF generation will be implemented in a future version"
+    }
+}
+```
+
+### 21. Search Cases
 **Endpoint:** `GET /api/v1/cases/search`
 
 **Description:** Mencari kasus dengan query dan filter untuk dashboard case management.
@@ -650,7 +889,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 16. Get Filter Options
+### 22. Get Filter Options
 **Endpoint:** `GET /api/v1/cases/filter-options`
 
 **Description:** Mendapatkan opsi filter yang tersedia untuk dashboard case management.
@@ -675,7 +914,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 17. Get Case Management Overview
+### 23. Get Case Management Overview
 **Endpoint:** `GET /api/v1/cases/overview`
 
 **Description:** Mendapatkan overview case management dengan statistik cards saja.
@@ -708,7 +947,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 18. Get All Cases
+### 24. Get All Cases
 **Endpoint:** `GET /api/v1/cases/get-all-cases/`
 
 **Description:** Mendapatkan daftar semua kasus forensik.
@@ -776,7 +1015,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 19. Create New Case
+### 25. Create New Case
 **Endpoint:** `POST /api/v1/cases/create-cases/`
 
 **Description:** Membuat kasus forensik baru dengan form-based approach yang mendukung auto-generated case ID.
@@ -877,7 +1116,7 @@ Content-Type: application/json
 }
 ```
 
-### 20. Get Form Options
+### 26. Get Form Options
 **Endpoint:** `GET /api/v1/cases/form-options`
 
 **Description:** Mendapatkan opsi untuk form create case (investigators, agencies, work units, dll).
@@ -915,7 +1154,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 21. Get Case by ID
+### 27. Get Case by ID
 **Endpoint:** `GET /api/v1/cases/case-by-id`
 
 **Description:** Mendapatkan detail kasus berdasarkan ID.
@@ -975,7 +1214,7 @@ GET /api/v1/cases/case-by-id?case_id=719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
 }
 ```
 
-### 22. Update Case
+### 28. Update Case
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
 **Description:** Mengupdate informasi kasus forensik.
@@ -1057,7 +1296,7 @@ PUT /api/v1/cases/update-case/719e0a0a-4e54-48c6-b2e2-10fe42cadc9e
 }
 ```
 
-### 23. Close Case
+### 29. Close Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/close`
 
 **Description:** Menutup kasus forensik dengan alasan dan tracking aktivitas.
@@ -1106,7 +1345,7 @@ Content-Type: application/json
 }
 ```
 
-### 24. Reopen Case
+### 30. Reopen Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/reopen`
 
 **Description:** Membuka kembali kasus yang sudah ditutup dengan alasan dan tracking aktivitas.
@@ -1155,7 +1394,7 @@ Content-Type: application/json
 }
 ```
 
-### 25. Change Case Status
+### 31. Change Case Status
 **Endpoint:** `POST /api/v1/cases/{case_id}/change-status`
 
 **Description:** Mengubah status kasus dengan alasan dan tracking aktivitas.
@@ -1200,7 +1439,7 @@ Content-Type: application/json
 }
 ```
 
-### 26. Get Case Activities
+### 32. Get Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities`
 
 **Description:** Mendapatkan log aktivitas kasus dengan pagination.
@@ -1263,7 +1502,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 27. Get Recent Case Activities
+### 33. Get Recent Case Activities
 **Endpoint:** `GET /api/v1/cases/{case_id}/activities/recent`
 
 **Description:** Mendapatkan aktivitas terbaru kasus dengan informasi user.
@@ -1305,7 +1544,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 28. Get Case Status History
+### 34. Get Case Status History
 **Endpoint:** `GET /api/v1/cases/{case_id}/status-history`
 
 **Description:** Mendapatkan history perubahan status kasus.
@@ -1354,7 +1593,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 29. Add Person to Case
+### 35. Add Person to Case
 **Endpoint:** `POST /api/v1/cases/{case_id}/persons`
 
 **Description:** Menambahkan orang (suspect, victim, witness) ke dalam kasus.
@@ -1432,7 +1671,7 @@ Content-Type: application/json
 }
 ```
 
-### 30. Get Case Persons
+### 36. Get Case Persons
 **Endpoint:** `GET /api/v1/cases/{case_id}/persons`
 
 **Description:** Mendapatkan daftar semua orang yang terlibat dalam kasus.
@@ -1626,6 +1865,82 @@ Authorization: Bearer <access_token>
     "status": 500,
     "message": "Case deletion failed: Database connection error"
 }
+```
+
+### Case Management Features Summary
+
+#### ✅ Enhanced Case Management Endpoints (New)
+
+**Comprehensive Case Detail:**
+- **GET** `/api/v1/cases/{case_id}/detail` - Mendapatkan detail lengkap kasus dengan persons of interest, evidence, case log, dan notes dalam satu response
+
+**Case Notes Management:**
+- **POST** `/api/v1/cases/{case_id}/notes` - Menambahkan catatan ke kasus
+- **GET** `/api/v1/cases/{case_id}/notes` - Mendapatkan semua catatan kasus
+- **DELETE** `/api/v1/cases/{case_id}/notes/{note_index}` - Menghapus catatan spesifik
+
+**Evidence-Person Association:**
+- **POST** `/api/v1/cases/{case_id}/persons/{person_id}/evidence/{evidence_id}` - Mengaitkan evidence dengan person of interest
+- Mendukung association types: primary, secondary, witness, related
+- Confidence levels: low, medium, high, confirmed
+
+**Enhanced Case Export:**
+- **GET** `/api/v1/cases/{case_id}/export/pdf` - Export kasus sebagai PDF (placeholder untuk implementasi future)
+
+#### 🔧 Database Improvements
+
+**New Fields in Cases Table:**
+- `agency` - Nama agency (e.g., "Trikora agency")
+- `jurisdiction_level` - Level jurisdiksi (Local, State, Federal, International)
+- `case_classification` - Klasifikasi keamanan (Public, Confidential, Secret, Top Secret)
+
+**New Junction Table:**
+- `evidence_person_associations` - Tabel many-to-many untuk mengaitkan evidence dengan persons
+- Mendukung association types, confidence levels, dan notes
+- Proper database relationships dengan foreign key constraints
+
+#### 📊 Case Management Interface Support
+
+Endpoint-endpoint yang telah diupdate mendukung interface case management yang komprehensif:
+
+1. **Case Information Display** - Detail kasus lengkap dengan status, agency, work unit
+2. **Persons of Interest Section** - Daftar persons dengan evidence yang terkait
+3. **Evidence Management** - Evidence items dengan asosiasi ke specific persons
+4. **Case Log** - Chronological activity log dengan user information
+5. **Notes System** - Sistem catatan dengan timestamp dan user tracking
+6. **Export Functionality** - PDF export endpoint (siap untuk implementasi)
+
+#### 🚀 Migration & Setup
+
+Untuk menggunakan fitur-fitur baru:
+
+1. **Jalankan migration script:**
+   ```bash
+   python tools/update_case_management.py
+   ```
+
+2. **Update database schema** dengan fields dan tables baru
+
+3. **Test endpoints** menggunakan dokumentasi yang telah diupdate
+
+#### 🎯 Usage Examples
+
+**Get Comprehensive Case Detail:**
+```bash
+curl -X GET "http://localhost:8000/api/v1/cases/{case_id}/detail" \
+  -H "Authorization: Bearer your_token"
+```
+
+**Add Case Note:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/cases/{case_id}/notes?note_content=Investigation%20update" \
+  -H "Authorization: Bearer your_token"
+```
+
+**Associate Evidence with Person:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/cases/{case_id}/persons/{person_id}/evidence/{evidence_id}" \
+  -H "Authorization: Bearer your_token"
 ```
 
 ## Report Generation
