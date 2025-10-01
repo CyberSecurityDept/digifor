@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Forenlytic Backend - Production Run Script
+# Digital Forensics Backend - Production Run Script
 # Production-ready script with full validation
 
-echo "Forenlytic Backend - Production Mode"
+echo "Digital Forensics Backend - Production Mode"
 echo "==================================="
 
 # Check if we're in the right directory

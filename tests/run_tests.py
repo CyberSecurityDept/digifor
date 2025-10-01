@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Runner for Forenlytic Backend
+Test Runner for Digital Forensics Backend
 """
 import subprocess
 import sys
@@ -25,12 +25,12 @@ def run_test(test_file):
             print(result.stdout)
             return True
         else:
-            print(f"❌ {test_file} failed")
+            print(f" {test_file} failed")
             print(result.stdout)
             print(result.stderr)
             return False
     except Exception as e:
-        print(f"❌ Error running {test_file}: {e}")
+        print(f" Error running {test_file}: {e}")
         return False
 
 def check_server():
@@ -43,21 +43,21 @@ def check_server():
             print("✅ Server is running")
             return True
         else:
-            print("❌ Server is not responding properly")
+            print(" Server is not responding properly")
             return False
     except Exception as e:
-        print(f"❌ Server check failed: {e}")
+        print(f" Server check failed: {e}")
         return False
 
 def main():
     """Main test runner function"""
-    print("🚀 Forenlytic Backend Test Runner")
+    print("🚀 Digital Forensics Backend Test Runner")
     print("=" * 50)
     
     # Check if server is running
     print("🔍 Checking if server is running...")
     if not check_server():
-        print("❌ Server is not running. Please start the server first:")
+        print(" Server is not running. Please start the server first:")
         print("   ./run.sh")
         print("   or")
         print("   ./scripts/start_backend.sh")
@@ -89,7 +89,7 @@ def main():
     print("📊 Test Summary")
     print("=" * 50)
     print(f"✅ Passed: {passed}")
-    print(f"❌ Failed: {failed}")
+    print(f" Failed: {failed}")
     print(f"📁 Total: {passed + failed}")
     
     if failed == 0:

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Forenlytic Backend - System Dependencies Installer
+# Digital Forensics Backend - System Dependencies Installer
 # Script untuk install system dependencies yang diperlukan
 
-echo "🔧 Forenlytic Backend - System Dependencies Installer"
+echo "🔧 Digital Forensics Backend - System Dependencies Installer"
 echo "====================================================="
 
 # Detect OS
@@ -14,7 +14,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     
     # Check if Homebrew is installed
     if ! command -v brew &> /dev/null; then
-        echo "❌ Homebrew not found. Please install Homebrew first:"
+        echo " Homebrew not found. Please install Homebrew first:"
         echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
         exit 1
     fi
@@ -26,7 +26,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     if [ $? -eq 0 ]; then
         echo "✅ libmagic installed successfully"
     else
-        echo "❌ Failed to install libmagic"
+        echo " Failed to install libmagic"
         exit 1
     fi
 
@@ -46,19 +46,19 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Installing system dependencies via dnf..."
         sudo dnf install -y file-devel
     else
-        echo "❌ Unsupported package manager. Please install libmagic manually."
+        echo " Unsupported package manager. Please install libmagic manually."
         exit 1
     fi
     
     if [ $? -eq 0 ]; then
         echo "✅ libmagic installed successfully"
     else
-        echo "❌ Failed to install libmagic"
+        echo " Failed to install libmagic"
         exit 1
     fi
 
 else
-    echo "❌ Unsupported operating system: $OSTYPE"
+    echo " Unsupported operating system: $OSTYPE"
     echo "Please install libmagic manually for your system."
     exit 1
 fi

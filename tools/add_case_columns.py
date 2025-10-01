@@ -34,7 +34,7 @@ def add_case_columns():
                     if "duplicate column name" in str(e).lower():
                         print(f"⚠️  Column {column.split()[0]} already exists")
                     else:
-                        print(f"❌ Error adding column {column.split()[0]}: {e}")
+                        print(f" Error adding column {column.split()[0]}: {e}")
             
             # Update status column to include 'reopened'
             try:
@@ -52,7 +52,7 @@ def add_case_columns():
         print("\n✅ Case columns added successfully!")
         
     except Exception as e:
-        print(f"❌ Error adding columns: {e}")
+        print(f" Error adding columns: {e}")
         return False
     
     return True
@@ -62,5 +62,5 @@ if __name__ == "__main__":
     if success:
         print("\n🎉 Case management columns successfully added!")
     else:
-        print("\n❌ Failed to add columns")
+        print("\n Failed to add columns")
         sys.exit(1)

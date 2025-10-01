@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Environment Variables Checker for Forenlytic
+Environment Variables Checker for Digital Forensics
 Script ini memverifikasi bahwa semua environment variables terkonfigurasi dengan benar
 """
 
@@ -24,12 +24,12 @@ def check_env_file():
     env_file = Path('.env')
     
     if not env_file.exists():
-        logger.error("❌ File .env tidak ditemukan!")
+        logger.error(" File .env tidak ditemukan!")
         logger.info("   Solusi: cp env.example .env")
         return False
     
     if not env_file.is_file():
-        logger.error("❌ .env bukan file!")
+        logger.error(" .env bukan file!")
         return False
     
     # Check file permissions
@@ -48,12 +48,12 @@ def check_database_config():
     
     # Check if database URL is set
     if not settings.database_url:
-        logger.error("❌ DATABASE_URL tidak terkonfigurasi!")
+        logger.error(" DATABASE_URL tidak terkonfigurasi!")
         return False
     
     # Check if it's PostgreSQL
     if not settings.database_url.startswith('postgresql://'):
-        logger.error("❌ DATABASE_URL bukan PostgreSQL!")
+        logger.error(" DATABASE_URL bukan PostgreSQL!")
         logger.info(f"   Current: {settings.database_url}")
         return False
     
@@ -70,7 +70,7 @@ def check_database_config():
     
     for name, value in postgres_settings:
         if not value:
-            logger.error(f"❌ {name} tidak terkonfigurasi!")
+            logger.error(f" {name} tidak terkonfigurasi!")
             return False
         logger.info(f"✅ {name}: {value}")
     
@@ -127,12 +127,12 @@ def test_database_connection():
         return True
         
     except ImportError:
-        logger.error("❌ psycopg2 tidak terinstall!")
+        logger.error(" psycopg2 tidak terinstall!")
         logger.info("   Solusi: pip install psycopg2-binary")
         return False
         
     except Exception as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        logger.error(f" Database connection failed: {e}")
         logger.info("   Solusi: Check PostgreSQL service dan credentials")
         return False
 
@@ -150,7 +150,7 @@ def show_current_config():
 
 def main():
     """Main function"""
-    logger.info("🚀 Forenlytic Environment Variables Checker")
+    logger.info("🚀 Digital Forensics Environment Variables Checker")
     logger.info("=" * 50)
     
     all_checks_passed = True
@@ -184,7 +184,7 @@ def main():
         logger.info("✅ Aplikasi siap dijalankan")
         return True
     else:
-        logger.error("❌ Ada masalah dengan konfigurasi environment variables")
+        logger.error(" Ada masalah dengan konfigurasi environment variables")
         logger.info("📝 Lihat dokumentasi: docs/ENVIRONMENT_VARIABLES.md")
         return False
 

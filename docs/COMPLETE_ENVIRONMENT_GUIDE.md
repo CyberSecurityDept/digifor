@@ -1,6 +1,6 @@
 # Complete Environment Configuration Guide
 
-Panduan lengkap konfigurasi environment untuk Forenlytic Backend - Development, Production, dan Security.
+Panduan lengkap konfigurasi environment untuk Digital Forensics Backend - Development, Production, dan Security.
 
 ## 📋 **Table of Contents**
 
@@ -75,14 +75,14 @@ MAX_FILE_SIZE=104857600  # 100MB
 ```env
 # Logging
 LOG_LEVEL=INFO
-LOG_FILE=./logs/forenlytic.log
+LOG_FILE=./logs/Digital Forensics.log
 ```
 
 ### **API Configuration**
 ```env
 # API Configuration
 API_V1_STR=/api/v1
-PROJECT_NAME=Forenlytic
+PROJECT_NAME=Digital Forensics
 VERSION=1.0.0
 ```
 
@@ -343,7 +343,7 @@ secret_key: str = Field(alias="SECRET_KEY")
 
 #### **Strong Passwords and Keys:**
 ```env
-# ❌ BAD - Weak credentials
+#  BAD - Weak credentials
 SECRET_KEY=password123
 POSTGRES_PASSWORD=123456
 
@@ -423,7 +423,7 @@ print(f"Debug mode: {settings.debug}")
 
 ### **Expected Behavior**
 - ✅ **If all env vars exist**: Application runs normally
-- ❌ **If env vars missing**: Application crashes with clear error message
+-  **If env vars missing**: Application crashes with clear error message
 
 ---
 
@@ -434,7 +434,7 @@ print(f"Debug mode: {settings.debug}")
 ```bash
 # Clone repository
 git clone <repository-url>
-cd forenlytic-backend
+cd Digital Forensics-backend
 
 # Create virtual environment
 python -m venv venv
@@ -642,4 +642,4 @@ This comprehensive environment configuration guide provides:
 5. **Troubleshooting Guide** - Common issues and solutions
 6. **Deployment Instructions** - Docker and production deployment
 
-**Your Forenlytic Backend is now production-ready with secure environment configuration!** 🔒✅
+**Your Digital Forensics Backend is now production-ready with secure environment configuration!** 🔒✅

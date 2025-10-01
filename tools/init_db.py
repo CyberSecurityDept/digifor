@@ -15,7 +15,7 @@ import os
 
 def main():
     """Initialize database and create tables"""
-    print("Initializing Forenlytic Database...")
+    print("Initializing Digital Forensics Database...")
     
     # Create data directory if it doesn't exist
     os.makedirs("./data", exist_ok=True)

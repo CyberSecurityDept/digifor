@@ -1,6 +1,6 @@
-# Forenlytic Backend - cURL Examples
+# Digital Forensics Backend - cURL Examples
 
-Kumpulan contoh cURL commands untuk testing API Forenlytic Backend.
+Kumpulan contoh cURL commands untuk testing API Digital Forensics Backend.
 
 ## 🚀 Quick Start
 

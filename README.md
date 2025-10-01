@@ -195,12 +195,12 @@ brew install libmagic postgresql
 **Environment Variables:**
 ```env
 # Database (PostgreSQL)
-DATABASE_URL=postgresql://forenlytic:password@localhost:5432/forenlytic_db
+DATABASE_URL=postgresql://Digital Forensics:password@localhost:5432/Digital Forensics_db
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=forenlytic
+POSTGRES_USER=Digital Forensics
 POSTGRES_PASSWORD=password
-POSTGRES_DB=forenlytic_db
+POSTGRES_DB=Digital Forensics_db
 
 # Security
 SECRET_KEY=your-secret-key-here
@@ -209,7 +209,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # API
 API_V1_STR=/api/v1
-PROJECT_NAME=Forenlytic Backend
+PROJECT_NAME=Digital Forensics Backend
 
 # Development
 DEBUG=True
@@ -270,7 +270,7 @@ python tools/setup_postgres.py
 python -c "from app.database import engine; print('Database OK')"
 
 # Test PostgreSQL connection
-python -c "import psycopg2; conn = psycopg2.connect(host='localhost', port=5432, user='forenlytic', password='password', database='forenlytic_db'); print('PostgreSQL OK')"
+python -c "import psycopg2; conn = psycopg2.connect(host='localhost', port=5432, user='Digital Forensics', password='password', database='Digital Forensics_db'); print('PostgreSQL OK')"
 ```
 
 **5. Environment Variables Issues**
@@ -394,7 +394,7 @@ LOG_LEVEL=DEBUG
 RELOAD=True
 
 # Database (development)
-DATABASE_URL=postgresql://forenlytic:password@localhost:5432/forenlytic_dev
+DATABASE_URL=postgresql://Digital Forensics:password@localhost:5432/Digital Forensics_dev
 
 # Security (development - use different keys in production)
 SECRET_KEY=dev-secret-key-change-in-production
@@ -426,7 +426,7 @@ Semua dokumentasi tersedia di folder `docs/`:
 
 ## 🏗️ System Architecture
 
-Forenlytic Backend dibangun dengan arsitektur modern yang mengutamakan keamanan, skalabilitas, dan integritas data. Sistem ini menggunakan FastAPI sebagai framework backend dengan SQLite database yang dirancang khusus untuk memenuhi standar forensik digital, termasuk:
+Digital Forensics Backend dibangun dengan arsitektur modern yang mengutamakan keamanan, skalabilitas, dan integritas data. Sistem ini menggunakan FastAPI sebagai framework backend dengan SQLite database yang dirancang khusus untuk memenuhi standar forensik digital, termasuk:
 
 - **Chain of Custody Management** - Pelacakan lengkap perpindahan barang bukti
 - **Secure Evidence Storage** - Penyimpanan aman dengan enkripsi dan audit trail

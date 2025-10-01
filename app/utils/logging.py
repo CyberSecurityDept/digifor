@@ -43,7 +43,7 @@ def setup_logging(log_level: str = None, log_file: str = None) -> logging.Logger
     log_file = log_file or settings.log_file
     
     # Create logger
-    logger = logging.getLogger("forenlytic")
+    logger = logging.getLogger("Digital Forensics")
     logger.setLevel(getattr(logging, log_level.upper()))
     
     # Clear existing handlers
@@ -80,7 +80,7 @@ def setup_logging(log_level: str = None, log_file: str = None) -> logging.Logger
     return logger
 
 
-def get_logger(name: str = "forenlytic") -> logging.Logger:
+def get_logger(name: str = "Digital Forensics") -> logging.Logger:
     """
     Get logger instance
     
@@ -94,7 +94,7 @@ def get_logger(name: str = "forenlytic") -> logging.Logger:
 
 
 def log_startup_info(logger: logging.Logger):
-    logger.info("Forenlytic Backend is starting up...")
+    logger.info("Digital Forensics Backend is starting up...")
     logger.info(f"Version: {settings.version}")
     logger.info(f"Debug mode: {settings.debug}")
     logger.info(f"Working directory: {Path.cwd()}")
@@ -109,13 +109,13 @@ def log_database_info(logger: logging.Logger):
 
 # def log_server_ready(logger: logging.Logger, host: str = "localhost", port: int = 8000):
 #     """Log server ready information"""
-#     logger.info(f"Forenlytic Backend is ready at http://{host}:{port}")
+#     logger.info(f"Digital Forensics Backend is ready at http://{host}:{port}")
 #     logger.info(f"API Documentation: http://{host}:{port}/docs")
 #     logger.info(f"ReDoc: http://{host}:{port}/redoc")
 
 
 def log_shutdown(logger: logging.Logger):
-    logger.info("Shutting down Forenlytic Backend...")
+    logger.info("Shutting down Digital Forensics Backend...")
 
 
 # Initialize default logger

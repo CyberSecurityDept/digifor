@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Forenlytic Backend API Testing Script
+Digital Forensics Backend API Testing Script
 """
 import requests
 import json
@@ -18,9 +18,9 @@ def test_health():
             print("✅ Health check passed")
             print(f"   Response: {response.json()}")
         else:
-            print(f"❌ Health check failed: {response.status_code}")
+            print(f" Health check failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Health check error: {e}")
+        print(f" Health check error: {e}")
 
 def test_auth():
     """Test authentication"""
@@ -44,11 +44,11 @@ def test_auth():
             print(f"   Token type: {token_data['token_type']}")
             return token_data['access_token']
         else:
-            print(f"❌ Login failed: {response.status_code}")
+            print(f" Login failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return None
     except Exception as e:
-        print(f"❌ Login error: {e}")
+        print(f" Login error: {e}")
         return None
 
 def test_cases(token):
@@ -82,11 +82,11 @@ def test_cases(token):
             print(f"   Case Number: {case['case_number']}")
             return case['id']
         else:
-            print(f"❌ Case creation failed: {response.status_code}")
+            print(f" Case creation failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return None
     except Exception as e:
-        print(f"❌ Case creation error: {e}")
+        print(f" Case creation error: {e}")
         return None
 
 def test_case_operations(token, case_id):
@@ -105,9 +105,9 @@ def test_case_operations(token, case_id):
         if response.status_code == 200:
             print("✅ Get case successful")
         else:
-            print(f"❌ Get case failed: {response.status_code}")
+            print(f" Get case failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Get case error: {e}")
+        print(f" Get case error: {e}")
     
     # Test update case
     update_data = {
@@ -125,9 +125,9 @@ def test_case_operations(token, case_id):
         if response.status_code == 200:
             print("✅ Update case successful")
         else:
-            print(f"❌ Update case failed: {response.status_code}")
+            print(f" Update case failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Update case error: {e}")
+        print(f" Update case error: {e}")
     
     # Test add person
     person_data = {
@@ -148,9 +148,9 @@ def test_case_operations(token, case_id):
         if response.status_code == 200:
             print("✅ Add person successful")
         else:
-            print(f"❌ Add person failed: {response.status_code}")
+            print(f" Add person failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Add person error: {e}")
+        print(f" Add person error: {e}")
     
     # Test get case stats
     try:
@@ -165,9 +165,9 @@ def test_case_operations(token, case_id):
             print(f"   Evidence count: {stats['evidence_count']}")
             print(f"   Analysis count: {stats['analysis_count']}")
         else:
-            print(f"❌ Get case stats failed: {response.status_code}")
+            print(f" Get case stats failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Get case stats error: {e}")
+        print(f" Get case stats error: {e}")
 
 def test_reports(token, case_id):
     """Test report generation"""
@@ -187,10 +187,10 @@ def test_reports(token, case_id):
             print("✅ Generate comprehensive report successful")
             print(f"   Filename: {report_data['filename']}")
         else:
-            print(f"❌ Generate report failed: {response.status_code}")
+            print(f" Generate report failed: {response.status_code}")
             print(f"   Response: {response.text}")
     except Exception as e:
-        print(f"❌ Generate report error: {e}")
+        print(f" Generate report error: {e}")
     
     # Test list reports
     try:
@@ -204,13 +204,13 @@ def test_reports(token, case_id):
             print("✅ List reports successful")
             print(f"   Total reports: {reports['total_reports']}")
         else:
-            print(f"❌ List reports failed: {response.status_code}")
+            print(f" List reports failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ List reports error: {e}")
+        print(f" List reports error: {e}")
 
 def main():
     """Main testing function"""
-    print("🚀 Starting Forenlytic Backend API Tests...")
+    print("🚀 Starting Digital Forensics Backend API Tests...")
     print("=" * 50)
     
     # Test health
@@ -219,13 +219,13 @@ def main():
     # Test authentication
     token = test_auth()
     if not token:
-        print("❌ Cannot proceed without authentication token")
+        print(" Cannot proceed without authentication token")
         return
     
     # Test case management
     case_id = test_cases(token)
     if not case_id:
-        print("❌ Cannot proceed without case ID")
+        print(" Cannot proceed without case ID")
         return
     
     # Test case operations

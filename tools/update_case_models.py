@@ -32,14 +32,14 @@ def update_database():
             if result.fetchone():
                 print("✅ case_activities table created")
             else:
-                print("❌ case_activities table not found")
+                print(" case_activities table not found")
             
             # Check case_status_history table
             result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='case_status_history'"))
             if result.fetchone():
                 print("✅ case_status_history table created")
             else:
-                print("❌ case_status_history table not found")
+                print(" case_status_history table not found")
             
             # Check if new columns exist in cases table
             result = conn.execute(text("PRAGMA table_info(cases)"))
@@ -50,12 +50,12 @@ def update_database():
                 if col in columns:
                     print(f"✅ Column '{col}' added to cases table")
                 else:
-                    print(f"❌ Column '{col}' not found in cases table")
+                    print(f" Column '{col}' not found in cases table")
         
         print("\n🎉 Database update completed!")
         
     except Exception as e:
-        print(f"❌ Error updating database: {e}")
+        print(f" Error updating database: {e}")
         return False
     
     return True
@@ -70,5 +70,5 @@ if __name__ == "__main__":
         print("- Status history with reason logs")
         print("- New API endpoints for case management")
     else:
-        print("\n❌ Failed to update database")
+        print("\n Failed to update database")
         sys.exit(1)

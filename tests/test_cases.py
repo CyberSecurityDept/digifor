@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Case Management Tests for Forenlytic Backend
+Case Management Tests for Digital Forensics Backend
 """
 import requests
 import json
@@ -27,7 +27,7 @@ def get_auth_token():
         else:
             return None
     except Exception as e:
-        print(f"❌ Authentication error: {e}")
+        print(f" Authentication error: {e}")
         return None
 
 def test_create_case():
@@ -36,7 +36,7 @@ def test_create_case():
     
     token = get_auth_token()
     if not token:
-        print("❌ Cannot proceed without authentication token")
+        print(" Cannot proceed without authentication token")
         return None
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -67,11 +67,11 @@ def test_create_case():
             print(f"   Title: {case['title']}")
             return case['id']
         else:
-            print(f"❌ Case creation failed: {response.status_code}")
+            print(f" Case creation failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return None
     except Exception as e:
-        print(f"❌ Case creation error: {e}")
+        print(f" Case creation error: {e}")
         return None
 
 def test_get_case(case_id):
@@ -97,10 +97,10 @@ def test_get_case(case_id):
             print(f"   Status: {case['status']}")
             return True
         else:
-            print(f"❌ Get case failed: {response.status_code}")
+            print(f" Get case failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get case error: {e}")
+        print(f" Get case error: {e}")
         return False
 
 def test_list_cases():
@@ -125,10 +125,10 @@ def test_list_cases():
             print(f"   Total cases: {len(cases)}")
             return True
         else:
-            print(f"❌ List cases failed: {response.status_code}")
+            print(f" List cases failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ List cases error: {e}")
+        print(f" List cases error: {e}")
         return False
 
 def test_update_case(case_id):
@@ -161,10 +161,10 @@ def test_update_case(case_id):
             print(f"   New priority: {case['priority']}")
             return True
         else:
-            print(f"❌ Update case failed: {response.status_code}")
+            print(f" Update case failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Update case error: {e}")
+        print(f" Update case error: {e}")
         return False
 
 def test_add_person(case_id):
@@ -201,10 +201,10 @@ def test_add_person(case_id):
             print(f"   Type: {person['person_type']}")
             return person['id']
         else:
-            print(f"❌ Add person failed: {response.status_code}")
+            print(f" Add person failed: {response.status_code}")
             return None
     except Exception as e:
-        print(f"❌ Add person error: {e}")
+        print(f" Add person error: {e}")
         return None
 
 def test_get_case_persons(case_id):
@@ -229,10 +229,10 @@ def test_get_case_persons(case_id):
             print(f"   Total persons: {len(persons)}")
             return True
         else:
-            print(f"❌ Get case persons failed: {response.status_code}")
+            print(f" Get case persons failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get case persons error: {e}")
+        print(f" Get case persons error: {e}")
         return False
 
 def test_get_case_stats(case_id):
@@ -259,10 +259,10 @@ def test_get_case_stats(case_id):
             print(f"   Analysis progress: {stats['analysis_progress']}%")
             return True
         else:
-            print(f"❌ Get case stats failed: {response.status_code}")
+            print(f" Get case stats failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get case stats error: {e}")
+        print(f" Get case stats error: {e}")
         return False
 
 def test_case_filters():
@@ -287,9 +287,9 @@ def test_case_filters():
             print("✅ Status filter successful")
             print(f"   Cases with 'in_progress' status: {len(cases)}")
         else:
-            print(f"❌ Status filter failed: {response.status_code}")
+            print(f" Status filter failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Status filter error: {e}")
+        print(f" Status filter error: {e}")
     
     # Test priority filter
     try:
@@ -303,9 +303,9 @@ def test_case_filters():
             print("✅ Priority filter successful")
             print(f"   Cases with 'high' priority: {len(cases)}")
         else:
-            print(f"❌ Priority filter failed: {response.status_code}")
+            print(f" Priority filter failed: {response.status_code}")
     except Exception as e:
-        print(f"❌ Priority filter error: {e}")
+        print(f" Priority filter error: {e}")
     
     return True
 
@@ -317,7 +317,7 @@ def main():
     # Test create case
     case_id = test_create_case()
     if not case_id:
-        print("❌ Cannot proceed without case ID")
+        print(" Cannot proceed without case ID")
         return
     
     # Test get case

@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models.user import User
 from app.utils.security import verify_token_with_error_info
 from app.utils.token_manager import get_token_manager, TokenManager
-from app.api.auth import get_user_by_username
+from app.api.authentication.helpers import get_user_by_username
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/oauth2/token")
 

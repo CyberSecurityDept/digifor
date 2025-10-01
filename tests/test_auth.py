@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Authentication Tests for Forenlytic Backend
+Authentication Tests for Digital Forensics Backend
 """
 import requests
 import json
@@ -19,10 +19,10 @@ def test_health():
             print(f"   Response: {response.json()}")
             return True
         else:
-            print(f"❌ Health check failed: {response.status_code}")
+            print(f" Health check failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Health check error: {e}")
+        print(f" Health check error: {e}")
         return False
 
 def test_register_user():
@@ -48,11 +48,11 @@ def test_register_user():
             print(f"   User: {response.json()['username']}")
             return True
         else:
-            print(f"❌ User registration failed: {response.status_code}")
+            print(f" User registration failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ User registration error: {e}")
+        print(f" User registration error: {e}")
         return False
 
 def test_login():
@@ -76,11 +76,11 @@ def test_login():
             print(f"   Token type: {token_data['token_type']}")
             return token_data['access_token']
         else:
-            print(f"❌ Login failed: {response.status_code}")
+            print(f" Login failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return None
     except Exception as e:
-        print(f"❌ Login error: {e}")
+        print(f" Login error: {e}")
         return None
 
 def test_get_user_info(token):
@@ -102,10 +102,10 @@ def test_get_user_info(token):
             print(f"   Role: {user_info['role']}")
             return True
         else:
-            print(f"❌ Get user info failed: {response.status_code}")
+            print(f" Get user info failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get user info error: {e}")
+        print(f" Get user info error: {e}")
         return False
 
 def test_refresh_token(token):
@@ -126,15 +126,15 @@ def test_refresh_token(token):
             print(f"   New token type: {new_token_data['token_type']}")
             return True
         else:
-            print(f"❌ Token refresh failed: {response.status_code}")
+            print(f" Token refresh failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Token refresh error: {e}")
+        print(f" Token refresh error: {e}")
         return False
 
 def test_invalid_credentials():
     """Test invalid credentials"""
-    print("\n❌ Testing invalid credentials...")
+    print("\n Testing invalid credentials...")
     
     login_data = {
         "username": "invalid",
@@ -151,10 +151,10 @@ def test_invalid_credentials():
             print("✅ Invalid credentials properly rejected")
             return True
         else:
-            print(f"❌ Invalid credentials not properly handled: {response.status_code}")
+            print(f" Invalid credentials not properly handled: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Invalid credentials test error: {e}")
+        print(f" Invalid credentials test error: {e}")
         return False
 
 def main():
@@ -164,7 +164,7 @@ def main():
     
     # Test health first
     if not test_health():
-        print("❌ Cannot proceed without health check")
+        print(" Cannot proceed without health check")
         return
     
     # Test user registration
@@ -173,7 +173,7 @@ def main():
     # Test login
     token = test_login()
     if not token:
-        print("❌ Cannot proceed without authentication token")
+        print(" Cannot proceed without authentication token")
         return
     
     # Test get user info

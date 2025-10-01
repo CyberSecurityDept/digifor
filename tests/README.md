@@ -1,6 +1,6 @@
-# Forenlytic Backend Tests
+# Digital Forensics Backend Tests
 
-Folder ini berisi semua file test untuk aplikasi Forenlytic Backend.
+Folder ini berisi semua file test untuk aplikasi Digital Forensics Backend.
 
 ## 🧪 Daftar Test Files
 
@@ -71,7 +71,7 @@ Tests menggunakan environment yang sama dengan aplikasi:
 
 ### **API Test Output**
 ```
-🚀 Starting Forenlytic Backend API Tests...
+🚀 Starting Digital Forensics Backend API Tests...
 ==================================================
 🔍 Testing health endpoint...
 ✅ Health check passed
@@ -167,4 +167,4 @@ def test_function():
 
 ---
 
-**🎯 Test suite siap untuk memastikan kualitas Forenlytic Backend!**
+**🎯 Test suite siap untuk memastikan kualitas Digital Forensics Backend!**

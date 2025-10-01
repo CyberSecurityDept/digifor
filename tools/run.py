@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Forenlytic Backend Runner Script
+Digital Forensics Backend Runner Script
 """
 import uvicorn
 from app.config import settings
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     logger = setup_logging()
     
     logger.info("========================================")
-    logger.info("Forenlytic Backend - Production Server")
+    logger.info("Digital Forensics Backend - Production Server")
     logger.info("========================================")
     logger.info("Starting server...")
     

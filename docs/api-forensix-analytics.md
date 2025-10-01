@@ -190,7 +190,7 @@ Authorization: Bearer <access_token>
     "data": {
         "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "username": "admin",
-        "email": "admin@forenlytic.com",
+        "email": "admin@Digital Forensics.com",
         "full_name": "System Administrator",
         "role": "admin",
         "department": "IT",
@@ -2232,7 +2232,7 @@ Authorization: Bearer <access_token>
 **Response (200 OK):**
 ```json
 {
-    "message": "Welcome to Forenlytic Backend",
+    "message": "Welcome to Digital Forensics Backend",
     "version": "1.0.0",
     "docs": "/docs",
     "redoc": "/redoc"
@@ -2271,7 +2271,7 @@ Authorization: Bearer <access_token>
     "data": {
         "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
         "username": "admin",
-        "email": "admin@forenlytic.com",
+        "email": "admin@Digital Forensics.com",
         "full_name": "System Administrator",
         "role": "admin",
         "department": "IT",
@@ -2796,7 +2796,7 @@ API mendukung CORS untuk domain berikut:
 ## Logging
 
 - **Log level:** INFO
-- **Log file:** `./logs/forenlytic.log`
+- **Log file:** `./logs/Digital Forensics.log`
 - **Rotation:** Daily
 - **Retention:** 30 days
 

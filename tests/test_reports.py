@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Report Generation Tests for Forenlytic Backend
+Report Generation Tests for Digital Forensics Backend
 """
 import requests
 import json
@@ -27,7 +27,7 @@ def get_auth_token():
         else:
             return None
     except Exception as e:
-        print(f"❌ Authentication error: {e}")
+        print(f" Authentication error: {e}")
         return None
 
 def create_test_case():
@@ -60,7 +60,7 @@ def create_test_case():
         else:
             return None
     except Exception as e:
-        print(f"❌ Create test case error: {e}")
+        print(f" Create test case error: {e}")
         return None
 
 def test_generate_comprehensive_report(case_id):
@@ -86,11 +86,11 @@ def test_generate_comprehensive_report(case_id):
             print(f"   Report type: {report_data['report_type']}")
             return True
         else:
-            print(f"❌ Comprehensive report generation failed: {response.status_code}")
+            print(f" Comprehensive report generation failed: {response.status_code}")
             print(f"   Response: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ Comprehensive report generation error: {e}")
+        print(f" Comprehensive report generation error: {e}")
         return False
 
 def test_generate_summary_report(case_id):
@@ -116,10 +116,10 @@ def test_generate_summary_report(case_id):
             print(f"   Report type: {report_data['report_type']}")
             return True
         else:
-            print(f"❌ Summary report generation failed: {response.status_code}")
+            print(f" Summary report generation failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Summary report generation error: {e}")
+        print(f" Summary report generation error: {e}")
         return False
 
 def test_generate_evidence_report(case_id):
@@ -145,10 +145,10 @@ def test_generate_evidence_report(case_id):
             print(f"   Report type: {report_data['report_type']}")
             return True
         else:
-            print(f"❌ Evidence report generation failed: {response.status_code}")
+            print(f" Evidence report generation failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Evidence report generation error: {e}")
+        print(f" Evidence report generation error: {e}")
         return False
 
 def test_generate_analysis_report(case_id):
@@ -174,10 +174,10 @@ def test_generate_analysis_report(case_id):
             print(f"   Report type: {report_data['report_type']}")
             return True
         else:
-            print(f"❌ Analysis report generation failed: {response.status_code}")
+            print(f" Analysis report generation failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Analysis report generation error: {e}")
+        print(f" Analysis report generation error: {e}")
         return False
 
 def test_list_reports(case_id):
@@ -206,10 +206,10 @@ def test_list_reports(case_id):
             
             return reports['reports']
         else:
-            print(f"❌ List reports failed: {response.status_code}")
+            print(f" List reports failed: {response.status_code}")
             return []
     except Exception as e:
-        print(f"❌ List reports error: {e}")
+        print(f" List reports error: {e}")
         return []
 
 def test_get_report(case_id, filename):
@@ -235,10 +235,10 @@ def test_get_report(case_id, filename):
             print(f"   Title: {report_data.get('title', 'No title')}")
             return True
         else:
-            print(f"❌ Get report failed: {response.status_code}")
+            print(f" Get report failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get report error: {e}")
+        print(f" Get report error: {e}")
         return False
 
 def test_delete_report(case_id, filename):
@@ -261,10 +261,10 @@ def test_delete_report(case_id, filename):
             print("✅ Delete report successful")
             return True
         else:
-            print(f"❌ Delete report failed: {response.status_code}")
+            print(f" Delete report failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Delete report error: {e}")
+        print(f" Delete report error: {e}")
         return False
 
 def test_report_stats():
@@ -291,10 +291,10 @@ def test_report_stats():
             print(f"   By type: {stats['by_type']}")
             return True
         else:
-            print(f"❌ Get report stats failed: {response.status_code}")
+            print(f" Get report stats failed: {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Get report stats error: {e}")
+        print(f" Get report stats error: {e}")
         return False
 
 def main():
@@ -305,7 +305,7 @@ def main():
     # Create test case
     case_id = create_test_case()
     if not case_id:
-        print("❌ Cannot proceed without test case")
+        print(" Cannot proceed without test case")
         return
     
     print(f"📁 Test case ID: {case_id}")

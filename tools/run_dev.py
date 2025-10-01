@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Forenlytic Backend Development Runner
+Digital Forensics Backend Development Runner
 """
 import uvicorn
 import os

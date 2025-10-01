@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Forenlytic Backend Start Script
+# Digital Forensics Backend Start Script
 
-echo "🚀 Starting Forenlytic Backend..."
+echo "🚀 Starting Digital Forensics Backend..."
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
-    echo "❌ Virtual environment not found. Please run setup.sh first."
+    echo " Virtual environment not found. Please run setup.sh first."
     exit 1
 fi
 

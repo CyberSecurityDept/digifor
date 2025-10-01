@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Forenlytic Backend - Development Run Script
+# Digital Forensics Backend - Development Run Script
 # Simple script for development with minimal checks
 
-echo "Forenlytic Backend - Development Mode"
+echo "Digital Forensics Backend - Development Mode"
 echo "====================================="
 
 # Check if we're in the right directory

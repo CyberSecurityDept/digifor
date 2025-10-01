@@ -1,4 +1,4 @@
-# Forenlytic Backend - Quick Start Guide
+# Digital Forensics Backend - Quick Start Guide
 
 ## 🚀 Quick Start (5 Menit)
 
@@ -146,11 +146,11 @@ backend/
 ## Support
 
 Jika ada masalah:
-1. Check logs di `logs/forenlytic.log`
+1. Check logs di `logs/Digital Forensics.log`
 2. Check health endpoint: http://localhost:8000/health
 3. Restart aplikasi: `./start.sh`
 4. Recreate database: `python init_db.py`
 
 ---
 
-**🎉 Selamat! Backend Forenlytic siap digunakan!**
+**🎉 Selamat! Backend Digital Forensics siap digunakan!**

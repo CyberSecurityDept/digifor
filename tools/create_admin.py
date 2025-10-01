@@ -28,7 +28,7 @@ def create_admin_user():
         # Create admin user
         admin_user = User(
             username="admin",
-            email="admin@forenlytic.com",
+            email="admin@Digital Forensics.com",
             full_name="System Administrator",
             hashed_password=get_password_hash("admin123"),
             role="admin",

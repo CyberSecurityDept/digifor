@@ -1,6 +1,6 @@
-# Forenlytic Backend Scripts
+# Digital Forensics Backend Scripts
 
-Folder ini berisi semua script shell (.sh) untuk menjalankan dan mengelola aplikasi Forenlytic Backend.
+Folder ini berisi semua script shell (.sh) untuk menjalankan dan mengelola aplikasi Digital Forensics Backend.
 
 ## 📜 Daftar Scripts
 
@@ -149,4 +149,4 @@ rm -rf venv
 
 ---
 
-**🎯 Scripts siap digunakan untuk mengelola Forenlytic Backend!**
+**🎯 Scripts siap digunakan untuk mengelola Digital Forensics Backend!**

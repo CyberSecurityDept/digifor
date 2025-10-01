@@ -7,7 +7,9 @@ import os
 
 from app.config import settings
 from app.database import init_db
-from app.api import auth, cases, reports, dashboard
+from app.api import reports, dashboard
+from app.api.case_management.router import router as case_management_router
+from app.api.authentication.router import router as authentication_router
 from app.utils.logging import setup_logging, log_startup_info, log_database_info, log_shutdown
 from app.middleware.auto_refresh import AutoRefreshTokenMiddleware, TokenRotationMiddleware
 from app.middleware.response_interceptor import TokenRefreshResponseInterceptor
@@ -75,15 +77,14 @@ app.add_middleware(TokenRefreshResponseInterceptor)
 
 # Include API routers
 app.include_router(
-    auth.router,
-    prefix=f"{settings.api_v1_str}/auth",
-    tags=["Authentication"]
+    authentication_router,
+    prefix=f"{settings.api_v1_str}/auth"
 )
 
+# Case Management API - Organized by UI sections
 app.include_router(
-    cases.router,
-    prefix=f"{settings.api_v1_str}/cases",
-    tags=["Case Management"]
+    case_management_router,
+    prefix=f"{settings.api_v1_str}/cases"
 )
 
 app.include_router(
@@ -103,7 +104,7 @@ app.include_router(
 async def root():
     """Root endpoint"""
     return {
-        "message": "Welcome to Forenlytic Backend",
+        "message": "Welcome to Digital Forensics Backend",
         "version": settings.version,
         "docs": "/docs",
         "redoc": "/redoc"

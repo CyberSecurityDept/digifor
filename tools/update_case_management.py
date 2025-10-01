@@ -36,7 +36,7 @@ def add_case_management_fields():
         print("✅ Added new fields to cases table")
         
     except Exception as e:
-        print(f"❌ Error adding case fields: {e}")
+        print(f" Error adding case fields: {e}")
         db.rollback()
     finally:
         db.close()
@@ -75,7 +75,7 @@ def create_evidence_person_associations_table():
         print("✅ Created evidence_person_associations table")
         
     except Exception as e:
-        print(f"❌ Error creating evidence_person_associations table: {e}")
+        print(f" Error creating evidence_person_associations table: {e}")
         db.rollback()
     finally:
         db.close()
@@ -123,7 +123,7 @@ def migrate_existing_associations():
         print(f"✅ Migrated {associations_created} existing evidence-person associations")
         
     except Exception as e:
-        print(f"❌ Error migrating associations: {e}")
+        print(f" Error migrating associations: {e}")
         db.rollback()
     finally:
         db.close()

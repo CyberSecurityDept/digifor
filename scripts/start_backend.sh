@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Forenlytic Backend Starter Script
+# Digital Forensics Backend Starter Script
 
-echo "🚀 Starting Forenlytic Backend..."
+echo "🚀 Starting Digital Forensics Backend..."
 echo "=" * 50
 
 # Check if we're in the right directory
 if [ ! -f "requirements.txt" ]; then
-    echo "❌ Error: requirements.txt not found. Please run this script from the backend directory."
+    echo " Error: requirements.txt not found. Please run this script from the backend directory."
     exit 1
 fi
 

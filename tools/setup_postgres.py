@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PostgreSQL Database Setup Script for Forenlytic
+PostgreSQL Database Setup Script for Digital Forensics
 This script helps set up PostgreSQL database and migrate from SQLite
 """
 
@@ -44,14 +44,14 @@ def check_postgres_connection():
         logger.info(f"   Database: {settings.postgres_db}")
         return True
     except Exception as e:
-        logger.error(f"❌ PostgreSQL connection failed: {e}")
+        logger.error(f" PostgreSQL connection failed: {e}")
         logger.error(f"   Check your .env file configuration")
         logger.error(f"   Current settings: {settings.postgres_host}:{settings.postgres_port}")
         return False
 
 
 def create_database():
-    """Create the forenlytic database if it doesn't exist"""
+    """Create the Digital Forensics database if it doesn't exist"""
     try:
         # Connect to PostgreSQL server (not to a specific database)
         conn = psycopg2.connect(
@@ -79,7 +79,7 @@ def create_database():
         return True
         
     except Exception as e:
-        logger.error(f"❌ Failed to create database: {e}")
+        logger.error(f" Failed to create database: {e}")
         return False
 
 
@@ -91,13 +91,13 @@ def create_tables():
         logger.info("✅ All tables created successfully")
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to create tables: {e}")
+        logger.error(f" Failed to create tables: {e}")
         return False
 
 
 def migrate_data_from_sqlite():
     """Migrate data from SQLite to PostgreSQL"""
-    sqlite_path = "./data/forenlytic.db"
+    sqlite_path = "./data/Digital Forensics.db"
     
     if not os.path.exists(sqlite_path):
         logger.warning(f"⚠️  SQLite database not found at {sqlite_path}")
@@ -155,7 +155,7 @@ def migrate_data_from_sqlite():
         return True
         
     except Exception as e:
-        logger.error(f"❌ Data migration failed: {e}")
+        logger.error(f" Data migration failed: {e}")
         return False
 
 
@@ -174,7 +174,7 @@ def create_admin_user():
         if not existing_admin:
             admin_user = User(
                 username="admin",
-                email="admin@forenlytic.com",
+                email="admin@Digital Forensics.com",
                 full_name="System Administrator",
                 hashed_password=get_password_hash("admin123"),
                 is_active=True,
@@ -191,27 +191,27 @@ def create_admin_user():
         return True
         
     except Exception as e:
-        logger.error(f"❌ Failed to create admin user: {e}")
+        logger.error(f" Failed to create admin user: {e}")
         return False
 
 
 def main():
     """Main setup function"""
-    logger.info("🚀 Starting PostgreSQL setup for Forenlytic...")
+    logger.info("🚀 Starting PostgreSQL setup for Digital Forensics...")
     
     # Step 1: Check PostgreSQL connection
     if not check_postgres_connection():
-        logger.error("❌ Cannot connect to PostgreSQL. Please ensure PostgreSQL is running.")
+        logger.error(" Cannot connect to PostgreSQL. Please ensure PostgreSQL is running.")
         return False
     
     # Step 2: Create database
     if not create_database():
-        logger.error("❌ Failed to create database")
+        logger.error(" Failed to create database")
         return False
     
     # Step 3: Create tables
     if not create_tables():
-        logger.error("❌ Failed to create tables")
+        logger.error(" Failed to create tables")
         return False
     
     # Step 4: Migrate data from SQLite (if exists)
@@ -219,7 +219,7 @@ def main():
     
     # Step 5: Create admin user
     if not create_admin_user():
-        logger.error("❌ Failed to create admin user")
+        logger.error(" Failed to create admin user")
         return False
     
     logger.info("🎉 PostgreSQL setup completed successfully!")
