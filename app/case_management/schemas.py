@@ -73,12 +73,14 @@ class CaseUpdate(BaseModel):
     case_number: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[str] = None
     main_investigator: Optional[str] = None
     agency_id: Optional[int] = None
     work_unit_id: Optional[int] = None
     agency_name: Optional[str] = None
     work_unit_name: Optional[str] = None
+    
+    class Config:
+        extra = "ignore"  # Ignore extra fields not defined in schema
 
 
 class Case(BaseModel):
