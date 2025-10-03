@@ -64,10 +64,17 @@ class CaseService:
         case_dict.pop('agency_name', None)
         case_dict.pop('work_unit_name', None)
         
-        case = Case(**case_dict)
-        db.add(case)
-        db.commit()
-        db.refresh(case)
+        try:
+            case = Case(**case_dict)
+            db.add(case)
+            db.commit()
+            db.refresh(case)
+        except Exception as e:
+            db.rollback()
+            if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
+                raise Exception(f"Case number '{case_dict.get('case_number')}' already exists")
+            else:
+                raise e
         
         # Return case as dict with agency and work unit names
         case_response = {
