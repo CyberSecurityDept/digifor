@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain of Custody Report - NIST SP 800-86</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #fff;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2c5aa0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin: 0;
+            color: #2c5aa0;
+            font-weight: bold;
+        }
+        .header h2 {
+            font-size: 20px;
+            margin: 10px 0 0 0;
+            color: #666;
+            font-weight: normal;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section h3 {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2c5aa0;
+            border-bottom: 2px solid #2c5aa0;
+            padding-bottom: 5px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .info-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
+        .info-table .label {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            width: 30%;
+            color: #2c5aa0;
+        }
+        .custody-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .custody-table th,
+        .custody-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-size: 12px;
+        }
+        .custody-table th {
+            background-color: #2c5aa0;
+            color: white;
+            font-weight: bold;
+        }
+        .custody-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .signature-section {
+            margin-top: 40px;
+            page-break-inside: avoid;
+        }
+        .signature-box {
+            border: 2px solid #2c5aa0;
+            padding: 15px;
+            margin: 15px 0;
+            min-height: 100px;
+            background-color: #f8f9fa;
+        }
+        .compliance-box {
+            background-color: #e8f4fd;
+            border: 1px solid #2c5aa0;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        @media print {
+            body { margin: 0; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DIGITAL EVIDENCE CHAIN OF CUSTODY</h1>
+        <h2>NIST SP 800-86 Guidelines for Computer Security Incident Handling</h2>
+        <p><strong>Digital Forensics Analysis Platform</strong></p>
+    </div>
+
+    <div class="section">
+        <h3>1. Evidence Identification</h3>
+        <table class="info-table">
+            <tr>
+                <td class="label">Evidence ID:</td>
+                <td>{{ evidence_id }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Number:</td>
+                <td>{{ evidence_number }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Description:</td>
+                <td>{{ evidence_title }}</td>
+            </tr>
+            <tr>
+                <td class="label">Case Reference:</td>
+                <td>{{ case_id }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Type:</td>
+                <td>{{ evidence_type }}</td>
+            </tr>
+            <tr>
+                <td class="label">Digital Hash (SHA-256):</td>
+                <td>{{ file_hash }}</td>
+            </tr>
+            <tr>
+                <td class="label">File Size:</td>
+                <td>{{ file_size }} bytes</td>
+            </tr>
+            <tr>
+                <td class="label">Collection Date/Time:</td>
+                <td>{{ collection_date }}</td>
+            </tr>
+            <tr>
+                <td class="label">Collection Location:</td>
+                <td>{{ collection_location }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>2. Chain of Custody Log</h3>
+        <table class="custody-table">
+            <thead>
+                <tr>
+                    <th>Step</th>
+                    <th>Date/Time</th>
+                    <th>Action</th>
+                    <th>Person</th>
+                    <th>Location</th>
+                    <th>Purpose</th>
+                    <th>Tools</th>
+                    <th>Witness</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in custody_events %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ event.event_date }}</td>
+                    <td>{{ event.event_type }}</td>
+                    <td>{{ event.person_name }}</td>
+                    <td>{{ event.location }}</td>
+                    <td>{{ event.action_description }}</td>
+                    <td>{{ event.tools_used | join(', ') if event.tools_used else 'N/A' }}</td>
+                    <td>{{ event.witness_name or 'N/A' }}</td>
+                    <td>{{ 'Verified' if event.is_verified else 'Pending' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>3. Integrity Verification</h3>
+        <table class="info-table">
+            <tr>
+                <td class="label">Chain Integrity Status:</td>
+                <td><strong>{{ 'INTACT' if chain_integrity else 'COMPROMISED' }}</strong></td>
+            </tr>
+            <tr>
+                <td class="label">Total Custody Events:</td>
+                <td>{{ total_events }}</td>
+            </tr>
+            <tr>
+                <td class="label">Initial Collection:</td>
+                <td>{{ first_event.event_date }} by {{ first_event.person_name }}</td>
+            </tr>
+                <td class="label">Current Custody:</td>
+                <td>{{ last_event.event_date }} by {{ last_event.person_name }}</td>
+            </tr>
+            <tr>
+                <td class="label">Verification Method:</td>
+                <td>Digital Hash Verification</td>
+            </tr>
+            <tr>
+                <td class="label">Last Verification:</td>
+                <td>{{ verification_date }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="compliance-box">
+        <h3>4. NIST SP 800-86 Compliance</h3>
+        <p><strong>This chain of custody report follows NIST SP 800-86 guidelines for:</strong></p>
+        <ul>
+            <li><strong>Evidence Collection:</strong> Systematic and documented collection procedures</li>
+            <li><strong>Evidence Preservation:</strong> Secure storage and handling protocols</li>
+            <li><strong>Evidence Analysis:</strong> Controlled laboratory environment procedures</li>
+            <li><strong>Documentation:</strong> Comprehensive record-keeping requirements</li>
+            <li><strong>Chain of Custody:</strong> Unbroken custody trail maintenance</li>
+        </ul>
+        
+        <p><strong>Key NIST Requirements Met:</strong></p>
+        <ul>
+            <li>✓ Evidence identification and documentation</li>
+            <li>✓ Secure collection procedures</li>
+            <li>✓ Proper storage and handling</li>
+            <li>✓ Controlled analysis environment</li>
+            <li>✓ Immutable custody logging</li>
+            <li>✓ Integrity verification</li>
+        </ul>
+    </div>
+
+    <div class="signature-section">
+        <h3>5. Authorized Personnel</h3>
+        
+        <div class="signature-box">
+            <p><strong>Primary Investigator:</strong></p>
+            <p>Name: {{ investigator_name }}</p>
+            <p>Title: {{ investigator_title }}</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+
+        <div class="signature-box">
+            <p><strong>Supervisor/Manager:</strong></p>
+            <p>Name: {{ supervisor_name }}</p>
+            <p>Title: {{ supervisor_title }}</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+
+        <div class="signature-box">
+            <p><strong>Quality Assurance:</strong></p>
+            <p>Name: _________________________</p>
+            <p>Title: _________________________</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Digital Forensics Analysis Platform - NIST SP 800-86 Compliant</strong></p>
+        <p>Report ID: {{ report_id }} | Generated: {{ generated_date }}</p>
+        <p>This document contains sensitive information and is restricted to authorized personnel only.</p>
+        <p>Classification: CONFIDENTIAL</p>
+    </div>
+</body>
+</html>

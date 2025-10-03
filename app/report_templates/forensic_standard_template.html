@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Evidence Chain of Custody Report</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #fff;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 26px;
+            margin: 0;
+            font-weight: bold;
+            color: #333;
+        }
+        .header h2 {
+            font-size: 18px;
+            margin: 10px 0 0 0;
+            font-weight: normal;
+            color: #666;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section h3 {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .info-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
+        .info-table .label {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            width: 30%;
+        }
+        .custody-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .custody-table th,
+        .custody-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-size: 11px;
+        }
+        .custody-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .custody-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .signature-section {
+            margin-top: 40px;
+            page-break-inside: avoid;
+        }
+        .signature-box {
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            min-height: 80px;
+        }
+        .compliance-section {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        @media print {
+            body { margin: 0; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DIGITAL EVIDENCE CHAIN OF CUSTODY REPORT</h1>
+        <h2>Digital Forensics Analysis Platform</h2>
+        <p><strong>Forensic Evidence Management System</strong></p>
+    </div>
+
+    <div class="section">
+        <h3>1. Evidence Details</h3>
+        <table class="info-table">
+            <tr>
+                <td class="label">Evidence ID:</td>
+                <td>{{ evidence_id }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Number:</td>
+                <td>{{ evidence_number }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Title:</td>
+                <td>{{ evidence_title }}</td>
+            </tr>
+            <tr>
+                <td class="label">Case Reference:</td>
+                <td>{{ case_id }}</td>
+            </tr>
+            <tr>
+                <td class="label">Evidence Type:</td>
+                <td>{{ evidence_type }}</td>
+            </tr>
+            <tr>
+                <td class="label">Collection Date:</td>
+                <td>{{ collection_date }}</td>
+            </tr>
+            <tr>
+                <td class="label">Collection Location:</td>
+                <td>{{ collection_location }}</td>
+            </tr>
+            <tr>
+                <td class="label">Collection Method:</td>
+                <td>{{ collection_method }}</td>
+            </tr>
+            <tr>
+                <td class="label">File Hash (SHA-256):</td>
+                <td>{{ file_hash }}</td>
+            </tr>
+            <tr>
+                <td class="label">File Size:</td>
+                <td>{{ file_size }} bytes</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>2. Chain of Custody Timeline</h3>
+        <table class="custody-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Date/Time</th>
+                    <th>Event Type</th>
+                    <th>Person</th>
+                    <th>Location</th>
+                    <th>Action</th>
+                    <th>Tools</th>
+                    <th>Witness</th>
+                    <th>Verified</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in custody_events %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ event.event_date }}</td>
+                    <td>{{ event.event_type }}</td>
+                    <td>{{ event.person_name }}</td>
+                    <td>{{ event.location }}</td>
+                    <td>{{ event.action_description }}</td>
+                    <td>{{ event.tools_used | join(', ') if event.tools_used else 'N/A' }}</td>
+                    <td>{{ event.witness_name or 'N/A' }}</td>
+                    <td>{{ 'Yes' if event.is_verified else 'No' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>3. Chain Integrity Assessment</h3>
+        <table class="info-table">
+            <tr>
+                <td class="label">Chain Integrity:</td>
+                <td><strong>{{ 'INTACT' if chain_integrity else 'COMPROMISED' }}</strong></td>
+            </tr>
+            <tr>
+                <td class="label">Total Events:</td>
+                <td>{{ total_events }}</td>
+            </tr>
+            <tr>
+                <td class="label">First Event:</td>
+                <td>{{ first_event.event_date }} - {{ first_event.person_name }}</td>
+            </tr>
+            <tr>
+                <td class="label">Last Event:</td>
+                <td>{{ last_event.event_date }} - {{ last_event.person_name }}</td>
+            </tr>
+            <tr>
+                <td class="label">Verification Date:</td>
+                <td>{{ verification_date }}</td>
+            </tr>
+            <tr>
+                <td class="label">Verification Method:</td>
+                <td>Digital Hash Verification & Manual Review</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="compliance-section">
+        <h3>4. Forensic Standards Compliance</h3>
+        <p><strong>This report complies with the following forensic standards:</strong></p>
+        <ul>
+            <li><strong>ISO/IEC 27037:2012</strong> - Guidelines for identification, collection, acquisition and preservation of digital evidence</li>
+            <li><strong>NIST SP 800-86</strong> - Guide to Computer Security Incident Handling</li>
+            <li><strong>ACPO Guidelines</strong> - Association of Chief Police Officers Good Practice Guide for Computer-Based Electronic Evidence</li>
+            <li><strong>SWGDE Guidelines</strong> - Scientific Working Group on Digital Evidence</li>
+        </ul>
+        
+        <p><strong>Key Compliance Elements:</strong></p>
+        <ul>
+            <li>✓ Evidence identification and documentation</li>
+            <li>✓ Secure collection and acquisition</li>
+            <li>✓ Proper handling and storage</li>
+            <li>✓ Immutable custody logging</li>
+            <li>✓ Integrity verification</li>
+            <li>✓ Chain of custody maintenance</li>
+        </ul>
+    </div>
+
+    <div class="signature-section">
+        <h3>5. Authorized Signatures</h3>
+        
+        <div class="signature-box">
+            <p><strong>Primary Investigator:</strong></p>
+            <p>Name: {{ investigator_name }}</p>
+            <p>Title: {{ investigator_title }}</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+
+        <div class="signature-box">
+            <p><strong>Supervisor:</strong></p>
+            <p>Name: {{ supervisor_name }}</p>
+            <p>Title: {{ supervisor_title }}</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+
+        <div class="signature-box">
+            <p><strong>Quality Assurance:</strong></p>
+            <p>Name: _________________________</p>
+            <p>Title: _________________________</p>
+            <p>Badge/ID: _________________________</p>
+            <p>Signature: _________________________</p>
+            <p>Date: _________________________</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Digital Forensics Analysis Platform</strong></p>
+        <p>Report ID: {{ report_id }} | Generated: {{ generated_date }}</p>
+        <p>This document is confidential and intended for authorized personnel only.</p>
+        <p>Classification: CONFIDENTIAL - Law Enforcement Use Only</p>
+    </div>
+</body>
+</html>

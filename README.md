@@ -1,246 +1,221 @@
-# Backend (digifor)
+# Digital Forensics Analysis Platform - Backend
 
 Forensik digital memainkan peran penting dalam penyelidikan di berbagai konteks seperti penegakan hukum, pemerintahan, keamanan korporasi, dan ranah hukum. Platform ini hadir untuk menjawab tantangan tersebut dengan menyediakan solusi yang komprehensif, aman, dan terintegrasi untuk mengelola kasus forensik digital, barang bukti, rantai penguasaan (chain of custody), analitik lanjutan, serta pelaporan.
 
-## 📋 Requirements
 
-**Python Version:** 3.11+  
-**Main Dependencies:**
-- FastAPI 0.104.1
-- Uvicorn 0.24.0
-- SQLAlchemy 2.0.23
-- PostgreSQL (psycopg2-binary 2.9.9)
-- Analytics (pandas 2.1.4, numpy 1.24.3, python-magic 0.4.27)
+## 🚀 Features
 
-## 🚀 Quick Start
+### Core Modules
 
-### **All Platforms (Recommended)**
-```bash
-# Cara termudah - auto setup dan run
-./scripts/run.sh
+1. **Case Management**
+   - Create, read, update, delete cases
+   - Case status tracking
+   - Case-person associations
+   - Case statistics
 
-# Development mode (quick start)
-./scripts/run_dev.sh
+2. **Evidence Management**
+   - Evidence tracking and cataloging
+   - Chain of custody management
+   - Evidence metadata
+   - Evidence type management
 
-# Production mode
-./scripts/run_prod.sh
-```
+3. **Suspect Management**
+   - Person profiles
+   - Photo management
+   - Document management
+   - Alias management
 
-### **Manual Setup**
-```bash
-# 1. Clone repository
-git clone https://github.com/CyberSecurityDept/digifor.git
-cd digifor
+4. **Reporting**
+   - Case reports
+   - Evidence chain reports
+   - Suspect profiles
+   - Analytics dashboard
 
-# 2. Create virtual environment
-python3.11 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate  # Windows
+5. **Dashboard**
+   - Overview statistics
+   - Module-specific summaries
+   - Real-time data
 
-# 3. Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+## 🛠️ Installation
 
-# 4. Setup environment
-cp .env.example .env
-# Edit .env file with your PostgreSQL credentials
+### Prerequisites
 
-# 5. Initialize database
-python tools/setup_postgres.py
+- Python 3.11+
+- PostgreSQL 13+
+- Redis (optional, for background tasks)
 
-# 6. Run application
-python tools/run_dev.py
-```
+### Setup
 
-### **System Dependencies (Required)**
-```bash
-# Linux (Ubuntu/Debian)
-sudo apt install libmagic1-dev postgresql postgresql-contrib
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd backend
+   ```
 
-# macOS
-brew install libmagic postgresql
+2. **Create virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-# Windows
-# Download PostgreSQL from postgresql.org
-# Install libmagic via conda: conda install libmagic
-```
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements_new.txt
+   ```
 
-## 🔧 Environment Configuration
+4. **Environment configuration**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-```env
-# Database (PostgreSQL)
-DATABASE_URL=postgresql://Digital Forensics:password@localhost:5432/Digital Forensics_db
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=Digital Forensics
-POSTGRES_PASSWORD=password
-POSTGRES_DB=Digital Forensics_db
+5. **Database setup**
+   ```bash
+   # Create database
+   createdb forenlytic
+   
+   # Run migrations
+   alembic upgrade head
+   ```
 
-# Security
-SECRET_KEY=your-secret-key-here
-ENCRYPTION_KEY=your-encryption-key-here
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+6. **Run the application**
+   ```bash
+   python -m app.main_new
+   ```
 
-# API
-API_V1_STR=/api/v1
-PROJECT_NAME=Digital Forensics Backend
-DEBUG=True
-```
+## 📚 API Documentation
 
-## 🔧 API Endpoints
+Once the application is running, you can access:
 
-- **API Documentation**: http://localhost:8000/docs
+- **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
 
-### **Authentication Endpoints:**
-- `POST /api/v1/auth/oauth2/token` - Login
-- `GET /api/v1/auth/me` - Get user profile
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/refresh` - Refresh token
-- `POST /api/v1/auth/logout-all` - Logout
+## 🔧 Configuration
 
-### **Case Management Endpoints:**
-- `GET /api/v1/cases/overview` - Dashboard statistics
-- `GET /api/v1/cases/get-all-cases/` - Get all cases
-- `POST /api/v1/cases/create-cases/` - Create new case
-- `GET /api/v1/cases/{case_id}/detail` - Get case details
-- `PUT /api/v1/cases/update-case/{case_id}` - Update case
+### Environment Variables
 
-### **Default Test Credentials:**
-```
-Username: username
-Password: password
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:password@localhost/forenlytic` |
+| `SECRET_KEY` | JWT secret key | `your-secret-key-here` |
+| `DEBUG` | Debug mode | `false` |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `CORS_ORIGINS` | Allowed CORS origins | `["http://localhost:3000"]` |
 
-## 🛡️ Security & Technology Stack
+### Database Configuration
 
-### **Core Technologies**
-- **Backend Framework**: Python 3.11+, FastAPI 0.104.1, Uvicorn 0.24.0
-- **Database**: PostgreSQL dengan SQLAlchemy 2.0.23
-- **Authentication**: JWT (JSON Web Tokens) dengan python-jose 3.3.0
-- **Analytics**: pandas 2.1.4, numpy 1.24.3, python-magic 0.4.27
-
-### **Forensic Security Features**
-- **Data Encryption**: AES-256 encryption untuk data sensitif
-- **Chain of Custody**: Pelacakan lengkap dengan cryptographic signatures
-- **Audit Logging**: Log komprehensif semua aktivitas dan akses
-- **Role-based Access Control**: Kontrol akses granular berdasarkan peran
-- **Hash Verification**: MD5, SHA-1, SHA-256 untuk integritas data
-
-## 🎯 Features
-
-### **Core Forensic Capabilities**
-- ✅ **Case Management** - Manajemen kasus forensik dengan tracking lengkap
-- ✅ **Evidence Management** - Manajemen bukti digital dengan chain of custody
-- ✅ **Chain of Custody** - Pelacakan perpindahan dan akses barang bukti
-- ✅ **Digital Evidence Analysis** - Analisis mendalam bukti digital
-- ✅ **Hash Verification** - Verifikasi integritas file dan data
-
-### **Analytics & Intelligence**
-- ✅ **Advanced Analytics** - Analisis data forensik dengan AI/ML
-- ✅ **Pattern Recognition** - Deteksi pola dan anomali
-- ✅ **Data Correlation** - Korelasi data dari berbagai sumber
-- ✅ **Contact Analysis** - Analisis komunikasi dan kontak
-
-### **Reporting & Compliance**
-- ✅ **Standardized Reports** - Laporan sesuai standar hukum
-- ✅ **Audit Trail** - Log lengkap semua aktivitas
-- ✅ **Legal Documentation** - Dokumentasi yang dapat diterima di pengadilan
-- ✅ **Export Capabilities** - Ekspor data dalam berbagai format
+The application uses PostgreSQL with SQLAlchemy ORM. Database configuration is handled through the `DATABASE_URL` environment variable.
 
 ## 🧪 Testing
 
+Run tests with pytest:
+
 ```bash
 # Run all tests
-python tests/run_tests.py
+pytest
 
-# Run specific test
-python tests/test_api.py
-python tests/test_auth.py
-python tests/test_cases.py
-python tests/test_reports.py
+# Run with coverage
+pytest --cov=app
+
+# Run specific test file
+pytest tests/test_cases.py
 ```
 
-## 📖 Documentation
+## 📊 API Endpoints
 
-Semua dokumentasi tersedia di folder `docs/`:
+### Case Management
+- `GET /api/v1/cases` - List cases
+- `POST /api/v1/cases` - Create case
+- `GET /api/v1/cases/{case_id}` - Get case
+- `PUT /api/v1/cases/{case_id}` - Update case
+- `DELETE /api/v1/cases/{case_id}` - Delete case
 
-- **[Quick Start Guide](docs/QUICK_START.md)** - Panduan cepat untuk memulai
-- **[Complete Environment Guide](docs/COMPLETE_ENVIRONMENT_GUIDE.md)** - Panduan lengkap konfigurasi environment
-- **[cURL Examples](docs/CURL_EXAMPLES.md)** - Ready-to-use cURL commands
-- **[Authentication API](docs/AUTHENTICATION_API_DOCUMENTATION.md)** - Authentication endpoints documentation
-- **[Case Management API](docs/CASE_MANAGEMENT_API_DOCUMENTATION.md)** - Case management endpoints documentation
-- **[Frontend Endpoints Summary](docs/FRONTEND_ENDPOINTS_SUMMARY.md)** - Quick reference for frontend developers
+### Evidence Management
+- `GET /api/v1/evidence` - List evidence
+- `POST /api/v1/evidence` - Create evidence
+- `GET /api/v1/evidence/{evidence_id}` - Get evidence
+- `PUT /api/v1/evidence/{evidence_id}` - Update evidence
+- `DELETE /api/v1/evidence/{evidence_id}` - Delete evidence
 
-## 🛠️ Troubleshooting
+### Suspect Management
+- `GET /api/v1/suspects` - List suspects
+- `POST /api/v1/suspects` - Create suspect
+- `GET /api/v1/suspects/{person_id}` - Get suspect
+- `PUT /api/v1/suspects/{person_id}` - Update suspect
+- `DELETE /api/v1/suspects/{person_id}` - Delete suspect
 
-### **Common Issues & Solutions**
+### Dashboard
+- `GET /api/v1/dashboard/overview` - Dashboard overview
+- `GET /api/v1/dashboard/cases/summary` - Cases summary
+- `GET /api/v1/dashboard/evidence/summary` - Evidence summary
+- `GET /api/v1/dashboard/suspects/summary` - Suspects summary
 
-**1. Python Version Issues**
+### Reports
+- `GET /api/v1/reports/case-summary/{case_id}` - Case summary report
+- `GET /api/v1/reports/evidence-chain/{evidence_id}` - Evidence chain report
+- `GET /api/v1/reports/suspect-profile/{person_id}` - Suspect profile report
+
+## 🔒 Security
+
+- JWT-based authentication (when implemented)
+- CORS protection
+- Input validation with Pydantic
+- SQL injection protection with SQLAlchemy
+- File upload security
+
+## 📈 Monitoring
+
+- Health check endpoints
+- Structured logging
+- Error tracking
+- Performance monitoring
+
+## 🚀 Deployment
+
+### Docker (Recommended)
+
 ```bash
-# Check Python version
-python --version
+# Build image
+docker build -t forenlytic-backend .
 
-# If Python 3.11+ not found, install it:
-# Ubuntu/Debian: sudo apt install python3.11 python3.11-venv python3.11-dev
-# macOS: brew install python@3.11
-# Windows: Download from python.org
+# Run container
+docker run -p 8000:8000 forenlytic-backend
 ```
 
-**2. Database Issues**
-```bash
-# Check environment variables
-python tools/check_env.py
+### Manual Deployment
 
-# For PostgreSQL setup
-python tools/setup_postgres.py
+1. Install dependencies
+2. Configure environment variables
+3. Run database migrations
+4. Start the application
 
-# Test PostgreSQL connection
-python -c "import psycopg2; conn = psycopg2.connect(host='localhost', port=5432, user='Digital Forensics', password='password', database='Digital Forensics_db'); print('PostgreSQL OK')"
-```
+## 🤝 Contributing
 
-**3. Port Already in Use**
-```bash
-# Check what's using port 8000
-lsof -i :8000  # macOS/Linux
-netstat -ano | findstr :8000  # Windows
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-# Kill process using port 8000
-kill -9 $(lsof -t -i:8000)  # macOS/Linux
-taskkill /PID <PID> /F  # Windows
-```
+## 📄 License
 
-## 📜 Scripts
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-### **Quick Run Scripts**
-- **[scripts/run.sh](scripts/run.sh)** - Full setup script (auto setup + run)
-- **[scripts/run_dev.sh](scripts/run_dev.sh)** - Development mode (quick start)
-- **[scripts/run_prod.sh](scripts/run_prod.sh)** - Production mode (full validation)
+## 🆘 Support
 
-### **System Dependencies**
-- **[scripts/install_system_deps.sh](scripts/install_system_deps.sh)** - Install system dependencies (libmagic)
+For support and questions:
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation
 
-## 🛠️ Tools
+## 🔄 Changelog
 
-Python tools dan utilities tersedia di folder `tools/`:
-
-- **[tools/setup_postgres.py](tools/setup_postgres.py)** - PostgreSQL setup script
-- **[tools/check_env.py](tools/check_env.py)** - Environment variables checker
-- **[tools/create_admin.py](tools/create_admin.py)** - Create admin user
-- **[tools/run_dev.py](tools/run_dev.py)** - Development runner
-
-## 🎯 First Run Checklist
-
-- [ ] Python 3.11+ installed
-- [ ] Virtual environment created and activated
-- [ ] Dependencies installed (`pip install -r requirements.txt`)
-- [ ] Environment file copied (`cp .env.example .env`)
-- [ ] Database initialized (`python tools/setup_postgres.py`)
-- [ ] Application started (`python tools/run_dev.py`)
-- [ ] API accessible at `http://localhost:8000`
-- [ ] Health check passes (`http://localhost:8000/health`)
-
----
-
-**🔍 Digifor Backend - Digital Forensik**
+### v1.0.0
+- Initial release
+- Case management
+- Evidence management
+- Suspect management
+- Dashboard
+- Reporting
+- API documentation

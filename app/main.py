@@ -1,138 +1,102 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-import uvicorn
-import os
+import logging
 
-from app.config import settings
-from app.database import init_db
-from app.api import reports, dashboard
-from app.api.case_management.router import router as case_management_router
-from app.api.authentication.router import router as authentication_router
-from app.utils.logging import setup_logging, log_startup_info, log_database_info, log_shutdown
-from app.middleware.auto_refresh import AutoRefreshTokenMiddleware, TokenRotationMiddleware
-from app.middleware.response_interceptor import TokenRefreshResponseInterceptor
+from app.core.config import settings
+from app.core.logging import setup_logging, log_startup_info, log_shutdown
+from app.core.health import router as health_router
+from app.middleware.cors import add_cors_middleware
+from app.middleware.logging import LoggingMiddleware
+from app.middleware.timeout import TimeoutMiddleware
+from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes
+from app.db.init_db import init_db
+
 
 # Setup logging
 logger = setup_logging()
-
-# Create upload directories
-os.makedirs(settings.upload_dir, exist_ok=True)
-os.makedirs(settings.analysis_dir, exist_ok=True)
-os.makedirs(settings.reports_dir, exist_ok=True)
-os.makedirs(os.path.dirname(settings.log_file), exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    log_startup_info(logger)
-    init_db()
-    log_database_info(logger)
-    # log_server_ready(logger)
+    print("Starting Digital Forensics v1.0.0")
+    print("API: /api/v1")
+    print("Debug: True")
+    
+    # Initialize database
+    try:
+        init_db()
+        print("Database connected")
+    except Exception as e:
+        print(f"Failed to initialize database: {e}")
+        raise
     
     yield
     
     # Shutdown
-    log_shutdown(logger)
+    print("Server shutting down")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title=settings.project_name,
-    version=settings.version,
-    description="Comprehensive Digital Forensics Analysis Platform",
-    lifespan=lifespan,
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    description="Digital Forensics Analysis Platform - Backend API",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors_middleware(app)
 
-# Add trusted host middleware
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["*"] if settings.debug else ["localhost", "127.0.0.1"]
-)
+# Add custom middleware
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
-# Add automatic token refresh middleware
-app.add_middleware(
-    AutoRefreshTokenMiddleware,
-    auto_refresh_threshold=300  # 5 minutes before expiry
-)
-
-# Add token rotation middleware for security
-app.add_middleware(TokenRotationMiddleware)
-
-# Add response interceptor for token refresh headers
-app.add_middleware(TokenRefreshResponseInterceptor)
-
-# Include API routers
-app.include_router(
-    authentication_router,
-    prefix=f"{settings.api_v1_str}/auth"
-)
-
-# Case Management API - Organized by UI sections
-app.include_router(
-    case_management_router,
-    prefix=f"{settings.api_v1_str}/cases"
-)
-
-app.include_router(
-    reports.router,
-    prefix=f"{settings.api_v1_str}/reports",
-    tags=["Report Generation"]
-)
-
-app.include_router(
-    dashboard.router,
-    prefix=f"{settings.api_v1_str}/dashboard",
-    tags=["Dashboard"]
-)
+# Include routers
+app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
+app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
+app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
+app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
+app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+app.include_router(health_router, prefix="/health", tags=["Health"])
 
 
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": 500,
+            "message": "Internal server error",
+            "error": str(exc)
+        }
+    )
+
+
+# Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint"""
     return {
-        "message": "Welcome to Digital Forensics Backend",
-        "version": settings.version,
+        "status": 200,
+        "message": "Digital Forensics Analysis Platform API",
+        "version": settings.VERSION,
         "docs": "/docs",
-        "redoc": "/redoc"
+        "health": "/health"
     }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "version": settings.version,
-        "database": "connected"
-    }
-
-
-@app.get("/favicon.ico")
-async def favicon():
-    """Favicon endpoint to prevent 404 errors"""
-    # Return a simple response instead of actual favicon file
-    return {"message": "No favicon available"}
 
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.debug,
-        log_level=settings.log_level.lower()
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
     )

@@ -1,114 +1,185 @@
 # Digital Forensics Backend Scripts
 
-Folder ini berisi semua script shell (.sh) untuk menjalankan dan mengelola aplikasi Digital Forensics Backend.
+Folder ini berisi semua script Python untuk menjalankan dan mengelola aplikasi Digital Forensics Backend.
 
 ## 📜 Daftar Scripts
 
-### **Quick Run Scripts**
-- **[run.sh](run.sh)** - Full setup script (auto setup + run)
-- **[run_dev.sh](run_dev.sh)** - Development mode (quick start)
-- **[run_prod.sh](run_prod.sh)** - Production mode (full validation)
+### **Setup & Development**
+- **[setup_new.py](setup_new.py)** - Setup project untuk development
+- **[dev_new.py](dev_new.py)** - Run development server
+- **[prod_new.py](prod_new.py)** - Run production server
+- **[start_new.py](start_new.py)** - Start development server
+- **[stop_new.py](stop_new.py)** - Stop development server
+- **[restart_new.py](restart_new.py)** - Restart development server
+- **[status_new.py](status_new.py)** - Check server status
 
-### **System Dependencies**
-- **[install_system_deps.sh](install_system_deps.sh)** - Install system dependencies (libmagic)
+### **Testing & Quality**
+- **[run_tests_new.py](run_tests_new.py)** - Run all tests
+- **[lint_new.py](lint_new.py)** - Run code linting
+- **[format_new.py](format_new.py)** - Format code
+- **[run_all_new.py](run_all_new.py)** - Run all development tasks
 
-### **Setup & Installation**
-- **[setup.sh](setup.sh)** - Script setup lengkap untuk pertama kali
-- **[start_backend.sh](start_backend.sh)** - Script lengkap untuk menjalankan aplikasi
-
-### **Development & Testing**
-- **[start.sh](start.sh)** - Script untuk menjalankan aplikasi (setelah setup)
+### **Database & Utilities**
+- **[setup_db_new.py](setup_db_new.py)** - Setup database
+- **[install_new.py](install_new.py)** - Install dependencies
+- **[clean_new.py](clean_new.py)** - Clean files
+- **[help_new.py](help_new.py)** - Show help information
 
 ## 🚀 Cara Menggunakan
 
 ### **1. Quick Start (Recommended)**
 ```bash
-# Full setup (first time)
-./scripts/run.sh
+# Setup project untuk pertama kali
+python scripts/setup.py
 
 # Development mode (quick start)
-./scripts/run_dev.sh
+python scripts/dev.py
 
 # Production mode (full validation)
-./scripts/run_prod.sh
+python scripts/prod.py
 ```
 
-### **2. System Dependencies**
+### **2. Development Workflow**
 ```bash
-# Install system dependencies (required for analytics)
-./scripts/install_system_deps.sh
+# Start development server
+python scripts/start.py
+
+# Stop development server
+python scripts/stop.py
+
+# Restart development server
+python scripts/restart.py
+
+# Check server status
+python scripts/status.py
 ```
 
-### **3. Manual Setup (Legacy)**
+### **3. Testing & Quality**
 ```bash
-# Setup aplikasi (pertama kali)
-./scripts/setup.sh
+# Run all tests
+python scripts/run_tests.py
 
-# Script lengkap (setup + run)
-./scripts/start_backend.sh
+# Run code linting
+python scripts/lint.py
 
-# Script simple (setelah setup)
-./scripts/start.sh
+# Format code
+python scripts/format.py
+
+# Run all development tasks
+python scripts/run_all.py
 ```
 
-### **4. Menjalankan dari Folder Scripts**
+### **4. Database & Utilities**
 ```bash
-cd scripts
-./run.sh
-./run_dev.sh
-./run_prod.sh
+# Setup database
+python scripts/setup_db.py
+
+# Install dependencies
+python scripts/install.py
+
+# Clean files
+python scripts/clean.py
+
+# Show help
+python scripts/help.py
 ```
 
 ## 📋 Deskripsi Scripts
 
-### **Quick Run Scripts**
+### **Setup & Development Scripts**
 
-#### **run.sh**
-- Full setup script dengan PostgreSQL support
-- Install system dependencies (libmagic)
+#### **setup_new.py**
+- Setup project untuk development
+- Membuat virtual environment Python 3.11
+- Install dependencies dari requirements.txt
 - Setup environment variables
-- Initialize PostgreSQL database
-- Run application dengan comprehensive checks
+- Initialize database
+- Membuat admin user default
 
-#### **run_dev.sh**
+#### **dev_new.py**
 - Development mode untuk quick start
 - Minimal checks untuk development
 - Fast startup untuk development workflow
+- Auto-reload untuk development
 
-#### **run_prod.sh**
+#### **prod_new.py**
 - Production mode dengan full validation
 - Security checks untuk production
 - Comprehensive environment validation
 - Database connection testing
 
-#### **install_system_deps.sh**
-- Install system dependencies (libmagic, PostgreSQL)
-- Platform detection (Linux, macOS, Windows)
-- Automatic dependency installation
-
-### **Legacy Scripts**
-
-#### **setup.sh**
-- Membuat virtual environment Python 3.11
-- Install dependencies dari requirements.txt
-- Membuat direktori yang diperlukan
-- Initialize database SQLite3 (legacy)
-- Membuat admin user default
-- Menampilkan informasi setup
-
-#### **start_backend.sh**
-- Script lengkap untuk menjalankan aplikasi
+#### **start_new.py**
+- Start development server
 - Cek virtual environment
 - Install/update dependencies
-- Cek dan initialize database jika perlu
-- Menjalankan aplikasi dengan auto-reload
-- Menampilkan informasi akses
-
-#### **start.sh**
-- Script simple untuk menjalankan aplikasi
-- Asumsi virtual environment sudah ada
-- Asumsi database sudah diinitialize
 - Menjalankan aplikasi dengan uvicorn
+
+#### **stop_new.py**
+- Stop development server
+- Graceful shutdown
+- Cleanup processes
+
+#### **restart_new.py**
+- Restart development server
+- Stop dan start ulang server
+- Refresh configuration
+
+#### **status_new.py**
+- Check server status
+- Health check endpoint
+- Process monitoring
+
+### **Testing & Quality Scripts**
+
+#### **run_tests_new.py**
+- Run all tests
+- Unit tests dan integration tests
+- Test coverage reporting
+- Test result summary
+
+#### **lint_new.py**
+- Run code linting
+- Code quality checks
+- Style validation
+- Error detection
+
+#### **format_new.py**
+- Format code
+- Auto-format Python code
+- Consistent code style
+- Black formatter integration
+
+#### **run_all_new.py**
+- Run all development tasks
+- Format, lint, dan test
+- Complete development workflow
+- Quality assurance pipeline
+
+### **Database & Utility Scripts**
+
+#### **setup_db_new.py**
+- Setup database
+- Initialize database schema
+- Create tables
+- Setup database connection
+
+#### **install_new.py**
+- Install dependencies
+- Update requirements
+- Virtual environment management
+- Dependency resolution
+
+#### **clean_new.py**
+- Clean files
+- Remove temporary files
+- Cache cleanup
+- Log file management
+
+#### **help_new.py**
+- Show help information
+- Script documentation
+- Usage examples
+- Command reference
 
 ## 🔧 Konfigurasi
 
@@ -120,22 +191,36 @@ Scripts menggunakan konfigurasi dari:
 
 ## 🐛 Troubleshooting
 
-### **Permission Denied**
-```bash
-chmod +x scripts/*.sh
-```
-
 ### **Script Not Found**
 ```bash
 # Pastikan berada di root directory backend/
 ls scripts/
 ```
 
+### **Python Path Error**
+```bash
+# Pastikan menggunakan Python 3.11
+python --version
+python3.11 --version
+```
+
 ### **Virtual Environment Error**
 ```bash
 # Recreate virtual environment
 rm -rf venv
-./scripts/setup.sh
+python scripts/setup.py
+```
+
+### **Dependencies Error**
+```bash
+# Install dependencies
+python scripts/install.py
+```
+
+### **Database Error**
+```bash
+# Setup database
+python scripts/setup_db.py
 ```
 
 ## 📝 Notes
@@ -146,7 +231,10 @@ rm -rf venv
 - System dependencies: libmagic, PostgreSQL
 - Default admin: admin / admin123
 - API Documentation: http://localhost:8000/docs
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+- Health Check: http://localhost:8000/health
 
 ---
 
-**🎯 Scripts siap digunakan untuk mengelola Digital Forensics Backend!**
+**🎯 Python Scripts siap digunakan untuk mengelola Digital Forensics Backend!**
