@@ -28,29 +28,36 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
 
 class CaseService:
     
-    def create_case(self, db: Session, case_data: CaseCreate) -> Case:
+    def create_case(self, db: Session, case_data: CaseCreate) -> dict:
         case_dict = case_data.dict()
         
         agency = None
+        agency_name = None
         if case_dict.get('agency_id'):
             agency = db.query(Agency).filter(Agency.id == case_dict['agency_id']).first()
             if not agency:
                 raise Exception(f"Agency with ID {case_dict['agency_id']} not found")
+            agency_name = agency.name
         elif case_dict.get('agency_name'):
             agency = get_or_create_agency(db, case_dict['agency_name'])
             case_dict['agency_id'] = agency.id
+            agency_name = agency.name
         else:
             case_dict['agency_id'] = None
         
+        work_unit = None
+        work_unit_name = None
         if case_dict.get('work_unit_id'):
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case_dict['work_unit_id']).first()
             if not work_unit:
                 raise Exception(f"Work unit with ID {case_dict['work_unit_id']} not found")
+            work_unit_name = work_unit.name
         elif case_dict.get('work_unit_name'):
             if not agency:
                 raise Exception("Agency must be specified when creating work unit")
             work_unit = get_or_create_work_unit(db, case_dict['work_unit_name'], agency)
             case_dict['work_unit_id'] = work_unit.id
+            work_unit_name = work_unit.name
         else:
             case_dict['work_unit_id'] = None
         
@@ -61,7 +68,22 @@ class CaseService:
         db.add(case)
         db.commit()
         db.refresh(case)
-        return case
+        
+        # Return case as dict with agency and work unit names
+        case_response = {
+            "id": case.id,
+            "case_number": case.case_number,
+            "title": case.title,
+            "description": case.description,
+            "status": case.status,
+            "main_investigator": case.main_investigator,
+            "agency_name": agency_name,
+            "work_unit_name": work_unit_name,
+            "created_at": case.created_at,
+            "updated_at": case.updated_at
+        }
+        
+        return case_response
     
     def get_case(self, db: Session, case_id: int) -> Case:
         case = db.query(Case).filter(Case.id == case_id).first()
