@@ -17,9 +17,12 @@ import logging
 # Add the parent directory to the path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.config import settings
-from app.database import Base, engine
-from app.models import user, case, evidence, analysis, case_activity
+from app.core.config import settings
+from app.db.base import Base
+from app.db.session import engine
+from app.case_management.models import Case, CasePerson, Agency, WorkUnit
+from app.evidence_management.models import Evidence
+from app.suspect_management.models import Person
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -162,30 +165,16 @@ def migrate_data_from_sqlite():
 def create_admin_user():
     """Create default admin user"""
     try:
-        from app.models.user import User
-        from app.utils.security import get_password_hash
+        # Note: User model and security utilities not yet implemented
+        # from app.models.user import User
+        # from app.utils.security import get_password_hash
         
         pg_engine = create_engine(settings.database_url)
         pg_session = sessionmaker(bind=pg_engine)()
         
-        # Check if admin user exists
-        existing_admin = pg_session.query(User).filter(User.username == "admin").first()
-        
-        if not existing_admin:
-            admin_user = User(
-                username="admin",
-                email="admin@Digital Forensics.com",
-                full_name="System Administrator",
-                hashed_password=get_password_hash("admin123"),
-                is_active=True,
-                is_superuser=True,
-                role="admin"
-            )
-            pg_session.add(admin_user)
-            pg_session.commit()
-            logger.info("✅ Admin user created (username: admin, password: admin123)")
-        else:
-            logger.info("✅ Admin user already exists")
+        # Note: User model not yet implemented - skipping admin user creation
+        logger.info("ℹ️ User management not yet implemented - skipping admin user creation")
+        return True
         
         pg_session.close()
         return True
