@@ -413,16 +413,6 @@ source venv/bin/activate  # Linux/macOS
 venv\Scripts\activate  # Windows
 ```
 
-### 🆘 Need Help?
-
-If you still have problems:
-1. **Check application logs**: `tail -f logs/app.log`
-2. **Make sure all software is installed**: Python, PostgreSQL, Git
-3. **Make sure services are running**: PostgreSQL and Redis
-4. **Check .env file**: Make sure configuration is correct
-
----
-
 ## 🎯 How to Use the Platform
 
 ### 1. **Access the Application**
