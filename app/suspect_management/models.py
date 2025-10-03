@@ -1,6 +1,4 @@
-import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Date, Enum
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -10,7 +8,7 @@ from app.db.base import Base
 class Person(Base):    
     __tablename__ = "persons"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(200), nullable=False)
     first_name = Column(String(100))
     last_name = Column(String(100))

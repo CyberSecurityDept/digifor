@@ -245,8 +245,8 @@ class CustodyService:
     
     def _custody_log_to_dict(self, custody_log: CustodyLog) -> Dict[str, Any]:
         return {
-            "id": str(custody_log.id),
-            "evidence_id": str(custody_log.evidence_id),
+            "id": custody_log.id,
+            "evidence_id": custody_log.evidence_id,
             "event_type": custody_log.event_type,
             "event_date": custody_log.event_date.isoformat(),
             "person_name": custody_log.person_name,
@@ -276,8 +276,8 @@ class CustodyService:
     
     def _custody_report_to_dict(self, report: CustodyReport) -> Dict[str, Any]:
         return {
-            "id": str(report.id),
-            "evidence_id": str(report.evidence_id),
+            "id": report.id,
+            "evidence_id": report.evidence_id,
             "report_type": report.report_type,
             "report_title": report.report_title,
             "report_description": report.report_description,

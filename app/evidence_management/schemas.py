@@ -1,15 +1,14 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from uuid import UUID
 
 
 class EvidenceBase(BaseModel):
     evidence_number: str = Field(..., description="Evidence number")
     title: str = Field(..., description="Evidence title")
     description: Optional[str] = Field(None, description="Evidence description")
-    evidence_type_id: Optional[UUID] = Field(None, description="Evidence type ID")
-    case_id: UUID = Field(..., description="Case ID")
+    evidence_type_id: Optional[int] = Field(None, description="Evidence type ID")
+    case_id: int = Field(..., description="Case ID")
     weight: Optional[float] = Field(None, description="Weight in grams")
     dimensions: Optional[str] = Field(None, description="Dimensions")
     color: Optional[str] = Field(None, description="Color")
@@ -38,7 +37,7 @@ class EvidenceCreate(EvidenceBase):
 class EvidenceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    evidence_type_id: Optional[UUID] = None
+    evidence_type_id: Optional[int] = None
     weight: Optional[float] = None
     dimensions: Optional[str] = None
     color: Optional[str] = None
@@ -61,7 +60,7 @@ class EvidenceUpdate(BaseModel):
 
 
 class Evidence(EvidenceBase):
-    id: UUID
+    id: int
     analysis_progress: int
     created_at: datetime
     updated_at: Optional[datetime]
@@ -89,7 +88,7 @@ class EvidenceListResponse(BaseModel):
 # Chain of Custody Schemas
 
 class CustodyLogBase(BaseModel):
-    evidence_id: UUID = Field(..., description="Evidence ID")
+    evidence_id: int = Field(..., description="Evidence ID")
     event_type: str = Field(..., description="Event type (acquisition, preparation, extraction, analysis, transfer, storage)")
     event_date: datetime = Field(..., description="Event date and time")
     person_name: str = Field(..., description="Person handling the evidence")
@@ -123,7 +122,7 @@ class CustodyLogUpdate(BaseModel):
 
 
 class CustodyLog(CustodyLogBase):
-    id: UUID
+    id: int
     is_immutable: bool
     is_verified: bool
     verification_date: Optional[datetime]
@@ -152,7 +151,7 @@ class CustodyLogListResponse(BaseModel):
 
 
 class CustodyChainResponse(BaseModel):
-    evidence_id: UUID
+    evidence_id: int
     evidence_number: str
     evidence_title: str
     custody_chain: List[CustodyLog]
@@ -165,7 +164,7 @@ class CustodyChainResponse(BaseModel):
 # Custody Report Schemas
 
 class CustodyReportBase(BaseModel):
-    evidence_id: UUID = Field(..., description="Evidence ID")
+    evidence_id: int = Field(..., description="Evidence ID")
     report_type: str = Field("standard", description="Report type (standard, iso_27037, nist)")
     report_title: str = Field(..., description="Report title")
     report_description: Optional[str] = Field(None, description="Report description")
@@ -177,7 +176,7 @@ class CustodyReportCreate(CustodyReportBase):
 
 
 class CustodyReport(CustodyReportBase):
-    id: UUID
+    id: int
     generated_by: str
     generated_date: datetime
     report_data: Optional[dict] = None

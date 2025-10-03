@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from typing import List, Optional
-from uuid import UUID
 from datetime import datetime
 
 from app.api.deps import get_database
@@ -62,7 +61,7 @@ async def get_suspects(
             case = db.query(Case).filter(Case.id == case_person.case_id).first()
             if case:
                 case_info = {
-                    "case_id": str(case.id),
+                    "case_id": case.id,
                     "case_name": case.title,
                     "case_number": case.case_number,
                     "investigator": case.case_officer,
@@ -75,7 +74,7 @@ async def get_suspects(
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_person.case_id).count()
         
         suspect_data = {
-            "id": str(suspect.id),
+            "id": suspect.id,
             "full_name": suspect.full_name,
             "alias": suspect.alias,
             "status": suspect.status,
@@ -116,7 +115,7 @@ async def create_suspect(
             "status": 201,
             "message": "Suspect created successfully",
             "data": {
-                "id": str(person.id),
+                "id": person.id,
                 "full_name": person.full_name,
                 "status": person.status,
                 "created_at": person.created_at
@@ -124,17 +123,23 @@ async def create_suspect(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to create suspect: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create suspect: {str(e)}"
+        )
 
 
 @router.get("/get-suspect-by-id/{person_id}")
 async def get_suspect(
-    person_id: UUID,
+    person_id: int,
     db: Session = Depends(get_database)
 ):
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
-        raise HTTPException(status_code=404, detail="Suspect not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Suspect with ID {person_id} not found"
+        )
 
     case_persons = db.query(CasePerson).filter(CasePerson.person_id == person_id).all()
     case_info = []
@@ -142,7 +147,7 @@ async def get_suspect(
         case = db.query(Case).filter(Case.id == cp.case_id).first()
         if case:
             case_info.append({
-                "case_id": str(case.id),
+                "case_id": case.id,
                 "case_name": case.title,
                 "case_number": case.case_number,
                 "investigator": case.case_officer,
@@ -157,7 +162,7 @@ async def get_suspect(
         evidence_items = db.query(Evidence).filter(Evidence.case_id == cp.case_id).all()
         for evidence in evidence_items:
             evidence_info.append({
-                "id": str(evidence.id),
+                "id": evidence.id,
                 "evidence_number": evidence.evidence_number,
                 "description": evidence.description,
                 "evidence_type": evidence.evidence_type,
@@ -169,7 +174,7 @@ async def get_suspect(
         "status": 200,
         "message": "Suspect retrieved successfully",
         "data": {
-            "id": str(person.id),
+            "id": person.id,
             "full_name": person.full_name,
             "first_name": person.first_name,
             "last_name": person.last_name,
@@ -195,15 +200,18 @@ async def get_suspect(
     }
 
 
-@router.put("/update-suspect{person_id}")
+@router.put("/update-suspect/{person_id}")
 async def update_suspect(
-    person_id: UUID,
+    person_id: int,
     suspect_data: PersonUpdate,
     db: Session = Depends(get_database)
 ):
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
-        raise HTTPException(status_code=404, detail="Suspect not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Suspect with ID {person_id} not found"
+        )
     
     try:
         update_data = suspect_data.dict(exclude_unset=True)
@@ -218,7 +226,7 @@ async def update_suspect(
             "status": 200,
             "message": "Suspect updated successfully",
             "data": {
-                "id": str(person.id),
+                "id": person.id,
                 "full_name": person.full_name,
                 "status": person.status,
                 "updated_at": person.updated_at
@@ -226,18 +234,24 @@ async def update_suspect(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to update suspect: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to update suspect: {str(e)}"
+        )
 
 
 @router.put("/{person_id}/status")
 async def update_suspect_status(
-    person_id: UUID,
+    person_id: int,
     status_data: dict,
     db: Session = Depends(get_database)
 ):
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
-        raise HTTPException(status_code=404, detail="Suspect not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Suspect with ID {person_id} not found"
+        )
     
     try:
         person.status = status_data.get("status", person.status)
@@ -248,24 +262,30 @@ async def update_suspect_status(
             "status": 200,
             "message": "Suspect status updated successfully",
             "data": {
-                "id": str(person.id),
+                "id": person.id,
                 "status": person.status,
                 "updated_at": person.updated_at
             }
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to update status: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to update status: {str(e)}"
+        )
 
 
 @router.get("/{person_id}/evidence")
 async def get_suspect_evidence(
-    person_id: UUID,
+    person_id: int,
     db: Session = Depends(get_database)
 ):
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
-        raise HTTPException(status_code=404, detail="Suspect not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Suspect with ID {person_id} not found"
+        )
     
     case_persons = db.query(CasePerson).filter(CasePerson.person_id == person_id).all()
     evidence_data = []
@@ -274,7 +294,7 @@ async def get_suspect_evidence(
         evidence_items = db.query(Evidence).filter(Evidence.case_id == cp.case_id).all()
         for evidence in evidence_items:
             evidence_data.append({
-                "id": str(evidence.id),
+                "id": evidence.id,
                 "evidence_number": evidence.evidence_number,
                 "description": evidence.description,
                 "evidence_type": evidence.evidence_type,
@@ -296,12 +316,15 @@ async def get_suspect_evidence(
 
 @router.post("/{person_id}/export-pdf")
 async def export_suspect_pdf(
-    person_id: UUID,
+    person_id: int,
     db: Session = Depends(get_database)
 ):
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
-        raise HTTPException(status_code=404, detail="Suspect not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Suspect with ID {person_id} not found"
+        )
 
     return {
         "status": 200,

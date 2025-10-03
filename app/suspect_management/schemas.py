@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
-from uuid import UUID
 
 
 class PersonBase(BaseModel):
@@ -85,7 +84,7 @@ class PersonUpdate(BaseModel):
 
 
 class Person(PersonBase):
-    id: UUID
+    id: int
     risk_assessment_date: Optional[datetime]
     created_at: datetime
     updated_at: Optional[datetime]

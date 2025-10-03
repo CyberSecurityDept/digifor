@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Database Migration Script for Case Management Models
-Migrates from UUID-based to Integer-based models
-"""
+
 
 import sys
 import os

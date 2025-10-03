@@ -1,6 +1,4 @@
-import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Float
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -11,7 +9,7 @@ class EvidenceType(Base):
     
     __tablename__ = "evidence_types"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
     category = Column(String(50))  # digital, physical, biological, etc.
@@ -30,14 +28,14 @@ class Evidence(Base):
     
     __tablename__ = "evidence"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     evidence_number = Column(String(50), unique=True, index=True, nullable=False)
     title = Column(String(200), nullable=False)
     description = Column(Text)
-    evidence_type_id = Column(UUID(as_uuid=True), ForeignKey("evidence_types.id"))
+    evidence_type_id = Column(Integer, ForeignKey("evidence_types.id"))
     
     # Case association
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     
     # Physical properties
     weight = Column(Float)  # in grams
@@ -91,8 +89,8 @@ class CustodyLog(Base):
     
     __tablename__ = "custody_logs"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
     
     # Custody event details
     event_type = Column(String(50), nullable=False)  # acquisition, preparation, extraction, analysis, transfer, storage
@@ -144,8 +142,8 @@ class CustodyReport(Base):
     
     __tablename__ = "custody_reports"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
     report_type = Column(String(50), default="standard")  # standard, iso_27037, nist
     
     # Report details

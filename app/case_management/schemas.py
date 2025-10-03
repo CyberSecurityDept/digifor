@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum as PyEnum
-from uuid import UUID
 
 
 class CaseStatusEnum(PyEnum):
     OPEN = "Open"
     CLOSED = "Closed"
-    REOPENED = "Reopened"
+    REOPENED = "Re-open"
 
 
 class AgencyBase(BaseModel):
@@ -20,7 +19,7 @@ class AgencyCreate(AgencyBase):
 
 
 class Agency(AgencyBase):
-    id: UUID
+    id: int
     
     class Config:
         from_attributes = True
@@ -28,7 +27,7 @@ class Agency(AgencyBase):
 
 class WorkUnitBase(BaseModel):
     name: str = Field(..., description="Work unit name")
-    agency_id: UUID = Field(..., description="Agency ID")
+    agency_id: int = Field(..., description="Agency ID")
 
 
 class WorkUnitCreate(WorkUnitBase):
@@ -36,7 +35,7 @@ class WorkUnitCreate(WorkUnitBase):
 
 
 class WorkUnit(WorkUnitBase):
-    id: UUID
+    id: int
     
     class Config:
         from_attributes = True
@@ -49,11 +48,22 @@ class CaseBase(BaseModel):
     status: str = Field("Open", description="Case status")
     main_investigator: str = Field(..., description="Main investigator name")
     
-    agency_id: Optional[UUID] = Field(None, description="Agency ID")
-    work_unit_id: Optional[UUID] = Field(None, description="Work unit ID")
-
+    agency_id: Optional[Union[int, str]] = Field(None, description="Agency ID")
+    work_unit_id: Optional[Union[int, str]] = Field(None, description="Work unit ID")
     agency_name: Optional[str] = Field(None, description="Agency name (manual input)")
     work_unit_name: Optional[str] = Field(None, description="Work unit name (manual input)")
+    
+    @validator('agency_id', pre=True)
+    def validate_agency_id(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
+    
+    @validator('work_unit_id', pre=True)
+    def validate_work_unit_id(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
 
 
 class CaseCreate(CaseBase):
@@ -65,14 +75,23 @@ class CaseUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     main_investigator: Optional[str] = None
-    agency_id: Optional[UUID] = None
-    work_unit_id: Optional[UUID] = None
+    agency_id: Optional[int] = None
+    work_unit_id: Optional[int] = None
     agency_name: Optional[str] = None
     work_unit_name: Optional[str] = None
 
 
-class Case(CaseBase):
-    id: UUID
+class Case(BaseModel):
+    id: int
+    case_number: str = Field(..., description="Case number")
+    title: str = Field(..., description="Case title")
+    description: Optional[str] = Field(None, description="Case description")
+    status: str = Field("Open", description="Case status")
+    main_investigator: str = Field(..., description="Main investigator name")
+    agency_id: Optional[int] = Field(None, description="Agency ID")
+    work_unit_id: Optional[int] = Field(None, description="Work unit ID")
+    agency_name: Optional[str] = Field(None, description="Agency name (manual input)")
+    work_unit_name: Optional[str] = Field(None, description="Work unit name (manual input)")
     created_at: datetime
     updated_at: datetime
 
@@ -81,7 +100,7 @@ class Case(CaseBase):
 
 
 class CasePersonBase(BaseModel):
-    person_id: UUID = Field(..., description="Person ID")
+    person_id: int = Field(..., description="Person ID")
     person_type: str = Field(..., description="Person type")
     notes: Optional[str] = Field(None, description="Notes")
     is_primary: bool = Field(False, description="Is primary person")
@@ -98,8 +117,8 @@ class CasePersonUpdate(BaseModel):
 
 
 class CasePerson(CasePersonBase):
-    id: UUID
-    case_id: UUID
+    id: int
+    case_id: int
     created_at: datetime
     updated_at: datetime
 

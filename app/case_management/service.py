@@ -1,7 +1,7 @@
+from re import search
 from typing import List, Optional
-from uuid import UUID
 from sqlalchemy.orm import Session
-
+from sqlalchemy import or_, cast, String
 from app.case_management.models import Case, CasePerson, Agency, WorkUnit
 from app.case_management.schemas import CaseCreate, CaseUpdate, CasePersonCreate, CasePersonUpdate
 
@@ -31,7 +31,6 @@ class CaseService:
     def create_case(self, db: Session, case_data: CaseCreate) -> Case:
         case_dict = case_data.dict()
         
-        # Handle agency logic
         agency = None
         if case_dict.get('agency_id'):
             agency = db.query(Agency).filter(Agency.id == case_dict['agency_id']).first()
@@ -64,21 +63,60 @@ class CaseService:
         db.refresh(case)
         return case
     
-    def get_case(self, db: Session, case_id: UUID) -> Case:
+    def get_case(self, db: Session, case_id: int) -> Case:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
         return case
     
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
-        query = db.query(Case)
+        query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True)
+
+        status_mapping = {
+            'open': 'Open',
+            'OPEN': 'Open',
+            'Open': 'Open',
+            'closed': 'Closed', 
+            'CLOSED': 'Closed',
+            'Closed': 'Closed',
+            're-open': 'Re-open',
+            'RE-OPEN': 'Re-open',
+            'Re-open': 'Re-open',
+            'Re-Open': 'Re-open',
+            'reopened': 'Re-open',
+            'REOPENED': 'Re-open',
+            'Reopened': 'Re-open'
+        }
+
         if search:
-            query = query.filter(Case.title.ilike(f"%{search}%"))
+            search_pattern = f"%{search}%"
+            
+            normalized_status = status_mapping.get(search, search)
+            
+            search_conditions = [
+                Case.title.ilike(search_pattern),
+                Case.main_investigator.ilike(search_pattern),
+                cast(Case.agency_id, String).ilike(search_pattern),
+                Agency.name.ilike(search_pattern),
+                cast(Case.created_at, String).ilike(search_pattern),
+                cast(Case.updated_at, String).ilike(search_pattern),
+                cast(Case.status, String).ilike(search_pattern)
+            ]
+            
+            if normalized_status in ['Open', 'Closed', 'Re-open']:
+                search_conditions.append(Case.status == normalized_status)
+
+            query = query.filter(or_(*search_conditions))
+
         if status:
-            query = query.filter(Case.status == status)
-        return query.offset(skip).limit(limit).all()
+            normalized_status = status_mapping.get(status, status)
+            query = query.filter(Case.status == normalized_status)
+
+        return query.order_by(Case.id.desc()).offset(skip).limit(limit).all()
+
+
     
-    def update_case(self, db: Session, case_id: UUID, case_data: CaseUpdate) -> Case:
+    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> Case:
         case = self.get_case(db, case_id)
         update_data = case_data.dict(exclude_unset=True)
         for field, value in update_data.items():
@@ -87,19 +125,17 @@ class CaseService:
         db.refresh(case)
         return case
     
-    def delete_case(self, db: Session, case_id: UUID) -> bool:
+    def delete_case(self, db: Session, case_id: int) -> bool:
         case = self.get_case(db, case_id)
         db.delete(case)
         db.commit()
         return True
     
     def get_case_statistics(self, db: Session) -> dict:
-        from app.case_management.models import CaseStatus
-        
         total_cases = db.query(Case).count()
-        open_cases = db.query(Case).filter(Case.status == CaseStatus.OPEN).count()
-        closed_cases = db.query(Case).filter(Case.status == CaseStatus.CLOSED).count()
-        reopened_cases = db.query(Case).filter(Case.status == CaseStatus.REOPENED).count()
+        open_cases = db.query(Case).filter(Case.status == "Open").count()
+        closed_cases = db.query(Case).filter(Case.status == "Closed").count()
+        reopened_cases = db.query(Case).filter(Case.status == "Re-open").count()
         
         return {
             "open_cases": open_cases,
@@ -111,17 +147,17 @@ class CaseService:
 
 class CasePersonService:
     
-    def add_person_to_case(self, db: Session, case_id: UUID, person_data: CasePersonCreate) -> CasePerson:
+    def add_person_to_case(self, db: Session, case_id: int, person_data: CasePersonCreate) -> CasePerson:
         case_person = CasePerson(**person_data.dict(), case_id=case_id)
         db.add(case_person)
         db.commit()
         db.refresh(case_person)
         return case_person
     
-    def get_case_persons(self, db: Session, case_id: UUID) -> List[CasePerson]:
+    def get_case_persons(self, db: Session, case_id: int) -> List[CasePerson]:
         return db.query(CasePerson).filter(CasePerson.case_id == case_id).all()
     
-    def update_case_person(self, db: Session, case_person_id: UUID, person_data: CasePersonUpdate) -> CasePerson:
+    def update_case_person(self, db: Session, case_person_id: int, person_data: CasePersonUpdate) -> CasePerson:
         case_person = db.query(CasePerson).filter(CasePerson.id == case_person_id).first()
         if not case_person:
             raise Exception(f"Case-Person association with ID {case_person_id} not found")
@@ -132,7 +168,7 @@ class CasePersonService:
         db.refresh(case_person)
         return case_person
     
-    def remove_person_from_case(self, db: Session, case_person_id: UUID) -> bool:
+    def remove_person_from_case(self, db: Session, case_person_id: int) -> bool:
         case_person = db.query(CasePerson).filter(CasePerson.id == case_person_id).first()
         if not case_person:
             return False
@@ -141,6 +177,5 @@ class CasePersonService:
         return True
 
 
-# Create service instances
 case_service = CaseService()
 case_person_service = CasePersonService()

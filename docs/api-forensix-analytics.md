@@ -2799,8 +2799,3 @@ API mendukung CORS untuk domain berikut:
 - **Log file:** `./logs/Digital Forensics.log`
 - **Rotation:** Daily
 - **Retention:** 30 days
-
-
-
-
-

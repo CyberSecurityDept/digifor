@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from uuid import UUID
 
 from app.api.deps import get_database
 from app.case_management.service import case_service, case_person_service
@@ -27,12 +26,15 @@ async def create_case(
             data=case
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create case: {str(e)}"
+        )
 
 
 @router.get("/get-case-by-id/{case_id}", response_model=CaseResponse)
 async def get_case(
-    case_id: UUID,
+    case_id: int,
     db: Session = Depends(get_database)
 ):
     try:
@@ -43,7 +45,10 @@ async def get_case(
             data=case
         )
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Case with ID {case_id} not found"
+        )
 
 
 @router.get("/get-all-cases", response_model=CaseListResponse)
@@ -65,12 +70,15 @@ async def get_cases(
             size=limit
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve cases: {str(e)}"
+        )
 
 
 @router.put("/update-case/{case_id}", response_model=CaseResponse)
 async def update_case(
-    case_id: UUID,
+    case_id: int,
     case_data: CaseUpdate,
     db: Session = Depends(get_database)
 ):
@@ -82,12 +90,21 @@ async def update_case(
             data=case
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        if "not found" in str(e).lower():
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to update case: {str(e)}"
+            )
 
 
 @router.delete("/delete-case/{case_id}")
 async def delete_case(
-    case_id: UUID,
+    case_id: int,
     db: Session = Depends(get_database)
 ):
     try:
@@ -95,9 +112,21 @@ async def delete_case(
         if success:
             return {"status": 200, "message": "Case deleted successfully"}
         else:
-            raise HTTPException(status_code=404, detail="Case not found")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        if "not found" in str(e).lower():
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to delete case: {str(e)}"
+            )
 
 
 @router.get("/statistics/summary")
@@ -117,4 +146,7 @@ async def get_case_statistics(
             "total_cases": stats["total_cases"]
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve statistics: {str(e)}"
+        )
