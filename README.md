@@ -448,6 +448,359 @@ If you encounter issues:
 3. Ensure all services are running
 4. Check environment variables in `.env`
 
+---
+
+## 🚀 Running the Application
+
+### 🍎 Running on macOS
+
+#### Method 1: Direct Python Execution
+```bash
+# Navigate to project directory
+cd /path/to/forenlytic-backend/backend
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Run the application
+python -m app.main
+
+# Or using uvicorn directly
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Method 2: Using Makefile (if available)
+```bash
+# Run with make
+make run
+
+# Run in development mode
+make dev
+
+# Run with specific port
+make run PORT=8080
+```
+
+#### Method 3: Using Python Script
+```bash
+# Create a run script
+cat > run_app.py << 'EOF'
+#!/usr/bin/env python3
+import uvicorn
+from app.main import app
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
+EOF
+
+# Make executable and run
+chmod +x run_app.py
+python run_app.py
+```
+
+#### Method 4: Background Service (Production)
+```bash
+# Install gunicorn for production
+pip install gunicorn
+
+# Run with gunicorn
+gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+
+# Or with systemd service
+sudo systemctl start forenlytic-backend
+sudo systemctl enable forenlytic-backend
+```
+
+#### Method 5: Using Docker
+```bash
+# Build Docker image
+docker build -t forenlytic-backend .
+
+# Run with Docker
+docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db forenlytic-backend
+
+# Run with docker-compose
+docker-compose up -d
+```
+
+---
+
+### 🐧 Running on Linux (Ubuntu/Debian)
+
+#### Method 1: Direct Python Execution
+```bash
+# Navigate to project directory
+cd /path/to/forenlytic-backend/backend
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Run the application
+python3 -m app.main
+
+# Or using uvicorn directly
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Method 2: Using systemd Service (Production)
+```bash
+# Create systemd service file
+sudo nano /etc/systemd/system/forenlytic-backend.service
+```
+
+**Service file content:**
+```ini
+[Unit]
+Description=Forenlytic Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/forenlytic-backend/backend
+Environment=PATH=/path/to/forenlytic-backend/backend/venv/bin
+ExecStart=/path/to/forenlytic-backend/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable forenlytic-backend
+sudo systemctl start forenlytic-backend
+
+# Check status
+sudo systemctl status forenlytic-backend
+
+# View logs
+sudo journalctl -u forenlytic-backend -f
+```
+
+#### Method 3: Using Nginx Reverse Proxy
+```bash
+# Install nginx
+sudo apt install nginx
+
+# Create nginx configuration
+sudo nano /etc/nginx/sites-available/forenlytic-backend
+```
+
+**Nginx configuration:**
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+# Enable site
+sudo ln -s /etc/nginx/sites-available/forenlytic-backend /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+#### Method 4: Using PM2 (Process Manager)
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Create ecosystem file
+cat > ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'forenlytic-backend',
+    script: 'venv/bin/uvicorn',
+    args: 'app.main:app --host 0.0.0.0 --port 8000',
+    cwd: '/path/to/forenlytic-backend/backend',
+    instances: 4,
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production'
+    }
+  }]
+}
+EOF
+
+# Start with PM2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```
+
+---
+
+### 🪟 Running on Windows
+
+#### Method 1: Command Prompt
+```cmd
+# Navigate to project directory
+cd C:\path\to\forenlytic-backend\backend
+
+# Activate virtual environment
+venv\Scripts\activate
+
+# Run the application
+python -m app.main
+
+# Or using uvicorn directly
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Method 2: PowerShell
+```powershell
+# Navigate to project directory
+cd C:\path\to\forenlytic-backend\backend
+
+# Activate virtual environment
+.\venv\Scripts\Activate.ps1
+
+# Run the application
+python -m app.main
+
+# Or using uvicorn directly
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### Method 3: Windows Service (Production)
+```cmd
+# Install NSSM (Non-Sucking Service Manager)
+# Download from https://nssm.cc/download
+
+# Create service
+nssm install ForenlyticBackend
+# Set path to: C:\path\to\forenlytic-backend\backend\venv\Scripts\python.exe
+# Set arguments to: -m app.main
+# Set working directory to: C:\path\to\forenlytic-backend\backend
+
+# Start service
+nssm start ForenlyticBackend
+```
+
+#### Method 4: Using Task Scheduler
+1. Open **Task Scheduler**
+2. Create **Basic Task**
+3. Set trigger (e.g., at startup)
+4. Set action to start program: `C:\path\to\forenlytic-backend\backend\venv\Scripts\python.exe`
+5. Add arguments: `-m app.main`
+6. Set working directory: `C:\path\to\forenlytic-backend\backend`
+
+#### Method 5: Batch File
+```cmd
+# Create run_app.bat
+@echo off
+cd /d C:\path\to\forenlytic-backend\backend
+call venv\Scripts\activate
+python -m app.main
+pause
+```
+
+#### Method 6: Using Docker Desktop
+```cmd
+# Build image
+docker build -t forenlytic-backend .
+
+# Run container
+docker run -p 8000:8000 forenlytic-backend
+
+# Or with docker-compose
+docker-compose up -d
+```
+
+---
+
+### 🔧 Development vs Production
+
+#### Development Mode
+```bash
+# All platforms - Development
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug
+```
+
+#### Production Mode
+```bash
+# All platforms - Production
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+#### Environment-Specific Running
+
+**Development Environment:**
+```bash
+# Set environment
+export ENVIRONMENT=development
+export DEBUG=true
+export LOG_LEVEL=debug
+
+# Run with auto-reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Production Environment:**
+```bash
+# Set environment
+export ENVIRONMENT=production
+export DEBUG=false
+export LOG_LEVEL=info
+
+# Run with multiple workers
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+---
+
+### 📊 Monitoring and Logs
+
+#### View Application Logs
+```bash
+# macOS/Linux
+tail -f logs/app.log
+
+# Windows
+type logs\app.log
+```
+
+#### Monitor Application Status
+```bash
+# Check if application is running
+curl http://localhost:8000/health
+
+# Check API documentation
+curl http://localhost:8000/docs
+```
+
+#### Performance Monitoring
+```bash
+# Monitor with htop (Linux/macOS)
+htop
+
+# Monitor with Task Manager (Windows)
+# Open Task Manager and check Python processes
+
+# Monitor with Docker
+docker stats forenlytic-backend
+```
+
+---
+
 ## 📚 API Documentation
 
 Once the application is running, you can access:
