@@ -72,9 +72,19 @@ class CaseService:
         except Exception as e:
             db.rollback()
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
-                raise Exception(f"Case number '{case_dict.get('case_number')}' already exists")
+                # Create custom exception for duplicate case number with 409 status
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Case number '{case_dict.get('case_number')}' already exists"
+                )
             else:
-                raise e
+                # Re-raise other exceptions as 500 server errors
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=500,
+                    detail="Unexpected server error, please try again later"
+                )
         
         # Return case as dict with agency and work unit names
         case_response = {

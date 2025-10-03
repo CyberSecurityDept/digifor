@@ -25,10 +25,13 @@ async def create_case(
             message="Case created successfully",
             data=case
         )
+    except HTTPException:
+        # Re-raise HTTPException as-is (already has correct status code)
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to create case: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
