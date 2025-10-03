@@ -88,10 +88,8 @@ class Case(BaseModel):
     description: Optional[str] = Field(None, description="Case description")
     status: str = Field("Open", description="Case status")
     main_investigator: str = Field(..., description="Main investigator name")
-    agency_id: Optional[int] = Field(None, description="Agency ID")
-    work_unit_id: Optional[int] = Field(None, description="Work unit ID")
-    agency_name: Optional[str] = Field(None, description="Agency name (manual input)")
-    work_unit_name: Optional[str] = Field(None, description="Work unit name (manual input)")
+    agency_name: Optional[str] = Field(None, description="Agency name")
+    work_unit_name: Optional[str] = Field(None, description="Work unit name")
     created_at: datetime
     updated_at: datetime
 
