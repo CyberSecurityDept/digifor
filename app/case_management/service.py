@@ -177,17 +177,55 @@ class CaseService:
 
 
     
-    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> Case:
-        case = self.get_case(db, case_id)
+    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
+        # Get the actual Case object from database
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
         update_data = case_data.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(case, field, value)
+        
         db.commit()
         db.refresh(case)
-        return case
+        
+        # Get agency and work unit names for response
+        agency_name = None
+        work_unit_name = None
+        
+        if case.agency_id:
+            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
+            if agency:
+                agency_name = agency.name
+        
+        if case.work_unit_id:
+            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
+            if work_unit:
+                work_unit_name = work_unit.name
+        
+        # Return updated case as dict with names
+        case_dict = {
+            "id": case.id,
+            "case_number": case.case_number,
+            "title": case.title,
+            "description": case.description,
+            "status": case.status,
+            "main_investigator": case.main_investigator,
+            "agency_name": agency_name,
+            "work_unit_name": work_unit_name,
+            "created_at": case.created_at,
+            "updated_at": case.updated_at
+        }
+        
+        return case_dict
     
     def delete_case(self, db: Session, case_id: int) -> bool:
-        case = self.get_case(db, case_id)
+        # Get the actual Case object from database
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
         db.delete(case)
         db.commit()
         return True
