@@ -1,68 +1,74 @@
-# Digital Forensics Analysis Platform - Backend
+# 🔍 Digital Forensics Analysis Platform - Backend
 
-Forensik digital memainkan peran penting dalam penyelidikan di berbagai konteks seperti penegakan hukum, pemerintahan, keamanan korporasi, dan ranah hukum. Platform ini hadir untuk menjawab tantangan tersebut dengan menyediakan solusi yang komprehensif, aman, dan terintegrasi untuk mengelola kasus forensik digital, barang bukti, rantai penguasaan (chain of custody), analitik lanjutan, serta pelaporan.
+> **A comprehensive platform for managing digital forensics cases, evidence, and suspects with secure chain of custody tracking.**
 
+## 🎯 What This Platform Does
 
-## 🚀 Features
+This backend API helps law enforcement, government agencies, and corporate security teams manage digital forensics investigations efficiently and securely.
 
-### Core Modules
+### 🚀 Key Features
 
-1. **Case Management**
-   - Create, read, update, delete cases
-   - Case status tracking
-   - Case-person associations
-   - Case statistics
+**📁 Case Management**
+- Create and track investigation cases
+- Monitor case status (Open, Closed, Re-opened)
+- Link cases with suspects and evidence
+- Generate case statistics and reports
 
-2. **Evidence Management**
-   - Evidence tracking and cataloging
-   - Chain of custody management
-   - Evidence metadata
-   - Evidence type management
+**🔬 Evidence Management**
+- Track digital evidence with unique identifiers
+- Maintain secure chain of custody records
+- Store evidence metadata and file information
+- Categorize evidence by type and importance
 
-3. **Suspect Management**
-   - Person profiles
-   - Photo management
-   - Document management
-   - Alias management
+**👤 Suspect Management**
+- Create detailed suspect profiles
+- Manage photos and documents
+- Track aliases and personal information
+- Monitor suspect status and activities
 
-4. **Reporting**
-   - Case reports
-   - Evidence chain reports
-   - Suspect profiles
-   - Analytics dashboard
+**📊 Reporting & Analytics**
+- Generate comprehensive case reports
+- Create evidence chain documentation
+- Build suspect profile reports
+- Real-time dashboard with key metrics
 
-5. **Dashboard**
-   - Overview statistics
-   - Module-specific summaries
-   - Real-time data
+## 🌟 Why Use This Platform?
 
-## 🛠️ Installation
+- ✅ **Secure**: Built with security best practices
+- ✅ **Compliant**: Follows digital forensics standards
+- ✅ **Scalable**: Handles large volumes of cases and evidence
+- ✅ **User-Friendly**: Intuitive API and documentation
+- ✅ **Reliable**: Robust error handling and logging
 
-### Prerequisites
+## 🚀 Quick Start
 
-- **Python 3.11+** (Required)
-- **PostgreSQL 13+** (Required)
-- **Git** (Required)
-- **Redis** (Optional, for background tasks)
+### What You Need Before Starting
 
-### 🍎 macOS Installation
+Make sure you have these installed on your computer:
 
-#### 1. Install Prerequisites
+- **Python 3.11 or newer** ✅ (Required)
+- **PostgreSQL 13 or newer** ✅ (Required) 
+- **Git** ✅ (Required)
+- **Redis** ⚠️ (Optional, for background tasks)
 
-**Install Homebrew (if not already installed):**
+> 💡 **Don't have these?** Follow the installation guide below for your operating system.
+
+### 🍎 For macOS Users
+
+#### Step 1: Install Homebrew (if you don't have it)
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-**Install Python 3.11+ and PostgreSQL:**
-```bash
+#### Step 2: Install Python and PostgreSQL
+   ```bash
 # Install Python
 brew install python@3.11
 
 # Install PostgreSQL
 brew install postgresql@13
 
-# Start PostgreSQL service
+# Start PostgreSQL
 brew services start postgresql@13
 
 # Install Redis (optional)
@@ -70,59 +76,59 @@ brew install redis
 brew services start redis
 ```
 
-#### 2. Clone Repository
-```bash
-# Clone the repository
+#### Step 3: Download the Code
+   ```bash
+# Download code from GitHub
 git clone https://github.com/your-username/forenlytic-backend.git
 cd forenlytic-backend/backend
 
-# Verify you're in the correct directory
+# Make sure you're in the right folder
 ls -la
 ```
 
-#### 3. Setup Python Environment
-```bash
+#### Step 4: Setup Python Environment
+   ```bash
 # Create virtual environment
 python3.11 -m venv venv
 
 # Activate virtual environment
 source venv/bin/activate
 
-# Upgrade pip
+# Update pip
 pip install --upgrade pip
 ```
 
-#### 4. Install Dependencies
-```bash
-# Install requirements
+#### Step 5: Install Required Packages
+   ```bash
+# Install all required packages
 pip install -r requirements.txt
 
-# Verify installation
+# Check if everything installed correctly
 pip list
 ```
 
-#### 5. Database Setup
-```bash
+#### Step 6: Setup Database
+   ```bash
 # Create PostgreSQL database
-createdb forenlytic
-
+   createdb forenlytic
+   
 # Or using psql
 psql -U postgres -c "CREATE DATABASE forenlytic;"
 
-# Run database setup script
+# Setup database tables
 python tools/setup_postgres.py
 ```
 
-#### 6. Environment Configuration
+#### Step 7: Configure Environment
 ```bash
-# Copy environment template
+# Copy configuration file
 cp env.example .env
 
-# Edit environment variables
+# Edit configuration
 nano .env
 ```
 
-**Required .env configuration:**
+**Fill your .env file like this:**
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost:5432/forenlytic
 SECRET_KEY=your-secret-key-here
@@ -131,7 +137,7 @@ LOG_LEVEL=INFO
 CORS_ORIGINS=["http://localhost:3000"]
 ```
 
-#### 7. Run Application
+#### Step 8: Run the Application
 ```bash
 # Start the application
 python -m app.main
@@ -142,16 +148,14 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-### 🐧 Linux Installation (Ubuntu/Debian)
+### 🐧 For Linux Users (Ubuntu/Debian)
 
-#### 1. Install Prerequisites
-
-**Update system packages:**
+#### Step 1: Update Your System
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
-**Install Python 3.11+ and PostgreSQL:**
+#### Step 2: Install Python and PostgreSQL
 ```bash
 # Install Python 3.11
 sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip
@@ -165,11 +169,11 @@ sudo apt install redis-server
 # Install Git
 sudo apt install git
 
-# Install build essentials
+# Install build tools
 sudo apt install build-essential
 ```
 
-**Start services:**
+#### Step 3: Start Services
 ```bash
 # Start PostgreSQL
 sudo systemctl start postgresql
@@ -180,17 +184,17 @@ sudo systemctl start redis-server
 sudo systemctl enable redis-server
 ```
 
-#### 2. Clone Repository
+#### Step 4: Download the Code
 ```bash
-# Clone the repository
+# Download code from GitHub
 git clone https://github.com/your-username/forenlytic-backend.git
 cd forenlytic-backend/backend
 
-# Verify you're in the correct directory
+# Make sure you're in the right folder
 ls -la
 ```
 
-#### 3. Setup Python Environment
+#### Step 5: Setup Python Environment
 ```bash
 # Create virtual environment
 python3.11 -m venv venv
@@ -198,20 +202,20 @@ python3.11 -m venv venv
 # Activate virtual environment
 source venv/bin/activate
 
-# Upgrade pip
+# Update pip
 pip install --upgrade pip
 ```
 
-#### 4. Install Dependencies
+#### Step 6: Install Required Packages
 ```bash
-# Install requirements
+# Install all required packages
 pip install -r requirements.txt
 
-# Verify installation
+# Check if everything installed correctly
 pip list
 ```
 
-#### 5. Database Setup
+#### Step 7: Setup Database
 ```bash
 # Switch to postgres user
 sudo -u postgres psql
@@ -222,20 +226,20 @@ CREATE USER forenlytic_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;
 \q
 
-# Run database setup script
+# Setup database tables
 python tools/setup_postgres.py
 ```
 
-#### 6. Environment Configuration
+#### Step 8: Configure Environment
 ```bash
-# Copy environment template
+# Copy configuration file
 cp env.example .env
 
-# Edit environment variables
+# Edit configuration
 nano .env
 ```
 
-**Required .env configuration:**
+**Fill your .env file like this:**
 ```env
 DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
 SECRET_KEY=your-secret-key-here
@@ -244,7 +248,7 @@ LOG_LEVEL=INFO
 CORS_ORIGINS=["http://localhost:3000"]
 ```
 
-#### 7. Run Application
+#### Step 9: Run the Application
 ```bash
 # Start the application
 python -m app.main
@@ -255,44 +259,42 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-### 🪟 Windows Installation
+### 🪟 For Windows Users
 
-#### 1. Install Prerequisites
-
-**Install Python 3.11+:**
+#### Step 1: Install Python
 1. Download Python from [python.org](https://www.python.org/downloads/)
-2. During installation, check "Add Python to PATH"
-3. Verify installation:
+2. During installation, **check "Add Python to PATH"**
+3. Test installation:
    ```cmd
    python --version
    pip --version
    ```
 
-**Install PostgreSQL:**
+#### Step 2: Install PostgreSQL
 1. Download PostgreSQL from [postgresql.org](https://www.postgresql.org/download/windows/)
 2. Install with default settings
-3. Remember the password you set for the postgres user
+3. **Remember the password** you set for the postgres user
 4. Add PostgreSQL to PATH (usually `C:\Program Files\PostgreSQL\13\bin`)
 
-**Install Git:**
+#### Step 3: Install Git
 1. Download Git from [git-scm.com](https://git-scm.com/download/win)
 2. Install with default settings
 
-**Install Redis (Optional):**
+#### Step 4: Install Redis (Optional)
 1. Download Redis from [github.com/microsoftarchive/redis](https://github.com/microsoftarchive/redis/releases)
 2. Extract and run `redis-server.exe`
 
-#### 2. Clone Repository
+#### Step 5: Download the Code
 ```cmd
-# Clone the repository
+# Download code from GitHub
 git clone https://github.com/your-username/forenlytic-backend.git
 cd forenlytic-backend\backend
 
-# Verify you're in the correct directory
+# Make sure you're in the right folder
 dir
 ```
 
-#### 3. Setup Python Environment
+#### Step 6: Setup Python Environment
 ```cmd
 # Create virtual environment
 python -m venv venv
@@ -300,20 +302,20 @@ python -m venv venv
 # Activate virtual environment
 venv\Scripts\activate
 
-# Upgrade pip
+# Update pip
 python -m pip install --upgrade pip
 ```
 
-#### 4. Install Dependencies
+#### Step 7: Install Required Packages
 ```cmd
-# Install requirements
+# Install all required packages
 pip install -r requirements.txt
 
-# Verify installation
+# Check if everything installed correctly
 pip list
 ```
 
-#### 5. Database Setup
+#### Step 8: Setup Database
 ```cmd
 # Create database using psql
 psql -U postgres -c "CREATE DATABASE forenlytic;"
@@ -324,20 +326,20 @@ psql -U postgres -c "CREATE DATABASE forenlytic;"
 # 3. Right-click "Databases" → "Create" → "Database"
 # 4. Name: forenlytic
 
-# Run database setup script
+# Setup database tables
 python tools\setup_postgres.py
 ```
 
-#### 6. Environment Configuration
+#### Step 9: Configure Environment
 ```cmd
-# Copy environment template
+# Copy configuration file
 copy env.example .env
 
-# Edit environment variables (use Notepad or VS Code)
+# Edit configuration (use Notepad or VS Code)
 notepad .env
 ```
 
-**Required .env configuration:**
+**Fill your .env file like this:**
 ```env
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/forenlytic
 SECRET_KEY=your-secret-key-here
@@ -346,7 +348,7 @@ LOG_LEVEL=INFO
 CORS_ORIGINS=["http://localhost:3000"]
 ```
 
-#### 7. Run Application
+#### Step 10: Run the Application
 ```cmd
 # Start the application
 python -m app.main
@@ -384,69 +386,94 @@ docker run -p 8000:8000 -e DATABASE_URL=postgresql://user:pass@host:5432/db fore
 
 ---
 
-### ✅ Verification
+## ✅ Check if Everything Works
 
-After installation, verify everything is working:
+After installation, make sure everything is working properly:
 
-1. **Check API Health:**
-   ```bash
-   curl http://localhost:8000/health
-   ```
+### 1. Test API Health
+```bash
+curl http://localhost:8000/health
+```
+**Expected result**: JSON response with status "healthy"
 
-2. **Access Documentation:**
-   - Swagger UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+### 2. Open API Documentation
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
-3. **Test Database Connection:**
-   ```bash
-   python -c "from app.db.session import engine; print('Database connected successfully')"
-   ```
+### 3. Test Database Connection
+```bash
+python -c "from app.db.session import engine; print('Database connected successfully')"
+```
+**Expected result**: "Database connected successfully"
 
-### 🔧 Troubleshooting
+---
 
-#### Common Issues:
+## 🔧 Fix Common Problems
 
-1. **Python version issues:**
-   ```bash
-   # Check Python version
-   python --version
-   # Should be 3.11 or higher
-   ```
+### ❌ Common Issues and Solutions
 
-2. **PostgreSQL connection issues:**
-   ```bash
-   # Test PostgreSQL connection
-   psql -U postgres -c "SELECT version();"
-   ```
+#### 1. **Error: Python version is wrong**
+```bash
+# Check Python version
+python --version
+# Should be 3.11 or higher
+```
 
-3. **Permission issues (Linux/macOS):**
-   ```bash
-   # Fix PostgreSQL permissions
-   sudo -u postgres psql
-   ALTER USER postgres PASSWORD 'your_password';
-   ```
+#### 2. **Error: Can't connect to PostgreSQL**
+```bash
+# Test PostgreSQL connection
+psql -U postgres -c "SELECT version();"
+```
 
-4. **Windows PATH issues:**
-   - Add PostgreSQL bin directory to Windows PATH
-   - Restart command prompt after PATH changes
+#### 3. **Error: Permission denied (Linux/macOS)**
+```bash
+# Fix PostgreSQL permissions
+sudo -u postgres psql
+ALTER USER postgres PASSWORD 'your_password';
+```
 
-5. **Virtual environment issues:**
-   ```bash
-   # Recreate virtual environment
-   rm -rf venv
-   python -m venv venv
-   source venv/bin/activate  # Linux/macOS
-   # or
-   venv\Scripts\activate  # Windows
-   ```
+#### 4. **Error: Command not found (Windows)**
+- Add PostgreSQL bin directory to Windows PATH
+- Restart command prompt after changing PATH
 
-### 📞 Support
+#### 5. **Error: Virtual environment is broken**
+```bash
+# Delete and recreate virtual environment
+rm -rf venv
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or
+venv\Scripts\activate  # Windows
+```
 
-If you encounter issues:
-1. Check the logs: `tail -f logs/app.log`
-2. Verify all prerequisites are installed
-3. Ensure all services are running
-4. Check environment variables in `.env`
+### 🆘 Need Help?
+
+If you still have problems:
+1. **Check application logs**: `tail -f logs/app.log`
+2. **Make sure all software is installed**: Python, PostgreSQL, Git
+3. **Make sure services are running**: PostgreSQL and Redis
+4. **Check .env file**: Make sure configuration is correct
+
+---
+
+## 🎯 How to Use the Platform
+
+### 1. **Access the Application**
+- Open your browser and go to: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
+
+### 2. **Test the API**
+```bash
+# Test health check
+curl http://localhost:8000/health
+
+# Test get cases
+curl http://localhost:8000/api/v1/cases/get-all-cases
+```
+
+### 3. **Stop the Application**
+- Press `Ctrl + C` in the terminal
+- Or close the terminal
 
 ---
 
@@ -788,7 +815,7 @@ curl http://localhost:8000/docs
 ```
 
 #### Performance Monitoring
-```bash
+   ```bash
 # Monitor with htop (Linux/macOS)
 htop
 
