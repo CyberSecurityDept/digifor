@@ -190,32 +190,3 @@ docker run -p 8000:8000 forenlytic-backend
 3. Run database migrations
 4. Start the application
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
-
-## 🔄 Changelog
-
-### v1.0.0
-- Initial release
-- Case management
-- Evidence management
-- Suspect management
-- Dashboard
-- Reporting
-- API documentation
