@@ -75,7 +75,7 @@ async def get_cases(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to retrieve cases: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -101,7 +101,7 @@ async def update_case(
         else:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to update case: {str(e)}"
+                detail="Unexpected server error, please try again later"
             )
 
 
@@ -128,7 +128,7 @@ async def delete_case(
         else:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to delete case: {str(e)}"
+                detail="Unexpected server error, please try again later"
             )
 
 
@@ -151,5 +151,5 @@ async def get_case_statistics(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to retrieve statistics: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )

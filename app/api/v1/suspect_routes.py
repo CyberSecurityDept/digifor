@@ -125,7 +125,7 @@ async def create_suspect(
         db.rollback()
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to create suspect: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -236,7 +236,7 @@ async def update_suspect(
         db.rollback()
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to update suspect: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -271,7 +271,7 @@ async def update_suspect_status(
         db.rollback()
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to update status: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 

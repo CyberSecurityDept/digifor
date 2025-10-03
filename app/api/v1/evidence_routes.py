@@ -103,7 +103,7 @@ async def log_custody_event(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -152,7 +152,7 @@ async def get_custody_chain(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -190,7 +190,7 @@ async def get_custody_events(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -215,7 +215,7 @@ async def update_custody_event(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -249,7 +249,7 @@ async def generate_custody_report(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -286,7 +286,7 @@ async def get_custody_reports(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -322,5 +322,5 @@ async def get_custody_report(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to process request: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
