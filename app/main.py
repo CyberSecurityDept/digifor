@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -63,6 +63,26 @@ app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Ev
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 app.include_router(health_router, prefix="/health", tags=["Health"])
+
+
+# HTTPException handler for custom error format
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Check if detail is already in the desired format
+    if isinstance(exc.detail, dict) and "status" in exc.detail and "message" in exc.detail:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail
+        )
+    else:
+        # Convert simple detail to custom format
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "status": exc.status_code,
+                "message": exc.detail
+            }
+        )
 
 
 # Global exception handler
