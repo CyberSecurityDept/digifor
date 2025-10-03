@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-PostgreSQL Database Setup Script for Digital Forensics
-This script helps set up PostgreSQL database and migrate from SQLite
-"""
-
 import os
 import sys
 import subprocess
