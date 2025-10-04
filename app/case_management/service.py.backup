@@ -65,10 +65,10 @@ class CaseService:
         case_dict.pop('work_unit_name', None)
         
         try:
-            case = Case(**case_dict)
-            db.add(case)
-            db.commit()
-            db.refresh(case)
+        case = Case(**case_dict)
+        db.add(case)
+        db.commit()
+        db.refresh(case)
         except Exception as e:
             db.rollback()
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):

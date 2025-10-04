@@ -67,24 +67,6 @@ class Case(Base):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"
 
 
-class CasePerson(Base):
-    
-    __tablename__ = "case_persons"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
-    person_id = Column(Integer, nullable=False)
-    person_type = Column(String(20), nullable=False)
-    notes = Column(Text)
-    is_primary = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    
-    def __repr__(self):
-        return f"<CasePerson(id={self.id}, person_id={self.person_id}, type='{self.person_type}')>"
-
-
 class CaseLog(Base):
     __tablename__ = "case_logs"
     

@@ -3,10 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.api.deps import get_database
-from app.case_management.service import case_service, case_person_service
+from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
-    CasePerson, CasePersonCreate, CasePersonUpdate,
     Agency, AgencyCreate, WorkUnit, WorkUnitCreate
 )
 

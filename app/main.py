@@ -59,11 +59,11 @@ app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 # Include routers
 app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
+app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
+app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
 app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
-app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
-app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
 
