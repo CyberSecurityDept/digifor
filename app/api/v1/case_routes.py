@@ -35,8 +35,8 @@ async def create_case(
         )
 
 
-@router.get("/get-case-by-id/{case_id}", response_model=CaseResponse)
-async def get_case(
+@router.get("/get-case-detail/{case_id}", response_model=CaseResponse)
+async def get_case_detail(
     case_id: int,
     db: Session = Depends(get_database)
 ):

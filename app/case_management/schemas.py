@@ -139,3 +139,73 @@ class CaseListResponse(BaseModel):
     total: int = Field(..., description="Total number of cases")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+
+# Case Log Schemas
+class CaseLogBase(BaseModel):
+    action: str = Field(..., description="Action performed")
+    description: Optional[str] = Field(None, description="Detailed description of the action")
+    changed_by: str = Field(..., description="User who made the change")
+
+
+class CaseLogCreate(CaseLogBase):
+    case_id: int = Field(..., description="Case ID")
+
+
+class CaseLog(CaseLogBase):
+    id: int
+    case_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CaseLogResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: CaseLog
+
+
+class CaseLogListResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: List[CaseLog]
+    total: int = Field(..., description="Total number of logs")
+    page: int = Field(..., description="Current page")
+    size: int = Field(..., description="Page size")
+
+
+# Case Notes Schemas
+class CaseNoteBase(BaseModel):
+    note: str = Field(..., description="Note content")
+    status: Optional[str] = Field(None, description="Optional status for the note")
+    created_by: str = Field(..., description="User who created the note")
+
+
+class CaseNoteCreate(CaseNoteBase):
+    case_id: int = Field(..., description="Case ID")
+
+
+class CaseNote(CaseNoteBase):
+    id: int
+    case_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CaseNoteResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: CaseNote
+
+
+class CaseNoteListResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: List[CaseNote]
+    total: int = Field(..., description="Total number of notes")
+    page: int = Field(..., description="Current page")
+    size: int = Field(..., description="Page size")

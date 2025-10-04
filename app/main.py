@@ -10,7 +10,7 @@ from app.core.health import router as health_router
 from app.middleware.cors import add_cors_middleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
-from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes
+from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes, case_log_routes, case_note_routes
 from app.db.init_db import init_db
 
 
@@ -62,6 +62,8 @@ app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case M
 app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
+app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
 

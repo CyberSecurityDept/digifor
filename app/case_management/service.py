@@ -315,5 +315,129 @@ class CasePersonService:
         return True
 
 
+class CaseLogService:
+    def create_log(self, db: Session, log_data: dict) -> dict:
+        from app.case_management.models import CaseLog
+        
+        log = CaseLog(**log_data)
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+        
+        return {
+            "id": log.id,
+            "case_id": log.case_id,
+            "action": log.action,
+            "description": log.description,
+            "changed_by": log.changed_by,
+            "created_at": log.created_at
+        }
+    
+    def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
+        from app.case_management.models import CaseLog
+        
+        logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
+            .order_by(CaseLog.created_at.desc())\
+            .offset(skip).limit(limit).all()
+        
+        result = []
+        for log in logs:
+            log_dict = {
+                "id": log.id,
+                "case_id": log.case_id,
+                "action": log.action,
+                "description": log.description,
+                "changed_by": log.changed_by,
+                "created_at": log.created_at
+            }
+            result.append(log_dict)
+        
+        return result
+    
+    def get_log_count(self, db: Session, case_id: int) -> int:
+        from app.case_management.models import CaseLog
+        return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
+
+
+class CaseNoteService:
+    def create_note(self, db: Session, note_data: dict) -> dict:
+        from app.case_management.models import CaseNote
+        
+        note = CaseNote(**note_data)
+        db.add(note)
+        db.commit()
+        db.refresh(note)
+        
+        return {
+            "id": note.id,
+            "case_id": note.case_id,
+            "note": note.note,
+            "status": note.status,
+            "created_by": note.created_by,
+            "created_at": note.created_at
+        }
+    
+    def get_case_notes(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
+        from app.case_management.models import CaseNote
+        
+        notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
+            .order_by(CaseNote.created_at.desc())\
+            .offset(skip).limit(limit).all()
+        
+        result = []
+        for note in notes:
+            note_dict = {
+                "id": note.id,
+                "case_id": note.case_id,
+                "note": note.note,
+                "status": note.status,
+                "created_by": note.created_by,
+                "created_at": note.created_at
+            }
+            result.append(note_dict)
+        
+        return result
+    
+    def get_note_count(self, db: Session, case_id: int) -> int:
+        from app.case_management.models import CaseNote
+        return db.query(CaseNote).filter(CaseNote.case_id == case_id).count()
+    
+    def update_note(self, db: Session, note_id: int, note_data: dict) -> dict:
+        from app.case_management.models import CaseNote
+        
+        note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
+        if not note:
+            raise Exception(f"Note with ID {note_id} not found")
+        
+        update_data = {k: v for k, v in note_data.items() if v is not None}
+        for field, value in update_data.items():
+            setattr(note, field, value)
+        
+        db.commit()
+        db.refresh(note)
+        
+        return {
+            "id": note.id,
+            "case_id": note.case_id,
+            "note": note.note,
+            "status": note.status,
+            "created_by": note.created_by,
+            "created_at": note.created_at
+        }
+    
+    def delete_note(self, db: Session, note_id: int) -> bool:
+        from app.case_management.models import CaseNote
+        
+        note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
+        if not note:
+            return False
+        
+        db.delete(note)
+        db.commit()
+        return True
+
+
 case_service = CaseService()
 case_person_service = CasePersonService()
+case_log_service = CaseLogService()
+case_note_service = CaseNoteService()
