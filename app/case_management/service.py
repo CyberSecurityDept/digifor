@@ -2,8 +2,8 @@ from re import search
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
-from app.case_management.models import Case, Agency, WorkUnit
-from app.case_management.schemas import CaseCreate, CaseUpdate
+from app.case_management.models import Case, Agency, WorkUnit, Person
+from app.case_management.schemas import CaseCreate, CaseUpdate, PersonCreate, PersonUpdate
 
 
 def get_or_create_agency(db: Session, name: str):
@@ -405,6 +405,124 @@ class CaseNoteService:
         return True
 
 
+class PersonService:
+    def create_person(self, db: Session, person_data: PersonCreate) -> dict:
+        person_dict = person_data.dict()
+        
+        try:
+            person = Person(**person_dict)
+            db.add(person)
+            db.commit()
+            db.refresh(person)
+        except Exception as e:
+            db.rollback()
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=500,
+                detail="Unexpected server error, please try again later"
+            )
+        
+        return {
+            "id": person.id,
+            "name": person.name,
+            "is_unknown": person.is_unknown,
+            "custody_stage": person.custody_stage,
+            "evidence_id": person.evidence_id,
+            "evidence_source": person.evidence_source,
+            "evidence_summary": person.evidence_summary,
+            "investigator": person.investigator,
+            "case_id": person.case_id,
+            "created_by": person.created_by,
+            "created_at": person.created_at,
+            "updated_at": person.updated_at
+        }
+    
+    def get_person(self, db: Session, person_id: int) -> dict:
+        person = db.query(Person).filter(Person.id == person_id).first()
+        if not person:
+            raise Exception(f"Person with ID {person_id} not found")
+        
+        return {
+            "id": person.id,
+            "name": person.name,
+            "is_unknown": person.is_unknown,
+            "custody_stage": person.custody_stage,
+            "evidence_id": person.evidence_id,
+            "evidence_source": person.evidence_source,
+            "evidence_summary": person.evidence_summary,
+            "investigator": person.investigator,
+            "case_id": person.case_id,
+            "created_by": person.created_by,
+            "created_at": person.created_at,
+            "updated_at": person.updated_at
+        }
+    
+    def get_persons_by_case(self, db: Session, case_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
+        persons = db.query(Person).filter(Person.case_id == case_id)\
+            .order_by(Person.created_at.desc())\
+            .offset(skip).limit(limit).all()
+        
+        result = []
+        for person in persons:
+            person_dict = {
+                "id": person.id,
+                "name": person.name,
+                "is_unknown": person.is_unknown,
+                "custody_stage": person.custody_stage,
+                "evidence_id": person.evidence_id,
+                "evidence_source": person.evidence_source,
+                "evidence_summary": person.evidence_summary,
+                "investigator": person.investigator,
+                "case_id": person.case_id,
+                "created_by": person.created_by,
+                "created_at": person.created_at,
+                "updated_at": person.updated_at
+            }
+            result.append(person_dict)
+        
+        return result
+    
+    def get_person_count_by_case(self, db: Session, case_id: int) -> int:
+        return db.query(Person).filter(Person.case_id == case_id).count()
+    
+    def update_person(self, db: Session, person_id: int, person_data: PersonUpdate) -> dict:
+        person = db.query(Person).filter(Person.id == person_id).first()
+        if not person:
+            raise Exception(f"Person with ID {person_id} not found")
+        
+        update_data = person_data.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(person, field, value)
+        
+        db.commit()
+        db.refresh(person)
+        
+        return {
+            "id": person.id,
+            "name": person.name,
+            "is_unknown": person.is_unknown,
+            "custody_stage": person.custody_stage,
+            "evidence_id": person.evidence_id,
+            "evidence_source": person.evidence_source,
+            "evidence_summary": person.evidence_summary,
+            "investigator": person.investigator,
+            "case_id": person.case_id,
+            "created_by": person.created_by,
+            "created_at": person.created_at,
+            "updated_at": person.updated_at
+        }
+    
+    def delete_person(self, db: Session, person_id: int) -> bool:
+        person = db.query(Person).filter(Person.id == person_id).first()
+        if not person:
+            return False
+        
+        db.delete(person)
+        db.commit()
+        return True
+
+
 case_service = CaseService()
 case_log_service = CaseLogService()
 case_note_service = CaseNoteService()
+person_service = PersonService()

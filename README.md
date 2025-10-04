@@ -1,6 +1,6 @@
 # 🔍 Digital Forensics Analysis Platform - Backend
 
-> **A comprehensive platform for managing digital forensics cases, evidence, and suspects with secure chain of custody tracking.**
+> **A comprehensive platform for managing digital forensics cases, evidence, suspects, and persons of interest with secure chain of custody tracking.**
 
 ## 🎯 What This Platform Does
 
@@ -11,20 +11,30 @@ This backend API helps law enforcement, government agencies, and corporate secur
 **📁 Case Management**
 - Create and track investigation cases
 - Monitor case status (Open, Closed, Re-opened)
-- Link cases with suspects and evidence
+- Link cases with suspects, evidence, and persons of interest
 - Generate case statistics and reports
+- Case logs and notes management
 
 **🔬 Evidence Management**
 - Track digital evidence with unique identifiers
 - Maintain secure chain of custody records
 - Store evidence metadata and file information
 - Categorize evidence by type and importance
+- Evidence analysis and processing tracking
 
 **👤 Suspect Management**
 - Create detailed suspect profiles
 - Manage photos and documents
 - Track aliases and personal information
 - Monitor suspect status and activities
+- Risk assessment and criminal record tracking
+
+**👥 Person of Interest Management**
+- Add persons of interest to cases
+- Track custody stages (Acquisition, Preparation, Extraction, Analysis)
+- Link persons with evidence and investigators
+- Support for unknown persons
+- Evidence source tracking (HP, SSD, Harddisk, PC, Laptop, DVR)
 
 **📊 Reporting & Analytics**
 - Generate comprehensive case reports
@@ -467,6 +477,129 @@ Once the application is running, you can access:
 - **ReDoc**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
 
+### 🔗 Available API Endpoints
+
+**Case Management**
+- `POST /api/v1/cases/create-case` - Create new case
+- `GET /api/v1/cases/get-case-detail/{case_id}` - Get case details
+- `GET /api/v1/cases/get-all-cases` - List all cases
+- `PUT /api/v1/cases/update-case/{case_id}` - Update case
+- `DELETE /api/v1/cases/delete-case/{case_id}` - Delete case
+- `GET /api/v1/cases/statistics/summary` - Get case statistics
+
+**Case Logs**
+- `POST /api/v1/case-logs/create-log` - Create case log
+- `GET /api/v1/case-logs/get-case-logs/{case_id}` - Get case logs
+
+**Case Notes**
+- `POST /api/v1/case-notes/create-note` - Create case note
+- `GET /api/v1/case-notes/get-case-notes/{case_id}` - Get case notes
+- `PUT /api/v1/case-notes/update-note/{note_id}` - Update note
+- `DELETE /api/v1/case-notes/delete-note/{note_id}` - Delete note
+
+**Person of Interest Management**
+- `POST /api/v1/persons/create-person` - Create person of interest
+- `GET /api/v1/persons/get-person/{person_id}` - Get person details
+- `GET /api/v1/persons/get-persons-by-case/{case_id}` - Get persons by case
+- `PUT /api/v1/persons/update-person/{person_id}` - Update person
+- `DELETE /api/v1/persons/delete-person/{person_id}` - Delete person
+
+**Evidence Management**
+- `POST /api/v1/evidence/create-evidence` - Create evidence
+- `GET /api/v1/evidence/get-evidence/{evidence_id}` - Get evidence details
+- `GET /api/v1/evidence/get-evidence-by-case/{case_id}` - Get evidence by case
+- `PUT /api/v1/evidence/update-evidence/{evidence_id}` - Update evidence
+- `DELETE /api/v1/evidence/delete-evidence/{evidence_id}` - Delete evidence
+
+**Suspect Management**
+- `POST /api/v1/suspects/create-suspect` - Create suspect
+- `GET /api/v1/suspects/get-suspect/{suspect_id}` - Get suspect details
+- `GET /api/v1/suspects/get-all-suspects` - List all suspects
+- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - Update suspect
+- `DELETE /api/v1/suspects/delete-suspect/{suspect_id}` - Delete suspect
+
+**Reports**
+- `GET /api/v1/reports/generate-case-report/{case_id}` - Generate case report
+- `GET /api/v1/reports/generate-evidence-report/{evidence_id}` - Generate evidence report
+- `GET /api/v1/reports/generate-suspect-report/{suspect_id}` - Generate suspect report
+
+**Dashboard**
+- `GET /api/v1/dashboard/statistics` - Get dashboard statistics
+- `GET /api/v1/dashboard/recent-cases` - Get recent cases
+- `GET /api/v1/dashboard/evidence-summary` - Get evidence summary
+
+## 🗄️ Database Structure
+
+The platform uses PostgreSQL with the following main tables:
+
+**Core Tables**
+- `cases` - Investigation cases
+- `persons` - Persons of interest linked to cases
+- `suspects` - Suspect profiles
+- `evidence` - Digital evidence items
+- `agencies` - Law enforcement agencies
+- `work_units` - Agency work units
+
+**Supporting Tables**
+- `case_logs` - Case activity logs
+- `case_notes` - Case notes and comments
+- `custody_logs` - Evidence chain of custody
+- `custody_reports` - Custody documentation
+- `evidence_types` - Evidence categorization
+
+## 📝 Example Usage
+
+### Creating a Case with Person of Interest
+
+```bash
+# 1. Create a new case
+curl -X POST "http://localhost:8000/api/v1/cases/create-case" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_number": "CASE-2024-001",
+    "title": "Digital Forensics Investigation",
+    "description": "Investigation of digital evidence",
+    "main_investigator": "Detective Smith"
+  }'
+
+# 2. Add person of interest to the case
+curl -X POST "http://localhost:8000/api/v1/persons/create-person" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_id": 1,
+    "name": "John Doe",
+    "is_unknown": false,
+    "custody_stage": "Acquisition",
+    "evidence_id": "EVID-001",
+    "evidence_source": "HP",
+    "evidence_summary": "GPS data from suspect phone",
+    "investigator": "Detective Smith",
+    "created_by": "Admin"
+  }'
+
+# 3. Get all persons for the case
+curl -X GET "http://localhost:8000/api/v1/persons/get-persons-by-case/1"
+```
+
+### Person of Interest Data Structure
+
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "is_unknown": false,
+  "custody_stage": "Acquisition",
+  "evidence_id": "EVID-001",
+  "evidence_source": "HP",
+  "evidence_summary": "GPS data from suspect phone",
+  "investigator": "Detective Smith",
+  "case_id": 1,
+  "created_by": "Admin",
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -478,5 +611,27 @@ Once the application is running, you can access:
 | `DEBUG` | Debug mode | `false` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `CORS_ORIGINS` | Allowed CORS origins | `["http://localhost:3000"]` |
+
+## 🚀 Recent Updates
+
+### v1.2.0 - Person of Interest Management
+- ✅ Added Person of Interest management system
+- ✅ Support for unknown persons
+- ✅ Custody stage tracking (Acquisition, Preparation, Extraction, Analysis)
+- ✅ Evidence source tracking (HP, SSD, Harddisk, PC, Laptop, DVR)
+- ✅ Complete CRUD operations for persons
+- ✅ Integration with case management system
+
+### v1.1.0 - Enhanced Case Management
+- ✅ Case logs and notes system
+- ✅ Improved case statistics
+- ✅ Better error handling
+- ✅ Enhanced API documentation
+
+### v1.0.0 - Initial Release
+- ✅ Core case management
+- ✅ Evidence tracking
+- ✅ Suspect management
+- ✅ Basic reporting
 
 

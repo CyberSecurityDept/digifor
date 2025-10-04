@@ -126,6 +126,60 @@ class CasePerson(CasePersonBase):
         from_attributes = True
 
 
+# Person Schemas
+class PersonBase(BaseModel):
+    name: str = Field(..., description="Person name")
+    is_unknown: bool = Field(False, description="Is unknown person")
+    custody_stage: Optional[str] = Field(None, description="Custody stage")
+    evidence_id: Optional[str] = Field(None, description="Evidence ID")
+    evidence_source: Optional[str] = Field(None, description="Evidence source")
+    evidence_summary: Optional[str] = Field(None, description="Evidence summary")
+    investigator: Optional[str] = Field(None, description="Investigator name")
+    created_by: str = Field(..., description="User who created the person record")
+
+
+class PersonCreate(PersonBase):
+    case_id: int = Field(..., description="Case ID")
+
+
+class PersonUpdate(BaseModel):
+    name: Optional[str] = None
+    is_unknown: Optional[bool] = None
+    custody_stage: Optional[str] = None
+    evidence_id: Optional[str] = None
+    evidence_source: Optional[str] = None
+    evidence_summary: Optional[str] = None
+    investigator: Optional[str] = None
+
+    class Config:
+        extra = "ignore"  # Ignore extra fields not defined in schema
+
+
+class Person(PersonBase):
+    id: int
+    case_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PersonResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: Person
+
+
+class PersonListResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: List[Person]
+    total: int = Field(..., description="Total number of persons")
+    page: int = Field(..., description="Current page")
+    size: int = Field(..., description="Page size")
+
+
 class CaseResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")

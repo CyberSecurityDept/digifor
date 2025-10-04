@@ -56,6 +56,7 @@ class Case(Base):
     # Relationships
     logs = relationship("CaseLog", back_populates="case")
     notes = relationship("CaseNote", back_populates="case")
+    persons = relationship("Person", back_populates="case")
     
     def generate_case_number(self):
 
@@ -99,3 +100,30 @@ class CaseNote(Base):
     
     def __repr__(self):
         return f"<CaseNote(id={self.id}, case_id={self.case_id}, status='{self.status}')>"
+
+
+class Person(Base):
+    __tablename__ = "persons"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    is_unknown = Column(Boolean, default=False)  # For "Unknown Person" option
+    custody_stage = Column(String(100))  # Acquisition, Preparation, Extraction, Analysis
+    evidence_id = Column(String(100))  # Evidence ID associated with this person
+    evidence_source = Column(String(100))  # HP, SSD, Harddisk, PC, Laptop, DVR
+    evidence_summary = Column(Text)  # Summary of evidence related to this person
+    investigator = Column(String(255))  # Investigator assigned to this person
+    
+    # Case association
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_by = Column(String(255), nullable=False)  # User who created the person record
+    
+    # Relationship to Case
+    case = relationship("Case", back_populates="persons")
+    
+    def __repr__(self):
+        return f"<Person(id={self.id}, name='{self.name}', case_id={self.case_id})>"
