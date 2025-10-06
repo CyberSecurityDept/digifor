@@ -21,8 +21,9 @@ Authorization: Bearer <access_token>
 ### 1. Create Case
 **Endpoint:** `POST /api/v1/cases/create-case`
 
-**Description:** Create a new case with agency and work unit information.
+**Description:** Create a new case with agency and work unit information. Supports both auto-generated and manual case numbers.
 
+#### Option 1: Auto-Generate Case Number (Recommended)
 **Request Body:**
 ```json
 {
@@ -36,9 +37,26 @@ Authorization: Bearer <access_token>
 }
 ```
 
+#### Option 2: Manual Case Number
+**Request Body:**
+```json
+{
+  "case_number": "CASE-2024-001",
+  "title": "Buronan Maroko Interpol",
+  "description": "Case description...",
+  "main_investigator": "Solehun",
+  "agency_id": 1,
+  "work_unit_id": 1,
+  "agency_name": "Trikora agency",
+  "work_unit_name": "Dirjen Imigrasi 1"
+}
+```
+
 **Notes:** 
 - Field `status` tidak perlu disertakan dalam request body karena akan otomatis diset ke "Open" saat case pertama kali dibuat.
-- Field `case_number` akan otomatis di-generate menggunakan format: `{title_prefix}-{date}-{id}` (contoh: "BMI-061025-0001")
+- Field `case_number` bersifat opsional:
+  - **Jika tidak disertakan**: Akan otomatis di-generate menggunakan format `{title_prefix}-{date}-{id}` (contoh: "BMI-061025-0001")
+  - **Jika disertakan**: Akan menggunakan case number yang diberikan (minimum 3 karakter, harus unik)
 
 **Response (201 Created):**
 ```json
@@ -60,10 +78,23 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**Response (409 Conflict):**
+**Response (409 Conflict - Duplicate Case Number):**
 ```json
 {
   "detail": "Case number 'CASE-2024-0001' already exists"
+}
+```
+
+**Response (400 Bad Request - Invalid Case Number):**
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "case_number"],
+      "msg": "Case number must be at least 3 characters long",
+      "type": "value_error"
+    }
+  ]
 }
 ```
 
@@ -707,6 +738,45 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Case Number Handling
+
+### Auto-Generated Case Numbers
+When `case_number` is not provided in the request, the system automatically generates a unique case number using the following format:
+```
+{TITLE_PREFIX}-{DATE}-{ID}
+```
+
+**Example:**
+- Title: "Digital Forensics Investigation"
+- Generated: "DFI-010124-0001"
+
+**Format Breakdown:**
+- `TITLE_PREFIX`: First 3 letters of each word in the title (max 3 words)
+- `DATE`: Current date in DDMMYY format
+- `ID`: Auto-incrementing case ID (4 digits with leading zeros)
+
+### Manual Case Numbers
+When `case_number` is provided in the request, the system validates and uses the provided value.
+
+**Validation Rules:**
+- Minimum 3 characters long
+- Must be unique (no duplicates allowed)
+- Case-sensitive
+- Cannot be empty or null
+
+**Best Practices:**
+- Use consistent naming conventions (e.g., "CASE-YYYY-NNNN")
+- Include year for easy identification
+- Use sequential numbers for better organization
+- Avoid special characters that might cause issues
+
+### Error Handling
+- **409 Conflict**: Case number already exists
+- **400 Bad Request**: Case number too short or invalid format
+- **422 Unprocessable Entity**: Validation errors in request body
+
+---
+
 ## Data Models
 
 ### Case Model
@@ -925,8 +995,10 @@ async function getCases(page = 0, limit = 10, filters = {}) {
 ```
 
 ### Create New Case
+
+#### Auto-Generate Case Number
 ```javascript
-async function createCase(caseData) {
+async function createCaseWithAutoNumber(caseData) {
   const token = localStorage.getItem('access_token');
   const response = await fetch('/api/v1/cases/create-case', {
     method: 'POST',
@@ -934,7 +1006,38 @@ async function createCase(caseData) {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(caseData)
+    body: JSON.stringify({
+      title: caseData.title,
+      description: caseData.description,
+      main_investigator: caseData.main_investigator,
+      agency_id: caseData.agency_id,
+      work_unit_id: caseData.work_unit_id
+      // case_number will be auto-generated
+    })
+  });
+  
+  return await response.json();
+}
+```
+
+#### Manual Case Number
+```javascript
+async function createCaseWithManualNumber(caseData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch('/api/v1/cases/create-case', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      case_number: caseData.case_number, // Manual case number
+      title: caseData.title,
+      description: caseData.description,
+      main_investigator: caseData.main_investigator,
+      agency_id: caseData.agency_id,
+      work_unit_id: caseData.work_unit_id
+    })
   });
   
   return await response.json();
@@ -1251,6 +1354,7 @@ This comprehensive API documentation covers all Case Management system endpoints
 - **Delete Person**: `DELETE /api/v1/persons/delete-person/{person_id}`
 
 ### Key Features
+- **Flexible Case Number Handling**: Support for both auto-generated and manual case numbers
 - **Comprehensive Case Tracking**: Full lifecycle management from creation to closure
 - **Audit Trail**: Complete logging of all case activities and changes
 - **Person Management**: Detailed tracking of suspects, witnesses, and other persons of interest
@@ -1258,6 +1362,7 @@ This comprehensive API documentation covers all Case Management system endpoints
 - **Pagination**: All list endpoints support pagination for large datasets
 - **Search & Filter**: Advanced filtering capabilities for case discovery
 - **Cascade Operations**: Automatic cleanup of related data when cases are deleted
+- **Validation & Error Handling**: Comprehensive input validation with clear error messages
 
 ### Data Relationships
 - Cases have one-to-many relationships with logs, notes, and persons
