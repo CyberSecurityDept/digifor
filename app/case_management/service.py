@@ -2,8 +2,10 @@ from re import search
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
-from app.case_management.models import Case, Agency, WorkUnit, Person
+from app.case_management.models import Case, Agency, WorkUnit, Person, CaseLog, CaseNote
 from app.case_management.schemas import CaseCreate, CaseUpdate, PersonCreate, PersonUpdate
+from datetime import datetime
+from fastapi import HTTPException
 
 
 def get_or_create_agency(db: Session, name: str):
@@ -29,14 +31,11 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
 class CaseService:
     
     def create_case(self, db: Session, case_data: CaseCreate) -> dict:
-        from datetime import datetime
         case_dict = case_data.dict()
 
-        # Set default status
         if not case_dict.get("status"):
             case_dict["status"] = "Open"
 
-        # 🔹 Handle agency
         agency = None
         agency_name = None
         agency_id = case_dict.get("agency_id")
@@ -76,13 +75,11 @@ class CaseService:
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
 
-        # 🔹 Generate atau gunakan case_number manual
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
             # Cek duplikat
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
-                from fastapi import HTTPException
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
             case_dict["case_number"] = manual_case_number.strip()
         else:
@@ -111,7 +108,6 @@ class CaseService:
         except Exception as e:
             db.rollback()
             print("🔥 ERROR CREATE CASE:", str(e))
-            from fastapi import HTTPException
             if "duplicate key value" in str(e) and "case_number" in str(e):
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
@@ -295,7 +291,6 @@ class CaseService:
             raise Exception(f"Case with ID {case_id} not found")
         
         try:
-            from app.case_management.models import CaseLog, CaseNote, Person
             db.query(CaseLog).filter(CaseLog.case_id == case_id).delete()
             
             db.query(CaseNote).filter(CaseNote.case_id == case_id).delete()
@@ -372,13 +367,11 @@ class CaseService:
             }
             persons_of_interest.append(person_data)
         
-        from app.case_management.models import CaseLog
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
             .order_by(CaseLog.created_at.desc()).all()
         
         case_log = []
         for log in logs:
-            # Format timestamp
             timestamp = log.created_at.strftime("%d %b %Y, %H:%M")
             
             log_data = {
@@ -389,7 +382,6 @@ class CaseService:
             }
             case_log.append(log_data)
         
-        from app.case_management.models import CaseNote
         notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
             .order_by(CaseNote.created_at.desc()).all()
         
@@ -432,8 +424,6 @@ class CaseService:
 
 class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
-        from app.case_management.models import CaseLog
-        
         log = CaseLog(**log_data)
         db.add(log)
         db.commit()
@@ -450,8 +440,6 @@ class CaseLogService:
         }
     
     def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
-        from app.case_management.models import CaseLog
-        
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
             .order_by(CaseLog.created_at.desc())\
             .offset(skip).limit(limit).all()
@@ -472,14 +460,11 @@ class CaseLogService:
         return result
     
     def get_log_count(self, db: Session, case_id: int) -> int:
-        from app.case_management.models import CaseLog
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
 
 
 class CaseNoteService:
     def create_note(self, db: Session, note_data: dict) -> dict:
-        from app.case_management.models import CaseNote
-        
         note = CaseNote(**note_data)
         db.add(note)
         db.commit()
@@ -495,8 +480,6 @@ class CaseNoteService:
         }
     
     def get_case_notes(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
-        from app.case_management.models import CaseNote
-        
         notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
             .order_by(CaseNote.created_at.desc())\
             .offset(skip).limit(limit).all()
@@ -516,12 +499,9 @@ class CaseNoteService:
         return result
     
     def get_note_count(self, db: Session, case_id: int) -> int:
-        from app.case_management.models import CaseNote
         return db.query(CaseNote).filter(CaseNote.case_id == case_id).count()
     
     def update_note(self, db: Session, note_id: int, note_data: dict) -> dict:
-        from app.case_management.models import CaseNote
-        
         note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
         if not note:
             raise Exception(f"Note with ID {note_id} not found")
@@ -543,8 +523,6 @@ class CaseNoteService:
         }
     
     def delete_note(self, db: Session, note_id: int) -> bool:
-        from app.case_management.models import CaseNote
-        
         note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
         if not note:
             return False
@@ -565,7 +543,6 @@ class PersonService:
             db.refresh(person)
         except Exception as e:
             db.rollback()
-            from fastapi import HTTPException
             raise HTTPException(
                 status_code=500,
                 detail="Unexpected server error, please try again later"
