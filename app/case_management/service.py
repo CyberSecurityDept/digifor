@@ -72,6 +72,8 @@ class CaseService:
         
         # Handle case number logic
         manual_case_number = case_dict.get('case_number')
+        use_auto_generate = False
+        
         if manual_case_number and manual_case_number.strip():
             # Check if manual case number already exists
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number).first()
@@ -84,7 +86,8 @@ class CaseService:
             # Use manual case number
             case_dict['case_number'] = manual_case_number.strip()
         else:
-            # Generate a temporary case number first, will be updated after getting the ID
+            # Will auto-generate after case is created
+            use_auto_generate = True
             case_dict['case_number'] = "TEMP-" + str(int(__import__('time').time() * 1000))
         
         try:
@@ -94,7 +97,7 @@ class CaseService:
             db.refresh(case)
 
             # Auto-generate case number if not provided manually
-            if not case.case_number:
+            if use_auto_generate:
                 case.generate_case_number()
                 db.commit()
                 db.refresh(case)
