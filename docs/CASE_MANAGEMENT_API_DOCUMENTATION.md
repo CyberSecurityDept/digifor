@@ -55,7 +55,11 @@ Authorization: Bearer <access_token>
 **Notes:** 
 - Field `status` tidak perlu disertakan dalam request body karena akan otomatis diset ke "Open" saat case pertama kali dibuat.
 - Field `case_number` bersifat opsional:
-  - **Jika tidak disertakan**: Akan otomatis di-generate menggunakan format `{title_prefix}-{date}-{id}` (contoh: "BMI-061025-0001")
+  - **Jika tidak disertakan**: Akan otomatis di-generate menggunakan format `{INITIALS}-{DATE}-{ID}` 
+    - `INITIALS`: Huruf pertama dari setiap kata dalam title (maksimal 3 kata)
+    - `DATE`: Tanggal saat ini dalam format DDMMYY
+    - `ID`: Case ID dengan padding 4 digit
+    - **Contoh**: "Buronan Maroko Interpol" → "BMI-061025-0001"
   - **Jika disertakan**: Akan menggunakan case number yang diberikan (minimum 3 karakter, harus unik)
 
 **Response (201 Created):**
@@ -65,7 +69,7 @@ Authorization: Bearer <access_token>
   "message": "Case created successfully",
   "data": {
     "id": 1,
-    "case_number": "CASE-2024-0001",
+    "case_number": "BMI-061025-0001",
     "title": "Buronan Maroko Interpol",
     "description": "Case description...",
     "status": "Open",
@@ -743,17 +747,20 @@ Authorization: Bearer <access_token>
 ### Auto-Generated Case Numbers
 When `case_number` is not provided in the request, the system automatically generates a unique case number using the following format:
 ```
-{TITLE_PREFIX}-{DATE}-{ID}
+{INITIALS}-{DATE}-{ID}
 ```
 
-**Example:**
-- Title: "Digital Forensics Investigation"
-- Generated: "DFI-010124-0001"
+**Examples:**
+- Title: "Digital Forensics Investigation" → "DFI-061025-0001"
+- Title: "Buronan Maroko Interpol" → "BMI-061025-0002"
+- Title: "Kasus Buronan Internasional Maroko Interpol" → "KBI-061025-0003"
 
 **Format Breakdown:**
-- `TITLE_PREFIX`: First 3 letters of each word in the title (max 3 words)
-- `DATE`: Current date in DDMMYY format
-- `ID`: Auto-incrementing case ID (4 digits with leading zeros)
+- `INITIALS`: First letter of each word in the title (max 3 words)
+  - If title has 3 words or less: Use all words
+  - If title has more than 3 words: Use first 3 words only
+- `DATE`: Current date in DDMMYY format (e.g., 061025 for June 10, 2025)
+- `ID`: Case ID with 4-digit padding (e.g., 0001, 0002, 0003)
 
 ### Manual Case Numbers
 When `case_number` is provided in the request, the system validates and uses the provided value.
@@ -774,6 +781,23 @@ When `case_number` is provided in the request, the system validates and uses the
 - **409 Conflict**: Case number already exists
 - **400 Bad Request**: Case number too short or invalid format
 - **422 Unprocessable Entity**: Validation errors in request body
+- **500 Internal Server Error**: Database constraint violations or unexpected errors
+
+### Case Number Generation Examples
+
+**Title with 3 words or less:**
+- "Digital Forensics" → "DF-061025-0001"
+- "Buronan Maroko Interpol" → "BMI-061025-0002"
+- "Cyber Crime" → "CC-061025-0003"
+
+**Title with more than 3 words:**
+- "Kasus Buronan Internasional Maroko Interpol" → "KBI-061025-0004"
+- "Digital Forensics Investigation Cyber Crime" → "DFI-061025-0005"
+- "Penyelidikan Kasus Kejahatan Cyber Internasional" → "PKK-061025-0006"
+
+**Special Characters Handling:**
+- "Case #123 - Special Investigation" → "CSI-061025-0007"
+- "Digital Forensics (Phase 1)" → "DFP-061025-0008"
 
 ---
 
@@ -1011,13 +1035,25 @@ async function createCaseWithAutoNumber(caseData) {
       description: caseData.description,
       main_investigator: caseData.main_investigator,
       agency_id: caseData.agency_id,
-      work_unit_id: caseData.work_unit_id
-      // case_number will be auto-generated
+      work_unit_id: caseData.work_unit_id,
+      agency_name: caseData.agency_name,
+      work_unit_name: caseData.work_unit_name
+      // case_number will be auto-generated as {INITIALS}-{DATE}-{ID}
     })
   });
   
   return await response.json();
 }
+
+// Example usage:
+const caseData = {
+  title: "Buronan Maroko Interpol",
+  description: "Investigation of international fugitive",
+  main_investigator: "Detective Smith",
+  agency_name: "Trikora Agency",
+  work_unit_name: "International Division"
+};
+// Will generate case number like: "BMI-061025-0001"
 ```
 
 #### Manual Case Number
