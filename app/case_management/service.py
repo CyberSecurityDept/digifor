@@ -84,8 +84,8 @@ class CaseService:
             # Use manual case number
             case_dict['case_number'] = manual_case_number.strip()
         else:
-            # Will auto-generate after case is created
-            case_dict['case_number'] = None
+            # Generate a temporary case number first, will be updated after getting the ID
+            case_dict['case_number'] = "TEMP-" + str(int(__import__('time').time() * 1000))
         
         try:
             case = Case(**case_dict)
@@ -100,6 +100,7 @@ class CaseService:
                 db.refresh(case)
         except Exception as e:
             db.rollback()
+            print("🔥 ERROR CREATE CASE:", str(e))
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
                 from fastapi import HTTPException
                 raise HTTPException(
