@@ -67,7 +67,7 @@ class CaseBase(BaseModel):
 
 
 class CaseCreate(BaseModel):
-    case_number: str = Field(..., description="Case number")
+    case_number: Optional[str] = Field(None, description="Case number (optional - will auto-generate if not provided)")
     title: str = Field(..., description="Case title")
     description: Optional[str] = Field(None, description="Case description")
     main_investigator: str = Field(..., description="Main investigator name")
@@ -87,6 +87,15 @@ class CaseCreate(BaseModel):
         if v == "" or v is None:
             return None
         return v
+    
+    @validator('case_number', pre=True)
+    def validate_case_number(cls, v):
+        if v == "" or v is None:
+            return None
+        # Check if case number format is valid (optional validation)
+        if v and len(v.strip()) < 3:
+            raise ValueError("Case number must be at least 3 characters long")
+        return v.strip() if v else None
 
 class CaseUpdate(BaseModel):
     case_number: Optional[str] = None

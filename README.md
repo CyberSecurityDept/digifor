@@ -601,16 +601,30 @@ The platform uses PostgreSQL with the following main tables:
 
 ### Creating a Case with Person of Interest
 
+#### Option 1: Auto-generate Case Number
 ```bash
-# 1. Create a new case
+# 1. Create a new case (case number will be auto-generated)
 curl -X POST "http://localhost:8000/api/v1/cases/create-case" \
   -H "Content-Type: application/json" \
   -d '{
-    "case_number": "CASE-2024-001",
     "title": "Digital Forensics Investigation",
     "description": "Investigation of digital evidence",
     "main_investigator": "Detective Smith"
   }'
+```
+
+#### Option 2: Manual Case Number
+```bash
+# 1. Create a new case with manual case number
+curl -X POST "http://localhost:8000/api/v1/cases/create-case" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_number": "CASE-2024-001",
+    "title": "Digital Forensics Investigation", 
+    "description": "Investigation of digital evidence",
+    "main_investigator": "Detective Smith"
+  }'
+```
 
 # 2. Add person of interest to the case
 curl -X POST "http://localhost:8000/api/v1/persons/create-person" \

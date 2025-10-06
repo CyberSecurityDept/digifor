@@ -68,13 +68,30 @@ class CaseService:
         case_dict.pop('agency_name', None)
         case_dict.pop('work_unit_name', None)
         
+        # Handle case number logic
+        manual_case_number = case_dict.get('case_number')
+        if manual_case_number:
+            # Check if manual case number already exists
+            existing_case = db.query(Case).filter(Case.case_number == manual_case_number).first()
+            if existing_case:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Case number '{manual_case_number}' already exists"
+                )
+            # Use manual case number
+            case_dict['case_number'] = manual_case_number
+        else:
+            # Will auto-generate after case is created
+            case_dict['case_number'] = None
+        
         try:
             case = Case(**case_dict)
             db.add(case)
             db.commit()
             db.refresh(case)
 
-            # Generate case number after getting the ID
+            # Auto-generate case number if not provided manually
             if not case.case_number:
                 case.generate_case_number()
                 db.commit()
