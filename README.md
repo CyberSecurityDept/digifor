@@ -1,4 +1,4 @@
-# 🔍 Forenlytic - Digital Forensics Analysis Platform
+# 🔍Digifor (digital forensik)
 
 > **A comprehensive platform for managing digital forensics cases, evidence, suspects, and persons of interest with secure chain of custody tracking.**
 
