@@ -323,8 +323,6 @@ def main():
     if reports:
         test_get_report(case_id, reports[0]['filename'])
         
-        # Test delete report (optional)
-        # test_delete_report(case_id, reports[0]['filename'])
     
     # Test report statistics
     test_report_stats()

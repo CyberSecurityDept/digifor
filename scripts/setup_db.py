@@ -24,8 +24,6 @@ def main():
         # Initialize database
         init_db()
         logger.info("Database tables created successfully")
-        
-        # TODO: Add sample data creation here
         logger.info("Database setup completed successfully")
         
     except Exception as e:
