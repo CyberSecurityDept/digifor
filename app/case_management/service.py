@@ -207,12 +207,40 @@ class CaseService:
 
     
     def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
+        
         # Get the actual Case object from database
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
         
         update_data = case_data.dict(exclude_unset=True)
+        
+        # Handle case_number update with auto-generation logic
+        if 'case_number' in update_data:
+            manual_case_number = update_data['case_number']
+            if manual_case_number and manual_case_number.strip():
+                # Check for duplicate case number
+                existing_case = db.query(Case).filter(
+                    Case.case_number == manual_case_number.strip(),
+                    Case.id != case_id
+                ).first()
+                if existing_case:
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=409, 
+                        detail=f"Case number '{manual_case_number}' already exists"
+                    )
+                update_data['case_number'] = manual_case_number.strip()
+            else:
+                # Auto-generate case number if empty or None
+                title = update_data.get('title', case.title).strip().upper()
+                words = title.split()
+                first_three_words = words[:3]
+                initials = ''.join([w[0] for w in first_three_words])
+                date_part = datetime.now().strftime("%d%m%y")
+                case_id_str = str(case.id).zfill(4)
+                update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
+        
         for field, value in update_data.items():
             setattr(case, field, value)
         
