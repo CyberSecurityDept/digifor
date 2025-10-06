@@ -98,7 +98,7 @@ class CaseUpdate(BaseModel):
     work_unit_name: Optional[str] = None
     
     class Config:
-        extra = "ignore"  # Ignore extra fields not defined in schema
+        extra = "ignore"
 
 
 class Case(BaseModel):
@@ -144,7 +144,6 @@ class CasePerson(CasePersonBase):
         from_attributes = True
 
 
-# Person Schemas
 class PersonBase(BaseModel):
     name: str = Field(..., description="Person name")
     is_unknown: bool = Field(False, description="Is unknown person")
@@ -170,7 +169,7 @@ class PersonUpdate(BaseModel):
     investigator: Optional[str] = None
 
     class Config:
-        extra = "ignore"  # Ignore extra fields not defined in schema
+        extra = "ignore"
 
 
 class Person(PersonBase):
@@ -212,14 +211,11 @@ class CaseListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-
-# Case Log Schemas
 class CaseLogBase(BaseModel):
     action: str = Field(..., description="Action performed")
     changed_by: str = Field(..., description="User who made the change")
     change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
     notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
-
 
 class CaseLogCreate(CaseLogBase):
     case_id: int = Field(..., description="Case ID")
@@ -248,17 +244,13 @@ class CaseLogListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-
-# Case Notes Schemas
 class CaseNoteBase(BaseModel):
     note: str = Field(..., description="Note content")
     status: Optional[str] = Field(None, description="Optional status for the note")
     created_by: str = Field(..., description="User who created the note")
 
-
 class CaseNoteCreate(CaseNoteBase):
     case_id: int = Field(..., description="Case ID")
-
 
 class CaseNote(CaseNoteBase):
     id: int
@@ -268,12 +260,10 @@ class CaseNote(CaseNoteBase):
     class Config:
         from_attributes = True
 
-
 class CaseNoteResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CaseNote
-
 
 class CaseNoteListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -283,8 +273,6 @@ class CaseNoteListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-
-# Analysis schema for person evidence
 class AnalysisItem(BaseModel):
     evidence_id: str = Field(..., description="Evidence ID")
     summary: str = Field(..., description="Analysis summary")
@@ -294,7 +282,6 @@ class AnalysisItem(BaseModel):
         from_attributes = True
 
 
-# Person with analysis for case detail response
 class PersonWithAnalysis(BaseModel):
     id: int
     name: str = Field(..., description="Person name")
@@ -305,7 +292,6 @@ class PersonWithAnalysis(BaseModel):
         from_attributes = True
 
 
-# Case log for case detail response
 class CaseLogDetail(BaseModel):
     status: str = Field(..., description="Log status")
     timestamp: str = Field(..., description="Formatted timestamp")
@@ -325,8 +311,6 @@ class CaseNoteDetail(BaseModel):
     class Config:
         from_attributes = True
 
-
-# Summary schema
 class CaseSummary(BaseModel):
     total_persons: int = Field(..., description="Total number of persons")
     total_evidence: int = Field(..., description="Total number of evidence")
@@ -335,7 +319,6 @@ class CaseSummary(BaseModel):
         from_attributes = True
 
 
-# Comprehensive case detail response
 class CaseDetailResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Case detail retrieved successfully", description="Response message")

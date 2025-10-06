@@ -12,12 +12,11 @@ class EvidenceType(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
-    category = Column(String(50))  # digital, physical, biological, etc.
+    category = Column(String(50))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
     evidence = relationship("Evidence", back_populates="evidence_type")
     
     def __repr__(self):
@@ -33,49 +32,41 @@ class Evidence(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text)
     evidence_type_id = Column(Integer, ForeignKey("evidence_types.id"))
-    
-    # Case association
+
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     
     # Physical properties
-    weight = Column(Float)  # in grams
-    dimensions = Column(String(100))  # e.g., "10x5x2 cm"
+    weight = Column(Float)
+    dimensions = Column(String(100))
     color = Column(String(50))
     material = Column(String(100))
     
-    # Digital properties
     file_path = Column(String(500))
-    file_size = Column(Integer)  # in bytes
-    file_hash = Column(String(64))  # SHA-256 hash
-    file_type = Column(String(50))  # MIME type
+    file_size = Column(Integer)
+    file_hash = Column(String(64))
+    file_type = Column(String(50))
     file_extension = Column(String(10))
-    
-    # Status and processing
-    status = Column(String(20), default="collected")  # collected, analyzed, archived, destroyed
-    analysis_status = Column(String(20), default="pending")  # pending, in_progress, completed, failed
-    analysis_progress = Column(Integer, default=0)  # 0-100%
-    
-    # Chain of custody
+
+    status = Column(String(20), default="collected")
+    analysis_status = Column(String(20), default="pending")
+    analysis_progress = Column(Integer, default=0)
+
     collected_by = Column(String(100))
     collected_date = Column(DateTime(timezone=True))
     collected_location = Column(String(200))
     collection_method = Column(String(100))
     
-    # Storage
     storage_location = Column(String(200))
-    storage_conditions = Column(String(100))  # temperature, humidity, etc.
-    
-    # Metadata
+    storage_conditions = Column(String(100))
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     archived_at = Column(DateTime(timezone=True))
-    
-    # Additional data
+
     tags = Column(JSON)
     notes = Column(Text)
     is_confidential = Column(Boolean, default=False)
-    
-    # Relationships
+
     case = relationship("Case", back_populates="evidence")
     evidence_type = relationship("EvidenceType", back_populates="evidence")
     custody_logs = relationship("CustodyLog", back_populates="evidence", cascade="all, delete-orphan")
@@ -91,47 +82,39 @@ class CustodyLog(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
-    
-    # Custody event details
-    event_type = Column(String(50), nullable=False)  # acquisition, preparation, extraction, analysis, transfer, storage
+
+    event_type = Column(String(50), nullable=False)
     event_date = Column(DateTime(timezone=True), nullable=False)
-    person_name = Column(String(100), nullable=False)  # Person handling the evidence
-    person_title = Column(String(100))  # Job title/role
-    person_id = Column(String(50))  # Employee ID or badge number
-    location = Column(String(200), nullable=False)  # Where the event occurred
-    location_type = Column(String(50))  # lab, field, storage, court, etc.
-    
-    # Event details
-    action_description = Column(Text)  # What was done
-    tools_used = Column(JSON)  # List of tools/equipment used
-    conditions = Column(String(200))  # Environmental conditions
-    duration = Column(Integer)  # Duration in minutes
-    
-    # Transfer details (if applicable)
-    transferred_to = Column(String(100))  # Person receiving evidence
-    transferred_from = Column(String(100))  # Person giving evidence
-    transfer_reason = Column(String(200))  # Reason for transfer
-    
-    # Verification
-    witness_name = Column(String(100))  # Witness to the event
-    witness_signature = Column(String(500))  # Digital signature or signature hash
-    verification_method = Column(String(50))  # signature, biometric, digital_cert
-    
-    # Immutable properties
-    is_immutable = Column(Boolean, default=True)  # Cannot be modified after creation
-    is_verified = Column(Boolean, default=False)  # Has been verified
+    person_name = Column(String(100), nullable=False)
+    person_title = Column(String(100))
+    person_id = Column(String(50))
+    location = Column(String(200), nullable=False)
+    location_type = Column(String(50))
+
+    action_description = Column(Text)
+    tools_used = Column(JSON)
+    conditions = Column(String(200))
+    duration = Column(Integer)
+
+    transferred_to = Column(String(100)) 
+    transferred_from = Column(String(100))
+    transfer_reason = Column(String(200))
+
+    witness_name = Column(String(100))
+    witness_signature = Column(String(500))
+    verification_method = Column(String(50))
+
+    is_immutable = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
     verification_date = Column(DateTime(timezone=True))
     verified_by = Column(String(100))
     
-    # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    created_by = Column(String(100))  # User who created the log
-    notes = Column(Text)  # Additional notes
+    created_by = Column(String(100))
+    notes = Column(Text)
     
-    # Hash for integrity verification
-    log_hash = Column(String(64))  # SHA-256 hash of the log entry
+    log_hash = Column(String(64))
     
-    # Relationships
     evidence = relationship("Evidence", back_populates="custody_logs")
     
     def __repr__(self):
@@ -144,30 +127,25 @@ class CustodyReport(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
-    report_type = Column(String(50), default="standard")  # standard, iso_27037, nist
+    report_type = Column(String(50), default="standard")
     
-    # Report details
     report_title = Column(String(200), nullable=False)
     report_description = Column(Text)
     generated_by = Column(String(100), nullable=False)
     generated_date = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Report content
-    report_data = Column(JSON)  # Structured report data
-    report_file_path = Column(String(500))  # Path to generated report file
-    report_file_hash = Column(String(64))  # Hash of the report file
-    
-    # Compliance
-    compliance_standard = Column(String(50))  # iso_27037, nist, custom
+    report_data = Column(JSON)
+    report_file_path = Column(String(500))
+    report_file_hash = Column(String(64))
+
+    compliance_standard = Column(String(50))
     is_verified = Column(Boolean, default=False)
     verified_by = Column(String(100))
     verification_date = Column(DateTime(timezone=True))
     
-    # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
     
-    # Relationships
     evidence = relationship("Evidence", back_populates="custody_reports")
     
     def __repr__(self):

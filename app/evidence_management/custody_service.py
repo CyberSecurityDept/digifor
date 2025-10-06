@@ -168,8 +168,7 @@ class CustodyService:
             self.db.rollback()
             raise e
     
-    def get_custody_reports(self, evidence_id: UUID, skip: int = 0, limit: int = 10,
-                           report_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_custody_reports(self, evidence_id: UUID, skip: int = 0, limit: int = 10, report_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             query = self.db.query(CustodyReport).filter(
                 CustodyReport.evidence_id == evidence_id

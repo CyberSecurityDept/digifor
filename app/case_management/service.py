@@ -73,29 +73,25 @@ class CaseService:
             db.add(case)
             db.commit()
             db.refresh(case)
-            
-            # Generate case number after getting the ID
+
             case.generate_case_number()
             db.commit()
             db.refresh(case)
         except Exception as e:
             db.rollback()
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
-                # Create custom exception for duplicate case number with 409 status
                 from fastapi import HTTPException
                 raise HTTPException(
                     status_code=409,
                     detail=f"Case number '{case_dict.get('case_number')}' already exists"
                 )
             else:
-                # Re-raise other exceptions as 500 server errors
                 from fastapi import HTTPException
                 raise HTTPException(
                     status_code=500,
                     detail="Unexpected server error, please try again later"
                 )
         
-        # Return case as dict with agency and work unit names
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
@@ -203,8 +199,7 @@ class CaseService:
         
         db.commit()
         db.refresh(case)
-        
-        # Get agency and work unit names for response
+
         agency_name = None
         work_unit_name = None
         
@@ -217,8 +212,7 @@ class CaseService:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
-        
-        # Return updated case as dict with names
+
         case_dict = {
             "id": case.id,
             "case_number": case.case_number,
@@ -313,12 +307,11 @@ class CaseService:
             person_data = {
                 "id": person.id,
                 "name": person.name,
-                "person_type": "Suspect",  # Default type
+                "person_type": "Suspect",
                 "analysis": analysis_items
             }
             persons_of_interest.append(person_data)
         
-        # Get case logs
         from app.case_management.models import CaseLog
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
             .order_by(CaseLog.created_at.desc()).all()
@@ -336,14 +329,12 @@ class CaseService:
             }
             case_log.append(log_data)
         
-        # Get case notes
         from app.case_management.models import CaseNote
         notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
             .order_by(CaseNote.created_at.desc()).all()
         
         case_notes = []
         for note in notes:
-            # Format timestamp
             timestamp = note.created_at.strftime("%d %b %Y, %H:%M")
             
             note_data = {
@@ -353,10 +344,8 @@ class CaseService:
             }
             case_notes.append(note_data)
         
-        # Calculate evidence count
         evidence_count = len([p for p in persons if p.evidence_id])
         
-        # Build comprehensive case data
         case_data = {
             "case": {
                 "id": case.id,
