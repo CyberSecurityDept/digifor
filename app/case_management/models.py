@@ -81,6 +81,7 @@ class CaseLog(Base):
     changed_by = Column(String(255), nullable=False)
     change_detail = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+    status = Column(String(20), nullable=True, description="Case status at the time of log creation")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     case = relationship("Case", back_populates="logs")
@@ -88,7 +89,7 @@ class CaseLog(Base):
     def __repr__(self):
         return (
             f"<CaseLog(id={self.id}, case_id={self.case_id}, "
-            f"action='{self.action}', changed_by='{self.changed_by}')>"
+            f"action='{self.action}', changed_by='{self.changed_by}', status='{self.status}')>"
         )
 
 
