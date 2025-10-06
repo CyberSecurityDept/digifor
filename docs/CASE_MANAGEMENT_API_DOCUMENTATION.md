@@ -271,11 +271,61 @@ Authorization: Bearer <access_token>
 **Request Body:**
 ```json
 {
+  "case_number": "BMI-061025-0001",
   "title": "Updated Case Title",
   "description": "Updated description",
   "main_investigator": "New Investigator",
   "agency_id": 2,
-  "work_unit_id": 2
+  "work_unit_id": 2,
+  "agency_name": "New Agency Name",
+  "work_unit_name": "New Work Unit Name"
+}
+```
+
+**Request Body Fields:**
+- `case_number` (string, optional): Case number to update
+- `title` (string, optional): Case title to update
+- `description` (string, optional): Case description to update
+- `main_investigator` (string, optional): Main investigator name to update
+- `agency_id` (integer, optional): Agency ID to update
+- `work_unit_id` (integer, optional): Work unit ID to update
+- `agency_name` (string, optional): Agency name for manual input
+- `work_unit_name` (string, optional): Work unit name for manual input
+
+**Note:** All fields are optional. Only provided fields will be updated. You can update any combination of fields.
+
+**Example Request Bodies:**
+
+**Update only title and description:**
+```json
+{
+  "title": "Updated Case Title",
+  "description": "Updated case description with new findings"
+}
+```
+
+**Update investigator and agency:**
+```json
+{
+  "main_investigator": "Detective John Smith",
+  "agency_id": 3,
+  "work_unit_id": 5
+}
+```
+
+**Update with manual agency/work unit names:**
+```json
+{
+  "title": "Case Title Update",
+  "agency_name": "Special Investigation Unit",
+  "work_unit_name": "Cyber Crime Division"
+}
+```
+
+**Update case number only:**
+```json
+{
+  "case_number": "NEW-061025-0002"
 }
 ```
 
@@ -1096,6 +1146,7 @@ async function getCaseDetail(caseId) {
 
 ### Update Case
 ```javascript
+// Update case with partial data
 async function updateCase(caseId, caseData) {
   const token = localStorage.getItem('access_token');
   const response = await fetch(`/api/v1/cases/update-case/${caseId}`, {
@@ -1109,6 +1160,29 @@ async function updateCase(caseId, caseData) {
   
   return await response.json();
 }
+
+// Example usage - Update only title and description
+const updateData = {
+  title: "Updated Case Title",
+  description: "Updated case description with new findings"
+};
+const result = await updateCase(1, updateData);
+
+// Example usage - Update investigator and agency
+const investigatorUpdate = {
+  main_investigator: "Detective John Smith",
+  agency_id: 3,
+  work_unit_id: 5
+};
+const result2 = await updateCase(1, investigatorUpdate);
+
+// Example usage - Update with manual agency/work unit names
+const manualUpdate = {
+  title: "Case Title Update",
+  agency_name: "Special Investigation Unit",
+  work_unit_name: "Cyber Crime Division"
+};
+const result3 = await updateCase(1, manualUpdate);
 ```
 
 ### Delete Case
