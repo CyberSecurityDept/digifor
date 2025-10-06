@@ -55,39 +55,187 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 - PostgreSQL 15 or higher
 - Git
 
-### Installation
+## 🍎 macOS Installation
 
-1. **Clone the repository**
+### 1. Install Homebrew (if not already installed)
 ```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### 2. Install Python and PostgreSQL
+```bash
+# Install Python 3.11
+brew install python@3.11
+
+# Install PostgreSQL
+brew install postgresql@15
+
+# Start PostgreSQL service
+brew services start postgresql@15
+
+# Create database
+createdb forenlytic
+```
+
+### 3. Clone and Setup Project
+```bash
+# Clone repository
 git clone <repository-url>
 cd forenlytic-backend
-```
 
-2. **Create virtual environment**
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
 
-3. **Install dependencies**
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-4. **Setup environment**
-```bash
+# Setup environment
 cp env.example .env
 # Edit .env with your database credentials
-```
 
-5. **Initialize database**
-```bash
+# Initialize database
 python tools/init_db.py
+
+# Run the server
+python scripts/run_dev.py
 ```
 
-6. **Run the server**
+## 🪟 Windows Installation
+
+### 1. Install Python 3.11
+- Download from [python.org](https://www.python.org/downloads/)
+- **Important**: Check "Add Python to PATH" during installation
+- Verify installation: `python --version`
+
+### 2. Install PostgreSQL
+- Download from [postgresql.org](https://www.postgresql.org/download/windows/)
+- Install with default settings
+- Remember the password you set for the `postgres` user
+- Open pgAdmin and create a database named `forenlytic`
+
+### 3. Install Git
+- Download from [git-scm.com](https://git-scm.com/download/win)
+- Install with default settings
+
+### 4. Clone and Setup Project
+```cmd
+# Clone repository
+git clone <repository-url>
+cd forenlytic-backend
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup environment
+copy env.example .env
+# Edit .env with your database credentials
+
+# Initialize database
+python tools\init_db.py
+
+# Run the server
+python scripts\run_dev.py
+```
+
+## 🐧 Linux Installation (Ubuntu/Debian)
+
+### 1. Update system packages
 ```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+### 2. Install Python 3.11 and pip
+```bash
+# Install Python 3.11
+sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip -y
+
+# Install build essentials
+sudo apt install build-essential -y
+```
+
+### 3. Install PostgreSQL
+```bash
+# Install PostgreSQL
+sudo apt install postgresql postgresql-contrib -y
+
+# Start PostgreSQL service
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Create database and user
+sudo -u postgres psql
+```
+
+In PostgreSQL shell:
+```sql
+CREATE DATABASE forenlytic;
+CREATE USER forenlytic_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;
+\q
+```
+
+### 4. Install Git
+```bash
+sudo apt install git -y
+```
+
+### 5. Clone and Setup Project
+```bash
+# Clone repository
+git clone <repository-url>
+cd forenlytic-backend
+
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup environment
+cp env.example .env
+# Edit .env with your database credentials
+
+# Initialize database
+python tools/init_db.py
+
+# Run the server
 python scripts/run_dev.py
+```
+
+## 🔧 Environment Configuration
+
+### Database Configuration (.env file)
+```env
+# Database Configuration
+DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
+
+# Application Settings
+DEBUG=True
+LOG_LEVEL=info
+SECRET_KEY=your-secret-key-here
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+```
+
+### Verify Installation
+```bash
+# Check Python version
+python --version
+
+# Check PostgreSQL connection
+python tools/check_env.py
+
+# Run tests
+python tests/run_tests_new.py
 ```
 
 The API will be available at `http://localhost:8000`
