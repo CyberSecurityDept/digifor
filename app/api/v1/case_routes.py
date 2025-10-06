@@ -77,6 +77,31 @@ async def get_cases(
         )
 
 
+@router.get("/get-case-for-update/{case_id}", response_model=CaseResponse)
+async def get_case_for_update(
+    case_id: int,
+    db: Session = Depends(get_database)
+):
+    try:
+        case = case_service.get_case_for_update(db, case_id)
+        return CaseResponse(
+            status=200,
+            message="Case data retrieved successfully for update",
+            data=case
+        )
+    except Exception as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail="Unexpected server error, please try again later"
+            )
+
+
 @router.put("/update-case/{case_id}", response_model=CaseResponse)
 async def update_case(
     case_id: int,

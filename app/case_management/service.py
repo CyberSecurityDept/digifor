@@ -31,60 +31,76 @@ class CaseService:
     def create_case(self, db: Session, case_data: CaseCreate) -> dict:
         from datetime import datetime
         case_dict = case_data.dict()
-        
-        # Set default status to "Open" if not provided
-        if 'status' not in case_dict or case_dict['status'] is None:
-            case_dict['status'] = "Open"
-        
+
+        # Set default status
+        if not case_dict.get("status"):
+            case_dict["status"] = "Open"
+
+        # 🔹 Handle agency
         agency = None
         agency_name = None
-        agency_id = case_dict.get('agency_id')
+        agency_id = case_dict.get("agency_id")
+
         if agency_id and agency_id > 0:
             agency = db.query(Agency).filter(Agency.id == agency_id).first()
             if not agency:
                 raise Exception(f"Agency with ID {agency_id} not found")
             agency_name = agency.name
-        elif case_dict.get('agency_name'):
-            agency = get_or_create_agency(db, case_dict['agency_name'])
-            case_dict['agency_id'] = agency.id
+        elif case_dict.get("agency_name"):
+            agency = get_or_create_agency(db, case_dict["agency_name"])
+            case_dict["agency_id"] = agency.id
             agency_name = agency.name
         else:
-            case_dict['agency_id'] = None
-        
+            case_dict["agency_id"] = None
+
+        # 🔹 Handle work unit
         work_unit = None
         work_unit_name = None
-        work_unit_id = case_dict.get('work_unit_id')
+        work_unit_id = case_dict.get("work_unit_id")
+
         if work_unit_id and work_unit_id > 0:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id).first()
             if not work_unit:
                 raise Exception(f"Work unit with ID {work_unit_id} not found")
             work_unit_name = work_unit.name
-        elif case_dict.get('work_unit_name'):
+        elif case_dict.get("work_unit_name"):
             if not agency:
                 raise Exception("Agency must be specified when creating work unit")
-            work_unit = get_or_create_work_unit(db, case_dict['work_unit_name'], agency)
-            case_dict['work_unit_id'] = work_unit.id
+            work_unit = get_or_create_work_unit(db, case_dict["work_unit_name"], agency)
+            case_dict["work_unit_id"] = work_unit.id
             work_unit_name = work_unit.name
         else:
-            case_dict['work_unit_id'] = None
-        
-        case_dict.pop('agency_name', None)
-        case_dict.pop('work_unit_name', None)
-        
-        manual_case_number = case_dict.get('case_number')
-        auto_generate = False
+            case_dict["work_unit_id"] = None
 
+        # Hapus field tambahan
+        case_dict.pop("agency_name", None)
+        case_dict.pop("work_unit_name", None)
+
+        # 🔹 Generate atau gunakan case_number manual
+        manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
-            # Check duplicate
+            # Cek duplikat
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
                 from fastapi import HTTPException
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
-            case_dict['case_number'] = manual_case_number.strip()
+            case_dict["case_number"] = manual_case_number.strip()
         else:
-            auto_generate = True
-            # Generate temporary case number first
-            case_dict['case_number'] = "TEMP-" + str(int(__import__('time').time() * 1000))
+            # 🔥 Auto-generate sebelum insert
+            title = case_dict["title"].strip().upper()
+            words = title.split()
+            first_three = words[:3]
+            initials = "".join([w[0] for w in first_three])
+            date_part = datetime.now().strftime("%d%m%y")
+
+            # Hitung total case di hari yang sama (buat urutan 0001, 0002, dst)
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_count = db.query(Case).filter(
+                cast(Case.created_at, String).like(f"%{today_str}%")
+            ).count() + 1
+
+            case_number = f"{initials}-{date_part}-{str(today_count).zfill(4)}"
+            case_dict["case_number"] = case_number
 
         try:
             case = Case(**case_dict)
@@ -92,27 +108,11 @@ class CaseService:
             db.commit()
             db.refresh(case)
 
-            # Auto-generate case number
-            if auto_generate:
-                title = case.title.strip().upper()
-                words = title.split()
-                first_three_words = words[:3]
-                initials = ''.join([w[0] for w in first_three_words])
-                date_part = datetime.now().strftime("%d%m%y")
-
-                # Ambil urutan ID terakhir untuk 4 digit akhir
-                case_id_str = str(case.id).zfill(4)
-
-                case_number = f"{initials}-{date_part}-{case_id_str}"
-                case.case_number = case_number
-                db.commit()
-                db.refresh(case)
-
         except Exception as e:
             db.rollback()
             print("🔥 ERROR CREATE CASE:", str(e))
             from fastapi import HTTPException
-            if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
+            if "duplicate key value" in str(e) and "case_number" in str(e):
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
 
@@ -126,11 +126,47 @@ class CaseService:
             "agency_name": agency_name,
             "work_unit_name": work_unit_name,
             "created_at": case.created_at,
-            "updated_at": case.updated_at
+            "updated_at": case.updated_at,
         }
 
         return case_response
     
+    def get_case_for_update(self, db: Session, case_id: int) -> dict:
+        """Get case data for update form with current values"""
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
+        # Get agency and work unit names
+        agency_name = None
+        work_unit_name = None
+        
+        if case.agency_id:
+            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
+            if agency:
+                agency_name = agency.name
+        
+        if case.work_unit_id:
+            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
+            if work_unit:
+                work_unit_name = work_unit.name
+        
+        case_response = {
+            "id": case.id,
+            "case_number": case.case_number,
+            "title": case.title,
+            "description": case.description,
+            "status": case.status,
+            "main_investigator": case.main_investigator,
+            "agency_id": case.agency_id,
+            "work_unit_id": case.work_unit_id,
+            "agency_name": agency_name,
+            "work_unit_name": work_unit_name,
+            "created_at": case.created_at,
+            "updated_at": case.updated_at
+        }
+        
+        return case_response
     
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
