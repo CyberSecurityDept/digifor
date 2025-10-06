@@ -37,10 +37,11 @@ class CaseService:
         
         agency = None
         agency_name = None
-        if case_dict.get('agency_id'):
-            agency = db.query(Agency).filter(Agency.id == case_dict['agency_id']).first()
+        agency_id = case_dict.get('agency_id')
+        if agency_id and agency_id > 0:
+            agency = db.query(Agency).filter(Agency.id == agency_id).first()
             if not agency:
-                raise Exception(f"Agency with ID {case_dict['agency_id']} not found")
+                raise Exception(f"Agency with ID {agency_id} not found")
             agency_name = agency.name
         elif case_dict.get('agency_name'):
             agency = get_or_create_agency(db, case_dict['agency_name'])
@@ -51,10 +52,11 @@ class CaseService:
         
         work_unit = None
         work_unit_name = None
-        if case_dict.get('work_unit_id'):
-            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case_dict['work_unit_id']).first()
+        work_unit_id = case_dict.get('work_unit_id')
+        if work_unit_id and work_unit_id > 0:
+            work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id).first()
             if not work_unit:
-                raise Exception(f"Work unit with ID {case_dict['work_unit_id']} not found")
+                raise Exception(f"Work unit with ID {work_unit_id} not found")
             work_unit_name = work_unit.name
         elif case_dict.get('work_unit_name'):
             if not agency:
@@ -70,7 +72,7 @@ class CaseService:
         
         # Handle case number logic
         manual_case_number = case_dict.get('case_number')
-        if manual_case_number:
+        if manual_case_number and manual_case_number.strip():
             # Check if manual case number already exists
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number).first()
             if existing_case:
@@ -80,7 +82,7 @@ class CaseService:
                     detail=f"Case number '{manual_case_number}' already exists"
                 )
             # Use manual case number
-            case_dict['case_number'] = manual_case_number
+            case_dict['case_number'] = manual_case_number.strip()
         else:
             # Will auto-generate after case is created
             case_dict['case_number'] = None
