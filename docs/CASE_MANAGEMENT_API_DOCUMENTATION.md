@@ -85,7 +85,7 @@ Authorization: Bearer <access_token>
 **Response (409 Conflict - Duplicate Case Number):**
 ```json
 {
-  "detail": "Case number 'CASE-2024-0001' already exists"
+  "detail": "Case number 'BMI-061025-0001' already exists"
 }
 ```
 
@@ -243,7 +243,7 @@ Authorization: Bearer <access_token>
   "data": [
     {
       "id": 1,
-      "case_number": "CASE-2024-0001",
+      "case_number": "BMI-061025-0001",
       "title": "Buronan Maroko Interpol",
       "description": "Case description...",
       "status": "Open",
@@ -286,7 +286,7 @@ Authorization: Bearer <access_token>
   "message": "Case updated successfully",
   "data": {
     "id": 1,
-    "case_number": "CASE-2024-0001",
+    "case_number": "BMI-061025-0001",
     "title": "Updated Case Title",
     "description": "Updated description",
     "status": "Open",
