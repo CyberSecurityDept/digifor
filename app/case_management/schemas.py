@@ -234,6 +234,7 @@ class CaseLogCreate(CaseLogBase):
 class CaseLog(CaseLogBase):
     id: int
     case_id: int
+    status: Optional[str] = Field(None, description="Case status at the time of log creation")
     created_at: datetime
 
     class Config:
