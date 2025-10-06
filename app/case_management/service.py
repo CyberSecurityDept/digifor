@@ -29,6 +29,7 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
 class CaseService:
     
     def create_case(self, db: Session, case_data: CaseCreate) -> dict:
+        from datetime import datetime
         case_dict = case_data.dict()
         
         # Set default status to "Open" if not provided
@@ -70,53 +71,50 @@ class CaseService:
         case_dict.pop('agency_name', None)
         case_dict.pop('work_unit_name', None)
         
-        # Handle case number logic
         manual_case_number = case_dict.get('case_number')
-        use_auto_generate = False
-        
+        auto_generate = False
+
         if manual_case_number and manual_case_number.strip():
-            # Check if manual case number already exists
-            existing_case = db.query(Case).filter(Case.case_number == manual_case_number).first()
+            # Check duplicate
+            existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
                 from fastapi import HTTPException
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Case number '{manual_case_number}' already exists"
-                )
-            # Use manual case number
+                raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
             case_dict['case_number'] = manual_case_number.strip()
         else:
-            # Will auto-generate after case is created
-            use_auto_generate = True
-            case_dict['case_number'] = "TEMP-" + str(int(__import__('time').time() * 1000))
-        
+            auto_generate = True
+            case_dict['case_number'] = None  # akan diisi setelah insert
+
         try:
             case = Case(**case_dict)
             db.add(case)
             db.commit()
             db.refresh(case)
 
-            # Auto-generate case number if not provided manually
-            if use_auto_generate:
-                case.generate_case_number()
+            # Auto-generate case number
+            if auto_generate:
+                title = case.title.strip().upper()
+                words = title.split()
+                first_three_words = words[:3]
+                initials = ''.join([w[0] for w in first_three_words])
+                date_part = datetime.now().strftime("%d%m%y")
+
+                # Ambil urutan ID terakhir untuk 4 digit akhir
+                case_id_str = str(case.id).zfill(4)
+
+                case_number = f"{initials}-{date_part}-{case_id_str}"
+                case.case_number = case_number
                 db.commit()
                 db.refresh(case)
+
         except Exception as e:
             db.rollback()
             print("🔥 ERROR CREATE CASE:", str(e))
+            from fastapi import HTTPException
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
-                from fastapi import HTTPException
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Case number '{case_dict.get('case_number')}' already exists"
-                )
-            else:
-                from fastapi import HTTPException
-                raise HTTPException(
-                    status_code=500,
-                    detail="Unexpected server error, please try again later"
-                )
-        
+                raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
+            raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
+
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
@@ -129,7 +127,7 @@ class CaseService:
             "created_at": case.created_at,
             "updated_at": case.updated_at
         }
-        
+
         return case_response
     
     
