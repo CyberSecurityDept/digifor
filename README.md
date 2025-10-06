@@ -212,18 +212,41 @@ python scripts/run_dev.py
 ## 🔧 Environment Configuration
 
 ### Database Configuration (.env file)
+
+Copy the example environment file and update the values:
+
+```bash
+# Copy environment template
+cp env.example .env
+```
+
+Then edit `.env` file with your actual values:
+
 ```env
 # Database Configuration
 DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
 
-# Application Settings
-DEBUG=True
-LOG_LEVEL=info
-SECRET_KEY=your-secret-key-here
+# PostgreSQL Configuration
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=forenlytic_user
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=forenlytic
 
-# Server Configuration
-HOST=0.0.0.0
-PORT=8000
+# Security
+SECRET_KEY=your-secret-key-here-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# File Storage
+UPLOAD_DIR=./data/uploads
+ANALYSIS_DIR=./data/analysis
+REPORTS_DIR=./data/reports
+MAX_FILE_SIZE=104857600  # 100MB
+
+# Development
+DEBUG=True
+LOG_LEVEL=INFO
 ```
 
 ### Verify Installation
