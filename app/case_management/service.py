@@ -127,43 +127,6 @@ class CaseService:
 
         return case_response
     
-    def get_case_for_update(self, db: Session, case_id: int) -> dict:
-        """Get case data for update form with current values"""
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise Exception(f"Case with ID {case_id} not found")
-        
-        # Get agency and work unit names
-        agency_name = None
-        work_unit_name = None
-        
-        if case.agency_id:
-            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
-            if agency:
-                agency_name = agency.name
-        
-        if case.work_unit_id:
-            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
-            if work_unit:
-                work_unit_name = work_unit.name
-        
-        case_response = {
-            "id": case.id,
-            "case_number": case.case_number,
-            "title": case.title,
-            "description": case.description,
-            "status": case.status,
-            "main_investigator": case.main_investigator,
-            "agency_id": case.agency_id,
-            "work_unit_id": case.work_unit_id,
-            "agency_name": agency_name,
-            "work_unit_name": work_unit_name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at
-        }
-        
-        return case_response
-    
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
 
