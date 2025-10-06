@@ -268,7 +268,6 @@ def test_delete_report(case_id, filename):
         return False
 
 def test_report_stats():
-    """Test get report statistics"""
     print("\n📊 Testing report statistics...")
     
     token = get_auth_token()
@@ -309,17 +308,14 @@ def main():
         return
     
     print(f"📁 Test case ID: {case_id}")
-    
-    # Test generate different report types
+     
     test_generate_comprehensive_report(case_id)
     test_generate_summary_report(case_id)
     test_generate_evidence_report(case_id)
     test_generate_analysis_report(case_id)
     
-    # Test list reports
     reports = test_list_reports(case_id)
     
-    # Test get specific report (if any reports exist)
     if reports:
         test_get_report(case_id, reports[0]['filename'])
         
