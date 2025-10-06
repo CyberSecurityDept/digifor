@@ -23,7 +23,7 @@ async def create_person(
             message="Person created successfully",
             data=person
         )
-    except HTTPException
+    except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(

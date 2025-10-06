@@ -74,9 +74,11 @@ class CaseService:
             db.commit()
             db.refresh(case)
 
-            case.generate_case_number()
-            db.commit()
-            db.refresh(case)
+            # Generate case number after getting the ID
+            if not case.case_number:
+                case.generate_case_number()
+                db.commit()
+                db.refresh(case)
         except Exception as e:
             db.rollback()
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):

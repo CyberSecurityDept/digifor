@@ -67,6 +67,7 @@ class CaseBase(BaseModel):
 
 
 class CaseCreate(BaseModel):
+    case_number: str = Field(..., description="Case number")
     title: str = Field(..., description="Case title")
     description: Optional[str] = Field(None, description="Case description")
     main_investigator: str = Field(..., description="Main investigator name")
