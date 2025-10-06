@@ -99,6 +99,15 @@ Once the server is running, you can access:
 - **ReDoc Documentation**: `http://localhost:8000/redoc`
 - **OpenAPI Schema**: `http://localhost:8000/openapi.json`
 
+## 📖 Documentation Files
+
+| Document | Description | Link |
+|----------|-------------|------|
+| **Quick Start Guide** | 5-minute setup guide for getting started | [`docs/QUICK_START.md`](docs/QUICK_START.md) |
+| **Complete Environment Guide** | Comprehensive environment configuration guide | [`docs/COMPLETE_ENVIRONMENT_GUIDE.md`](docs/COMPLETE_ENVIRONMENT_GUIDE.md) |
+| **Case Management API** | Detailed API documentation for case management | [`docs/CASE_MANAGEMENT_API_DOCUMENTATION.md`](docs/CASE_MANAGEMENT_API_DOCUMENTATION.md) |
+| **Authentication API** | Complete authentication API documentation | [`docs/README.md`](docs/README.md) |
+
 ## 🔧 Development
 
 ### Running Tests
@@ -119,22 +128,6 @@ python scripts/setup_db.py  # Setup database
 python tools/migrate_database.py  # Run migrations
 ```
 
-## 📁 Project Structure
-
-```
-backend/
-├── app/                    # Main application
-│   ├── api/               # API routes and endpoints
-│   ├── case_management/   # Case management modules
-│   ├── evidence_management/ # Evidence tracking
-│   ├── suspect_management/ # Suspect management
-│   ├── core/              # Core configuration
-│   └── db/                # Database configuration
-├── scripts/               # Development scripts
-├── tools/                 # Database tools and migrations
-├── tests/                 # Test files
-└── docs/                  # Documentation
-```
 
 ## 🔐 Security Features
 
@@ -145,36 +138,6 @@ backend/
 - **Chain of Custody**: Secure evidence tracking with timestamps
 - **Input Validation**: Comprehensive data validation and sanitization
 
-## 📊 API Endpoints
-
-### Case Management
-- `POST /api/v1/cases/create-case` - Create new case
-- `GET /api/v1/cases/get-all-cases` - List all cases
-- `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` - Get case details
-- `PUT /api/v1/cases/update-case/{case_id}` - Update case
-- `DELETE /api/v1/cases/delete-case/{case_id}` - Delete case
-
-### Evidence Management
-- `POST /api/v1/evidence/create-custody-log` - Create custody log
-- `GET /api/v1/evidence/custody-chain/{evidence_id}` - Get custody chain
-- `GET /api/v1/evidence/custody-events/{evidence_id}` - Get custody events
-
-### Suspect Management
-- `POST /api/v1/suspects/create-suspect` - Create suspect
-- `GET /api/v1/suspects/` - List suspects
-- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - Update suspect
-
-### Person Management
-- `POST /api/v1/persons/create-person` - Create person
-- `GET /api/v1/persons/get-persons-by-case/{case_id}` - Get persons by case
-- `PUT /api/v1/persons/update-person/{person_id}` - Update person
-
-## 🐳 Docker Support
-
-```bash
-# Build and run with Docker
-docker-compose up -d
-```
 
 ## 📈 Performance & Monitoring
 
