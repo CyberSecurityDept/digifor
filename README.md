@@ -80,8 +80,8 @@ createdb forenlytic
 ### 3. Clone and Setup Project
 ```bash
 # Clone repository
-git clone <repository-url>
-cd forenlytic-backend
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor/backend
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -121,8 +121,8 @@ python scripts/run_dev.py
 ### 4. Clone and Setup Project
 ```cmd
 # Clone repository
-git clone <repository-url>
-cd forenlytic-backend
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor/backend
 
 # Create virtual environment
 python -m venv venv
@@ -188,8 +188,8 @@ sudo apt install git -y
 ### 5. Clone and Setup Project
 ```bash
 # Clone repository
-git clone <repository-url>
-cd forenlytic-backend
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor/backend
 
 # Create virtual environment
 python3.11 -m venv venv
