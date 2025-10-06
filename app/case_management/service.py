@@ -83,7 +83,8 @@ class CaseService:
             case_dict['case_number'] = manual_case_number.strip()
         else:
             auto_generate = True
-            case_dict['case_number'] = None  # akan diisi setelah insert
+            # Generate temporary case number first
+            case_dict['case_number'] = "TEMP-" + str(int(__import__('time').time() * 1000))
 
         try:
             case = Case(**case_dict)
