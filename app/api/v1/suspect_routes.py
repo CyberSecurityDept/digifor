@@ -19,7 +19,7 @@ async def get_suspects(
 ):
     try:
         suspects = suspect_service.get_suspects(db, skip, limit, search, status)
-        total = len(suspects)  # This should be improved with proper count query
+        total = len(suspects)
         
         return SuspectListResponse(
             status=200,

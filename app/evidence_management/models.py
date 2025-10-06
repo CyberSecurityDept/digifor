@@ -18,7 +18,7 @@ class EvidenceType(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    # evidence = relationship("Evidence", back_populates="evidence_type")  # Temporarily disabled
+    evidence = relationship("Evidence", back_populates="evidence_type")
     
     def __repr__(self):
         return f"<EvidenceType(id={self.id}, name='{self.name}')>"
@@ -76,10 +76,10 @@ class Evidence(Base):
     is_confidential = Column(Boolean, default=False)
     
     # Relationships
-    # case = relationship("Case", back_populates="evidence")  # Temporarily disabled
-    # evidence_type = relationship("EvidenceType", back_populates="evidence")  # Temporarily disabled
-    # custody_logs = relationship("CustodyLog", back_populates="evidence")  # Temporarily disabled
-    # custody_reports = relationship("CustodyReport", back_populates="evidence")  # Temporarily disabled
+    case = relationship("Case", back_populates="evidence")
+    evidence_type = relationship("EvidenceType", back_populates="evidence")
+    custody_logs = relationship("CustodyLog", back_populates="evidence", cascade="all, delete-orphan")
+    custody_reports = relationship("CustodyReport", back_populates="evidence", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Evidence(id={self.id}, evidence_number='{self.evidence_number}', status='{self.status}')>"
@@ -132,7 +132,7 @@ class CustodyLog(Base):
     log_hash = Column(String(64))  # SHA-256 hash of the log entry
     
     # Relationships
-    # evidence = relationship("Evidence", back_populates="custody_logs")  # Temporarily disabled
+    evidence = relationship("Evidence", back_populates="custody_logs")
     
     def __repr__(self):
         return f"<CustodyLog(id={self.id}, evidence_id={self.evidence_id}, event_type='{self.event_type}')>"
@@ -168,7 +168,7 @@ class CustodyReport(Base):
     is_active = Column(Boolean, default=True)
     
     # Relationships
-    # evidence = relationship("Evidence", back_populates="custody_reports")  # Temporarily disabled
+    evidence = relationship("Evidence", back_populates="custody_reports")
     
     def __repr__(self):
         return f"<CustodyReport(id={self.id}, evidence_id={self.evidence_id}, report_type='{self.report_type}')>"

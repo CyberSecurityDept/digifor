@@ -14,6 +14,9 @@ class Suspect(Base):
     investigator = Column(String(100))  # Investigator name
     status = Column(Enum("Witness", "Suspected Person", "Reported Person", "Suspect", "Defendant / Accused", name="suspect_status"), nullable=False, default="Suspect")
     
+    # Case association
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=True)
+    
     # Basic information
     date_of_birth = Column(Date)
     place_of_birth = Column(String(100))
@@ -47,6 +50,9 @@ class Suspect(Base):
     # Additional data
     notes = Column(Text)
     is_confidential = Column(Boolean, default=False)
+    
+    # Relationships
+    case = relationship("Case", back_populates="suspects")
     
     def __repr__(self):
         return f"<Suspect(id={self.id}, name='{self.name}', status='{self.status}')>"

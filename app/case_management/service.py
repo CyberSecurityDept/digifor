@@ -31,6 +31,10 @@ class CaseService:
     def create_case(self, db: Session, case_data: CaseCreate) -> dict:
         case_dict = case_data.dict()
         
+        # Set default status to "Open" if not provided
+        if 'status' not in case_dict or case_dict['status'] is None:
+            case_dict['status'] = "Open"
+        
         agency = None
         agency_name = None
         if case_dict.get('agency_id'):
@@ -69,6 +73,11 @@ class CaseService:
             db.add(case)
             db.commit()
             db.refresh(case)
+            
+            # Generate case number after getting the ID
+            case.generate_case_number()
+            db.commit()
+            db.refresh(case)
         except Exception as e:
             db.rollback()
             if "duplicate key value violates unique constraint" in str(e) and "case_number" in str(e):
@@ -102,40 +111,6 @@ class CaseService:
         
         return case_response
     
-    def get_case(self, db: Session, case_id: int) -> Case:
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise Exception(f"Case with ID {case_id} not found")
-        
-        # Get agency and work unit names
-        agency_name = None
-        work_unit_name = None
-        
-        if case.agency_id:
-            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
-            if agency:
-                agency_name = agency.name
-        
-        if case.work_unit_id:
-            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
-            if work_unit:
-                work_unit_name = work_unit.name
-        
-        # Create case dict with additional fields
-        case_dict = {
-            "id": case.id,
-            "case_number": case.case_number,
-            "title": case.title,
-            "description": case.description,
-            "status": case.status,
-            "main_investigator": case.main_investigator,
-            "agency_name": agency_name,
-            "work_unit_name": work_unit_name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at
-        }
-        
-        return case_dict
     
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
@@ -265,9 +240,21 @@ class CaseService:
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
         
-        db.delete(case)
-        db.commit()
-        return True
+        try:
+            from app.case_management.models import CaseLog, CaseNote, Person
+            db.query(CaseLog).filter(CaseLog.case_id == case_id).delete()
+            
+            db.query(CaseNote).filter(CaseNote.case_id == case_id).delete()
+            
+            db.query(Person).filter(Person.case_id == case_id).delete()
+            
+            db.delete(case)
+            db.commit()
+            return True
+            
+        except Exception as e:
+            db.rollback()
+            raise Exception(f"Failed to delete case: {str(e)}")
     
     def get_case_statistics(self, db: Session) -> dict:
         total_cases = db.query(Case).count()
@@ -281,6 +268,117 @@ class CaseService:
             "reopened_cases": reopened_cases,
             "total_cases": total_cases
         }
+    
+    def get_case_detail_comprehensive(self, db: Session, case_id: int) -> dict:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
+        # Get agency and work unit names
+        agency_name = None
+        work_unit_name = None
+        
+        if case.agency_id:
+            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
+            if agency:
+                agency_name = agency.name
+        
+        if case.work_unit_id:
+            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
+            if work_unit:
+                work_unit_name = work_unit.name
+        
+        # Format created date
+        created_date = case.created_at.strftime("%d/%m/%Y")
+        
+        # Get persons of interest with their analysis
+        persons = db.query(Person).filter(Person.case_id == case_id).all()
+        persons_of_interest = []
+        
+        for person in persons:
+            # Create analysis items for this person
+            analysis_items = []
+            if person.evidence_id and person.evidence_summary:
+                # Split evidence summary by lines or create multiple entries
+                summaries = person.evidence_summary.split('\n') if '\n' in person.evidence_summary else [person.evidence_summary]
+                for summary in summaries:
+                    if summary.strip():
+                        analysis_item = {
+                            "evidence_id": person.evidence_id,
+                            "summary": summary.strip(),
+                            "status": "Analysis"
+                        }
+                        analysis_items.append(analysis_item)
+            
+            person_data = {
+                "id": person.id,
+                "name": person.name,
+                "person_type": "Suspect",  # Default type
+                "analysis": analysis_items
+            }
+            persons_of_interest.append(person_data)
+        
+        # Get case logs
+        from app.case_management.models import CaseLog
+        logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
+            .order_by(CaseLog.created_at.desc()).all()
+        
+        case_log = []
+        for log in logs:
+            # Format timestamp
+            timestamp = log.created_at.strftime("%d %b %Y, %H:%M")
+            
+            log_data = {
+                "status": log.action,
+                "timestamp": timestamp,
+                "description": log.change_detail if log.change_detail else log.action,
+                "notes": log.notes
+            }
+            case_log.append(log_data)
+        
+        # Get case notes
+        from app.case_management.models import CaseNote
+        notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
+            .order_by(CaseNote.created_at.desc()).all()
+        
+        case_notes = []
+        for note in notes:
+            # Format timestamp
+            timestamp = note.created_at.strftime("%d %b %Y, %H:%M")
+            
+            note_data = {
+                "timestamp": timestamp,
+                "status": note.status or "Active",
+                "content": note.note
+            }
+            case_notes.append(note_data)
+        
+        # Calculate evidence count
+        evidence_count = len([p for p in persons if p.evidence_id])
+        
+        # Build comprehensive case data
+        case_data = {
+            "case": {
+                "id": case.id,
+                "case_number": case.case_number,
+                "title": case.title,
+                "status": case.status,
+                "case_officer": case.main_investigator,
+                "created_date": created_date,
+                "agency": agency_name or "Unknown",
+                "work_unit": work_unit_name,
+                "description": case.description or "No description available"
+            },
+            "persons_of_interest": persons_of_interest,
+            "case_log": case_log,
+            "notes": case_notes,
+            "summary": {
+                "total_persons": len(persons),
+                "total_evidence": evidence_count
+            }
+        }
+        
+        return case_data
 
 
 class CaseLogService:
@@ -296,8 +394,9 @@ class CaseLogService:
             "id": log.id,
             "case_id": log.case_id,
             "action": log.action,
-            "description": log.description,
             "changed_by": log.changed_by,
+            "change_detail": log.change_detail,
+            "notes": log.notes,
             "created_at": log.created_at
         }
     
@@ -314,8 +413,9 @@ class CaseLogService:
                 "id": log.id,
                 "case_id": log.case_id,
                 "action": log.action,
-                "description": log.description,
                 "changed_by": log.changed_by,
+                "change_detail": log.change_detail,
+                "notes": log.notes,
                 "created_at": log.created_at
             }
             result.append(log_dict)

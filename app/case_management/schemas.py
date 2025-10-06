@@ -66,8 +66,26 @@ class CaseBase(BaseModel):
         return v
 
 
-class CaseCreate(CaseBase):
-    pass
+class CaseCreate(BaseModel):
+    title: str = Field(..., description="Case title")
+    description: Optional[str] = Field(None, description="Case description")
+    main_investigator: str = Field(..., description="Main investigator name")
+    agency_id: Optional[Union[int, str]] = Field(None, description="Agency ID")
+    work_unit_id: Optional[Union[int, str]] = Field(None, description="Work unit ID")
+    agency_name: Optional[str] = Field(None, description="Agency name (manual input)")
+    work_unit_name: Optional[str] = Field(None, description="Work unit name (manual input)")
+    
+    @validator('agency_id', pre=True)
+    def validate_agency_id(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
+    
+    @validator('work_unit_id', pre=True)
+    def validate_work_unit_id(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
 
 class CaseUpdate(BaseModel):
     case_number: Optional[str] = None
@@ -198,8 +216,9 @@ class CaseListResponse(BaseModel):
 # Case Log Schemas
 class CaseLogBase(BaseModel):
     action: str = Field(..., description="Action performed")
-    description: Optional[str] = Field(None, description="Detailed description of the action")
     changed_by: str = Field(..., description="User who made the change")
+    change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
 
 
 class CaseLogCreate(CaseLogBase):
@@ -263,3 +282,64 @@ class CaseNoteListResponse(BaseModel):
     total: int = Field(..., description="Total number of notes")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+
+# Analysis schema for person evidence
+class AnalysisItem(BaseModel):
+    evidence_id: str = Field(..., description="Evidence ID")
+    summary: str = Field(..., description="Analysis summary")
+    status: str = Field(..., description="Analysis status")
+
+    class Config:
+        from_attributes = True
+
+
+# Person with analysis for case detail response
+class PersonWithAnalysis(BaseModel):
+    id: int
+    name: str = Field(..., description="Person name")
+    person_type: str = Field(..., description="Person type")
+    analysis: List[AnalysisItem] = Field(default_factory=list, description="Analysis items")
+
+    class Config:
+        from_attributes = True
+
+
+# Case log for case detail response
+class CaseLogDetail(BaseModel):
+    status: str = Field(..., description="Log status")
+    timestamp: str = Field(..., description="Formatted timestamp")
+    description: str = Field(..., description="Log description")
+    notes: Optional[str] = Field(None, description="Additional notes")
+
+    class Config:
+        from_attributes = True
+
+
+# Case note for case detail response
+class CaseNoteDetail(BaseModel):
+    timestamp: str = Field(..., description="Formatted timestamp")
+    status: str = Field(..., description="Note status")
+    content: str = Field(..., description="Note content")
+
+    class Config:
+        from_attributes = True
+
+
+# Summary schema
+class CaseSummary(BaseModel):
+    total_persons: int = Field(..., description="Total number of persons")
+    total_evidence: int = Field(..., description="Total number of evidence")
+
+    class Config:
+        from_attributes = True
+
+
+# Comprehensive case detail response
+class CaseDetailResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Case detail retrieved successfully", description="Response message")
+    data: dict = Field(..., description="Case detail data")
+
+    class Config:
+        from_attributes = True

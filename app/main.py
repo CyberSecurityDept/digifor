@@ -114,6 +114,15 @@ async def root():
     }
 
 
+# Favicon endpoint to prevent 404 errors
+@app.get("/favicon.ico")
+async def favicon():
+    return JSONResponse(
+        status_code=204,
+        content=None
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

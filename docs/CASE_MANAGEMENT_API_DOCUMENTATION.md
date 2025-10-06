@@ -1,54 +1,12 @@
 # Case Management API Documentation
 
 ## Overview
-This document provides comprehensive API documentation for the Case Management system endpoints. The endpoints are organized by UI sections to match the Case Management interface functionality.
+This document provides comprehensive API documentation for the Case Management system endpoints. The API is built with FastAPI and follows RESTful conventions.
 
 ## Base URL
 ```
 /api/v1/cases
 ```
-
-## Frontend API Endpoints Summary
-
-### **Endpoints yang akan digunakan Frontend:**
-
-#### **1. Case List Management (Essential untuk Frontend)**
-- ✅ `GET /overview` - Get dashboard statistics for case management cards
-- ✅ `GET /get-all-cases/` - Retrieve paginated list of cases with filtering options
-- ✅ `GET /search` - Search cases with advanced filters
-- ✅ `GET /filter-options` - Get available filter options for case list
-- ✅ `GET /form-options` - Get dropdown options for case creation form
-
-#### **2. Case Detail Management (Essential untuk Frontend)**
-- ✅ `POST /create-cases/` - Create new case
-- ✅ `GET /case-by-id` - Get case by ID
-- ✅ `GET /{case_id}/detail` - Get comprehensive case details
-- ✅ `PUT /update-case/{case_id}` - Update case information
-- ✅ `DELETE /delete-case/` - Delete case
-- ✅ `GET /{case_id}/stats` - Get case statistics
-- ✅ `GET /{case_id}/export/pdf` - Export case to PDF
-
-#### **3. Case Person of Interest Management (Essential untuk Frontend)**
-- ✅ `POST /{case_id}/persons` - Add person of interest to case
-- ✅ `GET /{case_id}/persons` - Get all persons of interest for a case
-- ✅ `PUT /{case_id}/persons/{person_id}` - Update person of interest
-- ✅ `DELETE /{case_id}/persons/{person_id}` - Remove person of interest
-
-#### **4. Case Evidence Management (Essential untuk Frontend)**
-- ✅ `POST /{case_id}/persons/{person_id}/evidence/{evidence_id}` - Associate evidence with person
-
-#### **5. Case Log & Notes Management (Essential untuk Frontend)**
-- ✅ `GET /{case_id}/activities` - Get case activities/log
-- ✅ `GET /{case_id}/activities/recent` - Get recent case activities
-- ✅ `GET /{case_id}/status-history` - Get case status history
-- ✅ `POST /{case_id}/notes` - Add note to case
-- ✅ `GET /{case_id}/notes` - Get case notes
-- ✅ `DELETE /{case_id}/notes/{note_index}` - Delete case note
-- ✅ `POST /{case_id}/close` - Close case
-- ✅ `POST /{case_id}/reopen` - Reopen case
-- ✅ `POST /{case_id}/change-status` - Change case status
-
----
 
 ## Authentication
 All endpoints require Bearer token authentication:
@@ -58,58 +16,187 @@ Authorization: Bearer <access_token>
 
 ---
 
-## 1. Case List Management
+## Available Endpoints
 
-### 1.1 Get Case Management Overview
-**Endpoint:** `GET /api/v1/cases/overview`
+### 1. Create Case
+**Endpoint:** `POST /api/v1/cases/create-case`
 
-**Description:** Get dashboard statistics for case management cards.
+**Description:** Create a new case with agency and work unit information.
 
-**Request:**
-```http
-GET /api/v1/cases/overview
-Authorization: Bearer <access_token>
+**Request Body:**
+```json
+{
+  "title": "Buronan Maroko Interpol",
+  "description": "Case description...",
+  "main_investigator": "Solehun",
+  "agency_id": 1,
+  "work_unit_id": 1,
+  "agency_name": "Trikora agency",
+  "work_unit_name": "Dirjen Imigrasi 1"
+}
 ```
+
+**Notes:** 
+- Field `status` tidak perlu disertakan dalam request body karena akan otomatis diset ke "Open" saat case pertama kali dibuat.
+- Field `case_number` akan otomatis di-generate menggunakan format: `{title_prefix}-{date}-{id}` (contoh: "BMI-061025-0001")
+
+**Response (201 Created):**
+```json
+{
+  "status": 201,
+  "message": "Case created successfully",
+  "data": {
+    "id": 1,
+    "case_number": "CASE-2024-0001",
+    "title": "Buronan Maroko Interpol",
+    "description": "Case description...",
+    "status": "Open",
+    "main_investigator": "Solehun",
+    "agency_name": "Trikora agency",
+    "work_unit_name": "Dirjen Imigrasi 1",
+    "created_at": "2024-12-02T00:00:00Z",
+    "updated_at": "2024-12-02T00:00:00Z"
+  }
+}
+```
+
+**Response (409 Conflict):**
+```json
+{
+  "detail": "Case number 'CASE-2024-0001' already exists"
+}
+```
+
+### 2. Get Case Detail Comprehensive
+**Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
+
+**Description:** Get comprehensive case details including persons, evidence, logs, and notes.
+
+**Path Parameters:**
+- `case_id` (integer): The ID of the case to retrieve
 
 **Response (200 OK):**
 ```json
 {
   "status": 200,
-  "message": "Case management overview retrieved successfully",
+  "message": "Case detail retrieved successfully",
   "data": {
-    "dashboard_cards": {
-      "case_open": 12,
-      "case_closed": 3,
-      "case_reopen": 12
+    "case": {
+      "id": 1,
+      "case_number": "CASE-2024-0001",
+      "title": "Buronan Maroko Interpol",
+      "status": "Closed",
+      "case_officer": "Solehun",
+      "created_date": "12/02/2025",
+      "agency": "Trikora agency",
+      "work_unit": "Dirjen Imigrasi 1",
+      "description": "Emily Johnson, the plaintiff, filed a lawsuit against Acme Corporation for negligence and breach of warranty related to a defective blender. The malfunction caused severe lacerations to her hand during use."
+    },
+    "persons_of_interest": [
+      {
+        "id": 1,
+        "name": "Rafi ahmad",
+        "person_type": "Suspect",
+        "analysis": [
+          {
+            "evidence_id": "32342223",
+            "summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
+            "status": "Analysis"
+          },
+          {
+            "evidence_id": "32342223",
+            "summary": "Terdapat dialog seputar pembakaran dengan suspect lain",
+            "status": "Analysis"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Nathalie",
+        "person_type": "Suspect",
+        "analysis": [
+          {
+            "evidence_id": "32342223",
+            "summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
+            "status": "Analysis"
+          },
+          {
+            "evidence_id": "32342223",
+            "summary": "Terdapat dialog seputar pembakaran dengan suspect lain",
+            "status": "Analysis"
+          }
+        ]
+      }
+    ],
+    "case_log": [
+      {
+        "status": "Re-Open",
+        "timestamp": "16 Mei 2024, 08:12",
+        "description": "Re-open",
+        "notes": "tersangka kemungkinan kerabat dari pelaku utama"
+      },
+      {
+        "status": "Edit",
+        "timestamp": "16 Mei 2024, 08:12",
+        "description": "Adding Person: Nathalie"
+      },
+      {
+        "status": "Edit",
+        "timestamp": "16 Mei 2024, 08:12",
+        "description": "Adding Evidence: 32342223, Description change"
+      },
+      {
+        "status": "Closed",
+        "timestamp": "12 Mei 2024, 15:23",
+        "description": "Kasus ini memiliki indikasi adanya tersangka tambahan"
+      },
+      {
+        "status": "Open",
+        "timestamp": "17 Feb 2024, 09:12",
+        "description": "Initial case created"
+      }
+    ],
+    "notes": [
+      {
+        "timestamp": "12 Mei 2024, 15:23",
+        "status": "Closed",
+        "content": "Kasus ini memiliki indikasi adanya tersangka tambahan"
+      },
+      {
+        "timestamp": "16 Mei 2024, 08:12",
+        "status": "Re-Open",
+        "content": "tersangka kemungkinan kerabat dari pelaku utama"
+      }
+    ],
+    "summary": {
+      "total_persons": 2,
+      "total_evidence": 4
     }
   }
 }
 ```
 
-**Response (500 Internal Server Error):**
+**Response (404 Not Found):**
 ```json
 {
-  "status": 500,
-  "message": "Failed to retrieve case management overview"
+  "detail": "Case with ID 1 not found"
 }
 ```
 
-### 1.2 Get All Cases
-**Endpoint:** `GET /api/v1/cases/get-all-cases/`
+### 3. Get All Cases
+**Endpoint:** `GET /api/v1/cases/get-all-cases`
 
 **Description:** Retrieve paginated list of cases with filtering options.
 
 **Query Parameters:**
-- `skip` (optional): Number of records to skip (default: 0)
-- `limit` (optional): Number of records to return (default: 100, max: 1000)
-- `status` (optional): Filter by case status (open, closed, reopened)
-- `priority` (optional): Filter by priority (low, medium, high, critical)
-- `case_type` (optional): Filter by case type (criminal, civil, corporate, etc.)
-- `search` (optional): Search in title, case number, or description
+- `skip` (integer, optional): Number of records to skip (default: 0, minimum: 0)
+- `limit` (integer, optional): Number of records to return (default: 10, minimum: 1, maximum: 100)
+- `search` (string, optional): Search in title, case number, or description
+- `status` (string, optional): Filter by case status (Open, Closed, Re-open)
 
 **Request:**
 ```http
-GET /api/v1/cases/get-all-cases/?skip=0&limit=20&status=open&search=maroko
+GET /api/v1/cases/get-all-cases?skip=0&limit=10&search=maroko&status=Open
 Authorization: Bearer <access_token>
 ```
 
@@ -120,411 +207,40 @@ Authorization: Bearer <access_token>
   "message": "Cases retrieved successfully",
   "data": [
     {
-      "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+      "id": 1,
       "case_number": "CASE-2024-0001",
       "title": "Buronan Maroko Interpol",
       "description": "Case description...",
-      "status": "open",
-      "priority": "high",
-      "case_type": "criminal",
-      "jurisdiction": "Interpol",
-      "work_unit": "Dirjen Imigrasi 1",
-      "case_officer": "Robert",
-      "created_at": "2024-12-12T00:00:00Z",
-      "updated_at": "2024-12-12T00:00:00Z",
-      "evidence_count": 5,
-      "analysis_progress": 75
+      "status": "Open",
+      "main_investigator": "Solehun",
+      "agency_name": "Trikora agency",
+      "work_unit_name": "Dirjen Imigrasi 1",
+      "created_at": "2024-12-02T00:00:00Z",
+      "updated_at": "2024-12-02T00:00:00Z"
     }
   ],
-  "pagination": {
-    "total": 25,
-    "page": 1,
-    "per_page": 20,
-    "pages": 2
-  }
+  "total": 1,
+  "page": 1,
+  "size": 10
 }
 ```
 
-**Response (400 Bad Request):**
-```json
-{
-  "status": 400,
-  "message": "Invalid query parameters"
-}
-```
-
-**Response (500 Internal Server Error):**
-```json
-{
-  "status": 500,
-  "message": "Failed to retrieve cases"
-}
-```
-
-### 1.3 Search Cases
-**Endpoint:** `GET /api/v1/cases/search`
-
-**Description:** Search cases with advanced filtering.
-
-**Query Parameters:**
-- `q` (required): Search query string
-- `status` (optional): Filter by status
-- `priority` (optional): Filter by priority
-- `case_type` (optional): Filter by case type
-- `skip` (optional): Number of records to skip (default: 0)
-- `limit` (optional): Number of records to return (default: 50, max: 100)
-
-**Request:**
-```http
-GET /api/v1/cases/search?q=maroko&status=open&limit=10
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case search completed successfully",
-  "data": {
-    "cases": [
-      {
-        "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-        "case_name": "Buronan Maroko Interpol",
-        "case_number": "CASE-2024-0001",
-        "investigator": "Robert",
-        "agency": "Interpol",
-        "date_created": "12/12/25",
-        "status": "Open",
-        "priority": "high",
-        "case_type": "criminal",
-        "evidence_count": 5,
-        "analysis_progress": 75
-      }
-    ],
-    "total": 1,
-    "pagination": {
-      "page": 1,
-      "per_page": 10,
-      "pages": 1,
-      "has_next": false,
-      "has_prev": false
-    },
-    "filters_applied": {
-      "search_query": "maroko",
-      "status": "open",
-      "priority": null,
-      "case_type": null
-    }
-  }
-}
-```
-
-### 1.4 Get Filter Options
-**Endpoint:** `GET /api/v1/cases/filter-options`
-
-**Description:** Get available filter options for case management dashboard.
-
-**Request:**
-```http
-GET /api/v1/cases/filter-options
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Filter options retrieved successfully",
-  "data": {
-    "statuses": ["open", "closed", "reopened"],
-    "priorities": ["low", "medium", "high", "critical"],
-    "case_types": ["criminal", "civil", "corporate", "cybercrime"],
-    "jurisdictions": ["Interpol", "Imigrasi", "Polri"],
-    "case_officers": ["Robert", "Solebun", "Wisnu"]
-  }
-}
-```
-
-### 1.5 Get Form Options
-**Endpoint:** `GET /api/v1/cases/form-options`
-
-**Description:** Get dropdown options for case creation form.
-
-**Request:**
-```http
-GET /api/v1/cases/form-options
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Form options retrieved successfully",
-  "data": {
-    "investigators": [
-      {
-        "id": "user-uuid-1",
-        "name": "Robert",
-        "username": "robert",
-        "role": "investigator"
-      }
-    ],
-    "agencies": ["Interpol", "Imigrasi", "Polri"],
-    "work_units": ["Dirjen Imigrasi 1", "Unit Cybercrime"],
-    "case_types": ["criminal", "civil", "corporate", "cybercrime", "fraud", "other"],
-    "priorities": ["low", "medium", "high", "critical"]
-  }
-}
-```
-
----
-
-## 2. Case Detail Management
-
-### 2.1 Get Case by ID
-**Endpoint:** `GET /api/v1/cases/case-by-id`
-
-**Description:** Get basic case information by case ID.
-
-**Query Parameters:**
-- `case_id` (required): UUID of the case
-
-**Request:**
-```http
-GET /api/v1/cases/case-by-id?case_id=135df21b-c0ab-4bcc-b438-95874333f1c6
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case retrieved successfully",
-  "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "description": "Case description...",
-    "status": "open",
-    "priority": "high",
-    "case_type": "criminal",
-    "jurisdiction": "Interpol",
-    "work_unit": "Dirjen Imigrasi 1",
-    "case_officer": "Robert",
-    "created_at": "2024-12-12T00:00:00Z",
-    "updated_at": "2024-12-12T00:00:00Z"
-  }
-}
-```
-
-**Response (404 Not Found):**
-```json
-{
-  "status": 404,
-  "message": "Case not found"
-}
-```
-
-**Response (400 Bad Request):**
-```json
-{
-  "status": 400,
-  "message": "Invalid case ID format"
-}
-```
-
-### 2.2 Get Case Detail (Comprehensive)
-**Endpoint:** `GET /api/v1/cases/{case_id}/detail`
-
-**Description:** Get comprehensive case details including persons, evidence, activities, and notes.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/detail
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case detail retrieved successfully",
-  "data": {
-    "case": {
-      "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-      "case_number": "CASE-2024-0001",
-      "title": "Buronan Maroko Interpol",
-      "description": "Case description...",
-      "status": "closed",
-      "priority": "high",
-      "case_type": "criminal",
-      "jurisdiction": "Interpol",
-      "work_unit": "Dirjen Imigrasi 1",
-      "case_officer": "Solehun",
-      "created_at": "2024-12-02T00:00:00Z",
-      "updated_at": "2024-12-02T00:00:00Z",
-      "closed_at": "2024-12-02T15:23:00Z",
-      "evidence_count": 5,
-      "analysis_progress": 75
-    },
-    "persons_of_interest": [
-      {
-        "id": "person-uuid-1",
-        "full_name": "Rafi ahmad",
-        "person_type": "suspect",
-        "alias": "Rafi",
-        "description": "Primary suspect",
-        "evidence": [
-          {
-            "id": "evidence-uuid-1",
-            "evidence_number": "32342223",
-            "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
-            "item_type": "phone",
-            "analysis_status": "completed",
-            "created_at": "2024-12-02T00:00:00Z",
-            "association_type": "primary",
-            "confidence_level": "high",
-            "association_notes": "GPS data analysis"
-          }
-        ]
-      }
-    ],
-    "case_log": [
-      {
-        "id": "activity-uuid-1",
-        "activity_type": "reopened",
-        "description": "Re-open 16 mei 2024, 08:12",
-        "timestamp": "2024-05-16T08:12:00Z",
-        "user_name": "Wisnu",
-        "user_role": "investigator",
-        "old_value": {"status": "closed"},
-        "new_value": {"status": "reopened"}
-      }
-    ],
-    "notes": [
-      {
-        "content": "Kasus ini memiliki indikasi adanya tersangka tambahan",
-        "timestamp": "2024-01-12T15:23:00Z",
-        "status": "active"
-      }
-    ],
-    "total_persons": 3,
-    "total_evidence": 5
-  }
-}
-```
-
-### 2.3 Create Case
-**Endpoint:** `POST /api/v1/cases/create-cases/`
-
-**Description:** Create a new case with auto-generated or manual case number.
-
-**Request Body:**
-```json
-{
-  "title": "New Case Title",
-  "description": "Case description",
-  "case_type": "criminal",
-  "status": "open",
-  "priority": "high",
-  "jurisdiction": "Interpol",
-  "case_officer": "Robert",
-  "work_unit": "Dirjen Imigrasi 1",
-  "is_confidential": false,
-  "use_auto_generated_id": true,
-  "case_number": "MANUAL-001"
-}
-```
-
-**Request:**
-```http
-POST /api/v1/cases/create-cases/
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "title": "Buronan Maroko Interpol",
-  "description": "Case description...",
-  "case_type": "criminal",
-  "status": "open",
-  "priority": "high",
-  "jurisdiction": "Interpol",
-  "case_officer": "Robert",
-  "work_unit": "Dirjen Imigrasi 1",
-  "is_confidential": false,
-  "use_auto_generated_id": true
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "status": 201,
-  "message": "Case created successfully",
-  "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "description": "Case description...",
-    "status": "open",
-    "priority": "high",
-    "case_type": "criminal",
-    "jurisdiction": "Interpol",
-    "work_unit": "Dirjen Imigrasi 1",
-    "case_officer": "Robert",
-    "created_at": "2024-12-12T00:00:00Z"
-  }
-}
-```
-
-**Response (400 Bad Request):**
-```json
-{
-  "status": 400,
-  "message": "Case number already exists"
-}
-```
-
-**Response (500 Internal Server Error):**
-```json
-{
-  "status": 500,
-  "message": "Case creation failed: Database error"
-}
-```
-
-### 2.4 Update Case
+### 4. Update Case
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
 **Description:** Update case information.
 
 **Path Parameters:**
-- `case_id`: UUID of the case
+- `case_id` (integer): The ID of the case to update
 
 **Request Body:**
 ```json
 {
   "title": "Updated Case Title",
   "description": "Updated description",
-  "status": "closed",
-  "priority": "medium"
-}
-```
-
-**Request:**
-```http
-PUT /api/v1/cases/update-case/135df21b-c0ab-4bcc-b438-95874333f1c6
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "title": "Updated Case Title",
-  "description": "Updated description",
-  "status": "closed"
+  "main_investigator": "New Investigator",
+  "agency_id": 2,
+  "work_unit_id": 2
 }
 ```
 
@@ -534,234 +250,450 @@ Content-Type: application/json
   "status": 200,
   "message": "Case updated successfully",
   "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
+    "id": 1,
     "case_number": "CASE-2024-0001",
     "title": "Updated Case Title",
     "description": "Updated description",
-    "status": "closed",
-    "updated_at": "2024-12-12T10:30:00Z"
+    "status": "Open",
+    "main_investigator": "New Investigator",
+    "agency_name": "New Agency",
+    "work_unit_name": "New Work Unit",
+    "created_at": "2024-12-02T00:00:00Z",
+    "updated_at": "2024-12-02T10:30:00Z"
   }
-}
-```
-
-### 2.5 Delete Case
-**Endpoint:** `DELETE /api/v1/cases/delete-case/`
-
-**Description:** Soft delete (archive) a case.
-
-**Query Parameters:**
-- `case_id` (required): UUID of the case to delete
-
-**Request:**
-```http
-DELETE /api/v1/cases/delete-case/?case_id=135df21b-c0ab-4bcc-b438-95874333f1c6
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "message": "Case archived successfully"
-}
-```
-
-### 2.6 Export Case PDF
-**Endpoint:** `GET /api/v1/cases/{case_id}/export/pdf`
-
-**Description:** Export case details as PDF (placeholder implementation).
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/export/pdf
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "PDF export functionality is not yet implemented",
-  "data": {
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "note": "PDF generation will be implemented in a future version"
-  }
-}
-```
-
----
-
-## 3. Case Person of Interest Management
-
-### 3.1 Add Person of Interest
-**Endpoint:** `POST /api/v1/cases/{case_id}/persons`
-
-**Description:** Add a new person of interest to a case.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request Body:**
-```json
-{
-  "person_type": "suspect",
-  "full_name": "Rafi ahmad",
-  "alias": "Rafi",
-  "date_of_birth": "1990-01-01",
-  "nationality": "Indonesian",
-  "address": "Jakarta, Indonesia",
-  "phone": "+628123456789",
-  "email": "rafi@example.com",
-  "social_media_accounts": ["@rafi_ahmad"],
-  "device_identifiers": ["IMEI:123456789"],
-  "description": "Primary suspect in the case",
-  "is_primary": true
-}
-```
-
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/persons
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "person_type": "suspect",
-  "full_name": "Rafi ahmad",
-  "alias": "Rafi",
-  "description": "Primary suspect in the case",
-  "is_primary": true
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "id": "person-uuid-1",
-  "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-  "person_type": "suspect",
-  "full_name": "Rafi ahmad",
-  "alias": "Rafi",
-  "description": "Primary suspect in the case",
-  "is_primary": true,
-  "created_at": "2024-12-12T00:00:00Z"
 }
 ```
 
 **Response (404 Not Found):**
 ```json
 {
-  "status": 404,
-  "message": "Case not found"
+  "detail": "Case with ID 1 not found"
 }
 ```
 
-### 3.2 Get Case Persons
-**Endpoint:** `GET /api/v1/cases/{case_id}/persons`
+### 5. Delete Case
+**Endpoint:** `DELETE /api/v1/cases/delete-case/{case_id}`
 
-**Description:** Get all persons of interest for a case.
+**Description:** Delete a case and all related data (cascade delete).
 
 **Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/persons
-Authorization: Bearer <access_token>
-```
+- `case_id` (integer): The ID of the case to delete
 
 **Response (200 OK):**
 ```json
-[
-  {
-    "id": "person-uuid-1",
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "person_type": "suspect",
-    "full_name": "Rafi ahmad",
-    "alias": "Rafi",
-    "description": "Primary suspect in the case",
-    "is_primary": true,
-    "created_at": "2024-12-12T00:00:00Z"
-  },
-  {
-    "id": "person-uuid-2",
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "person_type": "witness",
-    "full_name": "Nathalie",
-    "alias": null,
-    "description": "Witness to the incident",
-    "is_primary": false,
-    "created_at": "2024-12-12T01:00:00Z"
-  }
-]
+{
+  "status": 200,
+  "message": "Case deleted successfully"
+}
 ```
 
-### 3.3 Update Person of Interest
-**Endpoint:** `PUT /api/v1/cases/{case_id}/persons/{person_id}`
+**Response (404 Not Found):**
+```json
+{
+  "detail": "Case with ID 1 not found"
+}
+```
 
-**Description:** Update person of interest information.
+### 6. Get Case Statistics
+**Endpoint:** `GET /api/v1/cases/statistics/summary`
 
-**Path Parameters:**
-- `case_id`: UUID of the case
-- `person_id`: UUID of the person
+**Description:** Get case statistics for dashboard.
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Statistics retrieved successfully",
+  "data": {
+    "open_cases": 12,
+    "closed_cases": 3,
+    "reopened_cases": 2
+  },
+  "total_cases": 17
+}
+```
+
+---
+
+## Case Log Management Endpoints
+
+### 1. Create Case Log
+**Endpoint:** `POST /api/v1/case-logs/create-log`
+
+**Description:** Create a new case log entry to track case activities.
 
 **Request Body:**
 ```json
 {
-  "full_name": "Updated Name",
-  "description": "Updated description",
-  "is_primary": false
+  "case_id": 1,
+  "action": "Status Change",
+  "changed_by": "investigator@example.com",
+  "change_detail": "Case status changed from Open to Closed",
+  "notes": "Additional notes about this change"
 }
 ```
 
-**Request:**
-```http
-PUT /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/persons/person-uuid-1
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "full_name": "Rafi Ahmad Updated",
-  "description": "Updated suspect description"
-}
-```
-
-**Response (200 OK):**
+**Response (201 Created):**
 ```json
 {
-  "id": "person-uuid-1",
-  "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-  "person_type": "suspect",
-  "full_name": "Rafi Ahmad Updated",
-  "alias": "Rafi",
-  "description": "Updated suspect description",
-  "is_primary": true,
-  "updated_at": "2024-12-12T10:30:00Z"
+  "status": 201,
+  "message": "Case log created successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "action": "Status Change",
+    "changed_by": "investigator@example.com",
+    "change_detail": "Case status changed from Open to Closed",
+    "notes": "Additional notes about this change",
+    "created_at": "2024-12-02T10:30:00Z"
+  }
 }
 ```
 
-### 3.4 Delete Person of Interest
-**Endpoint:** `DELETE /api/v1/cases/{case_id}/persons/{person_id}`
+### 2. Get Case Logs
+**Endpoint:** `GET /api/v1/case-logs/case/{case_id}/logs`
 
-**Description:** Delete a person of interest from a case.
+**Description:** Retrieve paginated list of logs for a specific case.
 
 **Path Parameters:**
-- `case_id`: UUID of the case
-- `person_id`: UUID of the person
+- `case_id` (integer): The ID of the case to retrieve logs for
 
-**Request:**
-```http
-DELETE /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/persons/person-uuid-1
-Authorization: Bearer <access_token>
+**Query Parameters:**
+- `skip` (integer, optional): Number of records to skip (default: 0, minimum: 0)
+- `limit` (integer, optional): Number of records to return (default: 10, minimum: 1, maximum: 100)
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case logs retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "case_id": 1,
+      "action": "Status Change",
+      "changed_by": "investigator@example.com",
+      "change_detail": "Case status changed from Open to Closed",
+      "notes": "Additional notes about this change",
+      "created_at": "2024-12-02T10:30:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10
+}
+```
+
+---
+
+## Case Note Management Endpoints
+
+### 1. Create Case Note
+**Endpoint:** `POST /api/v1/case-notes/create-note`
+
+**Description:** Create a new case note with optional status.
+
+**Request Body:**
+```json
+{
+  "case_id": 1,
+  "note": "Initial investigation findings suggest multiple suspects involved",
+  "status": "Investigation",
+  "created_by": "investigator@example.com"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": 201,
+  "message": "Case note created successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "note": "Initial investigation findings suggest multiple suspects involved",
+    "status": "Investigation",
+    "created_by": "investigator@example.com",
+    "created_at": "2024-12-02T10:30:00Z"
+  }
+}
+```
+
+### 2. Get Case Notes
+**Endpoint:** `GET /api/v1/case-notes/case/{case_id}/notes`
+
+**Description:** Retrieve paginated list of notes for a specific case.
+
+**Path Parameters:**
+- `case_id` (integer): The ID of the case to retrieve notes for
+
+**Query Parameters:**
+- `skip` (integer, optional): Number of records to skip (default: 0, minimum: 0)
+- `limit` (integer, optional): Number of records to return (default: 10, minimum: 1, maximum: 100)
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case notes retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "case_id": 1,
+      "note": "Initial investigation findings suggest multiple suspects involved",
+      "status": "Investigation",
+      "created_by": "investigator@example.com",
+      "created_at": "2024-12-02T10:30:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10
+}
+```
+
+### 3. Update Case Note
+**Endpoint:** `PUT /api/v1/case-notes/update-note/{note_id}`
+
+**Description:** Update an existing case note.
+
+**Path Parameters:**
+- `note_id` (integer): The ID of the note to update
+
+**Request Body:**
+```json
+{
+  "note": "Updated investigation findings with new evidence",
+  "status": "Analysis"
+}
 ```
 
 **Response (200 OK):**
 ```json
 {
+  "status": 200,
+  "message": "Case note updated successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "note": "Updated investigation findings with new evidence",
+    "status": "Analysis",
+    "created_by": "investigator@example.com",
+    "created_at": "2024-12-02T10:30:00Z"
+  }
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "detail": "Note with ID 1 not found"
+}
+```
+
+### 4. Delete Case Note
+**Endpoint:** `DELETE /api/v1/case-notes/delete-note/{note_id}`
+
+**Description:** Delete a case note.
+
+**Path Parameters:**
+- `note_id` (integer): The ID of the note to delete
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case note deleted successfully"
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "detail": "Note with ID 1 not found"
+}
+```
+
+---
+
+## Person Management Endpoints
+
+### 1. Create Person
+**Endpoint:** `POST /api/v1/persons/create-person`
+
+**Description:** Create a new person record associated with a case.
+
+**Request Body:**
+```json
+{
+  "case_id": 1,
+  "name": "John Doe",
+  "is_unknown": false,
+  "custody_stage": "Arrested",
+  "evidence_id": "EVID-001",
+  "evidence_source": "Digital Forensics",
+  "evidence_summary": "Phone analysis reveals suspicious communications",
+  "investigator": "Detective Smith",
+  "created_by": "investigator@example.com"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": 201,
+  "message": "Person created successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "name": "John Doe",
+    "is_unknown": false,
+    "custody_stage": "Arrested",
+    "evidence_id": "EVID-001",
+    "evidence_source": "Digital Forensics",
+    "evidence_summary": "Phone analysis reveals suspicious communications",
+    "investigator": "Detective Smith",
+    "created_by": "investigator@example.com",
+    "created_at": "2024-12-02T10:30:00Z",
+    "updated_at": "2024-12-02T10:30:00Z"
+  }
+}
+```
+
+### 2. Get Person
+**Endpoint:** `GET /api/v1/persons/get-person/{person_id}`
+
+**Description:** Retrieve a specific person by ID.
+
+**Path Parameters:**
+- `person_id` (integer): The ID of the person to retrieve
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Person retrieved successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "name": "John Doe",
+    "is_unknown": false,
+    "custody_stage": "Arrested",
+    "evidence_id": "EVID-001",
+    "evidence_source": "Digital Forensics",
+    "evidence_summary": "Phone analysis reveals suspicious communications",
+    "investigator": "Detective Smith",
+    "created_by": "investigator@example.com",
+    "created_at": "2024-12-02T10:30:00Z",
+    "updated_at": "2024-12-02T10:30:00Z"
+  }
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "detail": "Person with ID 1 not found"
+}
+```
+
+### 3. Get Persons by Case
+**Endpoint:** `GET /api/v1/persons/get-persons-by-case/{case_id}`
+
+**Description:** Retrieve paginated list of persons associated with a specific case.
+
+**Path Parameters:**
+- `case_id` (integer): The ID of the case to retrieve persons for
+
+**Query Parameters:**
+- `skip` (integer, optional): Number of records to skip (default: 0, minimum: 0)
+- `limit` (integer, optional): Number of records to return (default: 10, minimum: 1, maximum: 100)
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Persons retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "case_id": 1,
+      "name": "John Doe",
+      "is_unknown": false,
+      "custody_stage": "Arrested",
+      "evidence_id": "EVID-001",
+      "evidence_source": "Digital Forensics",
+      "evidence_summary": "Phone analysis reveals suspicious communications",
+      "investigator": "Detective Smith",
+      "created_by": "investigator@example.com",
+      "created_at": "2024-12-02T10:30:00Z",
+      "updated_at": "2024-12-02T10:30:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10
+}
+```
+
+### 4. Update Person
+**Endpoint:** `PUT /api/v1/persons/update-person/{person_id}`
+
+**Description:** Update an existing person record.
+
+**Path Parameters:**
+- `person_id` (integer): The ID of the person to update
+
+**Request Body:**
+```json
+{
+  "name": "John Smith",
+  "custody_stage": "Released",
+  "evidence_summary": "Updated analysis shows no criminal activity"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Person updated successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "name": "John Smith",
+    "is_unknown": false,
+    "custody_stage": "Released",
+    "evidence_id": "EVID-001",
+    "evidence_source": "Digital Forensics",
+    "evidence_summary": "Updated analysis shows no criminal activity",
+    "investigator": "Detective Smith",
+    "created_by": "investigator@example.com",
+    "created_at": "2024-12-02T10:30:00Z",
+    "updated_at": "2024-12-02T11:00:00Z"
+  }
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+  "detail": "Person with ID 1 not found"
+}
+```
+
+### 5. Delete Person
+**Endpoint:** `DELETE /api/v1/persons/delete-person/{person_id}`
+
+**Description:** Delete a person record.
+
+**Path Parameters:**
+- `person_id` (integer): The ID of the person to delete
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
   "message": "Person deleted successfully"
 }
 ```
@@ -769,418 +701,133 @@ Authorization: Bearer <access_token>
 **Response (404 Not Found):**
 ```json
 {
-  "status": 404,
-  "message": "Person not found"
+  "detail": "Person with ID 1 not found"
 }
 ```
 
 ---
 
-## 4. Case Evidence Management
+## Data Models
 
-### 4.1 Associate Evidence with Person
-**Endpoint:** `POST /api/v1/cases/{case_id}/persons/{person_id}/evidence/{evidence_id}`
-
-**Description:** Associate evidence with a person of interest.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-- `person_id`: UUID of the person
-- `evidence_id`: UUID of the evidence
-
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/persons/person-uuid-1/evidence/evidence-uuid-1
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
+### Case Model
 ```json
 {
-  "status": 200,
-  "message": "Evidence associated with person successfully",
-  "data": {
-    "evidence": {
-      "id": "evidence-uuid-1",
-      "evidence_number": "32342223",
-      "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian"
-    },
-    "person": {
-      "id": "person-uuid-1",
-      "full_name": "Rafi ahmad",
-      "person_type": "suspect"
-    }
-  }
+  "id": "integer",
+  "case_number": "string (unique)",
+  "title": "string",
+  "description": "string (optional)",
+  "status": "enum (Open, Closed, Re-open)",
+  "main_investigator": "string",
+  "agency_id": "integer (optional)",
+  "work_unit_id": "integer (optional)",
+  "created_at": "datetime",
+  "updated_at": "datetime"
 }
 ```
 
-**Response (404 Not Found):**
+### Person Model
 ```json
 {
-  "status": 404,
-  "message": "Case not found"
+  "id": "integer",
+  "name": "string",
+  "is_unknown": "boolean",
+  "custody_stage": "string (optional)",
+  "evidence_id": "string (optional)",
+  "evidence_source": "string (optional)",
+  "evidence_summary": "string (optional)",
+  "investigator": "string (optional)",
+  "case_id": "integer",
+  "created_by": "string",
+  "created_at": "datetime",
+  "updated_at": "datetime"
 }
 ```
 
-**Response (400 Bad Request):**
+### CaseLog Model
 ```json
 {
-  "status": 400,
-  "message": "Evidence is already associated with this person"
+  "id": "integer",
+  "case_id": "integer",
+  "action": "string",
+  "changed_by": "string",
+  "change_detail": "string (optional)",
+  "notes": "string (optional)",
+  "created_at": "datetime"
 }
 ```
 
----
-
-## 5. Case Log & Notes Management
-
-### 5.1 Get Case Activities
-**Endpoint:** `GET /api/v1/cases/{case_id}/activities`
-
-**Description:** Get case activity log (case log).
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Query Parameters:**
-- `limit` (optional): Number of activities to return (default: 50, max: 100)
-- `offset` (optional): Number of activities to skip (default: 0)
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/activities?limit=20
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "activity-uuid-1",
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "activity_type": "reopened",
-    "description": "Re-open 16 mei 2024, 08:12",
-    "timestamp": "2024-05-16T08:12:00Z",
-    "user_id": "user-uuid-1",
-    "old_value": {"status": "closed"},
-    "new_value": {"status": "reopened"}
-  },
-  {
-    "id": "activity-uuid-2",
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "activity_type": "updated",
-    "description": "Edit By: Wisnu 16 mai 2024, 08:12 Change: Adding Person: Nathalie",
-    "timestamp": "2024-05-16T08:12:00Z",
-    "user_id": "user-uuid-2",
-    "old_value": {"persons_count": 1},
-    "new_value": {"persons_count": 2}
-  }
-]
-```
-
-### 5.2 Get Recent Case Activities
-**Endpoint:** `GET /api/v1/cases/{case_id}/activities/recent`
-
-**Description:** Get recent case activities with user information.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Query Parameters:**
-- `limit` (optional): Number of activities to return (default: 10, max: 50)
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/activities/recent?limit=5
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "activity-uuid-1",
-    "activity_type": "reopened",
-    "description": "Re-open 16 mei 2024, 08:12",
-    "timestamp": "2024-05-16T08:12:00Z",
-    "user_name": "Wisnu",
-    "user_role": "investigator"
-  },
-  {
-    "id": "activity-uuid-2",
-    "activity_type": "updated",
-    "description": "Edit By: Wisnu 16 mai 2024, 08:12 Change: Adding Person: Nathalie",
-    "timestamp": "2024-05-16T08:12:00Z",
-    "user_name": "Wisnu",
-    "user_role": "investigator"
-  }
-]
-```
-
-### 5.3 Get Case Status History
-**Endpoint:** `GET /api/v1/cases/{case_id}/status-history`
-
-**Description:** Get case status change history.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Query Parameters:**
-- `limit` (optional): Number of history records to return (default: 50, max: 100)
-- `offset` (optional): Number of records to skip (default: 0)
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/status-history
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "history-uuid-1",
-    "case_id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "old_status": "open",
-    "new_status": "closed",
-    "changed_by": "user-uuid-1",
-    "reason": "Case completed",
-    "notes": "All evidence analyzed",
-    "timestamp": "2024-12-02T15:23:00Z"
-  }
-]
-```
-
-### 5.4 Add Case Note
-**Endpoint:** `POST /api/v1/cases/{case_id}/notes`
-
-**Description:** Add a note to a case.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Query Parameters:**
-- `note_content` (required): Content of the note
-
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/notes?note_content=New note content
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
+### CaseNote Model
 ```json
 {
-  "status": 200,
-  "message": "Note added successfully",
-  "data": {
-    "note": {
-      "content": "New note content",
-      "timestamp": "2024-12-12T10:30:00Z",
-      "status": "active",
-      "added_by": "John Doe"
-    },
-    "total_notes": 3
-  }
+  "id": "integer",
+  "case_id": "integer",
+  "note": "string",
+  "status": "string (optional)",
+  "created_by": "string",
+  "created_at": "datetime"
 }
 ```
 
-### 5.5 Get Case Notes
-**Endpoint:** `GET /api/v1/cases/{case_id}/notes`
-
-**Description:** Get all notes for a case.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request:**
-```http
-GET /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/notes
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
+### Agency Model
 ```json
 {
-  "status": 200,
-  "message": "Case notes retrieved successfully",
-  "data": {
-    "notes": [
-      {
-        "content": "Kasus ini memiliki indikasi adanya tersangka tambahan",
-        "timestamp": "2024-01-12T15:23:00Z",
-        "status": "active"
-      },
-      {
-        "content": "Additional suspect identified",
-        "timestamp": "2024-01-13T09:00:00Z",
-        "status": "active"
-      }
-    ],
-    "total_notes": 2
-  }
+  "id": "integer",
+  "name": "string"
 }
 ```
 
-### 5.6 Delete Case Note
-**Endpoint:** `DELETE /api/v1/cases/{case_id}/notes/{note_index}`
-
-**Description:** Delete a specific note from a case.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-- `note_index`: Index of the note to delete (0-based)
-
-**Request:**
-```http
-DELETE /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/notes/0
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
+### WorkUnit Model
 ```json
 {
-  "status": 200,
-  "message": "Note deleted successfully",
-  "data": {
-    "deleted_note": {
-      "content": "Kasus ini memiliki indikasi adanya tersangka tambahan",
-      "timestamp": "2024-01-12T15:23:00Z",
-      "status": "active"
-    },
-    "total_notes": 1
-  }
+  "id": "integer",
+  "name": "string",
+  "agency_id": "integer"
 }
 ```
 
-### 5.7 Close Case
-**Endpoint:** `POST /api/v1/cases/{case_id}/close`
-
-**Description:** Close a case with reason and notes.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request Body:**
+### AnalysisItem Model
 ```json
 {
-  "reason": "Case completed successfully",
-  "notes": "All evidence analyzed and case resolved"
+  "evidence_id": "string",
+  "summary": "string",
+  "status": "string"
 }
 ```
 
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/close
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "reason": "Case completed successfully",
-  "notes": "All evidence analyzed and case resolved"
-}
-```
-
-**Response (200 OK):**
+### PersonWithAnalysis Model
 ```json
 {
-  "status": 200,
-  "message": "Case closed successfully",
-  "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "status": "closed",
-    "closed_at": "2024-12-12T15:23:00Z"
-  }
+  "id": "integer",
+  "name": "string",
+  "person_type": "string",
+  "analysis": "array of AnalysisItem"
 }
 ```
 
-### 5.8 Reopen Case
-**Endpoint:** `POST /api/v1/cases/{case_id}/reopen`
-
-**Description:** Reopen a closed case.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request Body:**
+### CaseLogDetail Model
 ```json
 {
-  "reason": "New evidence found",
-  "notes": "Additional evidence requires further investigation"
+  "status": "string",
+  "timestamp": "string",
+  "description": "string",
+  "notes": "string (optional)"
 }
 ```
 
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/reopen
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "reason": "New evidence found",
-  "notes": "Additional evidence requires further investigation"
-}
-```
-
-**Response (200 OK):**
+### CaseNoteDetail Model
 ```json
 {
-  "status": 200,
-  "message": "Case reopened successfully",
-  "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "status": "reopened",
-    "reopened_at": "2024-12-12T16:00:00Z"
-  }
+  "timestamp": "string",
+  "status": "string",
+  "content": "string"
 }
 ```
 
-### 5.9 Change Case Status
-**Endpoint:** `POST /api/v1/cases/{case_id}/change-status`
-
-**Description:** Change case status with reason and notes.
-
-**Path Parameters:**
-- `case_id`: UUID of the case
-
-**Request Body:**
+### CaseSummary Model
 ```json
 {
-  "status": "reopened",
-  "reason": "Status change reason",
-  "notes": "Additional notes for status change"
-}
-```
-
-**Request:**
-```http
-POST /api/v1/cases/135df21b-c0ab-4bcc-b438-95874333f1c6/change-status
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "status": "reopened",
-  "reason": "New evidence requires investigation",
-  "notes": "Additional evidence found"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case status changed successfully",
-  "data": {
-    "id": "135df21b-c0ab-4bcc-b438-95874333f1c6",
-    "case_number": "CASE-2024-0001",
-    "title": "Buronan Maroko Interpol",
-    "status": "reopened",
-    "updated_at": "2024-12-12T16:00:00Z"
-  }
+  "total_persons": "integer",
+  "total_evidence": "integer"
 }
 ```
 
@@ -1193,172 +840,71 @@ Content-Type: application/json
 **400 Bad Request:**
 ```json
 {
-  "status": 400,
-  "message": "Invalid request parameters",
-  "error": "Detailed error description"
+  "detail": "Validation error message"
 }
 ```
 
 **401 Unauthorized:**
 ```json
 {
-  "status": 401,
-  "message": "Authentication required"
-}
-```
-
-**403 Forbidden:**
-```json
-{
-  "status": 403,
-  "message": "Insufficient permissions"
+  "detail": "Not authenticated"
 }
 ```
 
 **404 Not Found:**
 ```json
 {
-  "status": 404,
-  "message": "Resource not found"
+  "detail": "Case with ID 1 not found"
+}
+```
+
+**409 Conflict:**
+```json
+{
+  "detail": "Case number 'CASE-2024-0001' already exists"
+}
+```
+
+**422 Unprocessable Entity:**
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "title"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
 }
 ```
 
 **500 Internal Server Error:**
 ```json
 {
-  "status": 500,
-  "message": "Internal server error",
-  "error": "Detailed error description"
+  "detail": "Unexpected server error, please try again later"
 }
 ```
 
 ---
 
-## Data Models
+## Database Relationships
 
-### Case Status Values
-- `open`: Case is active and being investigated
-- `closed`: Case is completed and closed
-- `reopened`: Case was closed but reopened for further investigation
-- `archived`: Case is archived (soft deleted)
+### Case Relationships (with Cascade Delete)
+- **Case → CaseLog**: `cascade="all, delete-orphan"`
+- **Case → CaseNote**: `cascade="all, delete-orphan"`
+- **Case → Person**: `cascade="all, delete-orphan"`
+- **Case → Evidence**: `cascade="all, delete-orphan"`
+- **Case → Suspect**: `cascade="all, delete-orphan"`
 
-### Priority Levels
-- `low`: Low priority case
-- `medium`: Medium priority case
-- `high`: High priority case
-- `critical`: Critical priority case
-
-### Person Types
-- `suspect`: Person suspected of involvement
-- `witness`: Person who witnessed the incident
-- `victim`: Person who was victimized
-- `related`: Person related to the case
-
-### Activity Types
-- `created`: Case created
-- `updated`: Case updated
-- `closed`: Case closed
-- `reopened`: Case reopened
-- `note_added`: Note added to case
-- `note_deleted`: Note deleted from case
-- `evidence_associated`: Evidence associated with person
-- `person_added`: Person added to case
-- `person_updated`: Person information updated
-- `person_deleted`: Person removed from case
+### Evidence Relationships
+- **Evidence → CustodyLog**: `cascade="all, delete-orphan"`
+- **Evidence → CustodyReport**: `cascade="all, delete-orphan"`
 
 ---
 
-## Rate Limiting
+## Frontend Integration Examples
 
-API requests are rate limited to prevent abuse:
-- **Standard endpoints**: 100 requests per minute per user
-- **Search endpoints**: 50 requests per minute per user
-- **Export endpoints**: 10 requests per minute per user
-
----
-
-## Versioning
-
-This API follows semantic versioning:
-- Current version: v1
-- Version is specified in the URL path: `/api/v1/cases`
-- Breaking changes will result in a new major version
-
----
-
-## Frontend Integration Guide
-
-### **Essential Frontend Endpoints**
-
-#### **Case List Flow**
-```javascript
-// 1. Get Dashboard Overview
-GET /api/v1/cases/overview
-// 2. Get All Cases with Pagination
-GET /api/v1/cases/get-all-cases/?skip=0&limit=10
-// 3. Search Cases
-GET /api/v1/cases/search?q=search_term
-// 4. Get Filter Options
-GET /api/v1/cases/filter-options
-// 5. Get Form Options
-GET /api/v1/cases/form-options
-```
-
-#### **Case Detail Flow**
-```javascript
-// 1. Create New Case
-POST /api/v1/cases/create-cases/
-// 2. Get Case by ID
-GET /api/v1/cases/case-by-id?case_id=uuid
-// 3. Get Case Detail
-GET /api/v1/cases/{case_id}/detail
-// 4. Update Case
-PUT /api/v1/cases/update-case/{case_id}
-// 5. Get Case Stats
-GET /api/v1/cases/{case_id}/stats
-// 6. Export Case PDF
-GET /api/v1/cases/{case_id}/export/pdf
-// 7. Delete Case
-DELETE /api/v1/cases/delete-case/?case_id=uuid
-```
-
-#### **Person of Interest Flow**
-```javascript
-// 1. Add Person to Case
-POST /api/v1/cases/{case_id}/persons
-// 2. Get Case Persons
-GET /api/v1/cases/{case_id}/persons
-// 3. Update Person
-PUT /api/v1/cases/{case_id}/persons/{person_id}
-// 4. Remove Person
-DELETE /api/v1/cases/{case_id}/persons/{person_id}
-```
-
-#### **Case Log & Notes Flow**
-```javascript
-// 1. Get Case Activities
-GET /api/v1/cases/{case_id}/activities
-// 2. Get Recent Activities
-GET /api/v1/cases/{case_id}/activities/recent
-// 3. Get Status History
-GET /api/v1/cases/{case_id}/status-history
-// 4. Add Note
-POST /api/v1/cases/{case_id}/notes?note_content=note_text
-// 5. Get Notes
-GET /api/v1/cases/{case_id}/notes
-// 6. Delete Note
-DELETE /api/v1/cases/{case_id}/notes/{note_index}
-// 7. Close Case
-POST /api/v1/cases/{case_id}/close
-// 8. Reopen Case
-POST /api/v1/cases/{case_id}/reopen
-// 9. Change Status
-POST /api/v1/cases/{case_id}/change-status
-```
-
-### **Frontend Implementation Examples**
-
-#### **Get Case List**
+### Get Case List
 ```javascript
 async function getCases(page = 0, limit = 10, filters = {}) {
   const token = localStorage.getItem('access_token');
@@ -1368,7 +914,7 @@ async function getCases(page = 0, limit = 10, filters = {}) {
     ...filters
   });
   
-  const response = await fetch(`/api/v1/cases/get-all-cases/?${params}`, {
+  const response = await fetch(`/api/v1/cases/get-all-cases?${params}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -1378,11 +924,11 @@ async function getCases(page = 0, limit = 10, filters = {}) {
 }
 ```
 
-#### **Create New Case**
+### Create New Case
 ```javascript
 async function createCase(caseData) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch('/api/v1/cases/create-cases/', {
+  const response = await fetch('/api/v1/cases/create-case', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -1395,11 +941,11 @@ async function createCase(caseData) {
 }
 ```
 
-#### **Get Case Detail**
+### Get Case Detail
 ```javascript
 async function getCaseDetail(caseId) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/${caseId}/detail`, {
+  const response = await fetch(`/api/v1/cases/get-case-detail-comprehensive/${caseId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -1409,16 +955,79 @@ async function getCaseDetail(caseId) {
 }
 ```
 
-#### **Search Cases**
+### Update Case
 ```javascript
-async function searchCases(query, filters = {}) {
+async function updateCase(caseId, caseData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/cases/update-case/${caseId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(caseData)
+  });
+  
+  return await response.json();
+}
+```
+
+### Delete Case
+```javascript
+async function deleteCase(caseId) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/cases/delete-case/${caseId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  return await response.json();
+}
+```
+
+### Get Case Statistics
+```javascript
+async function getCaseStatistics() {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch('/api/v1/cases/statistics/summary', {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  return await response.json();
+}
+```
+
+### Create Case Log
+```javascript
+async function createCaseLog(logData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch('/api/v1/case-logs/create-log', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(logData)
+  });
+  
+  return await response.json();
+}
+```
+
+### Get Case Logs
+```javascript
+async function getCaseLogs(caseId, page = 0, limit = 10) {
   const token = localStorage.getItem('access_token');
   const params = new URLSearchParams({
-    q: query,
-    ...filters
+    skip: page * limit,
+    limit: limit
   });
   
-  const response = await fetch(`/api/v1/cases/search?${params}`, {
+  const response = await fetch(`/api/v1/case-logs/case/${caseId}/logs?${params}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -1428,11 +1037,79 @@ async function searchCases(query, filters = {}) {
 }
 ```
 
-#### **Add Person of Interest**
+### Create Case Note
 ```javascript
-async function addPersonToCase(caseId, personData) {
+async function createCaseNote(noteData) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/${caseId}/persons`, {
+  const response = await fetch('/api/v1/case-notes/create-note', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(noteData)
+  });
+  
+  return await response.json();
+}
+```
+
+### Get Case Notes
+```javascript
+async function getCaseNotes(caseId, page = 0, limit = 10) {
+  const token = localStorage.getItem('access_token');
+  const params = new URLSearchParams({
+    skip: page * limit,
+    limit: limit
+  });
+  
+  const response = await fetch(`/api/v1/case-notes/case/${caseId}/notes?${params}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  return await response.json();
+}
+```
+
+### Update Case Note
+```javascript
+async function updateCaseNote(noteId, noteData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/case-notes/update-note/${noteId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(noteData)
+  });
+  
+  return await response.json();
+}
+```
+
+### Delete Case Note
+```javascript
+async function deleteCaseNote(noteId) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/case-notes/delete-note/${noteId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  return await response.json();
+}
+```
+
+### Create Person
+```javascript
+async function createPerson(personData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch('/api/v1/persons/create-person', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -1445,12 +1122,11 @@ async function addPersonToCase(caseId, personData) {
 }
 ```
 
-#### **Add Case Note**
+### Get Person
 ```javascript
-async function addCaseNote(caseId, noteContent) {
+async function getPerson(personId) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/${caseId}/notes?note_content=${encodeURIComponent(noteContent)}`, {
-    method: 'POST',
+  const response = await fetch(`/api/v1/persons/get-person/${personId}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -1460,97 +1136,81 @@ async function addCaseNote(caseId, noteContent) {
 }
 ```
 
-#### **Close Case**
+### Get Persons by Case
 ```javascript
-async function closeCase(caseId, reason, notes) {
+async function getPersonsByCase(caseId, page = 0, limit = 10) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/${caseId}/close`, {
-    method: 'POST',
+  const params = new URLSearchParams({
+    skip: page * limit,
+    limit: limit
+  });
+  
+  const response = await fetch(`/api/v1/persons/get-persons-by-case/${caseId}?${params}`, {
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      reason: reason,
-      notes: notes
-    })
+      'Authorization': `Bearer ${token}`
+    }
   });
   
   return await response.json();
 }
 ```
 
-### **Frontend Error Handling**
-
-#### **Common Error Responses**
+### Update Person
 ```javascript
-// Handle case management errors
-function handleCaseError(error) {
-  switch (error.status) {
-    case 401:
-      // Unauthorized - redirect to login
-      window.location.href = '/login';
-      break;
-    case 404:
-      // Case not found
-      showError('Case not found');
-      break;
-    case 400:
-      // Bad request (validation errors)
-      showError(error.message);
-      break;
-    case 422:
-      // Validation failed
-      showValidationErrors(error.errors);
-      break;
-    case 500:
-      // Server error
-      showError('Server error occurred');
-      break;
-    default:
-      showError('An unexpected error occurred');
-  }
+async function updatePerson(personId, personData) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/persons/update-person/${personId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(personData)
+  });
+  
+  return await response.json();
 }
 ```
 
-### **Frontend State Management**
-
-#### **Case State Management**
+### Delete Person
 ```javascript
-// Case state management
-const CaseManager = {
-  cases: [],
-  currentCase: null,
-  loading: false,
-  error: null,
-  
-  async loadCases(filters = {}) {
-    this.loading = true;
-    try {
-      const response = await getCases(0, 10, filters);
-      this.cases = response.data;
-      this.error = null;
-    } catch (error) {
-      this.error = error.message;
-    } finally {
-      this.loading = false;
+async function deletePerson(personId) {
+  const token = localStorage.getItem('access_token');
+  const response = await fetch(`/api/v1/persons/delete-person/${personId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
     }
-  },
+  });
   
-  async loadCaseDetail(caseId) {
-    this.loading = true;
-    try {
-      const response = await getCaseDetail(caseId);
-      this.currentCase = response.data;
-      this.error = null;
-    } catch (error) {
-      this.error = error.message;
-    } finally {
-      this.loading = false;
-    }
-  }
-};
+  return await response.json();
+}
 ```
+
+---
+
+## Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | OK - Request successful |
+| 201 | Created - Resource created successfully |
+| 400 | Bad Request - Invalid request parameters |
+| 401 | Unauthorized - Authentication required |
+| 404 | Not Found - Resource not found |
+| 409 | Conflict - Resource already exists |
+| 422 | Unprocessable Entity - Validation error |
+| 500 | Internal Server Error - Server error |
+
+---
+
+## Rate Limiting
+
+API requests are rate limited to prevent abuse:
+- **Standard endpoints**: 100 requests per minute per user
+- **Search endpoints**: 50 requests per minute per user
+
+---
 
 ## Support
 
@@ -1558,3 +1218,50 @@ For API support and questions:
 - Documentation: `/docs` (Swagger UI)
 - Contact: [Support Team Email]
 - Issue Tracker: [GitHub Issues URL]
+
+---
+
+## API Summary
+
+This comprehensive API documentation covers all Case Management system endpoints:
+
+### Case Management
+- **Create Case**: `POST /api/v1/cases/create-case`
+- **Get Case Detail**: `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
+- **Get All Cases**: `GET /api/v1/cases/get-all-cases`
+- **Update Case**: `PUT /api/v1/cases/update-case/{case_id}`
+- **Delete Case**: `DELETE /api/v1/cases/delete-case/{case_id}`
+- **Get Statistics**: `GET /api/v1/cases/statistics/summary`
+
+### Case Log Management
+- **Create Log**: `POST /api/v1/case-logs/create-log`
+- **Get Case Logs**: `GET /api/v1/case-logs/case/{case_id}/logs`
+
+### Case Note Management
+- **Create Note**: `POST /api/v1/case-notes/create-note`
+- **Get Case Notes**: `GET /api/v1/case-notes/case/{case_id}/notes`
+- **Update Note**: `PUT /api/v1/case-notes/update-note/{note_id}`
+- **Delete Note**: `DELETE /api/v1/case-notes/delete-note/{note_id}`
+
+### Person Management
+- **Create Person**: `POST /api/v1/persons/create-person`
+- **Get Person**: `GET /api/v1/persons/get-person/{person_id}`
+- **Get Persons by Case**: `GET /api/v1/persons/get-persons-by-case/{case_id}`
+- **Update Person**: `PUT /api/v1/persons/update-person/{person_id}`
+- **Delete Person**: `DELETE /api/v1/persons/delete-person/{person_id}`
+
+### Key Features
+- **Comprehensive Case Tracking**: Full lifecycle management from creation to closure
+- **Audit Trail**: Complete logging of all case activities and changes
+- **Person Management**: Detailed tracking of suspects, witnesses, and other persons of interest
+- **Note System**: Flexible note-taking with status tracking
+- **Pagination**: All list endpoints support pagination for large datasets
+- **Search & Filter**: Advanced filtering capabilities for case discovery
+- **Cascade Operations**: Automatic cleanup of related data when cases are deleted
+
+### Data Relationships
+- Cases have one-to-many relationships with logs, notes, and persons
+- All related data is automatically cleaned up when a case is deleted
+- Comprehensive case details include all related entities in a single response
+
+This API provides a complete digital forensics case management solution with full CRUD operations, audit trails, and comprehensive data relationships.

@@ -6,7 +6,7 @@ from app.api.deps import get_database
 from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
-    Agency, AgencyCreate, WorkUnit, WorkUnitCreate
+    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse
 )
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
@@ -25,7 +25,6 @@ async def create_case(
             data=case
         )
     except HTTPException:
-        # Re-raise HTTPException as-is (already has correct status code)
         raise
     except Exception as e:
         raise HTTPException(
@@ -34,17 +33,17 @@ async def create_case(
         )
 
 
-@router.get("/get-case-detail/{case_id}", response_model=CaseResponse)
-async def get_case_detail(
+@router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
+async def get_case_detail_comprehensive(
     case_id: int,
     db: Session = Depends(get_database)
 ):
     try:
-        case = case_service.get_case(db, case_id)
-        return CaseResponse(
+        case_data = case_service.get_case_detail_comprehensive(db, case_id)
+        return CaseDetailResponse(
             status=200,
-            message="Case retrieved successfully",
-            data=case
+            message="Case detail retrieved successfully",
+            data=case_data
         )
     except Exception as e:
         raise HTTPException(
