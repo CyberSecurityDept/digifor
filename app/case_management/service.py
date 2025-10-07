@@ -463,6 +463,7 @@ class CaseLogService:
         return {
             "id": log.id,
             "case_id": log.case_id,
+            "action": log.action,
             "changed_by": log.changed_by,
             "change_detail": log.change_detail,
             "notes": log.notes,
@@ -483,6 +484,7 @@ class CaseLogService:
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
+                "action": log.action,
                 "changed_by": log.changed_by,
                 "change_detail": log.change_detail,
                 "notes": log.notes,
