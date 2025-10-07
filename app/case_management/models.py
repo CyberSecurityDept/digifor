@@ -55,9 +55,6 @@ class Case(Base):
     
     logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
     notes = relationship("CaseNote", back_populates="case", cascade="all, delete-orphan")
-    persons = relationship("Person", back_populates="case", cascade="all, delete-orphan")
-    evidence = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
-    suspects = relationship("Suspect", back_populates="case", cascade="all, delete-orphan")
     
     def generate_case_number(self):
         if not self.case_number:
