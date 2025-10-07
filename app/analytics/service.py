@@ -6,7 +6,7 @@ from app.db.init_db import SessionLocal, engine, Base
 from app.analytics.models import Device, Contact, Message, Call,GroupDevice
 from app.analytics.utils.parser_xlsx import normalize_str,_to_str
 import os
-from app.analytics.utils.sdp_crypto import encrypt_to_sdp
+from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 
 def create_group(db: Session, analytic_name: str, type: str = None, notes: str = None):
     """Buat group baru dan simpan ke database"""
@@ -59,18 +59,25 @@ def get_all_groups(db: Session):
     return groups
 
 
-# --- Konstanta folder upload ---
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
+KEY_DIR = os.path.join(os.getcwd(), "keys")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(KEY_DIR, exist_ok=True)
+
 
 def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key_path: str) -> str:
-    """
-    Enkripsi langsung dari bytes file upload (tanpa menyimpan file asli ke disk).
-    Hanya menyimpan hasil terenkripsi (.sdp) di folder uploads.
-    Mengembalikan path relatif seperti 'uploads/filename.xlsx.sdp'
-    """
-    if not os.path.exists(public_key_path):
-        raise FileNotFoundError(f"Public key tidak ditemukan: {public_key_path}")
+    public_key_path = os.path.join(KEY_DIR, "public.key")
+    private_key_path = os.path.join(KEY_DIR, "private.key")
+
+    # 🔐 Generate keypair kalau belum ada
+    if not (os.path.exists(public_key_path) and os.path.exists(private_key_path)):
+        print("⚙️  Keypair belum ada — generate baru...")
+        private_key, public_key = generate_keypair()
+        with open(private_key_path, "wb") as f:
+            f.write(private_key)
+        with open(public_key_path, "wb") as f:
+            f.write(public_key)
+        print(f"✅ Keypair dibuat: {public_key_path}, {private_key_path}")
 
     # Tentukan nama file hasil enkripsi
     encrypted_filename = f"{original_filename}.sdp"
