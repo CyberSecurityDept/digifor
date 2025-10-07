@@ -231,7 +231,7 @@ class CaseLogCreate(CaseLogBase):
     case_id: int = Field(..., description="Case ID")
 
 
-class CaseLog(CaseLogBase):
+class CaseLog(BaseModel):
     id: int
     case_id: int
     action: str = Field(..., description="Action performed")
