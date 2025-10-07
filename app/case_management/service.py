@@ -463,11 +463,10 @@ class CaseLogService:
         return {
             "id": log.id,
             "case_id": log.case_id,
-            "action": log.action,
             "changed_by": log.changed_by,
             "change_detail": log.change_detail,
             "notes": log.notes,
-            "status": log.status,  # Use log.status instead of case_status
+            "status": log.status,
             "created_at": log.created_at
         }
     
@@ -484,11 +483,10 @@ class CaseLogService:
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
-                "action": log.action,
                 "changed_by": log.changed_by,
                 "change_detail": log.change_detail,
                 "notes": log.notes,
-                "status": log.status,  # Use log.status instead of case_status
+                "status": log.status,
                 "created_at": log.created_at
             }
             result.append(log_dict)
