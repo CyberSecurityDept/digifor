@@ -234,6 +234,10 @@ class CaseLogCreate(CaseLogBase):
 class CaseLog(CaseLogBase):
     id: int
     case_id: int
+    action: str = Field(..., description="Action performed")
+    changed_by: str = Field(..., description="User who made the change")
+    change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
     status: Optional[str] = Field(None, description="Case status at the time of log creation")
     created_at: datetime
 
