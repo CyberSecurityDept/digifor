@@ -111,20 +111,20 @@ class CaseService:
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
         
-        # Create initial case log for case creation
+        # Create initial case log entry for "Open" status
         try:
-            case_log = CaseLog(
+            initial_log = CaseLog(
                 case_id=case.id,
-                action="Case Created",
+                action="Open",
                 changed_by=case.main_investigator,
-                change_detail=f"Case '{case.title}' created with status '{case.status}'",
+                change_detail="Case created and opened",
                 notes="Initial case creation",
-                status=case.status
+                status="Open"
             )
-            db.add(case_log)
+            db.add(initial_log)
             db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
+            print(f"Warning: Could not create initial case log: {str(e)}")
             # Don't fail the case creation if log creation fails
 
         case_response = {
@@ -462,6 +462,9 @@ class CaseLogService:
         
         result = []
         for log in logs:
+            # Format tanggal sesuai dengan yang diinginkan
+            formatted_date = log.created_at.strftime("%d %B %y, %H:%M")
+            
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
@@ -470,7 +473,7 @@ class CaseLogService:
                 "change_detail": log.change_detail,
                 "notes": log.notes,
                 "status": case_status,
-                "created_at": log.created_at
+                "created_at": formatted_date
             }
             result.append(log_dict)
         

@@ -453,6 +453,24 @@ Authorization: Bearer <access_token>
 {
   "status": 200,
   "message": "Case logs retrieved successfully",
+  "data": [{
+      "id": 1,
+      "case_id": 1,
+      "action": "Status Change",
+      "changed_by": "",
+      "change_detail": "",
+      "notes": "",
+      "created_at": "06 Oktober 25, 10:25"
+  }],
+  "total": 1,
+  "page": 1,
+  "size": 10
+}
+
+
+{
+  "status": 200,
+  "message": "Case logs retrieved successfully",
   "data": [
     {
       "id": 1,
