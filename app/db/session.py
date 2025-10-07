@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.case_management.models import Case, Person
 from app.evidence_management.models import Evidence, EvidenceType
+from app.suspect_management.models import Suspect
 
 # Create engine
 engine = create_engine(
