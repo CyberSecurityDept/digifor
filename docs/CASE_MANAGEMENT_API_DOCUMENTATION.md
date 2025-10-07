@@ -449,6 +449,7 @@ Authorization: Bearer <access_token>
 
 **Response (200 OK):**
 ```json
+
 {
   "status": 200,
   "message": "Case logs retrieved successfully",

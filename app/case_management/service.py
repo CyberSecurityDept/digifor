@@ -111,6 +111,22 @@ class CaseService:
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
         
+        # Create initial case log for case creation
+        try:
+            case_log = CaseLog(
+                case_id=case.id,
+                action="Case Created",
+                changed_by=case.main_investigator,
+                change_detail=f"Case '{case.title}' created with status '{case.status}'",
+                notes="Initial case creation",
+                status=case.status
+            )
+            db.add(case_log)
+            db.commit()
+        except Exception as e:
+            print(f"Warning: Could not create case log: {str(e)}")
+            # Don't fail the case creation if log creation fails
+
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
