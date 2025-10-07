@@ -256,11 +256,46 @@ class CaseService:
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
         
+        # Store old values for logging
+        old_status = case.status
+        old_title = case.title
+        
         for field, value in update_data.items():
             setattr(case, field, value)
         
         db.commit()
         db.refresh(case)
+        
+        # Create case log entry for updates
+        try:
+            # Determine what changed
+            changes = []
+            if 'title' in update_data and update_data['title'] != old_title:
+                changes.append(f"Title changed from '{old_title}' to '{update_data['title']}'")
+            if 'status' in update_data and update_data['status'] != old_status:
+                changes.append(f"Status changed from '{old_status}' to '{update_data['status']}'")
+            if 'description' in update_data:
+                changes.append("Description updated")
+            if 'main_investigator' in update_data:
+                changes.append("Main investigator updated")
+            if 'case_number' in update_data:
+                changes.append("Case number updated")
+            
+            if changes:
+                change_detail = "; ".join(changes)
+                update_log = CaseLog(
+                    case_id=case.id,
+                    action="Edit",
+                    changed_by=case.main_investigator,
+                    change_detail=change_detail,
+                    notes="Case updated",
+                    status=case.status
+                )
+                db.add(update_log)
+                db.commit()
+        except Exception as e:
+            print(f"Warning: Could not create update case log: {str(e)}")
+            # Don't fail the update if log creation fails
 
         agency_name = None
         work_unit_name = None
@@ -462,9 +497,6 @@ class CaseLogService:
         
         result = []
         for log in logs:
-            # Format tanggal sesuai dengan yang diinginkan
-            formatted_date = log.created_at.strftime("%d %B %y, %H:%M")
-            
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
@@ -473,7 +505,7 @@ class CaseLogService:
                 "change_detail": log.change_detail,
                 "notes": log.notes,
                 "status": case_status,
-                "created_at": formatted_date
+                "created_at": log.created_at
             }
             result.append(log_dict)
         
