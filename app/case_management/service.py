@@ -222,19 +222,16 @@ class CaseService:
 
     
     def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
-        
-        # Get the actual Case object from database
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
         
         update_data = case_data.dict(exclude_unset=True)
         
-        # Handle case_number update with auto-generation logic
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
             if manual_case_number and manual_case_number.strip():
-                # Check for duplicate case number
+
                 existing_case = db.query(Case).filter(
                     Case.case_number == manual_case_number.strip(),
                     Case.id != case_id
@@ -247,7 +244,6 @@ class CaseService:
                     )
                 update_data['case_number'] = manual_case_number.strip()
             else:
-                # Auto-generate case number if empty or None
                 title = update_data.get('title', case.title).strip().upper()
                 words = title.split()
                 first_three_words = words[:3]
@@ -256,7 +252,6 @@ class CaseService:
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
         
-        # Store old values for logging
         old_status = case.status
         old_title = case.title
         
@@ -266,9 +261,7 @@ class CaseService:
         db.commit()
         db.refresh(case)
         
-        # Create case log entry for updates
         try:
-            # Determine what changed
             changes = []
             if 'title' in update_data and update_data['title'] != old_title:
                 changes.append(f"Title changed from '{old_title}' to '{update_data['title']}'")
@@ -295,7 +288,6 @@ class CaseService:
                 db.commit()
         except Exception as e:
             print(f"Warning: Could not create update case log: {str(e)}")
-            # Don't fail the update if log creation fails
 
         agency_name = None
         work_unit_name = None
@@ -326,7 +318,6 @@ class CaseService:
         return case_dict
     
     def delete_case(self, db: Session, case_id: int) -> bool:
-        # Get the actual Case object from database
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
@@ -364,7 +355,6 @@ class CaseService:
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
         
-        # Get agency and work unit names
         agency_name = None
         work_unit_name = None
         
@@ -378,18 +368,14 @@ class CaseService:
             if work_unit:
                 work_unit_name = work_unit.name
         
-        # Format created date
         created_date = case.created_at.strftime("%d/%m/%Y")
         
-        # Get persons of interest with their analysis
         persons = db.query(Person).filter(Person.case_id == case_id).all()
         persons_of_interest = []
         
         for person in persons:
-            # Create analysis items for this person
             analysis_items = []
             if person.evidence_id and person.evidence_summary:
-                # Split evidence summary by lines or create multiple entries
                 summaries = person.evidence_summary.split('\n') if '\n' in person.evidence_summary else [person.evidence_summary]
                 for summary in summaries:
                     if summary.strip():
@@ -420,7 +406,7 @@ class CaseService:
                 "timestamp": timestamp,
                 "description": log.change_detail if log.change_detail else log.action,
                 "notes": log.notes,
-                "case_status": case.status  # Add case status to log data
+                "case_status": case.status
             }
             case_log.append(log_data)
         
@@ -466,7 +452,6 @@ class CaseService:
 
 class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
-        # Get case status for the log
         case = db.query(Case).filter(Case.id == log_data['case_id']).first()
         case_status = case.status if case else None
         
@@ -482,12 +467,11 @@ class CaseLogService:
             "changed_by": log.changed_by,
             "change_detail": log.change_detail,
             "notes": log.notes,
-            "status": case_status,
+            "status": log.status,  # Use log.status instead of case_status
             "created_at": log.created_at
         }
     
     def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
-        # Get case status
         case = db.query(Case).filter(Case.id == case_id).first()
         case_status = case.status if case else None
         
@@ -504,7 +488,7 @@ class CaseLogService:
                 "changed_by": log.changed_by,
                 "change_detail": log.change_detail,
                 "notes": log.notes,
-                "status": case_status,
+                "status": log.status,  # Use log.status instead of case_status
                 "created_at": log.created_at
             }
             result.append(log_dict)
