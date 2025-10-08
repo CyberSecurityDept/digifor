@@ -10,15 +10,18 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 
 **📁 Case Management**
 - Create and track investigation cases with unique identifiers
-- Monitor case status (Open, Closed, Re-opened)
+- Monitor case status (Open, Closed, Re-open) with automatic case logging
+- Automatic case log creation for all case activities (creation, person addition, evidence addition)
 - Link cases with suspects, evidence, and persons of interest
 - Generate comprehensive case statistics and reports
+- Real-time case status updates with audit trail
 
 **🔬 Evidence Management**
 - Track digital evidence with unique identifiers and hash verification
 - Maintain secure chain of custody records with timestamps
 - Store evidence metadata, file information, and analysis results
 - Support for multiple evidence sources (HP, SSD, Harddisk, PC, Laptop, DVR)
+- Automatic case log creation when evidence is added to cases
 
 **👤 Suspect Management**
 - Create detailed suspect profiles with comprehensive information
@@ -31,6 +34,7 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 - Track custody stages (Acquisition, Preparation, Extraction, Analysis)
 - Link persons with evidence and investigating officers
 - Support for unknown persons and unidentified individuals
+- Automatic case log creation when persons are added to cases
 
 **📊 Reporting & Analytics**
 - Generate comprehensive case reports with multiple templates
@@ -305,9 +309,10 @@ python tools/migrate_database.py  # Run migrations
 - **JWT Authentication**: Secure token-based authentication
 - **Role-based Access Control**: Granular permission system
 - **Data Encryption**: Sensitive data encryption at rest
-- **Audit Trails**: Complete activity logging and tracking
+- **Audit Trails**: Complete activity logging and tracking with automatic case log creation
 - **Chain of Custody**: Secure evidence tracking with timestamps
 - **Input Validation**: Comprehensive data validation and sanitization
+- **Case Log Management**: Automatic logging of all case activities with WIB timezone support
 
 
 ## 📈 Performance & Monitoring
@@ -315,6 +320,26 @@ python tools/migrate_database.py  # Run migrations
 - **Health Check**: `GET /health`
 - **Metrics**: `GET /metrics`
 - **Database Connection**: `GET /db/health`
+
+## 📝 Case Log Management
+
+The system now includes comprehensive case log management with the following features:
+
+### **Automatic Case Log Creation**
+- **Case Creation**: Automatically creates initial log with "Open" status
+- **Person Addition**: Creates "Edit" log when persons are added to cases
+- **Evidence Addition**: Creates "Edit" log when evidence is added to cases
+- **Status Updates**: Creates logs when case status is changed (Open, Closed, Re-open)
+
+### **Case Log Features**
+- **Timestamp Format**: User-friendly format "DD MMM YY, HH:MM" (e.g., "08 Oct 25, 16:17")
+- **WIB Timezone**: All timestamps in Western Indonesian Time (UTC+7)
+- **Status Validation**: Case-insensitive status validation (accepts "open", "closed", "re-open")
+- **Audit Trail**: Complete tracking of all case activities and changes
+
+### **API Endpoints**
+- `PUT /api/v1/case-logs/update-log/{case_id}` - Update case status and create log entry
+- `GET /api/v1/case-logs/case/{case_id}/logs` - Retrieve case logs with pagination
 
 
 **Built with ❤️ for Digital Forensics Professionals**
