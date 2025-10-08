@@ -3,6 +3,9 @@ from sqlalchemy.orm import sessionmaker
 from typing import Generator
 
 from app.core.config import settings
+from app.db.base import Base
+from app.case_management.models import Case, Person
+from app.evidence_management.models import Evidence, EvidenceType
 
 # Create engine
 engine = create_engine(
@@ -25,11 +28,5 @@ def get_db() -> Generator:
 
 
 def init_db():
-    from app.db.base import Base
-    # Import models to register them with SQLAlchemy
-    from app.case_management.models import Case, CasePerson
-    from app.evidence_management.models import Evidence, EvidenceType
-    from app.suspect_management.models import Person
-    
     # Create all tables
     Base.metadata.create_all(bind=engine)

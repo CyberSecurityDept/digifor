@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 
 from app.api.deps import get_database
-from app.case_management.service import case_service, case_person_service
+from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
-    CasePerson, CasePersonCreate, CasePersonUpdate,
-    Agency, AgencyCreate, WorkUnit, WorkUnitCreate
+    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse
 )
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
@@ -25,24 +24,26 @@ async def create_case(
             message="Case created successfully",
             data=case
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to create case: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
-@router.get("/get-case-by-id/{case_id}", response_model=CaseResponse)
-async def get_case(
+@router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
+async def get_case_detail_comprehensive(
     case_id: int,
     db: Session = Depends(get_database)
 ):
     try:
-        case = case_service.get_case(db, case_id)
-        return CaseResponse(
+        case_data = case_service.get_case_detail_comprehensive(db, case_id)
+        return CaseDetailResponse(
             status=200,
-            message="Case retrieved successfully",
-            data=case
+            message="Case detail retrieved successfully",
+            data=case_data
         )
     except Exception as e:
         raise HTTPException(
@@ -72,7 +73,7 @@ async def get_cases(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to retrieve cases: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )
 
 
@@ -98,7 +99,7 @@ async def update_case(
         else:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to update case: {str(e)}"
+                detail="Unexpected server error, please try again later"
             )
 
 
@@ -125,7 +126,7 @@ async def delete_case(
         else:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to delete case: {str(e)}"
+                detail="Unexpected server error, please try again later"
             )
 
 
@@ -148,5 +149,5 @@ async def get_case_statistics(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to retrieve statistics: {str(e)}"
+            detail="Unexpected server error, please try again later"
         )

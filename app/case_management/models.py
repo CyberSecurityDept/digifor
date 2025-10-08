@@ -53,29 +53,81 @@ class Case(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
+    logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
+    notes = relationship("CaseNote", back_populates="case", cascade="all, delete-orphan")
+    persons = relationship("Person", back_populates="case", cascade="all, delete-orphan")
+    evidence = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
+    suspects = relationship("Suspect", back_populates="case", cascade="all, delete-orphan")
+    
     def generate_case_number(self):
-
         if not self.case_number:
+            title_words = self.title.split()[:3]
+            title_prefix = ''.join([word[0].upper() for word in title_words])
             today = datetime.today()
-            self.case_number = f"CASE {today.year}-{today.month:02d}-01"
+            date_str = today.strftime("%d%m%y")
+            
+            self.case_number = f"{title_prefix}-{date_str}-{self.id:04d}"
     
     def __repr__(self):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"
 
 
-class CasePerson(Base):
-    
-    __tablename__ = "case_persons"
+class CaseLog(Base):
+    __tablename__ = "case_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(50), nullable=False)
+    changed_by = Column(String(255), nullable=False)
+    change_detail = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    status = Column(Enum("Open", "Closed", "Re-open", name="casestatus"), default="Open")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    case = relationship("Case", back_populates="logs")
+
+    def __repr__(self):
+        return (
+            f"<CaseLog(id={self.id}, case_id={self.case_id}, "
+            f"action='{self.action}', changed_by='{self.changed_by}')>"
+        )
+
+
+class CaseNote(Base):
+    __tablename__ = "case_notes"
     
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
-    person_id = Column(Integer, nullable=False)
-    person_type = Column(String(20), nullable=False)
-    notes = Column(Text)
-    is_primary = Column(Boolean, default=False)
+    note = Column(Text, nullable=False)
+    status = Column(String(20), nullable=True)
+    created_by = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    case = relationship("Case", back_populates="notes")
     
     def __repr__(self):
-        return f"<CasePerson(id={self.id}, person_id={self.person_id}, type='{self.person_type}')>"
+        return f"<CaseNote(id={self.id}, case_id={self.case_id}, status='{self.status}')>"
+
+
+class Person(Base):
+    __tablename__ = "persons"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    is_unknown = Column(Boolean, default=False)
+    custody_stage = Column(String(100))
+    evidence_id = Column(String(100))
+    evidence_source = Column(String(100))
+    evidence_summary = Column(Text)
+    investigator = Column(String(255))
+
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_by = Column(String(255), nullable=False)
+
+    case = relationship("Case", back_populates="persons")
+    
+    def __repr__(self):
+        return f"<Person(id={self.id}, name='{self.name}', case_id={self.case_id})>"

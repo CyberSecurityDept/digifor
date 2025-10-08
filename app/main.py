@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -10,7 +10,7 @@ from app.core.health import router as health_router
 from app.middleware.cors import add_cors_middleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
-from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes, analytics_routes
+from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes, analytics_routes, case_log_routes, case_note_routes, person_routes
 from app.db.init_db import init_db
 
 
@@ -60,10 +60,33 @@ app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 app.include_router(analytics_routes.router, prefix=settings.API_V1_STR, tags=["Analytics"])
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
+app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
+app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
+app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
 app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 app.include_router(health_router, prefix="/health", tags=["Health"])
+
+
+# HTTPException handler for custom error format
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Check if detail is already in the desired format
+    if isinstance(exc.detail, dict) and "status" in exc.detail and "message" in exc.detail:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail
+        )
+    else:
+        # Convert simple detail to custom format
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "status": exc.status_code,
+                "message": exc.detail
+            }
+        )
 
 
 # Global exception handler
@@ -90,6 +113,15 @@ async def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+
+# Favicon endpoint to prevent 404 errors
+@app.get("/favicon.ico")
+async def favicon():
+    return JSONResponse(
+        status_code=204,
+        content=None
+    )
 
 
 if __name__ == "__main__":

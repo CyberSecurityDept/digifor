@@ -84,9 +84,6 @@ class EvidenceListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-
-# Chain of Custody Schemas
-
 class CustodyLogBase(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")
     event_type: str = Field(..., description="Event type (acquisition, preparation, extraction, analysis, transfer, storage)")
