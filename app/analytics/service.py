@@ -3,41 +3,11 @@ from app.analytics.models import Group
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Device, Contact, Message, Call,GroupDevice
+from app.analytics.models import Device, Contact, Message, Call
 from app.analytics.utils.parser_xlsx import normalize_str,_to_str
 import os
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
-
-def create_group(db: Session, analytic_name: str, type: str = None, notes: str = None):
-    """Buat group baru dan simpan ke database"""
-    new_group = Group(
-        analytic_name=analytic_name,
-        type=type,
-        notes=notes,
-        created_at=datetime.utcnow()
-    )
-    db.add(new_group)
-    db.commit()
-    db.refresh(new_group)
-    return new_group
-
-
-def get_all_groups(db: Session):
-    """Ambil semua data group"""
-    groups = db.query(Group).order_by(Group.created_at.desc()).all()
-    return groups
-
-from sqlalchemy.orm import Session
-from app.analytics.models import Group
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from app.db.init_db import SessionLocal
-from app.analytics.models import Device, Contact, Message, Call, GroupDevice
-from app.analytics.utils.parser_xlsx import normalize_str, _to_str
-import os
 import tempfile
-from app.analytics.utils.sdp_crypto import encrypt_to_sdp
-
 
 def create_group(db: Session, analytic_name: str, type: str = None, notes: str = None):
     """Buat group baru dan simpan ke database"""
@@ -112,6 +82,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
         social_media = device_data.get("social_media", {}) or {}
 
         device = Device(
+            group_id=device_data.get("group_id"), 
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
             instagram=social_media.get("instagram"),
@@ -120,7 +91,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
             facebook=social_media.get("facebook"),
             tiktok=social_media.get("tiktok"),
             telegram=social_media.get("telegram"),
-            file_path=device_data.get("file_path"),  # ✅ simpan path relatif ('uploads/...sdp')
+            file_path=device_data.get("file_path"),
         )
 
         db.add(device)
@@ -187,16 +158,5 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
     except Exception as e:
         db.rollback()
         raise e
-    finally:
-        db.close()
-
-
-def create_group_device(group_id: int, device_id: int) -> None:
-    """Simpan relasi group-device ke tabel group_devices."""
-    db = SessionLocal()
-    try:
-        group_device = GroupDevice(group_id=group_id, device_id=device_id)
-        db.add(group_device)
-        db.commit()
     finally:
         db.close()

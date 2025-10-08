@@ -6,7 +6,7 @@ import json
 import os
 from pydantic import BaseModel
 from app.db.session import get_db
-from app.analytics.service import create_group, get_all_groups, create_device, create_group_device, encrypt_and_store_file
+from app.analytics.service import create_group, get_all_groups, create_device, encrypt_and_store_file
 from pathlib import Path
 from app.analytics.utils.parser_xlsx import parse_sheet
 
@@ -95,20 +95,14 @@ async def add_device(
     phone_number: str = Form(...),
     social_media: Optional[str] = Form(None),
 ):
-    """
-    Upload file XLSX → enkripsi dengan nama asli → simpan ke uploads → buat device → link ke group
-    """
-    # --- Parse social media JSON ---
     try:
         social_media_obj: Dict[str, Any] = json.loads(social_media) if social_media else {}
     except Exception as e:
         return {"status": 422, "message": f"Invalid social_media JSON: {str(e)}"}
 
-    # --- Baca konten file upload ---
     file_bytes = await file.read()
     original_filename = file.filename
 
-    # --- Parse isi Excel sementara ---
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         tmp.write(file_bytes)
         tmp_path = Path(tmp.name)
@@ -117,27 +111,23 @@ async def add_device(
     messages = parse_sheet(tmp_path, "messages") or []
     calls = parse_sheet(tmp_path, "calls") or []
 
-    # --- Enkripsi file dan simpan ke uploads/ dengan nama asli ---
     public_key_path = os.path.join(os.getcwd(), "keys", "public.key")
     encrypted_path = encrypt_and_store_file(original_filename, file_bytes, public_key_path)
 
-    # --- Siapkan data untuk Device ---
     device_data = {
+        "group_id": group_id,
         "owner_name": owner_name,
         "phone_number": phone_number,
         "social_media": social_media_obj,
         "file_path": encrypted_path,
     }
 
-    # --- Simpan device dan relasi ke group ---
     device_id = create_device(
         device_data=device_data,
         contacts=contacts,
         messages=messages,
         calls=calls,
     )
-
-    create_group_device(group_id=group_id, device_id=device_id)
 
     return {
         "status": 200,
@@ -148,6 +138,6 @@ async def add_device(
             "owner_name": owner_name,
             "phone_number": phone_number,
             "social_media": social_media_obj,
-            "file_path": encrypted_path
-        }
+            "file_path": encrypted_path,
+        },
     }

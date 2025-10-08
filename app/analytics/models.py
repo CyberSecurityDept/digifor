@@ -8,13 +8,12 @@ class Group(Base):
     __tablename__ = "groups"
 
     id = Column(Integer, primary_key=True, index=True)
-
-    analytic_name = Column(String, nullable=False)  # input manual
+    analytic_name = Column(String, nullable=False)
     type = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
-
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    devices = relationship("Device", back_populates="group", cascade="all, delete-orphan")
 
 class Device(Base):
     __tablename__ = "devices"
@@ -32,19 +31,12 @@ class Device(Base):
     tiktok    = Column(String, nullable=True)
     telegram  = Column(String, nullable=True)
 
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
+    group = relationship("Group", back_populates="devices")
+
     contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="device", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
-    
-class GroupDevice(Base):
-    __tablename__ = "group_devices"
-
-    id = Column(Integer, primary_key=True, index=True)
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
-
-    group = relationship("Group", backref="group_devices")
-    device = relationship("Device", backref="group_devices")
 
 
 class Contact(Base):
