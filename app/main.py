@@ -16,7 +16,8 @@ from app.api.v1 import (
     report_routes,
     case_log_routes,
     case_note_routes,
-    person_routes
+    person_routes,
+    analytics_routes
 )
 from app.db.init_db import init_db
 
@@ -56,6 +57,7 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
 app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
+app.include_router(analytics_routes.router, prefix=settings.API_V1_STR, tags=["Analytics"])
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
 app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
