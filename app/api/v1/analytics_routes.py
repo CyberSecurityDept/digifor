@@ -1,36 +1,13 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from typing import Any, Dict, Optional
-import tempfile
-import json
-import os
-from pydantic import BaseModel
+from typing import Optional
 from app.db.session import get_db
-from app.analytics.service import create_group, get_all_groups, create_device, encrypt_and_store_file
-from pathlib import Path
-from app.analytics.utils.parser_xlsx import parse_sheet
+from app.analytics.service import create_group, get_all_groups
+from app.analytics.utils.upload_pipeline import upload_service
+from app.analytics.schemas import GroupCreate
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
-
-class GroupCreate(BaseModel):
-    analytic_name: str
-    type: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class GroupResponse(BaseModel):
-    id: int
-    analytic_name: str
-    type: Optional[str]
-    notes: Optional[str]
-    created_at: str
-
-    class Config:
-        orm_mode = True
-        
-class AddDevice(BaseModel):
-    owner_name: str
-    phone_number: str
 
 @router.get("/get-all-analytic")
 def get_all_analytic(db: Session = Depends(get_db)):
@@ -86,58 +63,69 @@ def create_analytic(data: GroupCreate, db: Session = Depends(get_db)):
             "message": f"Gagal membuat analytic: {str(e)}",
             "data": []
         }
-        
+    
 @router.post("/add-device")
 async def add_device(
-    file: UploadFile = File(...),
-    group_id: int = Form(...),
-    owner_name: str = Form(...),
-    phone_number: str = Form(...),
-    social_media: Optional[str] = Form(None),
+    file: UploadFile = File(..., description="Excel file (.xlsx atau .xls)"),
+    group_id: int = Form(..., description="ID grup device"),
+    owner_name: str = Form(..., description="Nama pemilik device"),
+    phone_number: str = Form(..., description="Nomor telepon pemilik"),
+    social_media: Optional[str] = Form(None, description="JSON string social media"),
+    upload_id: str = Form(..., description="Unique upload ID dari client"),
 ):
+    
     try:
-        social_media_obj: Dict[str, Any] = json.loads(social_media) if social_media else {}
+        # Validasi file extension
+        if not file.filename:
+            return JSONResponse(
+                {"status": 400, "message": "File name is required"},
+                status_code=400
+            )
+            
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return JSONResponse(
+                {"status": 400, "message": "Only Excel files (.xlsx, .xls) are allowed"},
+                status_code=400
+            )
+
+        # Validasi upload_id tidak kosong
+        if not upload_id or upload_id.strip() == "":
+            return JSONResponse(
+                {"status": 400, "message": "upload_id is required"},
+                status_code=400
+            )
+
+        # Call service untuk proses upload
+        resp = await upload_service.start_upload_and_process(
+            file=file,
+            group_id=group_id,
+            owner_name=owner_name,
+            phone_number=phone_number,
+            social_media=social_media,
+            upload_id=upload_id,
+        )
+        
+        # Gunakan status dari response sebagai HTTP status code
+        status_code = resp.get("status", 200)
+        return JSONResponse(resp, status_code=status_code)
+        
     except Exception as e:
-        return {"status": 422, "message": f"Invalid social_media JSON: {str(e)}"}
+        return JSONResponse(
+            {"status": 500, "message": f"Unexpected error: {str(e)}"}, 
+            status_code=500
+        )
 
-    file_bytes = await file.read()
-    original_filename = file.filename
+@router.get("/upload-progress/{upload_id}")
+async def get_upload_progress(upload_id: str):
+    data, status_code = upload_service.get_progress(upload_id)
+    return JSONResponse(data, status_code=status_code)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-        tmp.write(file_bytes)
-        tmp_path = Path(tmp.name)
 
-    contacts = parse_sheet(tmp_path, "contacts") or []
-    messages = parse_sheet(tmp_path, "messages") or []
-    calls = parse_sheet(tmp_path, "calls") or []
+@router.post("/upload-cancel/{upload_id}")
+async def cancel_upload(upload_id: str):
+    data, status_code = upload_service.cancel(upload_id)
+    return JSONResponse(data, status_code=status_code)
 
-    public_key_path = os.path.join(os.getcwd(), "keys", "public.key")
-    encrypted_path = encrypt_and_store_file(original_filename, file_bytes, public_key_path)
-
-    device_data = {
-        "group_id": group_id,
-        "owner_name": owner_name,
-        "phone_number": phone_number,
-        "social_media": social_media_obj,
-        "file_path": encrypted_path,
-    }
-
-    device_id = create_device(
-        device_data=device_data,
-        contacts=contacts,
-        messages=messages,
-        calls=calls,
-    )
-
-    return {
-        "status": 200,
-        "message": "Device added, encrypted, and linked to group successfully",
-        "data": {
-            "group_id": group_id,
-            "device_id": device_id,
-            "owner_name": owner_name,
-            "phone_number": phone_number,
-            "social_media": social_media_obj,
-            "file_path": encrypted_path,
-        },
-    }
+@router.post('/start-extraction')
+async def start_extraction(): 
+    return {"message": "Not implemented yet"}

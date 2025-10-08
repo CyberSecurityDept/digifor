@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 from app.analytics.models import Group
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Device, Contact, Message, Call
+from typing import List, Dict, Any
+from app.db.init_db import SessionLocal
+from app.analytics.models import Device, Contact, Message, Call, HashFile
 from app.analytics.utils.parser_xlsx import normalize_str,_to_str
 import os
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
@@ -76,7 +76,7 @@ def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key
 
 
 def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: List[dict], calls: List[dict]) -> int:
-    """Simpan data Device ke DB."""
+    """Simpan data Device + HasFile + detail lain ke DB."""
     db = SessionLocal()
     try:
         social_media = device_data.get("social_media", {}) or {}
@@ -91,14 +91,21 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
             facebook=social_media.get("facebook"),
             tiktok=social_media.get("tiktok"),
             telegram=social_media.get("telegram"),
-            file_path=device_data.get("file_path"),
         )
 
         db.add(device)
         db.commit()
         db.refresh(device)
-        
+
         device_id = device.id
+
+        # --- 1️⃣ Simpan file info ke HasFile ---
+        if device_data.get("file_path"):
+            db.add(HashFile(
+                device_id=device_id,
+                file_path=device_data["file_path"],
+                created_at=datetime.utcnow(),
+            ))
 
         # --- 2️⃣ Simpan Contacts ---
         for c in contacts:
@@ -112,7 +119,6 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 phones_emails=_to_str(c.get("Phones & Emails")),
                 internet=_to_str(c.get("Internet")),
                 other=_to_str(c.get("Other")),
-                # raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         # --- 3️⃣ Simpan Messages ---
@@ -130,7 +136,6 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 details=_to_str(m.get("Details")),
                 thread_id=normalize_str(_to_str(m.get("Thread id"))),
                 attachment=_to_str(m.get("Attachment")),
-                # raw_json=json.dumps(m, ensure_ascii=False),
             ))
 
         # --- 4️⃣ Simpan Calls ---
@@ -147,12 +152,10 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 receiver=_to_str(c.get("To")),
                 details=_to_str(c.get("Details")),
                 thread_id=normalize_str(_to_str(c.get("Thread id"))),
-                # raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         # --- 5️⃣ Commit semua perubahan ---
         db.commit()
-
         return device_id
 
     except Exception as e:
@@ -160,3 +163,15 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
         raise e
     finally:
         db.close()
+
+def format_bytes(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    i, x = 0, float(n)
+    while x >= 1024 and i < len(units) - 1:
+        x /= 1024.0
+        i += 1
+    return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"

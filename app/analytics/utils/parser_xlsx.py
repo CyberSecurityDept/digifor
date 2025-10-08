@@ -1,12 +1,10 @@
 from pathlib import Path
 import pandas as pd
 import re
-import json
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-
 from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Group, Device, Contact, Message, Call
+from app.analytics.models import Device, Contact, Message, Call
 
 # Buat tabel kalau belum ada
 Base.metadata.create_all(bind=engine)
@@ -117,7 +115,6 @@ def save_device(
                 phones_emails=_to_str(c.get("Phones & Emails")),
                 internet=_to_str(c.get("Internet")),
                 other=_to_str(c.get("Other")),
-                raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         # --- Messages ---
@@ -135,7 +132,6 @@ def save_device(
                 details=_to_str(m.get("Details")),
                 thread_id=normalize_str(_to_str(m.get("Thread id"))),
                 attachment=_to_str(m.get("Attachment")),
-                raw_json=json.dumps(m, ensure_ascii=False),
             ))
 
         # --- Calls ---
@@ -152,7 +148,6 @@ def save_device(
                 receiver=_to_str(c.get("To")),
                 details=_to_str(c.get("Details")),
                 thread_id=normalize_str(_to_str(c.get("Thread id"))),
-                raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         db.commit()
