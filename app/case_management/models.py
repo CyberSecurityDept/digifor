@@ -1,9 +1,12 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from enum import Enum as PyEnum
 from app.db.base import Base
+
+# WIB timezone (UTC+7)
+WIB = timezone(timedelta(hours=7))
 
 
 class CaseStatus(PyEnum):
@@ -50,8 +53,8 @@ class Case(Base):
     agency_id = Column(Integer, ForeignKey("agencies.id"), nullable=True)
     work_unit_id = Column(Integer, ForeignKey("work_units.id"), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
     notes = relationship("CaseNote", back_populates="case", cascade="all, delete-orphan")
@@ -78,9 +81,9 @@ class CaseLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
     action = Column(String(50), nullable=False)
-    changed_by = Column(String(255), nullable=False)
-    change_detail = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
+    changed_by = Column(String(255), nullable=True, default="")
+    change_detail = Column(Text, nullable=True, default="")
+    notes = Column(Text, nullable=True, default="")
     status = Column(Enum("Open", "Closed", "Re-open", name="casestatus"), default="Open")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -101,7 +104,7 @@ class CaseNote(Base):
     note = Column(Text, nullable=False)
     status = Column(String(20), nullable=True)
     created_by = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     case = relationship("Case", back_populates="notes")
     
@@ -123,8 +126,8 @@ class Person(Base):
 
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     created_by = Column(String(255), nullable=False)
 
     case = relationship("Case", back_populates="persons")

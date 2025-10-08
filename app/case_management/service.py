@@ -1,10 +1,14 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
-from app.case_management.models import Case, Agency, WorkUnit, Person, CaseLog, CaseNote
+from app.case_management.models import Case, Agency, WorkUnit, Person, CaseLog, CaseNote, WIB
 from app.case_management.schemas import CaseCreate, CaseUpdate, PersonCreate, PersonUpdate
 from datetime import datetime
 from fastapi import HTTPException
+
+def get_wib_now():
+    """Get current datetime in WIB timezone"""
+    return datetime.now(WIB)
 
 
 def get_or_create_agency(db: Session, name: str):
@@ -51,7 +55,7 @@ class CaseService:
         else:
             case_dict["agency_id"] = None
         
-        # 🔹 Handle work unit
+        
         work_unit = None
         work_unit_name = None
         work_unit_id = case_dict.get("work_unit_id")
@@ -70,27 +74,27 @@ class CaseService:
         else:
             case_dict["work_unit_id"] = None
 
-        # Hapus field tambahan
+        
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
 
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
-            # Cek duplikat
+            
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
             case_dict["case_number"] = manual_case_number.strip()
         else:
-            # 🔥 Auto-generate sebelum insert
+            
             title = case_dict["title"].strip().upper()
             words = title.split()
             first_three = words[:3]
             initials = "".join([w[0] for w in first_three])
-            date_part = datetime.now().strftime("%d%m%y")
+            date_part = get_wib_now().strftime("%d%m%y")
 
-            # Hitung total case di hari yang sama (buat urutan 0001, 0002, dst)
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            
+            today_str = get_wib_now().strftime("%Y-%m-%d")
             today_count = db.query(Case).filter(
                 cast(Case.created_at, String).like(f"%{today_str}%")
             ).count() + 1
@@ -111,21 +115,22 @@ class CaseService:
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
         
-        # Create initial case log entry for "Open" status
+        
         try:
+            # Create initial case log with empty fields as per requirements
             initial_log = CaseLog(
                 case_id=case.id,
                 action="Open",
-                changed_by=case.main_investigator,
-                change_detail="Case created and opened",
-                notes="Initial case creation",
+                changed_by="",  # Empty for initial creation
+                change_detail="",  # Empty for initial creation
+                notes="",  # Empty for initial creation
                 status="Open"
             )
             db.add(initial_log)
             db.commit()
         except Exception as e:
             print(f"Warning: Could not create initial case log: {str(e)}")
-            # Don't fail the case creation if log creation fails
+            
 
         case_response = {
             "id": case.id,
@@ -248,7 +253,7 @@ class CaseService:
                 words = title.split()
                 first_three_words = words[:3]
                 initials = ''.join([w[0] for w in first_three_words])
-                date_part = datetime.now().strftime("%d%m%y")
+                date_part = get_wib_now().strftime("%d%m%y")
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
         
@@ -260,34 +265,6 @@ class CaseService:
         
         db.commit()
         db.refresh(case)
-        
-        try:
-            changes = []
-            if 'title' in update_data and update_data['title'] != old_title:
-                changes.append(f"Title changed from '{old_title}' to '{update_data['title']}'")
-            if 'status' in update_data and update_data['status'] != old_status:
-                changes.append(f"Status changed from '{old_status}' to '{update_data['status']}'")
-            if 'description' in update_data:
-                changes.append("Description updated")
-            if 'main_investigator' in update_data:
-                changes.append("Main investigator updated")
-            if 'case_number' in update_data:
-                changes.append("Case number updated")
-            
-            if changes:
-                change_detail = "; ".join(changes)
-                update_log = CaseLog(
-                    case_id=case.id,
-                    action="Edit",
-                    changed_by=case.main_investigator,
-                    change_detail=change_detail,
-                    notes="Case updated",
-                    status=case.status
-                )
-                db.add(update_log)
-                db.commit()
-        except Exception as e:
-            print(f"Warning: Could not create update case log: {str(e)}")
 
         agency_name = None
         work_unit_name = None
@@ -399,14 +376,15 @@ class CaseService:
         
         case_log = []
         for log in logs:
-            timestamp = log.created_at.strftime("%d %b %Y, %H:%M")
-            
             log_data = {
-                "status": log.action,
-                "timestamp": timestamp,
-                "description": log.change_detail if log.change_detail else log.action,
+                "id": log.id,
+                "case_id": log.case_id,
+                "action": log.action,
+                "changed_by": log.changed_by,
+                "change_detail": log.change_detail,
                 "notes": log.notes,
-                "case_status": case.status
+                "status": log.status,
+                "created_at": log.created_at
             }
             case_log.append(log_data)
         
@@ -431,19 +409,21 @@ class CaseService:
                 "id": case.id,
                 "case_number": case.case_number,
                 "title": case.title,
+                "description": case.description or "No description available",
                 "status": case.status,
                 "case_officer": case.main_investigator,
-                "created_date": created_date,
                 "agency": agency_name or "Unknown",
                 "work_unit": work_unit_name,
-                "description": case.description or "No description available"
+                "created_date": created_date
             },
             "persons_of_interest": persons_of_interest,
             "case_log": case_log,
             "notes": case_notes,
             "summary": {
                 "total_persons": len(persons),
-                "total_evidence": evidence_count
+                "total_evidence": evidence_count,
+                "total_case_log": len(case_log),
+                "total_notes": len(case_notes)
             }
         }
         
@@ -468,7 +448,55 @@ class CaseLogService:
             "change_detail": log.change_detail,
             "notes": log.notes,
             "status": log.status,
-            "created_at": log.created_at
+            "created_at": log.created_at.strftime("%d %b %y, %H:%M")
+        }
+    
+    def update_case_log(self, db: Session, case_id: int, log_data: dict) -> dict:
+        """Update case status and create case log entry"""
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        
+        new_status = log_data['status']
+        old_status = case.status
+        
+        # Update case status in cases table
+        case.status = new_status
+        db.commit()
+        db.refresh(case)
+        
+        # Get notes from case_notes table if status is Closed or Re-open
+        notes = ""
+        if new_status in ['Closed', 'Re-open']:
+            # Get the latest case note for this case
+            latest_note = db.query(CaseNote).filter(
+                CaseNote.case_id == case_id
+            ).order_by(CaseNote.created_at.desc()).first()
+            if latest_note:
+                notes = latest_note.note
+        
+        log_entry = CaseLog(
+            case_id=case_id,
+            action=new_status,
+            changed_by="",
+            change_detail="",
+            notes=notes,
+            status=new_status
+        )
+        
+        db.add(log_entry)
+        db.commit()
+        db.refresh(log_entry)
+        
+        return {
+            "id": log_entry.id,
+            "case_id": log_entry.case_id,
+            "action": log_entry.action,
+            "changed_by": log_entry.changed_by,
+            "change_detail": log_entry.change_detail,
+            "notes": log_entry.notes,
+            "status": log_entry.status,
+            "created_at": log_entry.created_at
         }
     
     def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
@@ -481,6 +509,8 @@ class CaseLogService:
         
         result = []
         for log in logs:
+            formatted_date = log.created_at.strftime("%d %b %y, %H:%M")
+            
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
@@ -489,7 +519,7 @@ class CaseLogService:
                 "change_detail": log.change_detail,
                 "notes": log.notes,
                 "status": log.status,
-                "created_at": log.created_at
+                "created_at": formatted_date
             }
             result.append(log_dict)
         
@@ -577,6 +607,26 @@ class PersonService:
             db.add(person)
             db.commit()
             db.refresh(person)
+            
+            # Auto-create case log for adding person
+            try:
+                # Get the current case status
+                case = db.query(Case).filter(Case.id == person.case_id).first()
+                current_status = case.status if case else "Open"
+                
+                case_log = CaseLog(
+                    case_id=person.case_id,
+                    action="Edit",
+                    changed_by="Wisnu",  # Default user for now
+                    change_detail=f"Adding Person: {person.name}",
+                    notes="",
+                    status=current_status  # Use current case status
+                )
+                db.add(case_log)
+                db.commit()
+            except Exception as e:
+                print(f"Warning: Could not create case log for person: {str(e)}")
+                
         except Exception as e:
             db.rollback()
             raise HTTPException(

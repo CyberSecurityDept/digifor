@@ -175,7 +175,7 @@ sudo -u postgres psql
 In PostgreSQL shell:
 ```sql
 CREATE DATABASE forenlytic;
-CREATE USER forenlytic_user WITH PASSWORD 'your_password';
+CREATE USER_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;
 \q
 ```

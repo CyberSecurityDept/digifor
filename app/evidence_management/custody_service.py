@@ -215,7 +215,9 @@ class CustodyService:
             
             custody_log.is_verified = True
             custody_log.verified_by = verified_by
-            custody_log.verification_date = datetime.now()
+            from datetime import timezone, timedelta
+            WIB = timezone(timedelta(hours=7))
+            custody_log.verification_date = datetime.now(WIB)
             
             self.db.commit()
             self.db.refresh(custody_log)

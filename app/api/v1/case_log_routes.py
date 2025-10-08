@@ -5,22 +5,23 @@ from typing import Optional
 from app.api.deps import get_database
 from app.case_management.service import case_log_service
 from app.case_management.schemas import (
-    CaseLogCreate, CaseLogResponse, CaseLogListResponse
+    CaseLogUpdate, CaseLogResponse, CaseLogListResponse
 )
 
 router = APIRouter(prefix="/case-logs", tags=["Case Log Management"])
 
 
-@router.post("/create-log", response_model=CaseLogResponse)
-async def create_log(
-    log_data: CaseLogCreate,
+@router.put("/update-log/{case_id}", response_model=CaseLogResponse)
+async def update_case_log(
+    case_id: int,
+    log_data: CaseLogUpdate,
     db: Session = Depends(get_database)
 ):
     try:
-        log = case_log_service.create_log(db, log_data.dict())
+        log = case_log_service.update_case_log(db, case_id, log_data.dict())
         return CaseLogResponse(
-            status=201,
-            message="Case log created successfully",
+            status=200,
+            message="Case log updated successfully",
             data=log
         )
     except Exception as e:
