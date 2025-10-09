@@ -5,7 +5,7 @@ This document provides comprehensive API documentation for the Case Management s
 
 ## Base URL
 ```
-/api/v1/cases
+/api/v1
 ```
 
 ## Authentication
@@ -21,7 +21,7 @@ Authorization: Bearer <access_token>
 ### 1. Create Case
 **Endpoint:** `POST /api/v1/cases/create-case`
 
-**Description:** Create a new case with agency and work unit information. Supports both auto-generated and manual case numbers.
+**Description:** Create a new case with agency and work unit information. Supports both auto-generated and manual case numbers. **Automatically creates an initial case log entry with status "Open".**
 
 #### Option 1: Auto-Generate Case Number (Recommended)
 **Request Body:**
@@ -54,12 +54,18 @@ Authorization: Bearer <access_token>
 
 **Notes:** 
 - Field `status` tidak perlu disertakan dalam request body karena akan otomatis diset ke "Open" saat case pertama kali dibuat.
+- **Auto Case Log Creation**: Ketika case dibuat, sistem otomatis membuat case log entry dengan:
+  - `action`: "Open"
+  - `changed_by`: ""
+  - `change_detail`: ""
+  - `notes`: ""
+  - `status`: "Open"
 - Field `case_number` bersifat opsional:
   - **Jika tidak disertakan**: Akan otomatis di-generate menggunakan format `{INITIALS}-{DATE}-{ID}` 
     - `INITIALS`: Huruf pertama dari setiap kata dalam title (maksimal 3 kata)
     - `DATE`: Tanggal saat ini dalam format DDMMYY
     - `ID`: Case ID dengan padding 4 digit
-    - **Contoh**: "Buronan Maroko Interpol" → "BMI-061025-0001"
+    - **Contoh**: "Buronan Maroko Interpol" → "BMI-081025-0001"
   - **Jika disertakan**: Akan menggunakan case number yang diberikan (minimum 3 karakter, harus unik)
 
 **Response (201 Created):**
@@ -69,15 +75,15 @@ Authorization: Bearer <access_token>
   "message": "Case created successfully",
   "data": {
     "id": 1,
-    "case_number": "BMI-061025-0001",
+    "case_number": "BMI-081025-0001",
     "title": "Buronan Maroko Interpol",
     "description": "Case description...",
     "status": "Open",
     "main_investigator": "Solehun",
     "agency_name": "Trikora agency",
     "work_unit_name": "Dirjen Imigrasi 1",
-    "created_at": "2024-12-02T00:00:00Z",
-    "updated_at": "2024-12-02T00:00:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00",
+    "updated_at": "2025-10-08T15:23:10.622831+07:00"
   }
 }
 ```
@@ -85,7 +91,7 @@ Authorization: Bearer <access_token>
 **Response (409 Conflict - Duplicate Case Number):**
 ```json
 {
-  "detail": "Case number 'BMI-061025-0001' already exists"
+  "detail": "Case number 'BMI-081025-0001' already exists"
 }
 ```
 
@@ -118,14 +124,14 @@ Authorization: Bearer <access_token>
   "data": {
     "case": {
       "id": 1,
-      "case_number": "CASE-2024-0001",
+      "case_number": "BMI-081025-0001",
       "title": "Buronan Maroko Interpol",
-      "status": "Closed",
+      "description": "Case description...",
+      "status": "Open",
       "case_officer": "Solehun",
-      "created_date": "12/02/2025",
       "agency": "Trikora agency",
       "work_unit": "Dirjen Imigrasi 1",
-      "description": "Emily Johnson, the plaintiff, filed a lawsuit against Acme Corporation for negligence and breach of warranty related to a defective blender. The malfunction caused severe lacerations to her hand during use."
+      "created_date": "08/10/2025"
     },
     "persons_of_interest": [
       {
@@ -137,75 +143,34 @@ Authorization: Bearer <access_token>
             "evidence_id": "32342223",
             "summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
             "status": "Analysis"
-          },
-          {
-            "evidence_id": "32342223",
-            "summary": "Terdapat dialog seputar pembakaran dengan suspect lain",
-            "status": "Analysis"
-          }
-        ]
-      },
-      {
-        "id": 2,
-        "name": "Nathalie",
-        "person_type": "Suspect",
-        "analysis": [
-          {
-            "evidence_id": "32342223",
-            "summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian",
-            "status": "Analysis"
-          },
-          {
-            "evidence_id": "32342223",
-            "summary": "Terdapat dialog seputar pembakaran dengan suspect lain",
-            "status": "Analysis"
           }
         ]
       }
     ],
     "case_log": [
       {
-        "status": "Re-Open",
-        "timestamp": "16 Mei 2024, 08:12",
-        "description": "Re-open",
-        "notes": "tersangka kemungkinan kerabat dari pelaku utama"
-      },
-      {
-        "status": "Edit",
-        "timestamp": "16 Mei 2024, 08:12",
-        "description": "Adding Person: Nathalie"
-      },
-      {
-        "status": "Edit",
-        "timestamp": "16 Mei 2024, 08:12",
-        "description": "Adding Evidence: 32342223, Description change"
-      },
-      {
-        "status": "Closed",
-        "timestamp": "12 Mei 2024, 15:23",
-        "description": "Kasus ini memiliki indikasi adanya tersangka tambahan"
-      },
-      {
+        "id": 1,
+        "case_id": 1,
+        "action": "Open",
+        "changed_by": "",
+        "change_detail": "",
+        "notes": "",
         "status": "Open",
-        "timestamp": "17 Feb 2024, 09:12",
-        "description": "Initial case created"
+        "created_at": "2025-10-08T15:23:10.622831+07:00"
       }
     ],
     "notes": [
       {
-        "timestamp": "12 Mei 2024, 15:23",
-        "status": "Closed",
-        "content": "Kasus ini memiliki indikasi adanya tersangka tambahan"
-      },
-      {
-        "timestamp": "16 Mei 2024, 08:12",
-        "status": "Re-Open",
-        "content": "tersangka kemungkinan kerabat dari pelaku utama"
+        "timestamp": "08 Oct 2025, 15:23",
+        "status": "Active",
+        "content": "Initial case note"
       }
     ],
     "summary": {
-      "total_persons": 2,
-      "total_evidence": 4
+      "total_persons": 1,
+      "total_evidence": 1,
+      "total_case_log": 1,
+      "total_notes": 1
     }
   }
 }
@@ -243,15 +208,15 @@ Authorization: Bearer <access_token>
   "data": [
     {
       "id": 1,
-      "case_number": "BMI-061025-0001",
+      "case_number": "BMI-081025-0001",
       "title": "Buronan Maroko Interpol",
       "description": "Case description...",
       "status": "Open",
       "main_investigator": "Solehun",
       "agency_name": "Trikora agency",
       "work_unit_name": "Dirjen Imigrasi 1",
-      "created_at": "2024-12-02T00:00:00Z",
-      "updated_at": "2024-12-02T00:00:00Z"
+      "created_at": "2025-10-08T15:23:10.622831+07:00",
+      "updated_at": "2025-10-08T15:23:10.622831+07:00"
     }
   ],
   "total": 1,
@@ -263,7 +228,7 @@ Authorization: Bearer <access_token>
 ### 4. Update Case
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
-**Description:** Update case information.
+**Description:** Update case information. **Note: Updating case information does NOT create a case log entry.**
 
 **Path Parameters:**
 - `case_id` (integer): The ID of the case to update
@@ -271,7 +236,7 @@ Authorization: Bearer <access_token>
 **Request Body:**
 ```json
 {
-  "case_number": "BMI-061025-0001",
+  "case_number": "BMI-081025-0001",
   "title": "Updated Case Title",
   "description": "Updated description",
   "main_investigator": "New Investigator",
@@ -294,41 +259,6 @@ Authorization: Bearer <access_token>
 
 **Note:** All fields are optional. Only provided fields will be updated. You can update any combination of fields.
 
-**Example Request Bodies:**
-
-**Update only title and description:**
-```json
-{
-  "title": "Updated Case Title",
-  "description": "Updated case description with new findings"
-}
-```
-
-**Update investigator and agency:**
-```json
-{
-  "main_investigator": "Detective John Smith",
-  "agency_id": 3,
-  "work_unit_id": 5
-}
-```
-
-**Update with manual agency/work unit names:**
-```json
-{
-  "title": "Case Title Update",
-  "agency_name": "Special Investigation Unit",
-  "work_unit_name": "Cyber Crime Division"
-}
-```
-
-**Update case number only:**
-```json
-{
-  "case_number": "NEW-061025-0002"
-}
-```
-
 **Response (200 OK):**
 ```json
 {
@@ -336,15 +266,15 @@ Authorization: Bearer <access_token>
   "message": "Case updated successfully",
   "data": {
     "id": 1,
-    "case_number": "BMI-061025-0001",
+    "case_number": "BMI-081025-0001",
     "title": "Updated Case Title",
     "description": "Updated description",
     "status": "Open",
     "main_investigator": "New Investigator",
     "agency_name": "New Agency",
     "work_unit_name": "New Work Unit",
-    "created_at": "2024-12-02T00:00:00Z",
-    "updated_at": "2024-12-02T10:30:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00",
+    "updated_at": "2025-10-08T17:30:00.000000+07:00"
   }
 }
 ```
@@ -402,36 +332,63 @@ Authorization: Bearer <access_token>
 
 ## Case Log Management Endpoints
 
-### 1. Create Case Log
-**Endpoint:** `POST /api/v1/case-logs/create-log`
+### 1. Update Case Log
+**Endpoint:** `PUT /api/v1/case-logs/update-log/{case_id}`
 
-**Description:** Create a new case log entry to track case activities.
+**Description:** Update case status and create a new case log entry. **This is the primary way to change case status.**
+
+**Path Parameters:**
+- `case_id` (integer): The ID of the case to update
 
 **Request Body:**
 ```json
 {
-  "case_id": 1,
-  "action": "Status Change",
-  "changed_by": "investigator@example.com",
-  "change_detail": "Case status changed from Open to Closed",
-  "notes": "Additional notes about this change"
+  "status": "Closed"
 }
 ```
 
-**Response (201 Created):**
+**Request Body Fields:**
+- `status` (string, required): New case status. Valid values: "Open", "Closed", "Re-open" (case-insensitive)
+
+**Behavior:**
+- Updates the `status` field in the `cases` table
+- Creates a new `CaseLog` entry with:
+  - `action`: Same as the provided status ("Open", "Closed", or "Re-open")
+  - `changed_by`: "" (empty for now, will be populated from logged-in user later)
+  - `change_detail`: "" (empty)
+  - `notes`: Retrieved from `case_notes` table if status is "Closed" or "Re-open", otherwise ""
+  - `status`: Same as the provided status
+  - `created_at`: Current timestamp in WIB timezone
+
+**Response (200 OK):**
 ```json
 {
-  "status": 201,
-  "message": "Case log created successfully",
+  "status": 200,
+  "message": "Case log updated successfully",
   "data": {
-    "id": 1,
+    "id": 2,
     "case_id": 1,
-    "action": "Status Change",
-    "changed_by": "investigator@example.com",
-    "change_detail": "Case status changed from Open to Closed",
-    "notes": "Additional notes about this change",
-    "created_at": "2024-12-02T10:30:00Z"
+    "action": "Closed",
+    "changed_by": "",
+    "change_detail": "",
+    "notes": "",
+    "status": "Closed",
+    "created_at": "08 Oct 25, 16:17"
   }
+}
+```
+
+**Response (400 Bad Request - Invalid Status):**
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body", "status"],
+      "msg": "Value error, Invalid status 'invalid'. Only ['Open', 'Closed', 'Re-open'] are allowed.",
+      "input": "invalid"
+    }
+  ]
 }
 ```
 
@@ -454,20 +411,33 @@ Authorization: Bearer <access_token>
   "message": "Case logs retrieved successfully",
   "data": [
     {
+      "id": 2,
+      "case_id": 1,
+      "action": "Closed",
+      "changed_by": "",
+      "change_detail": "",
+      "notes": "",
+      "status": "Closed",
+      "created_at": "08 Oct 25, 16:17"
+    },
+    {
       "id": 1,
       "case_id": 1,
-      "action": "Status Change",
-      "changed_by": "investigator@example.com",
-      "change_detail": "Case status changed from Open to Closed",
-      "notes": "Additional notes about this change",
-      "created_at": "2024-12-02T10:30:00Z"
+      "action": "Open",
+      "changed_by": "",
+      "change_detail": "",
+      "notes": "",
+      "status": "Open",
+      "created_at": "08 Oct 25, 15:23"
     }
   ],
-  "total": 1,
+  "total": 2,
   "page": 1,
   "size": 10
 }
 ```
+
+**Note:** The `created_at` field is formatted as "DD MMM YY, HH:MM" (e.g., "08 Oct 25, 16:17").
 
 ---
 
@@ -499,7 +469,7 @@ Authorization: Bearer <access_token>
     "note": "Initial investigation findings suggest multiple suspects involved",
     "status": "Investigation",
     "created_by": "investigator@example.com",
-    "created_at": "2024-12-02T10:30:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00"
   }
 }
 ```
@@ -528,7 +498,7 @@ Authorization: Bearer <access_token>
       "note": "Initial investigation findings suggest multiple suspects involved",
       "status": "Investigation",
       "created_by": "investigator@example.com",
-      "created_at": "2024-12-02T10:30:00Z"
+      "created_at": "2025-10-08T15:23:10.622831+07:00"
     }
   ],
   "total": 1,
@@ -564,7 +534,7 @@ Authorization: Bearer <access_token>
     "note": "Updated investigation findings with new evidence",
     "status": "Analysis",
     "created_by": "investigator@example.com",
-    "created_at": "2024-12-02T10:30:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00"
   }
 }
 ```
@@ -606,7 +576,7 @@ Authorization: Bearer <access_token>
 ### 1. Create Person
 **Endpoint:** `POST /api/v1/persons/create-person`
 
-**Description:** Create a new person record associated with a case.
+**Description:** Create a new person record associated with a case. **Automatically creates a case log entry with action "Edit".**
 
 **Request Body:**
 ```json
@@ -622,6 +592,14 @@ Authorization: Bearer <access_token>
   "created_by": "investigator@example.com"
 }
 ```
+
+**Auto Case Log Creation:**
+When a person is created, the system automatically creates a case log entry with:
+- `action`: "Edit"
+- `changed_by`: "Wisnu" (default value, will be replaced with logged-in user later)
+- `change_detail`: "Adding Person: {person_name}"
+- `notes`: ""
+- `status`: Current case status (maintains last known status)
 
 **Response (201 Created):**
 ```json
@@ -639,8 +617,8 @@ Authorization: Bearer <access_token>
     "evidence_summary": "Phone analysis reveals suspicious communications",
     "investigator": "Detective Smith",
     "created_by": "investigator@example.com",
-    "created_at": "2024-12-02T10:30:00Z",
-    "updated_at": "2024-12-02T10:30:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00",
+    "updated_at": "2025-10-08T15:23:10.622831+07:00"
   }
 }
 ```
@@ -669,8 +647,8 @@ Authorization: Bearer <access_token>
     "evidence_summary": "Phone analysis reveals suspicious communications",
     "investigator": "Detective Smith",
     "created_by": "investigator@example.com",
-    "created_at": "2024-12-02T10:30:00Z",
-    "updated_at": "2024-12-02T10:30:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00",
+    "updated_at": "2025-10-08T15:23:10.622831+07:00"
   }
 }
 ```
@@ -711,8 +689,8 @@ Authorization: Bearer <access_token>
       "evidence_summary": "Phone analysis reveals suspicious communications",
       "investigator": "Detective Smith",
       "created_by": "investigator@example.com",
-      "created_at": "2024-12-02T10:30:00Z",
-      "updated_at": "2024-12-02T10:30:00Z"
+      "created_at": "2025-10-08T15:23:10.622831+07:00",
+      "updated_at": "2025-10-08T15:23:10.622831+07:00"
     }
   ],
   "total": 1,
@@ -754,8 +732,8 @@ Authorization: Bearer <access_token>
     "evidence_summary": "Updated analysis shows no criminal activity",
     "investigator": "Detective Smith",
     "created_by": "investigator@example.com",
-    "created_at": "2024-12-02T10:30:00Z",
-    "updated_at": "2024-12-02T11:00:00Z"
+    "created_at": "2025-10-08T15:23:10.622831+07:00",
+    "updated_at": "2025-10-08T17:00:00.000000+07:00"
   }
 }
 ```
@@ -792,6 +770,96 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Evidence Management Endpoints
+
+### 1. Create Evidence
+**Endpoint:** `POST /api/v1/evidence/create-evidence`
+
+**Description:** Create a new evidence record. **Automatically creates a case log entry with action "Edit".**
+
+**Request Body:**
+```json
+{
+  "case_id": 1,
+  "evidence_id": "EVID-001",
+  "evidence_type": "Digital",
+  "description": "Mobile phone evidence",
+  "custody_officer": "Detective Smith",
+  "created_by": "investigator@example.com"
+}
+```
+
+**Auto Case Log Creation:**
+When evidence is created, the system automatically creates a case log entry with:
+- `action`: "Edit"
+- `changed_by`: "Wisnu" (default value, will be replaced with logged-in user later)
+- `change_detail`: "Adding Evidence: {evidence_id}"
+- `notes`: ""
+- `status`: Current case status (maintains last known status)
+
+**Response (201 Created):**
+```json
+{
+  "status": 201,
+  "message": "Evidence created successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "evidence_id": "EVID-001",
+    "evidence_type": "Digital",
+    "description": "Mobile phone evidence",
+    "custody_officer": "Detective Smith",
+    "created_by": "investigator@example.com",
+    "created_at": "2025-10-08T15:23:10.622831+07:00"
+  }
+}
+```
+
+---
+
+## Case Log Behavior Summary
+
+### Automatic Case Log Creation
+
+1. **Case Creation**: 
+   - Action: "Open"
+   - Status: "Open"
+   - Changed by: "" (empty)
+   - Change detail: "" (empty)
+   - Notes: "" (empty)
+
+2. **Person Creation**:
+   - Action: "Edit"
+   - Status: Current case status (maintains last known status)
+   - Changed by: "Wisnu" (default, will be replaced with logged-in user)
+   - Change detail: "Adding Person: {person_name}"
+   - Notes: "" (empty)
+
+3. **Evidence Creation**:
+   - Action: "Edit"
+   - Status: Current case status (maintains last known status)
+   - Changed by: "Wisnu" (default, will be replaced with logged-in user)
+   - Change detail: "Adding Evidence: {evidence_id}"
+   - Notes: "" (empty)
+
+4. **Case Status Update** (via Update Case Log):
+   - Action: Same as status ("Open", "Closed", "Re-open")
+   - Status: New status
+   - Changed by: "" (empty, will be replaced with logged-in user)
+   - Change detail: "" (empty)
+   - Notes: Retrieved from case_notes table if status is "Closed" or "Re-open"
+
+### Case Status Values
+- **"Open"**: Case is active and being investigated
+- **"Closed"**: Case investigation is complete
+- **"Re-open"**: Previously closed case is reopened for further investigation
+- **Note**: "In Progress" status is not used
+
+### Timestamp Format
+All case log timestamps are formatted as: **"DD MMM YY, HH:MM"** (e.g., "08 Oct 25, 16:17")
+
+---
+
 ## Case Number Handling
 
 ### Auto-Generated Case Numbers
@@ -801,15 +869,15 @@ When `case_number` is not provided in the request, the system automatically gene
 ```
 
 **Examples:**
-- Title: "Digital Forensics Investigation" → "DFI-061025-0001"
-- Title: "Buronan Maroko Interpol" → "BMI-061025-0002"
-- Title: "Kasus Buronan Internasional Maroko Interpol" → "KBI-061025-0003"
+- Title: "Digital Forensics Investigation" → "DFI-081025-0001"
+- Title: "Buronan Maroko Interpol" → "BMI-081025-0002"
+- Title: "Kasus Buronan Internasional Maroko Interpol" → "KBI-081025-0003"
 
 **Format Breakdown:**
 - `INITIALS`: First letter of each word in the title (max 3 words)
   - If title has 3 words or less: Use all words
   - If title has more than 3 words: Use first 3 words only
-- `DATE`: Current date in DDMMYY format (e.g., 061025 for June 10, 2025)
+- `DATE`: Current date in DDMMYY format (e.g., 081025 for October 8, 2025)
 - `ID`: Case ID with 4-digit padding (e.g., 0001, 0002, 0003)
 
 ### Manual Case Numbers
@@ -820,34 +888,6 @@ When `case_number` is provided in the request, the system validates and uses the
 - Must be unique (no duplicates allowed)
 - Case-sensitive
 - Cannot be empty or null
-
-**Best Practices:**
-- Use consistent naming conventions (e.g., "CASE-YYYY-NNNN")
-- Include year for easy identification
-- Use sequential numbers for better organization
-- Avoid special characters that might cause issues
-
-### Error Handling
-- **409 Conflict**: Case number already exists
-- **400 Bad Request**: Case number too short or invalid format
-- **422 Unprocessable Entity**: Validation errors in request body
-- **500 Internal Server Error**: Database constraint violations or unexpected errors
-
-### Case Number Generation Examples
-
-**Title with 3 words or less:**
-- "Digital Forensics" → "DF-061025-0001"
-- "Buronan Maroko Interpol" → "BMI-061025-0002"
-- "Cyber Crime" → "CC-061025-0003"
-
-**Title with more than 3 words:**
-- "Kasus Buronan Internasional Maroko Interpol" → "KBI-061025-0004"
-- "Digital Forensics Investigation Cyber Crime" → "DFI-061025-0005"
-- "Penyelidikan Kasus Kejahatan Cyber Internasional" → "PKK-061025-0006"
-
-**Special Characters Handling:**
-- "Case #123 - Special Investigation" → "CSI-061025-0007"
-- "Digital Forensics (Phase 1)" → "DFP-061025-0008"
 
 ---
 
@@ -864,8 +904,22 @@ When `case_number` is provided in the request, the system validates and uses the
   "main_investigator": "string",
   "agency_id": "integer (optional)",
   "work_unit_id": "integer (optional)",
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "created_at": "datetime (WIB timezone)",
+  "updated_at": "datetime (WIB timezone)"
+}
+```
+
+### CaseLog Model
+```json
+{
+  "id": "integer",
+  "case_id": "integer",
+  "action": "string (Open, Closed, Re-open, Edit)",
+  "changed_by": "string",
+  "change_detail": "string (optional)",
+  "notes": "string (optional)",
+  "status": "string (Open, Closed, Re-open)",
+  "created_at": "string (formatted as 'DD MMM YY, HH:MM')"
 }
 ```
 
@@ -882,21 +936,8 @@ When `case_number` is provided in the request, the system validates and uses the
   "investigator": "string (optional)",
   "case_id": "integer",
   "created_by": "string",
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### CaseLog Model
-```json
-{
-  "id": "integer",
-  "case_id": "integer",
-  "action": "string",
-  "changed_by": "string",
-  "change_detail": "string (optional)",
-  "notes": "string (optional)",
-  "created_at": "datetime"
+  "created_at": "datetime (WIB timezone)",
+  "updated_at": "datetime (WIB timezone)"
 }
 ```
 
@@ -908,70 +949,7 @@ When `case_number` is provided in the request, the system validates and uses the
   "note": "string",
   "status": "string (optional)",
   "created_by": "string",
-  "created_at": "datetime"
-}
-```
-
-### Agency Model
-```json
-{
-  "id": "integer",
-  "name": "string"
-}
-```
-
-### WorkUnit Model
-```json
-{
-  "id": "integer",
-  "name": "string",
-  "agency_id": "integer"
-}
-```
-
-### AnalysisItem Model
-```json
-{
-  "evidence_id": "string",
-  "summary": "string",
-  "status": "string"
-}
-```
-
-### PersonWithAnalysis Model
-```json
-{
-  "id": "integer",
-  "name": "string",
-  "person_type": "string",
-  "analysis": "array of AnalysisItem"
-}
-```
-
-### CaseLogDetail Model
-```json
-{
-  "status": "string",
-  "timestamp": "string",
-  "description": "string",
-  "notes": "string (optional)"
-}
-```
-
-### CaseNoteDetail Model
-```json
-{
-  "timestamp": "string",
-  "status": "string",
-  "content": "string"
-}
-```
-
-### CaseSummary Model
-```json
-{
-  "total_persons": "integer",
-  "total_evidence": "integer"
+  "created_at": "datetime (WIB timezone)"
 }
 ```
 
@@ -1005,7 +983,7 @@ When `case_number` is provided in the request, the system validates and uses the
 **409 Conflict:**
 ```json
 {
-  "detail": "Case number 'CASE-2024-0001' already exists"
+  "detail": "Case number 'BMI-081025-0001' already exists"
 }
 ```
 
@@ -1014,9 +992,9 @@ When `case_number` is provided in the request, the system validates and uses the
 {
   "detail": [
     {
-      "loc": ["body", "title"],
-      "msg": "field required",
-      "type": "value_error.missing"
+      "loc": ["body", "status"],
+      "msg": "Value error, Invalid status 'invalid'. Only ['Open', 'Closed', 'Re-open'] are allowed.",
+      "type": "value_error"
     }
   ]
 }
@@ -1038,7 +1016,6 @@ When `case_number` is provided in the request, the system validates and uses the
 - **Case → CaseNote**: `cascade="all, delete-orphan"`
 - **Case → Person**: `cascade="all, delete-orphan"`
 - **Case → Evidence**: `cascade="all, delete-orphan"`
-- **Case → Suspect**: `cascade="all, delete-orphan"`
 
 ### Evidence Relationships
 - **Evidence → CustodyLog**: `cascade="all, delete-orphan"`
@@ -1048,29 +1025,7 @@ When `case_number` is provided in the request, the system validates and uses the
 
 ## Frontend Integration Examples
 
-### Get Case List
-```javascript
-async function getCases(page = 0, limit = 10, filters = {}) {
-  const token = localStorage.getItem('access_token');
-  const params = new URLSearchParams({
-    skip: page * limit,
-    limit: limit,
-    ...filters
-  });
-  
-  const response = await fetch(`/api/v1/cases/get-all-cases?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
 ### Create New Case
-
-#### Auto-Generate Case Number
 ```javascript
 async function createCaseWithAutoNumber(caseData) {
   const token = localStorage.getItem('access_token');
@@ -1094,137 +1049,21 @@ async function createCaseWithAutoNumber(caseData) {
   
   return await response.json();
 }
-
-// Example usage:
-const caseData = {
-  title: "Buronan Maroko Interpol",
-  description: "Investigation of international fugitive",
-  main_investigator: "Detective Smith",
-  agency_name: "Trikora Agency",
-  work_unit_name: "International Division"
-};
-// Will generate case number like: "BMI-061025-0001"
 ```
 
-#### Manual Case Number
+### Update Case Status
 ```javascript
-async function createCaseWithManualNumber(caseData) {
+async function updateCaseStatus(caseId, newStatus) {
   const token = localStorage.getItem('access_token');
-  const response = await fetch('/api/v1/cases/create-case', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      case_number: caseData.case_number, // Manual case number
-      title: caseData.title,
-      description: caseData.description,
-      main_investigator: caseData.main_investigator,
-      agency_id: caseData.agency_id,
-      work_unit_id: caseData.work_unit_id
-    })
-  });
-  
-  return await response.json();
-}
-```
-
-### Get Case Detail
-```javascript
-async function getCaseDetail(caseId) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/get-case-detail-comprehensive/${caseId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Update Case
-```javascript
-// Update case with partial data
-async function updateCase(caseId, caseData) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/update-case/${caseId}`, {
+  const response = await fetch(`/api/v1/case-logs/update-log/${caseId}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(caseData)
-  });
-  
-  return await response.json();
-}
-
-// Example usage - Update only title and description
-const updateData = {
-  title: "Updated Case Title",
-  description: "Updated case description with new findings"
-};
-const result = await updateCase(1, updateData);
-
-// Example usage - Update investigator and agency
-const investigatorUpdate = {
-  main_investigator: "Detective John Smith",
-  agency_id: 3,
-  work_unit_id: 5
-};
-const result2 = await updateCase(1, investigatorUpdate);
-
-// Example usage - Update with manual agency/work unit names
-const manualUpdate = {
-  title: "Case Title Update",
-  agency_name: "Special Investigation Unit",
-  work_unit_name: "Cyber Crime Division"
-};
-const result3 = await updateCase(1, manualUpdate);
-```
-
-### Delete Case
-```javascript
-async function deleteCase(caseId) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/cases/delete-case/${caseId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Get Case Statistics
-```javascript
-async function getCaseStatistics() {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch('/api/v1/cases/statistics/summary', {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Create Case Log
-```javascript
-async function createCaseLog(logData) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch('/api/v1/case-logs/create-log', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(logData)
+    body: JSON.stringify({
+      status: newStatus // "Open", "Closed", or "Re-open"
+    })
   });
   
   return await response.json();
@@ -1250,75 +1089,7 @@ async function getCaseLogs(caseId, page = 0, limit = 10) {
 }
 ```
 
-### Create Case Note
-```javascript
-async function createCaseNote(noteData) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch('/api/v1/case-notes/create-note', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(noteData)
-  });
-  
-  return await response.json();
-}
-```
-
-### Get Case Notes
-```javascript
-async function getCaseNotes(caseId, page = 0, limit = 10) {
-  const token = localStorage.getItem('access_token');
-  const params = new URLSearchParams({
-    skip: page * limit,
-    limit: limit
-  });
-  
-  const response = await fetch(`/api/v1/case-notes/case/${caseId}/notes?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Update Case Note
-```javascript
-async function updateCaseNote(noteId, noteData) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/case-notes/update-note/${noteId}`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(noteData)
-  });
-  
-  return await response.json();
-}
-```
-
-### Delete Case Note
-```javascript
-async function deleteCaseNote(noteId) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/case-notes/delete-note/${noteId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Create Person
+### Create Person (Auto-generates Edit log)
 ```javascript
 async function createPerson(personData) {
   const token = localStorage.getItem('access_token');
@@ -1329,71 +1100,6 @@ async function createPerson(personData) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(personData)
-  });
-  
-  return await response.json();
-}
-```
-
-### Get Person
-```javascript
-async function getPerson(personId) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/persons/get-person/${personId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Get Persons by Case
-```javascript
-async function getPersonsByCase(caseId, page = 0, limit = 10) {
-  const token = localStorage.getItem('access_token');
-  const params = new URLSearchParams({
-    skip: page * limit,
-    limit: limit
-  });
-  
-  const response = await fetch(`/api/v1/persons/get-persons-by-case/${caseId}?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### Update Person
-```javascript
-async function updatePerson(personId, personData) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/persons/update-person/${personId}`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(personData)
-  });
-  
-  return await response.json();
-}
-```
-
-### Delete Person
-```javascript
-async function deletePerson(personId) {
-  const token = localStorage.getItem('access_token');
-  const response = await fetch(`/api/v1/persons/delete-person/${personId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
   });
   
   return await response.json();
@@ -1417,29 +1123,12 @@ async function deletePerson(personId) {
 
 ---
 
-## Rate Limiting
-
-API requests are rate limited to prevent abuse:
-- **Standard endpoints**: 100 requests per minute per user
-- **Search endpoints**: 50 requests per minute per user
-
----
-
-## Support
-
-For API support and questions:
-- Documentation: `/docs` (Swagger UI)
-- Contact: [Support Team Email]
-- Issue Tracker: [GitHub Issues URL]
-
----
-
 ## API Summary
 
 This comprehensive API documentation covers all Case Management system endpoints:
 
 ### Case Management
-- **Create Case**: `POST /api/v1/cases/create-case`
+- **Create Case**: `POST /api/v1/cases/create-case` (auto-creates initial log)
 - **Get Case Detail**: `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 - **Get All Cases**: `GET /api/v1/cases/get-all-cases`
 - **Update Case**: `PUT /api/v1/cases/update-case/{case_id}`
@@ -1447,7 +1136,7 @@ This comprehensive API documentation covers all Case Management system endpoints
 - **Get Statistics**: `GET /api/v1/cases/statistics/summary`
 
 ### Case Log Management
-- **Create Log**: `POST /api/v1/case-logs/create-log`
+- **Update Case Log**: `PUT /api/v1/case-logs/update-log/{case_id}` (primary way to change status)
 - **Get Case Logs**: `GET /api/v1/case-logs/case/{case_id}/logs`
 
 ### Case Note Management
@@ -1457,26 +1146,35 @@ This comprehensive API documentation covers all Case Management system endpoints
 - **Delete Note**: `DELETE /api/v1/case-notes/delete-note/{note_id}`
 
 ### Person Management
-- **Create Person**: `POST /api/v1/persons/create-person`
+- **Create Person**: `POST /api/v1/persons/create-person` (auto-creates Edit log)
 - **Get Person**: `GET /api/v1/persons/get-person/{person_id}`
 - **Get Persons by Case**: `GET /api/v1/persons/get-persons-by-case/{case_id}`
 - **Update Person**: `PUT /api/v1/persons/update-person/{person_id}`
 - **Delete Person**: `DELETE /api/v1/persons/delete-person/{person_id}`
 
+### Evidence Management
+- **Create Evidence**: `POST /api/v1/evidence/create-evidence` (auto-creates Edit log)
+
 ### Key Features
+- **Automatic Case Logging**: All case activities are automatically logged
+- **Status Management**: Centralized status updates through case log endpoint
 - **Flexible Case Number Handling**: Support for both auto-generated and manual case numbers
 - **Comprehensive Case Tracking**: Full lifecycle management from creation to closure
 - **Audit Trail**: Complete logging of all case activities and changes
 - **Person Management**: Detailed tracking of suspects, witnesses, and other persons of interest
+- **Evidence Management**: Digital evidence tracking with automatic logging
 - **Note System**: Flexible note-taking with status tracking
 - **Pagination**: All list endpoints support pagination for large datasets
 - **Search & Filter**: Advanced filtering capabilities for case discovery
 - **Cascade Operations**: Automatic cleanup of related data when cases are deleted
 - **Validation & Error Handling**: Comprehensive input validation with clear error messages
+- **Timezone Support**: All timestamps in WIB (UTC+7) timezone
+- **Formatted Timestamps**: User-friendly timestamp format in case logs
 
 ### Data Relationships
-- Cases have one-to-many relationships with logs, notes, and persons
+- Cases have one-to-many relationships with logs, notes, persons, and evidence
 - All related data is automatically cleaned up when a case is deleted
 - Comprehensive case details include all related entities in a single response
+- Automatic case log creation for all case activities
 
-This API provides a complete digital forensics case management solution with full CRUD operations, audit trails, and comprehensive data relationships.
+This API provides a complete digital forensics case management solution with full CRUD operations, automatic audit trails, and comprehensive data relationships.

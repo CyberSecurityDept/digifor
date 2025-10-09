@@ -1,10 +1,17 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.db.session import get_db
 from app.core.config import settings
+
+# WIB timezone (UTC+7)
+WIB = timezone(timedelta(hours=7))
+
+def get_wib_now():
+    """Get current datetime in WIB timezone"""
+    return datetime.now(WIB)
 
 router = APIRouter()
 
@@ -20,7 +27,7 @@ async def health_check(db: Session = Depends(get_db)):
     
     return {
         "status": "healthy" if db_status == "connected" else "unhealthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": get_wib_now().isoformat(),
         "version": settings.VERSION,
         "database": db_status,
         "services": {

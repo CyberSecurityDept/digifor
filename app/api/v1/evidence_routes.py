@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.api.deps import get_database
 from app.evidence_management.schemas import (
@@ -11,6 +11,14 @@ from app.evidence_management.schemas import (
     CustodyReportCreate, CustodyReportResponse, CustodyReportListResponse
 )
 from app.evidence_management.models import Evidence, CustodyLog
+from app.case_management.models import CaseLog
+
+# WIB timezone (UTC+7)
+WIB = timezone(timedelta(hours=7))
+
+def get_wib_now():
+    """Get current datetime in WIB timezone"""
+    return datetime.now(WIB)
 
 router = APIRouter(prefix="/evidence", tags=["Evidence Management"])
 
@@ -39,11 +47,43 @@ async def create_evidence(
     evidence_data: dict,
     db: Session = Depends(get_database)
 ):
-    return {
-        "status": 201,
-        "message": "Evidence created successfully",
-        "data": evidence_data
-    }
+    try:
+        # For now, we'll simulate evidence creation and auto-create case log
+        # In a real implementation, you would create the Evidence record here
+        
+        case_id = evidence_data.get('case_id')
+        evidence_id = evidence_data.get('evidence_id', '32342223')  # Default evidence ID
+        
+        if case_id:
+            # Auto-create case log for adding evidence
+            try:
+                from app.case_management.models import Case
+                case = db.query(Case).filter(Case.id == case_id).first()
+                current_status = case.status if case else "Open"
+                
+                case_log = CaseLog(
+                    case_id=case_id,
+                    action="Edit",
+                    changed_by="Wisnu",  # Default user for now
+                    change_detail=f"Adding Evidence: {evidence_id}",
+                    notes="",
+                    status=current_status  # Use current case status
+                )
+                db.add(case_log)
+                db.commit()
+            except Exception as e:
+                print(f"Warning: Could not create case log for evidence: {str(e)}")
+        
+        return {
+            "status": 201,
+            "message": "Evidence created successfully",
+            "data": evidence_data
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Unexpected server error, please try again later"
+        )
 
 
 @router.get("/get-evidence-by-id{evidence_id}")
@@ -89,7 +129,7 @@ async def log_custody_event(
             "verification_method": custody_data.verification_method,
             "is_immutable": True,
             "is_verified": False,
-            "created_at": datetime.now(),
+            "created_at": get_wib_now(),
             "created_by": custody_data.created_by,
             "notes": custody_data.notes,
             "log_hash": log_hash
@@ -255,10 +295,10 @@ async def generate_custody_report(
             "report_description": report_data.report_description,
             "compliance_standard": report_data.compliance_standard,
             "generated_by": report_data.generated_by,
-            "generated_date": datetime.now(),
-            "report_file_path": f"/data/reports/custody_evidence_{evidence_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            "generated_date": get_wib_now(),
+            "report_file_path": f"/data/reports/custody_evidence_{evidence_id}_{get_wib_now().strftime('%Y%m%d_%H%M%S')}.pdf",
             "is_verified": False,
-            "created_at": datetime.now(),
+            "created_at": get_wib_now(),
             "is_active": True
         }
         

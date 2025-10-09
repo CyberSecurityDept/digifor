@@ -1,45 +1,47 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
-import logging
 
 from app.core.config import settings
-from app.core.logging import setup_logging, log_startup_info, log_shutdown
+from app.core.logging import setup_logging
 from app.core.health import router as health_router
 from app.middleware.cors import add_cors_middleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
-from app.api.v1 import case_routes, evidence_routes, suspect_routes, dashboard_routes, report_routes, analytics_routes, case_log_routes, case_note_routes, person_routes
+from app.api.v1 import (
+    case_routes,
+    evidence_routes,
+    suspect_routes,
+    dashboard_routes,
+    report_routes,
+    case_log_routes,
+    case_note_routes,
+    person_routes,
+    analytics_routes
+)
 from app.db.init_db import init_db
 
-
-# Setup logging
 logger = setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    print("Starting Digital Forensics v1.0.0")
-    print("API: /api/v1")
-    print("Debug: True")
+    logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
+    logger.info(f"API: {settings.API_V1_STR}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
     
-    # Initialize database
     try:
         init_db()
-        print("Database connected")
+        logger.info("Database connected")
     except Exception as e:
-        print(f"Failed to initialize database: {e}")
+        logger.error(f"Failed to initialize database: {e}")
         raise
     
     yield
     
-    # Shutdown
-    print("Server shutting down")
+    logger.info("Server shutting down")
 
 
-# Create FastAPI application
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -49,14 +51,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
 add_cors_middleware(app)
 
-# Add custom middleware
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
-# Include routers
 app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 app.include_router(analytics_routes.router, prefix=settings.API_V1_STR, tags=["Analytics"])
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
@@ -69,17 +68,14 @@ app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Repo
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
 
-# HTTPException handler for custom error format
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    # Check if detail is already in the desired format
     if isinstance(exc.detail, dict) and "status" in exc.detail and "message" in exc.detail:
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.detail
         )
     else:
-        # Convert simple detail to custom format
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -89,7 +85,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         )
 
 
-# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global exception: {exc}")
@@ -103,25 +98,18 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Root endpoint
 @app.get("/")
 async def root():
     return {
         "status": 200,
         "message": "Digital Forensics Analysis Platform API",
-        "version": settings.VERSION,
-        "docs": "/docs",
-        "health": "/health"
+        "version": settings.VERSION
     }
 
 
-# Favicon endpoint to prevent 404 errors
 @app.get("/favicon.ico")
 async def favicon():
-    return JSONResponse(
-        status_code=204,
-        content=None
-    )
+    return Response(status_code=204)
 
 
 if __name__ == "__main__":
@@ -131,5 +119,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
+        access_log=False  # Disable uvicorn's default access logging
     )

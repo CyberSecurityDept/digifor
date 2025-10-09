@@ -92,7 +92,7 @@ class CaseCreate(BaseModel):
     def validate_case_number(cls, v):
         if v == "" or v is None:
             return None
-        # Check if case number format is valid (optional validation)
+        
         if v and len(v.strip()) < 3:
             raise ValueError("Case number must be at least 3 characters long")
         return v.strip() if v else None
@@ -230,12 +230,37 @@ class CaseLogBase(BaseModel):
 class CaseLogCreate(CaseLogBase):
     case_id: int = Field(..., description="Case ID")
 
+class CaseLogUpdate(BaseModel):
+    status: str = Field(..., description="Case status (Open, Closed, Re-open)")
+    
+    @validator('status')
+    def validate_status(cls, v):
+        valid_statuses = ['Open', 'Closed', 'Re-open']
+        status_mapping = {
+            'open': 'Open',
+            'closed': 'Closed', 
+            're-open': 'Re-open',
+            'reopen': 'Re-open'
+        }
 
-class CaseLog(CaseLogBase):
+        if v in valid_statuses:
+            return v
+        elif v.lower() in status_mapping:
+            return status_mapping[v.lower()]
+        else:
+            raise ValueError(f"Invalid status '{v}'. Valid values are: {valid_statuses} (case-sensitive)")
+        return v
+
+
+class CaseLog(BaseModel):
     id: int
     case_id: int
+    action: str = Field(..., description="Action performed")
+    changed_by: str = Field(..., description="User who made the change")
+    change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
     status: Optional[str] = Field(None, description="Case status at the time of log creation")
-    created_at: datetime
+    created_at: str
 
     class Config:
         from_attributes = True
@@ -313,7 +338,6 @@ class CaseLogDetail(BaseModel):
         from_attributes = True
 
 
-# Case note for case detail response
 class CaseNoteDetail(BaseModel):
     timestamp: str = Field(..., description="Formatted timestamp")
     status: str = Field(..., description="Note status")
