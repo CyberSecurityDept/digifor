@@ -9,15 +9,21 @@ logger = logging.getLogger(__name__)
 class LoggingMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
-        # Log request
         start_time = time.time()
         
-        # Process request
         response = await call_next(request)
         
-        # Log response - simplified
         process_time = time.time() - start_time
-        status_emoji = "" if response.status_code < 400 else ""
-        logger.info(f"{status_emoji} {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
+        
+        # Create a more structured log message
+        log_message = f"{request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)"
+        
+        # Log with appropriate level based on status code
+        if response.status_code >= 500:
+            logger.error(log_message)
+        elif response.status_code >= 400:
+            logger.warning(log_message)
+        else:
+            logger.info(log_message)
         
         return response

@@ -3,28 +3,17 @@ from typing import Optional, List
 from datetime import datetime, date
 
 
-class PersonBase(BaseModel):
-    full_name: str = Field(..., description="Full name")
-    first_name: Optional[str] = Field(None, description="First name")
-    last_name: Optional[str] = Field(None, description="Last name")
-    middle_name: Optional[str] = Field(None, description="Middle name")
-    alias: Optional[str] = Field(None, description="Alias or nickname")
-    gender: Optional[str] = Field(None, description="Gender")
+class SuspectBase(BaseModel):
+    name: str = Field(..., description="Full name")
+    case_name: Optional[str] = Field(None, description="Associated case name")
+    investigator: Optional[str] = Field(None, description="Investigator name")
+    status: str = Field("Suspect", description="Suspect status")
     date_of_birth: Optional[date] = Field(None, description="Date of birth")
     place_of_birth: Optional[str] = Field(None, description="Place of birth")
     nationality: Optional[str] = Field(None, description="Nationality")
-    ethnicity: Optional[str] = Field(None, description="Ethnicity")
     phone_number: Optional[str] = Field(None, description="Phone number")
     email: Optional[str] = Field(None, description="Email address")
     address: Optional[str] = Field(None, description="Address")
-    city: Optional[str] = Field(None, description="City")
-    state: Optional[str] = Field(None, description="State")
-    country: Optional[str] = Field(None, description="Country")
-    postal_code: Optional[str] = Field(None, description="Postal code")
-    id_number: Optional[str] = Field(None, description="ID number")
-    id_type: Optional[str] = Field(None, description="ID type")
-    passport_number: Optional[str] = Field(None, description="Passport number")
-    driver_license: Optional[str] = Field(None, description="Driver license")
     height: Optional[int] = Field(None, description="Height in cm")
     weight: Optional[int] = Field(None, description="Weight in kg")
     eye_color: Optional[str] = Field(None, description="Eye color")
@@ -34,39 +23,25 @@ class PersonBase(BaseModel):
     criminal_record_details: Optional[str] = Field(None, description="Criminal record details")
     risk_level: str = Field("medium", description="Risk level")
     risk_assessment_notes: Optional[str] = Field(None, description="Risk assessment notes")
-    status: str = Field("Active", description="Person status")
-    is_primary_suspect: bool = Field(False, description="Is primary suspect")
-    is_person_of_interest: bool = Field(False, description="Is person of interest")
     is_confidential: bool = Field(False, description="Is confidential")
     notes: Optional[str] = Field(None, description="Additional notes")
 
 
-class PersonCreate(PersonBase):
+class SuspectCreate(SuspectBase):
     pass
 
 
-class PersonUpdate(BaseModel):
-    full_name: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    middle_name: Optional[str] = None
-    alias: Optional[str] = None
-    gender: Optional[str] = None
+class SuspectUpdate(BaseModel):
+    name: Optional[str] = None
+    case_name: Optional[str] = None
+    investigator: Optional[str] = None
+    status: Optional[str] = None
     date_of_birth: Optional[date] = None
     place_of_birth: Optional[str] = None
     nationality: Optional[str] = None
-    ethnicity: Optional[str] = None
     phone_number: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    postal_code: Optional[str] = None
-    id_number: Optional[str] = None
-    id_type: Optional[str] = None
-    passport_number: Optional[str] = None
-    driver_license: Optional[str] = None
     height: Optional[int] = None
     weight: Optional[int] = None
     eye_color: Optional[str] = None
@@ -76,16 +51,12 @@ class PersonUpdate(BaseModel):
     criminal_record_details: Optional[str] = None
     risk_level: Optional[str] = None
     risk_assessment_notes: Optional[str] = None
-    status: Optional[str] = None
-    is_primary_suspect: Optional[bool] = None
-    is_person_of_interest: Optional[bool] = None
     is_confidential: Optional[bool] = None
     notes: Optional[str] = None
 
 
-class Person(PersonBase):
+class Suspect(SuspectBase):
     id: int
-    risk_assessment_date: Optional[datetime]
     created_at: datetime
     updated_at: Optional[datetime]
     last_seen: Optional[datetime]
@@ -94,16 +65,16 @@ class Person(PersonBase):
         from_attributes = True
 
 
-class PersonResponse(BaseModel):
+class SuspectResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
-    data: Person
+    data: Suspect
 
 
-class PersonListResponse(BaseModel):
+class SuspectListResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
-    data: List[Person]
-    total: int = Field(..., description="Total number of persons")
+    data: List[Suspect]
+    total: int = Field(..., description="Total number of suspects")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")

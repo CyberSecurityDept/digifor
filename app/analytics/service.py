@@ -1,32 +1,32 @@
 from sqlalchemy.orm import Session
-from app.analytics.models import Group
+from app.analytics.models import Analytic
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Device, Contact, Message, Call
+from typing import List, Dict, Any
+from app.db.init_db import SessionLocal
+from app.analytics.models import Device, Contact, Message, Call, HashFile
 from app.analytics.utils.parser_xlsx import normalize_str,_to_str
 import os
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 import tempfile
 
-def create_group(db: Session, analytic_name: str, type: str = None, notes: str = None):
-    """Buat group baru dan simpan ke database"""
-    new_group = Group(
+def store_analytic(db: Session, analytic_name: str, type: str = None, notes: str = None):
+    """Buat analytic baru dan simpan ke database"""
+    new_analytic = Analytic(
         analytic_name=analytic_name,
         type=type,
         notes=notes,
         created_at=datetime.utcnow()
     )
-    db.add(new_group)
+    db.add(new_analytic)
     db.commit()
-    db.refresh(new_group)
-    return new_group
+    db.refresh(new_analytic)
+    return new_analytic
 
 
-def get_all_groups(db: Session):
-    """Ambil semua data group"""
-    groups = db.query(Group).order_by(Group.created_at.desc()).all()
-    return groups
+def get_all_analytics(db: Session):
+    """Ambil semua data analytic"""
+    analytics = db.query(Analytic).order_by(Analytic.created_at.desc()).all()
+    return analytics
 
 
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
@@ -76,13 +76,13 @@ def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key
 
 
 def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: List[dict], calls: List[dict]) -> int:
-    """Simpan data Device ke DB."""
+    """Simpan data Device + HasFile + detail lain ke DB."""
     db = SessionLocal()
     try:
         social_media = device_data.get("social_media", {}) or {}
 
         device = Device(
-            group_id=device_data.get("group_id"), 
+            analytic_id=device_data.get("analytic_id"), 
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
             instagram=social_media.get("instagram"),
@@ -91,14 +91,21 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
             facebook=social_media.get("facebook"),
             tiktok=social_media.get("tiktok"),
             telegram=social_media.get("telegram"),
-            file_path=device_data.get("file_path"),
         )
 
         db.add(device)
         db.commit()
         db.refresh(device)
-        
+
         device_id = device.id
+
+        # --- 1️⃣ Simpan file info ke HasFile ---
+        if device_data.get("file_path"):
+            db.add(HashFile(
+                device_id=device_id,
+                file_path=device_data["file_path"],
+                created_at=datetime.utcnow(),
+            ))
 
         # --- 2️⃣ Simpan Contacts ---
         for c in contacts:
@@ -112,7 +119,6 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 phones_emails=_to_str(c.get("Phones & Emails")),
                 internet=_to_str(c.get("Internet")),
                 other=_to_str(c.get("Other")),
-                # raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         # --- 3️⃣ Simpan Messages ---
@@ -130,7 +136,6 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 details=_to_str(m.get("Details")),
                 thread_id=normalize_str(_to_str(m.get("Thread id"))),
                 attachment=_to_str(m.get("Attachment")),
-                # raw_json=json.dumps(m, ensure_ascii=False),
             ))
 
         # --- 4️⃣ Simpan Calls ---
@@ -147,12 +152,10 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 receiver=_to_str(c.get("To")),
                 details=_to_str(c.get("Details")),
                 thread_id=normalize_str(_to_str(c.get("Thread id"))),
-                # raw_json=json.dumps(c, ensure_ascii=False),
             ))
 
         # --- 5️⃣ Commit semua perubahan ---
         db.commit()
-
         return device_id
 
     except Exception as e:
@@ -160,3 +163,35 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
         raise e
     finally:
         db.close()
+
+def format_bytes(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    i, x = 0, float(n)
+    while x >= 1024 and i < len(units) - 1:
+        x /= 1024.0
+        i += 1
+    return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
+
+def infer_peer(msg, device_owner: str):
+    """Menentukan lawan chat (peer) berdasarkan arah pesan"""
+    d = (msg.direction or "").lower()
+    sender = (msg.sender or "").strip() if msg.sender else None
+    receiver = (msg.receiver or "").strip() if msg.receiver else None
+    owner = (device_owner or "").strip().lower() if device_owner else None
+
+    # tentukan peer
+    if "out" in d:
+        return receiver or (sender if sender and sender.lower() != owner else None)
+    elif "in" in d:
+        return sender or (receiver if receiver and receiver.lower() != owner else None)
+    else:
+        if owner:
+            if sender and sender.lower() != owner:
+                return sender
+            if receiver and receiver.lower() != owner:
+                return receiver
+        return receiver or sender or "Unknown"
