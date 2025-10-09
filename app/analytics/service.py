@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.analytics.models import Group
+from app.analytics.models import Analytic
 from datetime import datetime
 from typing import List, Dict, Any
 from app.db.init_db import SessionLocal
@@ -9,24 +9,24 @@ import os
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 import tempfile
 
-def create_group(db: Session, analytic_name: str, type: str = None, notes: str = None):
-    """Buat group baru dan simpan ke database"""
-    new_group = Group(
+def store_analytic(db: Session, analytic_name: str, type: str = None, notes: str = None):
+    """Buat analytic baru dan simpan ke database"""
+    new_analytic = Analytic(
         analytic_name=analytic_name,
         type=type,
         notes=notes,
         created_at=datetime.utcnow()
     )
-    db.add(new_group)
+    db.add(new_analytic)
     db.commit()
-    db.refresh(new_group)
-    return new_group
+    db.refresh(new_analytic)
+    return new_analytic
 
 
-def get_all_groups(db: Session):
-    """Ambil semua data group"""
-    groups = db.query(Group).order_by(Group.created_at.desc()).all()
-    return groups
+def get_all_analytics(db: Session):
+    """Ambil semua data analytic"""
+    analytics = db.query(Analytic).order_by(Analytic.created_at.desc()).all()
+    return analytics
 
 
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
@@ -82,7 +82,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
         social_media = device_data.get("social_media", {}) or {}
 
         device = Device(
-            group_id=device_data.get("group_id"), 
+            analytic_id=device_data.get("analytic_id"), 
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
             instagram=social_media.get("instagram"),
@@ -175,3 +175,23 @@ def format_bytes(n: int) -> str:
         x /= 1024.0
         i += 1
     return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
+
+def infer_peer(msg, device_owner: str):
+    """Menentukan lawan chat (peer) berdasarkan arah pesan"""
+    d = (msg.direction or "").lower()
+    sender = (msg.sender or "").strip() if msg.sender else None
+    receiver = (msg.receiver or "").strip() if msg.receiver else None
+    owner = (device_owner or "").strip().lower() if device_owner else None
+
+    # tentukan peer
+    if "out" in d:
+        return receiver or (sender if sender and sender.lower() != owner else None)
+    elif "in" in d:
+        return sender or (receiver if receiver and receiver.lower() != owner else None)
+    else:
+        if owner:
+            if sender and sender.lower() != owner:
+                return sender
+            if receiver and receiver.lower() != owner:
+                return receiver
+        return receiver or sender or "Unknown"

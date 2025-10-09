@@ -76,7 +76,7 @@ class UploadService:
     async def start_upload_and_process(
         self,
         file: UploadFile,
-        group_id: int,
+        analytic_id: int,
         owner_name: str,
         phone_number: str,
         social_media: Optional[str],
@@ -190,7 +190,7 @@ class UploadService:
                     upload_id=upload_id,
                     tmp_path=str(tmp_path),
                     orig_filename=file.filename,
-                    group_id=group_id,
+                    analytic_id=analytic_id,
                     owner_name=owner_name,
                     phone_number=phone_number,
                     social_media=social_media,
@@ -221,7 +221,7 @@ class UploadService:
         upload_id: str,
         tmp_path: str,
         orig_filename: str,
-        group_id: int,
+        analytic_id: int,
         owner_name: str,
         phone_number: str,
         social_media: Optional[str],
@@ -345,7 +345,7 @@ class UploadService:
 
             social_media_obj = json.loads(social_media) if social_media else {}
             device_data = {
-                "group_id": group_id,
+                "analytic_id": analytic_id,
                 "owner_name": owner_name,
                 "phone_number": phone_number,
                 "social_media": social_media_obj,

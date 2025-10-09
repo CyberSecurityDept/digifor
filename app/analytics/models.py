@@ -4,8 +4,8 @@ from datetime import datetime
 from app.db.base import Base
 
 
-class Group(Base):
-    __tablename__ = "groups"
+class Analytic(Base):
+    __tablename__ = "analytics"
 
     id = Column(Integer, primary_key=True, index=True)
     analytic_name = Column(String, nullable=False)
@@ -13,7 +13,7 @@ class Group(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    devices = relationship("Device", back_populates="group", cascade="all, delete-orphan")
+    devices = relationship("Device", back_populates="analytic", cascade="all, delete-orphan")
 
 class Device(Base):
     __tablename__ = "devices"
@@ -29,8 +29,8 @@ class Device(Base):
     tiktok    = Column(String, nullable=True)
     telegram  = Column(String, nullable=True)
 
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
-    group = relationship("Group", back_populates="devices")
+    analytic_id = Column(Integer, ForeignKey("analytics.id"), nullable=False)
+    analytic = relationship("Analytic", back_populates="devices")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # relasi ke file
