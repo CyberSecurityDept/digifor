@@ -3,7 +3,7 @@ from app.analytics.models import Analytic
 from datetime import datetime
 from typing import List, Dict, Any
 from app.db.init_db import SessionLocal
-from app.analytics.models import Device, Contact, Message, Call, HashFile
+from app.analytics.models import Device, Contact, Message, Call, HashFile, File
 from app.analytics.utils.parser_xlsx import normalize_str,_to_str
 import os
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
@@ -75,31 +75,28 @@ def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key
     return os.path.join("uploads", encrypted_filename)
 
 
-def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: List[dict], calls: List[dict]) -> int:
-    """Simpan data Device + HasFile + detail lain ke DB."""
+def create_device(
+    device_data: Dict[str, Any],
+    contacts: List[dict],
+    messages: List[dict],
+    calls: List[dict]
+) -> int:
+    """Simpan data Device + HashFile + detail lain ke DB (tanpa analytic_id)."""
     db = SessionLocal()
     try:
-        social_media = device_data.get("social_media", {}) or {}
-
         device = Device(
-            analytic_id=device_data.get("analytic_id"), 
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
-            instagram=social_media.get("instagram"),
-            whatsapp=social_media.get("whatsapp"),
-            x=social_media.get("x"),
-            facebook=social_media.get("facebook"),
-            tiktok=social_media.get("tiktok"),
-            telegram=social_media.get("telegram"),
+            file_id=device_data.get("file_id"),
+            created_at=datetime.utcnow(),
         )
 
         db.add(device)
         db.commit()
         db.refresh(device)
-
         device_id = device.id
 
-        # --- 1️⃣ Simpan file info ke HasFile ---
+        # --- 2️⃣ Simpan file info ke HashFile ---
         if device_data.get("file_path"):
             db.add(HashFile(
                 device_id=device_id,
@@ -107,7 +104,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 created_at=datetime.utcnow(),
             ))
 
-        # --- 2️⃣ Simpan Contacts ---
+        # --- 3️⃣ Simpan Contacts ---
         for c in contacts:
             db.add(Contact(
                 device_id=device_id,
@@ -121,7 +118,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 other=_to_str(c.get("Other")),
             ))
 
-        # --- 3️⃣ Simpan Messages ---
+        # --- 4️⃣ Simpan Messages ---
         for m in messages:
             db.add(Message(
                 device_id=device_id,
@@ -138,7 +135,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 attachment=_to_str(m.get("Attachment")),
             ))
 
-        # --- 4️⃣ Simpan Calls ---
+        # --- 5️⃣ Simpan Calls ---
         for c in calls:
             db.add(Call(
                 device_id=device_id,
@@ -154,7 +151,7 @@ def create_device(device_data: Dict[str, Any], contacts: List[dict], messages: L
                 thread_id=normalize_str(_to_str(c.get("Thread id"))),
             ))
 
-        # --- 5️⃣ Commit semua perubahan ---
+        # --- 6️⃣ Commit semua perubahan ---
         db.commit()
         return device_id
 
@@ -195,3 +192,48 @@ def infer_peer(msg, device_owner: str):
             if receiver and receiver.lower() != owner:
                 return receiver
         return receiver or sender or "Unknown"
+
+def create_file_record(file_name: str, file_path: str, notes: str, type: str, tools: str):
+    db = SessionLocal()
+    new_file = File(
+        file_name=file_name,
+        file_path=file_path,
+        notes=notes,
+        type=type,
+        tools=tools
+    )
+    db.add(new_file)
+    db.commit()
+    db.refresh(new_file)
+    db.close()
+    return new_file
+
+def get_all_files(db: Session):
+    try:
+        files = db.query(File).order_by(File.created_at.desc()).all()
+
+        result = [
+            {
+                "id": f.id,
+                "file_name": f.file_name,
+                "file_path": f.file_path,
+                "notes": f.notes,
+                "type": f.type,
+                "tools": f.tools,
+                "created_at": f.created_at
+            }
+            for f in files
+        ]
+
+        return {
+            "status": 200,
+            "message": "Success",
+            "data": result
+        }
+
+    except Exception as e:
+        return {
+            "status": 500,
+            "message": f"Gagal mengambil data file: {str(e)}",
+            "data": []
+        }

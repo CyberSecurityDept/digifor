@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base
 
-
 class Analytic(Base):
     __tablename__ = "analytics"
 
@@ -13,7 +12,35 @@ class Analytic(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    devices = relationship("Device", back_populates="analytic", cascade="all, delete-orphan")
+    analytic_devices = relationship(
+        "AnalyticDevice",
+        back_populates="analytic",
+        cascade="all, delete-orphan"
+    )
+
+    # Shortcut ke Device (tanpa pivot table langsung)
+    devices = relationship(
+        "Device",
+        secondary="analytic_device",
+        viewonly=True
+    )
+
+class File(Base):
+    __tablename__ = "files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    notes = Column(String, nullable=True)
+    type = Column(String, nullable=False)
+    tools = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    device = relationship(
+        "Device",
+        back_populates="file",
+        uselist=False 
+    )
 
 class Device(Base):
     __tablename__ = "devices"
@@ -21,25 +48,41 @@ class Device(Base):
     id = Column(Integer, primary_key=True, index=True)
     owner_name = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
-    
-    instagram = Column(String, nullable=True)
-    whatsapp  = Column(String, nullable=True)
-    x         = Column(String, nullable=True)
-    facebook  = Column(String, nullable=True)
-    tiktok    = Column(String, nullable=True)
-    telegram  = Column(String, nullable=True)
-
-    analytic_id = Column(Integer, ForeignKey("analytics.id"), nullable=False)
-    analytic = relationship("Analytic", back_populates="devices")
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # relasi ke file
-    files = relationship("HashFile", back_populates="device", cascade="all, delete-orphan")
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    file = relationship("File", back_populates="device")
 
+    analytic_devices = relationship(
+        "AnalyticDevice",
+        back_populates="device",
+        cascade="all, delete-orphan"
+    )
+
+    # Shortcut ke Analytic (melalui pivot)
+    analytics = relationship(
+        "Analytic",
+        secondary="analytic_device",
+        viewonly=True
+    )
+
+    hash_files = relationship("HashFile", back_populates="device", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="device", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
 
+
+class AnalyticDevice(Base):
+    __tablename__ = "analytic_device"
+
+    id = Column(Integer, primary_key=True, index=True)
+    analytic_id = Column(Integer, ForeignKey("analytics.id", ondelete="CASCADE"), nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    analytic = relationship("Analytic", back_populates="analytic_devices")
+    device = relationship("Device", back_populates="analytic_devices")
 
 class HashFile(Base):
     __tablename__ = "hashfiles"
@@ -50,7 +93,7 @@ class HashFile(Base):
     file_path = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    device = relationship("Device", back_populates="files")
+    device = relationship("Device", back_populates="hash_files")
 
 
 class Contact(Base):
