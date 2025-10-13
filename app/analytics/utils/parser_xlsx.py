@@ -85,19 +85,10 @@ def save_device(
 ) -> int:
     db: Session = SessionLocal()
     try:
-        # --- Ambil data sosial media kalau ada ---
-        social_media = device_data.get("social_media", {}) or {}
-
         # --- Buat Device ---
         device = Device(
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
-            instagram=social_media.get("instagram"),
-            whatsapp=social_media.get("whatsapp"),
-            x=social_media.get("x"),
-            facebook=social_media.get("facebook"),
-            tiktok=social_media.get("tiktok"),
-            telegram=social_media.get("telegram"),
         )
         db.add(device)
         db.commit()
