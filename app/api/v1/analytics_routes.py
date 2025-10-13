@@ -4,14 +4,95 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from app.db.session import get_db
-from app.analytics.service import store_analytic, get_all_analytics, infer_peer
+from app.analytics.service import store_analytic, get_all_analytics, infer_peer, create_file_record,get_all_files
 from app.analytics.utils.upload_pipeline import upload_service
 from app.analytics.schemas import AnalyticCreate
 from collections import defaultdict
 from fastapi import Query
 from app.analytics import models
+import os
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+
+@router.get("/get-all-file")
+def get_files(db: Session = Depends(get_db)):
+    """
+    Endpoint GET untuk mengambil semua file.
+    """
+    return get_all_files(db)
+
+@router.post("/upload-data")
+async def upload_data(
+    file: UploadFile = File(...),
+    notes: str = Form(...),
+    type: str = Form(...),
+    tools: str = Form(...)
+):
+    try:
+        if not file.filename:
+            return JSONResponse({"status": 400, "message": "File name is required"}, status_code=400)
+
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return JSONResponse({"status": 400, "message": "Only Excel files (.xlsx, .xls) are allowed"}, status_code=400)
+
+        save_dir = "uploads/data"
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = f"{save_dir}/{file.filename}"
+
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        file_record = create_file_record(
+            file_name=file.filename,
+            file_path=file_path,
+            notes=notes,
+            type=type,
+            tools=tools
+        )
+
+        return JSONResponse({
+            "status": 200,
+            "message": "File uploaded successfully",
+            "data": {"file_id": file_record.id, "file_path": file_path}
+        })
+
+    except Exception as e:
+        return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
+
+@router.post("/add-device")
+async def add_device(
+    file_id: int = Form(...),
+    owner_name: str = Form(...),
+    phone_number: str = Form(...),
+    upload_id: str = Form(...),
+):
+    try:
+        resp = await upload_service.start_upload_and_process(
+            file_id=file_id,
+            owner_name=owner_name,
+            phone_number=phone_number,
+            upload_id=upload_id,
+        )
+        return JSONResponse(resp, status_code=resp.get("status", 200))
+    except Exception as e:
+        return JSONResponse(
+            {"status": 500, "message": f"Unexpected error: {str(e)}"},
+            status_code=500
+        )
+
+@router.get("/upload-progress/{upload_id}")
+async def get_upload_progress(upload_id: str):
+    """Cek progres proses file."""
+    data, status_code = upload_service.get_progress(upload_id)
+    return JSONResponse(content=data, status_code=status_code)
+
+@router.post("/upload-cancel/{upload_id}")
+async def cancel_upload(upload_id: str):
+    """Batalkan proses upload/analisis berjalan."""
+    data, status_code = upload_service.cancel(upload_id)
+    return JSONResponse(content=data, status_code=status_code)
 
 @router.get("/get-all-analytic")
 def get_all_analytic(db: Session = Depends(get_db)):
@@ -67,68 +148,19 @@ def create_analytic(data: AnalyticCreate, db: Session = Depends(get_db)):
             "message": f"Gagal membuat analytic: {str(e)}",
             "data": []
         }
-    
-@router.post("/add-device")
-async def add_device(
-    file: UploadFile = File(...),
-    analytic_id: int = Form(...),
-    owner_name: str = Form(...),
-    phone_number: str = Form(...),
-    social_media: Optional[str] = Form(None),
-    upload_id: str = Form(...),
-):
-    
-    try:
-        # Validasi file extension
-        if not file.filename:
-            return JSONResponse(
-                {"status": 400, "message": "File name is required"},
-                status_code=400
-            )
-            
-        if not file.filename.lower().endswith(('.xlsx', '.xls')):
-            return JSONResponse(
-                {"status": 400, "message": "Only Excel files (.xlsx, .xls) are allowed"},
-                status_code=400
-            )
 
-        # Validasi upload_id tidak kosong
-        if not upload_id or upload_id.strip() == "":
-            return JSONResponse(
-                {"status": 400, "message": "upload_id is required"},
-                status_code=400
-            )
+@router.post("/link-device-analytic")
+def link_device_to_analytic(device_id: int, analytic_id: int):
+    db = next(get_db())
+    device = db.query(models.Device).get(device_id)
+    analytic = db.query(models.Analytic).get(analytic_id)
+    if not device or not analytic:
+        return {"status": 404, "message": "Device or Analytic not found"}
 
-        # Call service untuk proses upload
-        resp = await upload_service.start_upload_and_process(
-            file=file,
-            analytic_id=analytic_id,
-            owner_name=owner_name,
-            phone_number=phone_number,
-            social_media=social_media,
-            upload_id=upload_id,
-        )
-        
-        # Gunakan status dari response sebagai HTTP status code
-        status_code = resp.get("status", 200)
-        return JSONResponse(resp, status_code=status_code)
-        
-    except Exception as e:
-        return JSONResponse(
-            {"status": 500, "message": f"Unexpected error: {str(e)}"}, 
-            status_code=500
-        )
+    analytic.devices.append(device)
+    db.commit()
+    return {"status": 200, "message": "Linked successfully"}
 
-@router.get("/upload-progress/{upload_id}")
-async def get_upload_progress(upload_id: str):
-    data, status_code = upload_service.get_progress(upload_id)
-    return JSONResponse(data, status_code=status_code)
-
-
-@router.post("/upload-cancel/{upload_id}")
-async def cancel_upload(upload_id: str):
-    data, status_code = upload_service.cancel(upload_id)
-    return JSONResponse(data, status_code=status_code)
 
 @router.get("/{analytic_id}/devices")
 def get_analytic_devices(analytic_id: int, db: Session = Depends(get_db)):

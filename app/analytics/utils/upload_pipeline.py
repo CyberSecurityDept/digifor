@@ -1,21 +1,16 @@
 import asyncio
-import json
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
-from fastapi import UploadFile
-
-# Pakai util & repo yang sudah ada di project-mu
-from app.analytics.service import encrypt_and_store_file, format_bytes
+from app.analytics.models import File
+from app.analytics.service import encrypt_and_store_file, format_bytes, create_device
 from app.analytics.utils.parser_xlsx import parse_sheet
-from app.analytics.service import create_device
+from app.db.session import get_db
 
 
 class UploadService:
     def __init__(self) -> None:
-        # state global sederhana (single-process). Untuk production multi-worker, gunakan Redis/DB.
         self._progress: Dict[str, Dict[str, Any]] = {}
 
     # --------- State helpers ---------
@@ -25,23 +20,18 @@ class UploadService:
             "progress_size": "0 B",
             "total_size": None,
             "cancel": False,
-            "message": "Starting upload...",
+            "message": "Starting process...",
             "done": False,
         }
 
     def _is_canceled(self, upload_id: str) -> bool:
-        """Helper untuk cek cancel status"""
         return self._progress.get(upload_id, {}).get("cancel", False)
 
     def get_progress(self, upload_id: str) -> Tuple[Dict[str, Any], int]:
         data = self._progress.get(upload_id)
         if not data:
-            return {
-                "status": 404,
-                "message": "Upload ID not found",
-                "data": None
-            }, 404
-        
+            return {"status": 404, "message": "Upload ID not found", "data": None}, 404
+
         return {
             "status": 200,
             "message": data.get("message", ""),
@@ -51,307 +41,139 @@ class UploadService:
                 "total_size": data.get("total_size"),
                 "done": data.get("done", False),
                 "device_id": data.get("device_id"),
-            }
+            },
         }, 200
 
     def cancel(self, upload_id: str) -> Tuple[Dict[str, Any], int]:
         if upload_id not in self._progress:
-            return {
-                "status": 404,
-                "message": "Upload ID not found",
-                "data": None
-            }, 404
-        
-        # Set cancel flag
+            return {"status": 404, "message": "Upload ID not found", "data": None}, 404
+
         self._progress[upload_id]["cancel"] = True
         self._progress[upload_id]["message"] = "Canceling..."
-        
-        return {
-            "status": 200,
-            "message": "Cancel request received",
-            "data": None
-        }, 200
+        return {"status": 200, "message": "Cancel request received", "data": None}, 200
 
-    # --------- Public API ---------
+    # --------- Main entry point ---------
     async def start_upload_and_process(
         self,
-        file: UploadFile,
-        analytic_id: int,
+        file_id: int,
         owner_name: str,
         phone_number: str,
-        social_media: Optional[str],
         upload_id: str,
     ) -> Dict[str, Any]:
-        
-        # blokir ID duplikat yang belum selesai
+        """Mulai proses dari file yang sudah diupload sebelumnya (by file_id)."""
+
         if upload_id in self._progress and not self._progress[upload_id].get("done"):
-            return {"status": 400, "message": "Upload with same ID is in progress", "data": None}
+            return {"status": 400, "message": "Process with same ID is already running", "data": None}
 
         self._init_state(upload_id)
-        await asyncio.sleep(0.5)  # Jeda agar state awal terbaca
+        await asyncio.sleep(0.2)
+        db = next(get_db())
 
-        tmp_path = None
         try:
-            # Deteksi total size stream (tidak selalu ada)
-            try:
-                cur = file.file.tell()
-                file.file.seek(0, os.SEEK_END)
-                total_size = file.file.tell()
-                file.file.seek(cur, os.SEEK_SET)
-            except Exception:
-                total_size = 0
+            file_record = db.query(File).filter(File.id == file_id).first()
+            if not file_record:
+                return {"status": 404, "message": f"File with id {file_id} not found", "data": None}
 
-            bytes_read = 0
-            CHUNK = 1024 * 256  # 256 KB (lebih kecil agar progress lebih terlihat)
+            file_path = file_record.file_path
+            if not file_path or not os.path.exists(file_path):
+                return {"status": 404, "message": f"File not found at {file_path}", "data": None}
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                tmp_name = tmp.name
-                
-                while True:
-                    # Cek cancel sebelum baca chunk
-                    if self._is_canceled(upload_id):
-                        tmp.close()
-                        try:
-                            os.remove(tmp_name)
-                        except Exception:
-                            pass
-                        self._progress[upload_id].update({
-                            "message": "Upload canceled by user",
-                            "done": True,
-                        })
-                        return {"status": 499, "message": "Upload canceled by user", "data": None}
-
-                    chunk = await file.read(CHUNK)
-                    if not chunk:
-                        break
-
-                    tmp.write(chunk)
-                    bytes_read += len(chunk)
-
-                    if total_size > 0:
-                        percent = max(0, min(99, int((bytes_read / total_size) * 100)))
-                        self._progress[upload_id].update({
-                            "percent": percent,
-                            "progress_size": format_bytes(bytes_read),
-                            "total_size": format_bytes(total_size),
-                            "message": "Uploading...",
-                        })
-                    else:
-                        self._progress[upload_id].update({
-                            "percent": 0,
-                            "progress_size": format_bytes(bytes_read),
-                            "total_size": None,
-                            "message": "Uploading...",
-                        })
-
-                    # Jeda agar progress bisa terbaca
-                    await asyncio.sleep(0.1)
-
-            # Cek cancel setelah upload selesai
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_name)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Upload canceled by user",
-                    "done": True,
-                })
-                return {"status": 499, "message": "Upload canceled by user", "data": None}
-
-            tmp_path = Path(tmp_name)
-            final_total = total_size if total_size > 0 else bytes_read
-            
+            file_size = os.path.getsize(file_path)
             self._progress[upload_id].update({
-                "percent": 100,
-                "progress_size": format_bytes(final_total),
-                "total_size": format_bytes(final_total),
-                "message": "Upload complete, processing...",
+                "percent": 5,
+                "progress_size": format_bytes(file_size),
+                "total_size": format_bytes(file_size),
+                "message": "File found, preparing process...",
             })
-            
-            # Jeda sebelum mulai processing
-            await asyncio.sleep(0.5)
 
-            # Cek cancel sebelum processing
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled before processing",
-                    "done": True,
-                })
-                return {"status": 499, "message": "Upload canceled by user", "data": None}
-
-            # mulai processing di background
             asyncio.create_task(
                 self._process_after_upload(
                     upload_id=upload_id,
-                    tmp_path=str(tmp_path),
-                    orig_filename=file.filename,
-                    analytic_id=analytic_id,
+                    file_path=file_path,
+                    orig_filename=file_record.file_name,
                     owner_name=owner_name,
                     phone_number=phone_number,
-                    social_media=social_media,
+                    file_id=file_id,
                 )
             )
 
-            return {
-                "status": 200, 
-                "message": "Upload completed", 
-                "data": None
-            }
+            return {"status": 200, "message": "File accepted for processing", "data": None}
 
         except Exception as e:
-            self._progress[upload_id].update({
-                "message": f"Unexpected error during upload: {str(e)}",
-                "done": True,
-            })
-            if tmp_path and os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-            return {"status": 500, "message": "Upload failed", "data": None}
+            self._progress[upload_id].update({"message": f"Unexpected error: {str(e)}", "done": True})
+            return {"status": 500, "message": f"Error: {str(e)}", "data": None}
 
-    # --------- Background processing ---------
+    # --------- Background process (with smooth percent updates) ---------
     async def _process_after_upload(
         self,
         upload_id: str,
-        tmp_path: str,
+        file_path: str,
         orig_filename: str,
-        analytic_id: int,
         owner_name: str,
         phone_number: str,
-        social_media: Optional[str],
+        file_id: int,
     ) -> None:
         try:
-            # Cek cancel sebelum mulai parsing
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled before processing",
-                    "done": True,
-                })
-                return
+            total_size = os.path.getsize(file_path)
 
-            # 1) Parse
-            self._progress[upload_id].update({
-                "message": "Parsing sheets..."
-            })
-            await asyncio.sleep(0.5)  # Jeda agar terbaca
-            
-            # Cek cancel sebelum parsing
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled during parsing",
-                    "done": True,
-                })
-                return
+            # ----------- PARSING STAGE -----------
+            self._progress[upload_id].update({"message": "Parsing Excel sheets..."})
+            for i in range(5, 35, 3):
+                if self._is_canceled(upload_id):
+                    return self._mark_done(upload_id, "Canceled during parsing")
+                self._progress[upload_id]["percent"] = i
 
-            contacts = parse_sheet(Path(tmp_path), "contacts") or []
-            messages = parse_sheet(Path(tmp_path), "messages") or []
-            calls = parse_sheet(Path(tmp_path), "calls") or []
+                # 🧠 Tambahkan simulasi progress size
+                partial_size = int((i / 100) * total_size)
+                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
 
-            # Cek cancel setelah parsing
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled after parsing",
-                    "done": True,
-                })
-                return
+                await asyncio.sleep(0.2)
 
-            # 2) Encrypt
+            contacts = parse_sheet(Path(file_path), "contacts") or []
+            messages = parse_sheet(Path(file_path), "messages") or []
+            calls = parse_sheet(Path(file_path), "calls") or []
+
+            # ----------- ENCRYPTION STAGE -----------
+            self._progress[upload_id].update({"message": "Encrypting file..."})
             public_key_path = os.path.join(os.getcwd(), "keys", "public.key")
             if not os.path.exists(public_key_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": f"Public key tidak ditemukan: {public_key_path}",
-                    "done": True,
-                })
-                return
+                return self._mark_done(upload_id, f"Public key not found at {public_key_path}")
 
-            self._progress[upload_id].update({
-                "message": "Encrypting file..."
-            })
-            await asyncio.sleep(0.5)  # Jeda agar terbaca
-            
-            # Cek cancel sebelum encrypt
-            if self._is_canceled(upload_id):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled during encryption",
-                    "done": True,
-                })
-                return
+            for i in range(35, 70, 3):
+                if self._is_canceled(upload_id):
+                    return self._mark_done(upload_id, "Canceled during encryption")
+                self._progress[upload_id]["percent"] = i
 
-            with open(tmp_path, "rb") as f:
+                # 🧠 Update progress_size juga di tahap ini
+                partial_size = int((i / 100) * total_size)
+                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
+
+                await asyncio.sleep(0.15)
+
+            with open(file_path, "rb") as f:
                 file_bytes = f.read()
             encrypted_path = encrypt_and_store_file(orig_filename, file_bytes, public_key_path)
 
-            # Cek cancel setelah encrypt
-            if self._is_canceled(upload_id):
-                # Hapus file encrypted yang sudah dibuat
-                try:
-                    if os.path.exists(encrypted_path):
-                        os.remove(encrypted_path)
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled after encryption",
-                    "done": True,
-                })
-                return
+            # ----------- SAVING TO DATABASE -----------
+            self._progress[upload_id].update({"message": "Saving to database..."})
+            for i in range(70, 95, 4):
+                if self._is_canceled(upload_id):
+                    return self._mark_done(upload_id, "Canceled during saving")
+                self._progress[upload_id]["percent"] = i
 
-            # 3) Save DB
-            self._progress[upload_id].update({
-                "message": "Saving to database..."
-            })
-            await asyncio.sleep(0.5)  # Jeda agar terbaca
-            
-            # CEK CANCEL TERAKHIR SEBELUM SAVE DB (CRITICAL!)
-            if self._is_canceled(upload_id):
-                # Hapus file encrypted
-                try:
-                    if os.path.exists(encrypted_path):
-                        os.remove(encrypted_path)
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
-                self._progress[upload_id].update({
-                    "message": "Canceled before saving to database",
-                    "done": True,
-                })
-                return
+                partial_size = int((i / 100) * total_size)
+                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
 
-            social_media_obj = json.loads(social_media) if social_media else {}
+                await asyncio.sleep(0.2)
+
+            # ----------- SIMPAN DEVICE -----------
             device_data = {
-                "analytic_id": analytic_id,
                 "owner_name": owner_name,
                 "phone_number": phone_number,
-                "social_media": social_media_obj,
+                "file_id": file_id,
                 "file_path": encrypted_path,
             }
-            
+
             device_id = create_device(
                 device_data=device_data,
                 contacts=contacts,
@@ -359,23 +181,21 @@ class UploadService:
                 calls=calls,
             )
 
-            # Sukses!
+            # ----------- COMPLETE -----------
             self._progress[upload_id].update({
+                "percent": 100,
+                "progress_size": format_bytes(total_size),
                 "message": "All steps completed successfully",
                 "device_id": device_id,
                 "done": True,
             })
 
         except Exception as e:
-            self._progress[upload_id].update({
-                "message": f"Processing error: {str(e)}",
-                "done": True,
-            })
-        finally:
-            # Cleanup temp file
-            try:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-            except Exception:
-                pass
+            self._mark_done(upload_id, f"Processing error: {str(e)}")
+
+
+    def _mark_done(self, upload_id: str, message: str):
+        self._progress[upload_id].update({"message": message, "done": True})
+
+
 upload_service = UploadService()
