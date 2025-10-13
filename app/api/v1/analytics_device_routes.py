@@ -3,26 +3,23 @@ from fastapi.responses import JSONResponse
 from app.analytics.utils.upload_pipeline import upload_service
 
 router = APIRouter()
-
 @router.post("/analytics/add-device")
 async def add_device(
-    file_id: int = Form(),
-    owner_name: str = Form(),
-    phone_number: str = Form(),
-    upload_id: str = Form(),
+    file_id: int = Form(...),
+    owner_name: str = Form(...),
+    phone_number: str = Form(...),
 ):
     try:
         resp = await upload_service.start_upload_and_process(
             file_id=file_id,
             owner_name=owner_name,
             phone_number=phone_number,
-            upload_id=upload_id,
         )
         return JSONResponse(resp, status_code=resp.get("status", 200))
     except Exception as e:
         return JSONResponse(
             {"status": 500, "message": f"Unexpected error: {str(e)}"},
-            status_code=500
+            status_code=500,
         )
 
 @router.get("/analytics/upload-progress/{upload_id}")
