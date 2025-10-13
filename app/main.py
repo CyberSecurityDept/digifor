@@ -17,7 +17,10 @@ from app.api.v1 import (
     case_log_routes,
     case_note_routes,
     person_routes,
-    analytics_routes
+    analytics_file_routes,
+    analytics_device_routes,
+    analytics_management_routes,
+    analytics_communication_routes
 )
 from app.db.init_db import init_db
 
@@ -57,7 +60,7 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
 app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
-app.include_router(analytics_routes.router, prefix=settings.API_V1_STR, tags=["Analytics"])
+
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
 app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
@@ -65,6 +68,13 @@ app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Pers
 app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+
+# Analytics Routes - Individual routers for better organization
+app.include_router(analytics_management_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Management"])
+app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tags=["File Management"])
+app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
+app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Communication Analysis"])
+
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
 

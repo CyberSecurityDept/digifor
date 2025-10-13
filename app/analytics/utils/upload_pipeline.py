@@ -3,10 +3,69 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from app.analytics.models import File
-from app.analytics.service import encrypt_and_store_file, format_bytes, create_device
+from app.analytics.shared.models import File
+from app.analytics.device_management.service import create_device
+from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
+import tempfile
 from app.analytics.utils.parser_xlsx import parse_sheet
 from app.db.session import get_db
+
+# Helper functions
+UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
+KEY_DIR = os.path.join(os.getcwd(), "keys")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(KEY_DIR, exist_ok=True)
+
+def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key_path: str) -> str:
+    public_key_path = os.path.join(KEY_DIR, "public.key")
+    private_key_path = os.path.join(KEY_DIR, "private.key")
+
+    # Generate keypair kalau belum ada
+    if not (os.path.exists(public_key_path) and os.path.exists(private_key_path)):
+        print("⚙️  Keypair belum ada — generate baru...")
+        private_key, public_key = generate_keypair()
+        with open(private_key_path, "wb") as f:
+            f.write(private_key)
+        with open(public_key_path, "wb") as f:
+            f.write(public_key)
+        print(f"✅ Keypair dibuat: {public_key_path}, {private_key_path}")
+
+    # Tentukan nama file hasil enkripsi
+    encrypted_filename = f"{original_filename}.sdp"
+    encrypted_path = os.path.join(UPLOAD_DIR, encrypted_filename)
+
+    # Buat file sementara untuk proses enkripsi
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+
+    try:
+        # Baca public key
+        with open(public_key_path, "rb") as f:
+            pub_key = f.read()
+
+        # Enkripsi file sementara → hasil di folder uploads/
+        encrypt_to_sdp(pub_key, tmp_path, encrypted_path)
+
+    finally:
+        # Hapus file sementara setelah enkripsi selesai
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    # Kembalikan path RELATIF, bukan full absolute path
+    return os.path.join("uploads", encrypted_filename)
+
+def format_bytes(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    i, x = 0, float(n)
+    while x >= 1024 and i < len(units) - 1:
+        x /= 1024.0
+        i += 1
+    return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
 
 
 class UploadService:

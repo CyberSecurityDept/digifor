@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal, engine
 from app.db.base import Base
 
-from app.analytics.models import *
+from app.analytics.shared.models import *
 from app.case_management.models import *
 from app.evidence_management.models import *
 from app.suspect_management.models import *

@@ -4,7 +4,7 @@ import re
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Device, Contact, Message, Call
+from app.analytics.shared.models import Device, Contact, Message, Call
 
 # Buat tabel kalau belum ada
 Base.metadata.create_all(bind=engine)
