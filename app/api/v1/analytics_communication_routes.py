@@ -7,26 +7,38 @@ from app.analytics.utils.parser_xlsx import normalize_str, _to_str
 # Communication Analysis Router
 router = APIRouter()
 
+ALLOWED_SOURCES = [
+    "Facebook Messenger",
+    "Telegram",
+    "WhatsApp Messenger",
+    "X (Twitter)",
+    "Instagram",
+    "TikTok"
+]
+
+
 @router.get("/analytics/deep-communication/device/{device_id}")
 def get_device_threads_by_platform(
     device_id: int,
     db: Session = Depends(get_db)
 ):
+    """Ambil komunikasi device berdasarkan platform dari kolom source."""
+
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
         return {"status": 404, "message": "Device not found", "data": []}
 
-    # ambil semua platform unik dari message device ini
+    # --- Ambil semua platform unik berdasarkan source ---
     platforms = (
-        db.query(Message.type)
+        db.query(Message.source)
         .filter(Message.device_id == device.id)
         .distinct()
         .all()
     )
-    platforms = [p[0] or "Unknown" for p in platforms]
+    platforms = [p[0] for p in platforms if p[0] in ALLOWED_SOURCES]
 
     if not platforms:
-        return {"status": 200, "message": "No messages", "data": []}
+        return {"status": 200, "message": "No messages for allowed platforms", "data": []}
 
     platform_map = {}
 
@@ -35,7 +47,7 @@ def get_device_threads_by_platform(
         thread_ids = (
             db.query(Message.thread_id)
             .filter(Message.device_id == device.id)
-            .filter(Message.type == plat)
+            .filter(Message.source == plat)
             .distinct()
             .all()
         )
@@ -51,18 +63,18 @@ def get_device_threads_by_platform(
                     Message.sender,
                     Message.receiver,
                     Message.timestamp,
-                    Message.type.label("platform")
+                    Message.source.label("platform")
                 )
                 .filter(Message.device_id == device.id)
                 .filter(Message.thread_id == tid)
-                .filter(Message.type == plat)
+                .filter(Message.source == plat)
                 .all()
             )
 
             if not msgs:
                 continue
 
-            # tentukan siapa peer (prioritas dari pesan Incoming)
+            # --- Tentukan siapa peer (prioritas dari pesan Incoming) ---
             incoming_msg = next(
                 (m for m in msgs if (m.direction or "").lower().startswith("in")), None
             )
@@ -84,7 +96,7 @@ def get_device_threads_by_platform(
                         break
                 peer_name = peer_name or "Unknown"
 
-            # hitung intensitas & waktu
+            # --- Hitung intensitas & waktu ---
             message_count = len(msgs)
             timestamps = [m.timestamp for m in msgs if m.timestamp]
             first_ts = min(timestamps) if timestamps else None
@@ -96,12 +108,12 @@ def get_device_threads_by_platform(
                 "intensity": message_count,
                 "first_timestamp": first_ts,
                 "last_timestamp": last_ts,
-                "platform": plat or "Unknown"
+                "platform": plat
             })
 
         # urutkan thread berdasarkan intensitas terbesar
         thread_list.sort(key=lambda x: x["intensity"], reverse=True)
-        platform_map[plat.lower()] = thread_list
+        platform_map[plat] = thread_list
 
     return {
         "status": 200,

@@ -21,7 +21,8 @@ from app.api.v1 import (
     analytics_device_routes,
     analytics_management_routes,
     analytics_communication_routes,
-    analytics_contact_routes
+    analytics_contact_routes,
+    analytics_social_media_routes
 )
 from app.db.init_db import init_db
 
@@ -76,6 +77,7 @@ app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tag
 app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
 app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Communication Analysis"])
 app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation Analysis"])
+app.include_router(analytics_social_media_routes.router, prefix=settings.API_V1_STR, tags=["Social Media Correlation Analysis"])
 
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
