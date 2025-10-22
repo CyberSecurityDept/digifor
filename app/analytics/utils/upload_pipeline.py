@@ -17,6 +17,7 @@ from datetime import datetime
 
 BASE_DIR = os.getcwd()
 UPLOAD_DIR = settings.UPLOAD_DIR
+APK_DIR_BASE = settings.APK_DIR
 DATA_DIR = os.path.join(UPLOAD_DIR, "data")
 ENCRYPTED_DIR = os.path.join(UPLOAD_DIR, "encrypted")
 KEY_DIR = os.path.join(BASE_DIR, "keys")
@@ -427,5 +428,89 @@ class UploadService:
         except Exception as e:
             return {"status": 500, "message": f"Processing error: {str(e)}", "data": None}
 
+    async def start_app_upload(
+        self,
+        upload_id: str,
+        file: UploadFile,
+        file_name: str,
+        notes: str,
+        type:str,
+        tools: str,
+        file_bytes: bytes,
+    ):
+        APK_DIR = os.path.join(APK_DIR_BASE, "apk")
+        os.makedirs(APK_DIR, exist_ok=True)
 
+        if upload_id in self._progress and not self._progress[upload_id].get("done"):
+            return {"status": 400, "message": "Upload ID sedang berjalan", "data": None}
+
+        self._init_state(upload_id)
+
+        try:
+            safe_filename = Path(file.filename).name
+            target_path = os.path.join(APK_DIR, safe_filename)
+            total_size = len(file_bytes)
+
+            self._progress[upload_id].update(
+                {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
+            )
+
+            chunk_size = 1024 * 512
+            written = 0
+            with open(target_path, "wb") as f:
+                for i in range(0, total_size, chunk_size):
+                    if self._is_canceled(upload_id):
+                        self._mark_done(upload_id, "Upload canceled")
+                        return {"status": 200, "message": "Upload canceled", "data": {"done": True}}
+
+                    chunk = file_bytes[i:i + chunk_size]
+                    f.write(chunk)
+                    written += len(chunk)
+
+                    percent = (written / total_size) * 100
+                    progress_bytes = int((percent / 100) * total_size)
+                    self._progress[upload_id].update({
+                        "percent": round(percent, 2),
+                        "progress_size": format_bytes(progress_bytes),
+                        "message": f"Uploading app... ({percent:.2f}%)",
+                    })
+                    await asyncio.sleep(0.02)
+
+            rel_path = os.path.relpath(target_path, BASE_DIR)
+            db = next(get_db())
+            file_record = File(
+                file_name=file_name,   
+                file_path=rel_path,
+                notes=notes,
+                type=type,
+                tools=tools,
+            )
+            db.add(file_record)
+            db.commit()
+            db.refresh(file_record)
+
+            self._progress[upload_id].update({
+                "percent": 100,
+                "progress_size": format_bytes(total_size),
+                "message": "App upload complete",
+                "done": True,
+                "file_id": file_record.id,
+            })
+
+            return {
+                "status": 200,
+                "message": "Application uploaded successfully",
+                "data": {
+                    "percent": 100,
+                    "progress_size": format_bytes(total_size),
+                    "total_size": format_bytes(total_size),
+                    "done": True,
+                    "file_id": file_record.id,
+                    "file_path": rel_path,
+                },
+            }
+
+        except Exception as e:
+            self._mark_done(upload_id, f"App upload error: {str(e)}")
+            return {"status": 500, "message": f"Unexpected app upload error: {str(e)}", "data": None}
 upload_service = UploadService()

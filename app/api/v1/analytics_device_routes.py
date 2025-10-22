@@ -115,7 +115,7 @@ def get_all_devices(db: Session = Depends(get_db)):
             file_record = db.query(File).filter(File.id == device.file_id).first()
             
             contacts_count = len(device.contacts) if device.contacts else 0
-            messages_count = len(device.messages) if device.messages else 0
+            messages_count = len(device.deep_communications) if device.deep_communications else 0
             calls_count = len(device.calls) if device.calls else 0
             hash_files_count = len(device.hash_files) if device.hash_files else 0
             social_media_count = len(device.social_media_accounts) if device.social_media_accounts else 0
@@ -182,7 +182,7 @@ def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
         file_record = db.query(File).filter(File.id == device.file_id).first()
         
         contacts_count = len(device.contacts) if device.contacts else 0
-        messages_count = len(device.messages) if device.messages else 0
+        messages_count = len(device.deep_communications) if device.deep_communications else 0
         calls_count = len(device.calls) if device.calls else 0
         hash_files_count = len(device.hash_files) if device.hash_files else 0
         social_media_count = len(device.social_media_accounts) if device.social_media_accounts else 0

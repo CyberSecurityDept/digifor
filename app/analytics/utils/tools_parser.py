@@ -228,7 +228,7 @@ class ToolsParser:
                 })
                 
             elif data_type == "messages":
-                message_text = record.get("Message")
+                message_text = record.get("DeepCommunication")
                 if isinstance(message_text, list):
                     message_text = " ".join(message_text)
                 

@@ -110,7 +110,7 @@ def migrate_messages_add_file_id():
         print(f"\n📝 **SAMPLE DATA:**")
         for row in result:
             text_preview = row[3][:50] + "..." if row[3] and len(row[3]) > 50 else row[3]
-            print(f"   Message {row[0]}: {row[1]} -> {row[2]} - '{text_preview}' - Source: {row[4]}")
+            print(f"   DeepCommunication {row[0]}: {row[1]} -> {row[2]} - '{text_preview}' - Source: {row[4]}")
         
     except Exception as e:
         db.rollback()

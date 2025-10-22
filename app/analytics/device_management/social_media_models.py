@@ -8,6 +8,22 @@ def get_indonesia_time():
     indonesia_tz = pytz.timezone('Asia/Jakarta')
     return datetime.now(indonesia_tz)
 
+class SocialMedia(Base):
+    __tablename__ = "social_media"
+
+    id = Column(Integer, primary_key=True, index=True)
+    platform = Column(String, unique=True, nullable=True)
+    account_name = Column(Text, nullable=True)
+    account_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=get_indonesia_time)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+
+    # 🔧 Tambahkan dua baris ini
+    device = relationship("Device", back_populates="social_media")
+    file = relationship("File", back_populates="social_media")
+
 class SocialMediaAccount(Base):
     __tablename__ = "social_media_accounts"
 
@@ -34,7 +50,7 @@ class SocialMediaAccount(Base):
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
     last_activity = Column(DateTime, nullable=True)
     
-    device = relationship("Device", back_populates="social_media_accounts")
+    # device = relationship("Device", back_populates="social_media_accounts")
 
 class SocialMediaFollower(Base):
     __tablename__ = "social_media_followers"

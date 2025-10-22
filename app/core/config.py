@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./data/uploads"
     ANALYSIS_DIR: str = "./data/analysis"
     REPORTS_DIR: str = "./data/reports"
+    APK_DIR: str = "./data/apks"
     MAX_FILE_SIZE: int = 104857600  # 100MB
 
     ENCRYPTION_KEY: str

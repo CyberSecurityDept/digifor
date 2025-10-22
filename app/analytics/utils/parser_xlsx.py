@@ -5,7 +5,7 @@ import warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.shared.models import Device, Contact, Message, Call
+from app.analytics.shared.models import Device, Contact, DeepCommunication, Call
 
 # Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
@@ -110,7 +110,7 @@ def save_device(
 
         # --- Messages ---
         for m in messages:
-            db.add(Message(
+            db.add(DeepCommunication(
                 device_id=device.id,
                 index_row=m.get("index"),
                 direction=_to_str(m.get("Direction")),

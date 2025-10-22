@@ -66,7 +66,8 @@ def create_analytic_with_devices(
             "Contact Correlation",
             "Deep Communication", 
             "Social Media Correlation",
-            "Hashfile analytics"
+            "Hashfile Analytics",
+            "APK Analytics"
         ]
         
         if data.method not in valid_methods:

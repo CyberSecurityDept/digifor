@@ -31,7 +31,7 @@ async def upload_data(
         
         # Define allowed extensions for each type
         allowed_extensions = {
-            "Handphone": ["xlsx", "xls", "csv", "apk"],
+            "Handphone": ["xlsx", "xls", "csv", "apk", "ipa"],
             "SSD": ["xlsx", "xls", "csv", "txt", "xml"],
             "Harddisk": ["xlsx", "xls", "csv", "txt", "xml"],
             "PC": ["xlsx", "xls", "csv", "txt", "xml"],
@@ -51,16 +51,26 @@ async def upload_data(
             return JSONResponse({"status": 400, "message": "File size exceeds 100MB limit"}, status_code=400)
 
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        
-        resp = await upload_service.start_file_upload(
-            upload_id=upload_id,
-            file=file,
-            file_name=file_name,
-            notes=notes,
-            type=type,
-            tools=tools,
-            file_bytes=file_bytes,
-        )
+        if file.filename.lower().endswith((".apk", ".ipa")):
+            resp = await upload_service.start_app_upload(
+                upload_id=upload_id,
+                file=file,
+                file_name=file_name,
+                notes=notes,
+                type=type,
+                tools=tools,
+                file_bytes=file_bytes,
+            )
+        else:
+            resp = await upload_service.start_file_upload(
+                upload_id=upload_id,
+                file=file,
+                file_name=file_name,
+                notes=notes,
+                type=type,
+                tools=tools,
+                file_bytes=file_bytes,
+            )
 
         return JSONResponse(resp, status_code=resp.get("status", 200))
 

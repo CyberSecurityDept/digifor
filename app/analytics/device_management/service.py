@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.analytics.device_management.models import Device, File, Contact, Message, Call, HashFile
+from app.analytics.device_management.models import Device, File, Contact, DeepCommunication, Call, HashFile
 from app.db.init_db import SessionLocal
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
 from typing import List, Dict, Any
@@ -143,7 +143,7 @@ def create_device(
             saved_contacts += 1
 
         for m in messages:
-            db.add(Message(
+            db.add(DeepCommunication(
                 device_id=device_id,
                 file_id=device_data.get("file_id"),
                 index_row=m.get("index"),
@@ -188,7 +188,7 @@ def get_device_by_id(db: Session, device_id: int):
     return db.query(Device).filter(Device.id == device_id).first()
 
 def get_device_messages(db: Session, device_id: int):
-    return db.query(Message).filter(Message.device_id == device_id).all()
+    return db.query(DeepCommunication).filter(DeepCommunication.device_id == device_id).all()
 
 def get_device_contacts(db: Session, device_id: int):
     return db.query(Contact).filter(Contact.device_id == device_id).all()

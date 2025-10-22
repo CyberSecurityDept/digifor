@@ -28,8 +28,8 @@ class File(Base):
         cascade="all, delete-orphan"
     )
     
-    messages = relationship(
-        "Message",
+    deep_communications = relationship(
+        "DeepCommunication",
         back_populates="file",
         cascade="all, delete-orphan"
     )
@@ -39,6 +39,19 @@ class File(Base):
         back_populates="file",
         cascade="all, delete-orphan"
     )
+
+    apk_analytic = relationship(
+        "ApkAnalytic",
+        back_populates="file",
+        cascade="all, delete-orphan",
+        uselist=False
+    )
+    social_media = relationship(
+        "SocialMedia", 
+        back_populates="file", 
+        cascade="all, delete-orphan"
+    )
+
 
 class Device(Base):
     __tablename__ = "devices"
@@ -84,9 +97,9 @@ class Device(Base):
 
     hash_files = relationship("HashFile", back_populates="device", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
-    messages = relationship("Message", back_populates="device", cascade="all, delete-orphan")
+    deep_communications = relationship("DeepCommunication", back_populates="device", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
-    social_media_accounts = relationship("SocialMediaAccount", back_populates="device", cascade="all, delete-orphan")
+    social_media = relationship("SocialMedia", back_populates="device", cascade="all, delete-orphan")
 
 class HashFile(Base):
     __tablename__ = "hash_files"
@@ -131,8 +144,8 @@ class Contact(Base):
     device = relationship("Device", back_populates="contacts")
     file = relationship("File", back_populates="contacts")
 
-class Message(Base):
-    __tablename__ = "messages"
+class DeepCommunication(Base):
+    __tablename__ = "deep_communications"
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
@@ -150,8 +163,8 @@ class Message(Base):
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
-    device = relationship("Device", back_populates="messages")
-    file = relationship("File", back_populates="messages")
+    device = relationship("Device", back_populates="deep_communications")
+    file = relationship("File", back_populates="deep_communications")
 
 class Call(Base):
     __tablename__ = "calls"

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Analytic, Device, AnalyticDevice, Message, Contact
+from app.analytics.shared.models import Analytic, Device, AnalyticDevice, DeepCommunication, Contact
 from collections import defaultdict
 import re
 from typing import Optional, List
@@ -47,9 +47,9 @@ def get_deep_communication_analytics(
     }
 
     messages = (
-        db.query(Message)
-        .filter(Message.device_id.in_(device_ids))
-        .order_by(Message.id)
+        db.query(DeepCommunication)
+        .filter(DeepCommunication.device_id.in_(device_ids))
+        .order_by(DeepCommunication.id)
         .all()
     )
 
@@ -147,13 +147,13 @@ def get_communication_chat_details(
         device_ids = [device_id]
 
     messages = (
-        db.query(Message)
-        .filter(Message.device_id.in_(device_ids))
+        db.query(DeepCommunication)
+        .filter(DeepCommunication.device_id.in_(device_ids))
         .filter(
-            (Message.sender.ilike(f"%{person_name}%")) |
-            (Message.receiver.ilike(f"%{person_name}%"))
+            (DeepCommunication.sender.ilike(f"%{person_name}%")) |
+            (DeepCommunication.receiver.ilike(f"%{person_name}%"))
         )
-        .order_by(Message.id)
+        .order_by(DeepCommunication.id)
         .all()
     )
 
@@ -226,10 +226,10 @@ def search_communication_data(
         device_ids = [device_id]
 
     messages = (
-        db.query(Message)
-        .filter(Message.device_id.in_(device_ids))
-        .filter(Message.text.ilike(f"%{query}%"))
-        .order_by(Message.id)
+        db.query(DeepCommunication)
+        .filter(DeepCommunication.device_id.in_(device_ids))
+        .filter(DeepCommunication.text.ilike(f"%{query}%"))
+        .order_by(DeepCommunication.id)
         .all()
     )
 

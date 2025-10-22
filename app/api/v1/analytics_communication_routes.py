@@ -1,11 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Device, Message
+from app.analytics.shared.models import Device, DeepCommunication
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
 
 router = APIRouter()
+
+ALLOWED_SOURCES = [
+    "Facebook Messenger",
+    "Telegram",
+    "WhatsApp Messenger",
+    "X (Twitter)",
+    "Instagram",
+    "TikTok"
+]
 
 @router.get("/analytics/deep-communication/device/{device_id}")
 def get_device_threads_by_platform(
@@ -14,32 +22,27 @@ def get_device_threads_by_platform(
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+        return {"status": 404, "message": "Device not found", "data": []}
 
     platforms = (
-        db.query(Message.type)
-        .filter(Message.device_id == device.id)
+        db.query(DeepCommunication.source)
+        .filter(DeepCommunication.device_id == device.id)
         .distinct()
-        .order_by(Message.type)
         .all()
     )
-    platforms = [p[0] or "General" for p in platforms]
+    platforms = [p[0] for p in platforms if p[0] in ALLOWED_SOURCES]
 
     if not platforms:
-        return JSONResponse(
-            content={"status": 200, "message": "No messages", "data": []},
-            status_code=200
-        )
+        return {"status": 200, "message": "No messages for allowed platforms", "data": []}
 
     platform_map = {}
 
     for plat in platforms:
         thread_ids = (
-            db.query(Message.thread_id)
-            .filter(Message.device_id == device.id)
-            .filter(Message.type == plat)
+            db.query(DeepCommunication.thread_id)
+            .filter(DeepCommunication.device_id == device.id)
+            .filter(DeepCommunication.source == plat)
             .distinct()
-            .order_by(Message.thread_id)
             .all()
         )
         thread_ids = [t[0] for t in thread_ids if t[0]]
@@ -49,16 +52,15 @@ def get_device_threads_by_platform(
         for tid in thread_ids:
             msgs = (
                 db.query(
-                    Message.direction,
-                    Message.sender,
-                    Message.receiver,
-                    Message.timestamp,
-                    Message.type.label("platform")
+                    DeepCommunication.direction,
+                    DeepCommunication.sender,
+                    DeepCommunication.receiver,
+                    DeepCommunication.timestamp,
+                    DeepCommunication.source.label("platform")
                 )
-                .filter(Message.device_id == device.id)
-                .filter(Message.thread_id == tid)
-                .filter(Message.type == plat)
-                .order_by(Message.id)
+                .filter(DeepCommunication.device_id == device.id)
+                .filter(DeepCommunication.thread_id == tid)
+                .filter(DeepCommunication.source == plat)
                 .all()
             )
 
@@ -70,7 +72,7 @@ def get_device_threads_by_platform(
             )
 
             if incoming_msg:
-                peer_name = (incoming_msg.sender or incoming_msg.receiver or "Anonymous").strip()
+                peer_name = (incoming_msg.sender or incoming_msg.receiver or "Unknown").strip()
             else:
                 owner = (device.owner_name or "").strip().lower()
                 peer_name = None
@@ -83,7 +85,7 @@ def get_device_threads_by_platform(
                     if r and r != owner:
                         peer_name = r
                         break
-                peer_name = peer_name or "Anonymous"
+                peer_name = peer_name or "Unknown"
 
             message_count = len(msgs)
             timestamps = [m.timestamp for m in msgs if m.timestamp]
@@ -96,25 +98,22 @@ def get_device_threads_by_platform(
                 "intensity": message_count,
                 "first_timestamp": first_ts,
                 "last_timestamp": last_ts,
-                "platform": plat or "General"
+                "platform": plat
             })
 
         thread_list.sort(key=lambda x: x["intensity"], reverse=True)
-        platform_map[plat.lower()] = thread_list
+        platform_map[plat] = thread_list
 
-    return JSONResponse(
-        content={
-            "status": 200,
-            "message": "Success",
-            "data": {
-                "device_id": device.id,
-                "owner_name": device.owner_name,
-                "phone_number": device.phone_number,
-                "platforms": platform_map
-            }
-        },
-        status_code=200
-    )
+    return {
+        "status": 200,
+        "message": "Success",
+        "data": {
+            "device_id": device.id,
+            "owner_name": device.owner_name,
+            "phone_number": device.phone_number,
+            "platforms": platform_map
+        }
+    }
 
 @router.get("/analytics/deep-communication/thread/{device_id}/{thread_id}")
 def get_thread_messages(
@@ -124,40 +123,34 @@ def get_thread_messages(
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+        return {"status": 404, "message": "Device not found", "data": []}
 
     messages = (
         db.query(
-            Message.id,
-            Message.timestamp,
-            Message.direction,
-            Message.sender,
-            Message.receiver,
-            Message.text,
-            Message.type,
-            Message.source
+            DeepCommunication.id,
+            DeepCommunication.timestamp,
+            DeepCommunication.direction,
+            DeepCommunication.sender,
+            DeepCommunication.receiver,
+            DeepCommunication.text,
+            DeepCommunication.type,
+            DeepCommunication.source
         )
-        .filter(Message.device_id == device.id)
-        .filter(Message.thread_id == thread_id)
-        .order_by(Message.id.asc())
+        .filter(DeepCommunication.device_id == device.id)
+        .filter(DeepCommunication.thread_id == thread_id)
+        .order_by(DeepCommunication.id.asc())
         .all()
     )
 
     if not messages:
-        return JSONResponse(
-            content={
-                "status": 200,
-                "message": "No messages in this thread",
-                "data": []
-            },
-            status_code=200
-        )
-
-    return JSONResponse(
-        content={
+        return {
             "status": 200,
-            "message": "Success",
-            "data": [m._asdict() for m in messages]
-        },
-        status_code=200
-    )
+            "message": "No messages in this thread",
+            "data": []
+        }
+
+    return {
+        "status": 200,
+        "message": "Success",
+        "data": [m._asdict() for m in messages]
+    }
