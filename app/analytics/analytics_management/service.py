@@ -69,7 +69,6 @@ def get_analytic_devices(db: Session, analytic_id: int):
 
 MOBSF_URL = "http://localhost:8000"
 def get_mobsf_api_key():
-    """Generate API key dari ~/.MobSF/secret"""
     secret_path = os.path.expanduser("~/.MobSF/secret")
     if not os.path.exists(secret_path):
         raise FileNotFoundError("❌ File ~/.MobSF/secret tidak ditemukan.")
@@ -78,8 +77,6 @@ def get_mobsf_api_key():
     return hashlib.sha256(secret.encode()).hexdigest()
 
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
-    """Upload ke MobSF, ambil hasil JSON, filter sesuai extract_filtered.py, lalu simpan ke DB"""
-    # === Ambil file dari DB ===
     file_obj = db.query(File).filter(File.id == file_id).first()
     if not file_obj:
         raise ValueError(f"File dengan id={file_id} tidak ditemukan")

@@ -195,3 +195,85 @@ def get_device_contacts(db: Session, device_id: int):
 
 def get_device_calls(db: Session, device_id: int):
     return db.query(Call).filter(Call.device_id == device_id).all()
+
+def save_hashfiles_to_database(device_id: int, hashfiles: List[Dict[str, Any]], source_tool: str = "Unknown"):
+    db = SessionLocal()
+    try:
+        saved_count = 0
+        for hf in hashfiles:
+            # Determine file extension
+            file_extension = None
+            if hf.get('name'):
+                if '.' in hf['name']:
+                    file_extension = hf['name'].split('.')[-1].lower()
+            
+            # Determine file type based on extension
+            file_type = "Unknown"
+            if file_extension:
+                if file_extension in ['exe', 'bat', 'cmd', 'scr', 'pif', 'com']:
+                    file_type = "Executable"
+                elif file_extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp']:
+                    file_type = "Image"
+                elif file_extension in ['mp4', 'avi', 'mov', 'wmv', 'flv']:
+                    file_type = "Video"
+                elif file_extension in ['mp3', 'wav', 'flac', 'aac']:
+                    file_type = "Audio"
+                elif file_extension in ['pdf', 'doc', 'docx', 'txt', 'rtf']:
+                    file_type = "Document"
+                elif file_extension in ['zip', 'rar', '7z', 'tar', 'gz']:
+                    file_type = "Archive"
+            
+            # Determine if suspicious
+            is_suspicious = "False"
+            suspicious_extensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js']
+            if file_extension and file_extension in suspicious_extensions:
+                is_suspicious = "True"
+            
+            # Determine risk level
+            risk_level = "Low"
+            if is_suspicious == "True":
+                risk_level = "High"
+            elif file_extension in ['.dll', '.sys', '.drv']:
+                risk_level = "Medium"
+            
+            # Get required fields with defaults
+            file_name = normalize_str(hf.get('name', 'Unknown'))
+            file_path = normalize_str(hf.get('path', f'/unknown/{file_name}'))
+            file_hash = normalize_str(hf.get('md5') or hf.get('sha1') or hf.get('hash', ''))
+            
+            # Skip if no hash value
+            if not file_hash:
+                continue
+                
+            hashfile_record = HashFile(
+                device_id=device_id,
+                name=file_name,
+                file_path=file_path,
+                file_hash=file_hash,
+                hash_algorithm=normalize_str(hf.get('algorithm', 'MD5')),
+                file_size=int(hf.get('size', 0)) if hf.get('size') else None,
+                source_type=normalize_str(hf.get('source_type', 'File System')),
+                source_tool=source_tool,
+                file_type=file_type,
+                file_extension=file_extension,
+                is_duplicate="False",  # Will be updated later if needed
+                is_suspicious=is_suspicious,
+                malware_detection=normalize_str(hf.get('malware_detection', '')),
+                risk_level=risk_level,
+                created_at=get_indonesia_time()
+            )
+            
+            db.add(hashfile_record)
+            saved_count += 1
+        
+        db.commit()
+        return saved_count
+        
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+def get_device_hashfiles(db: Session, device_id: int):
+    return db.query(HashFile).filter(HashFile.device_id == device_id).all()

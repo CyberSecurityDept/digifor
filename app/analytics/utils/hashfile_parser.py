@@ -228,7 +228,7 @@ class HashFileParser:
             # Try to find hashfile sheet
             sheet_name = None
             for sheet in xls.sheet_names:
-                if 'hash' in sheet.lower() or 'file' in sheet.lower():
+                if 'hash' in sheet.lower() or 'file' in sheet.lower() or 'md5' in sheet.lower():
                     sheet_name = sheet
                     break
             
@@ -237,16 +237,62 @@ class HashFileParser:
             
             df = pd.read_excel(xls, sheet_name=sheet_name, engine='openpyxl')
             
+            # Handle different column structures
             for i, row in df.iterrows():
+                # Skip header row
+                if i == 0:
+                    continue
+                    
+                # Try different column name patterns
+                name = ''
+                md5_hash = ''
+                sha1_hash = ''
+                file_path = ''
+                size = ''
+                
+                # Check for standard column names
+                if 'Name' in df.columns:
+                    name = str(row.get('Name', ''))
+                elif 'Unnamed: 0' in df.columns:
+                    name = str(row.get('Unnamed: 0', ''))
+                elif len(df.columns) > 0:
+                    name = str(row.iloc[0]) if len(row) > 0 else ''
+                
+                if 'MD5' in df.columns:
+                    md5_hash = str(row.get('MD5', ''))
+                elif 'Unnamed: 1' in df.columns:
+                    md5_hash = str(row.get('Unnamed: 1', ''))
+                elif len(df.columns) > 1:
+                    md5_hash = str(row.iloc[1]) if len(row) > 1 else ''
+                
+                if 'SHA1' in df.columns:
+                    sha1_hash = str(row.get('SHA1', ''))
+                elif len(df.columns) > 2:
+                    sha1_hash = str(row.iloc[2]) if len(row) > 2 else ''
+                
+                if 'Path' in df.columns:
+                    file_path = str(row.get('Path', ''))
+                elif len(df.columns) > 3:
+                    file_path = str(row.iloc[3]) if len(row) > 3 else ''
+                
+                if 'Size' in df.columns:
+                    size = str(row.get('Size', ''))
+                elif len(df.columns) > 4:
+                    size = str(row.iloc[4]) if len(row) > 4 else ''
+                
+                # Skip if no hash value
+                if not md5_hash and not sha1_hash:
+                    continue
+                
                 hashfiles.append({
-                    "index": i + 1,
-                    "name": str(row.get('Name', '')),
-                    "md5": str(row.get('MD5', '')),
-                    "sha1": str(row.get('SHA1', '')),
-                    "file_path": str(row.get('Path', '')),
-                    "size": str(row.get('Size', '')),
-                    "created_date": str(row.get('Created', '')),
-                    "modified_date": str(row.get('Modified', '')),
+                    "index": i,
+                    "name": name,
+                    "md5": md5_hash,
+                    "sha1": sha1_hash,
+                    "file_path": file_path,
+                    "size": size,
+                    "created_date": "",
+                    "modified_date": "",
                     "source": "Cellebrite"
                 })
         except Exception as e:

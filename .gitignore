@@ -49,6 +49,7 @@ logs/
 data/uploads/*
 data/analysis/*
 data/reports/*
+data/apks/apk/*
 !data/uploads/.gitkeep
 !data/analysis/.gitkeep
 !data/reports/.gitkeep

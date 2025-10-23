@@ -73,6 +73,7 @@ app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tag
 app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
 app.include_router(analytics_management_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Management"])
 app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation Analysis"])
+app.include_router(analytics_management_routes.hashfile_router, prefix=settings.API_V1_STR, tags=["Hashfile Analytics"])
 app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Deep Communication Analysis"])
 app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags=["APK Analysis"])
 

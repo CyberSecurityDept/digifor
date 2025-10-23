@@ -8,7 +8,9 @@ from app.analytics.device_management.service import create_device
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 from app.analytics.utils.parser_xlsx import parse_sheet
 from app.analytics.utils.tools_parser import tools_parser
+from app.analytics.utils.hashfile_parser import hashfile_parser
 from app.analytics.utils.performance_optimizer import performance_optimizer
+from app.analytics.device_management.service import save_hashfiles_to_database
 from app.db.session import get_db
 from app.core.config import settings
 import tempfile
@@ -214,11 +216,24 @@ class UploadService:
 
             parsed_data = tools_parser.parse_file(Path(original_path_abs), tools)
             
+            # Parse hashfile if it's a hashfile
+            hashfiles_data = []
+            hashfiles_count = 0
+            if "hashfile" in file_name.lower() or "hash" in file_name.lower():
+                try:
+                    hashfile_result = hashfile_parser.parse_hashfile(Path(original_path_abs), tools)
+                    if "error" not in hashfile_result:
+                        hashfiles_data = hashfile_result.get("hashfiles", [])
+                        hashfiles_count = len(hashfiles_data)
+                except Exception as e:
+                    print(f"Hashfile parsing error: {str(e)}")
+            
             parsing_result = {
                 "tool_used": parsed_data.get("tool", tools),
                 "contacts_count": len(parsed_data.get("contacts", [])),
                 "messages_count": len(parsed_data.get("messages", [])),
                 "calls_count": len(parsed_data.get("calls", [])),
+                "hashfiles_count": hashfiles_count,
                 "parsing_success": "error" not in parsed_data
             }
 
@@ -238,6 +253,14 @@ class UploadService:
                 messages=parsed_data.get("messages", []),
                 calls=parsed_data.get("calls", [])
             )
+            
+            if hashfiles_data:
+                try:
+                    saved_hashfiles = save_hashfiles_to_database(device_id, hashfiles_data, tools)
+                    parsing_result["hashfiles_saved"] = saved_hashfiles
+                except Exception as e:
+                    print(f"Error saving hashfiles to database: {str(e)}")
+                    parsing_result["hashfiles_save_error"] = str(e)
 
             self._progress[upload_id].update({
                 "percent": 100,
@@ -250,7 +273,6 @@ class UploadService:
             # Optimize response for large datasets
             total_records = len(parsed_data.get("contacts", [])) + len(parsed_data.get("messages", [])) + len(parsed_data.get("calls", []))
             
-            # For large datasets, return summary instead of full data
             if total_records > 5000:  # Threshold for large datasets
                 response_data = performance_optimizer.create_summary_response(
                     total_records=total_records,

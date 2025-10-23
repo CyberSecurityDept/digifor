@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.analytics_management.service import store_analytic, get_all_analytics
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
+from app.analytics.device_management.models import HashFile, DeepCommunication
+from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List, Optional
 from pydantic import BaseModel
 from collections import defaultdict
@@ -36,6 +38,9 @@ def format_file_size(size_bytes):
     return f"{size_bytes:.2f} {size_names[i]}"
 
 router = APIRouter()
+
+# Hashfile Analytics Router with separate tags
+hashfile_router = APIRouter(tags=["Hashfile Analytics"])
 
 @router.get("/analytics/get-all-analytic")
 def get_all_analytic(db: Session = Depends(get_db)):
@@ -224,14 +229,14 @@ def save_analytic_summary(
             status_code=500,
         )
 
-@router.get("/analytic/{analytic_id}/hashfile-correlation")
+@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
 def get_hashfile_correlation(
     analytic_id: int,
-    min_devices: int = 2,
     db: Session = Depends(get_db)
 ):
     try:
-        from app.analytics.device_management.models import HashFile
+        # Set minimum devices threshold to 2 (fixed value)
+        min_devices = 2
         
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
@@ -346,9 +351,10 @@ def get_hashfile_correlation(
                         "min_devices_threshold": min_devices
                     },
                     "description": {
-                        "purpose": "untuk mencari kesamaan hashfile yang dimiliki antar device",
-                        "top_list": "daftar teratas merupakan hashfile yang paling banyak ditemui di banyak device",
-                        "minimum_requirement": f"untuk muncul disini, minimal ada {min_devices} hashfile yang sama"
+                        "endpoints": {
+                            "save_summary": f"/api/v1/analytic/{analytic_id}/save-summary",
+                            "export_pdf": f"/api/v1/analytic/{analytic_id}/export-pdf"
+                        }
                     }
                 }
             },
@@ -503,7 +509,6 @@ def _export_contact_correlation_pdf(analytic, device_ids, db):
 
 def _export_apk_analytics_pdf(analytic, device_ids, db):
     """Export APK Analytics PDF"""
-    from app.analytics.analytics_management.models import ApkAnalytic
     
     apk_analytics = db.query(ApkAnalytic).filter(
         ApkAnalytic.analytic_id == analytic.id
@@ -524,7 +529,6 @@ def _export_apk_analytics_pdf(analytic, device_ids, db):
 
 def _export_communication_analytics_pdf(analytic, device_ids, db):
     """Export Communication Analytics PDF"""
-    from app.analytics.device_management.models import DeepCommunication
     
     communications = db.query(DeepCommunication).filter(
         DeepCommunication.device_id.in_(device_ids)
@@ -663,4 +667,7 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+# Export both routers
+__all__ = ["router", "hashfile_router"]
 
