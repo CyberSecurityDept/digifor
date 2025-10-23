@@ -14,6 +14,12 @@ from app.core.config import settings
 import tempfile
 import time
 from datetime import datetime
+from app.analytics.utils.social_media_parser import SocialMediaParser
+from app.analytics.utils.deep_communication_axiom_parser import DeepCommunicationParser
+
+sm_db = next(get_db())  # ✅ ini hasilnya Session, bukan function
+sm_parser = SocialMediaParser(db=sm_db)
+dc_parser = DeepCommunicationParser(db=sm_db)
 
 BASE_DIR = os.getcwd()
 UPLOAD_DIR = settings.UPLOAD_DIR
@@ -238,6 +244,13 @@ class UploadService:
                 messages=parsed_data.get("messages", []),
                 calls=parsed_data.get("calls", [])
             )
+            # UNTUK PARSING SOCIAL MEDIA
+            if tools.lower() == "oxygen":
+                sm_parser.parse_oxygen_social_media(original_path_abs, device_id, file_record.id)
+
+            # UNTUK PARSING DEEP COMMUNICATION AXIOM 
+            if tools.lower() == "axiom":
+                dc_parser.parse_axiom_deep_communication(original_path_abs, device_id, file_record.id)
 
             self._progress[upload_id].update({
                 "percent": 100,

@@ -221,8 +221,8 @@ def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
                 "messages_count": messages_count,
                 "calls_count": calls_count,
                 "hash_files_count": hash_files_count,
-                "social_media_count": social_media_count,
-                "total_extracted": contacts_count + messages_count + calls_count + hash_files_count + social_media_count,
+                # "social_media_count": social_media_count,
+                # "total_extracted": contacts_count + messages_count + calls_count + hash_files_count + social_media_count,
                 "is_extracted": device.extraction_date is not None
             }
         }
@@ -241,5 +241,3 @@ def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
             {"status": 500, "message": f"Failed to get device: {str(e)}", "data": []},
             status_code=500
         )
-
-

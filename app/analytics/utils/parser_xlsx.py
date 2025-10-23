@@ -112,7 +112,6 @@ def save_device(
         for m in messages:
             db.add(DeepCommunication(
                 device_id=device.id,
-                index_row=m.get("index"),
                 direction=_to_str(m.get("Direction")),
                 source=_to_str(m.get("Source")),
                 type=_to_str(m.get("Type")),
@@ -122,14 +121,12 @@ def save_device(
                 receiver=_to_str(m.get("To")),
                 details=_to_str(m.get("Details")),
                 thread_id=normalize_str(_to_str(m.get("Thread id"))),
-                attachment=_to_str(m.get("Attachment")),
             ))
 
         # --- Calls ---
         for c in calls:
             db.add(Call(
                 device_id=device.id,
-                index_row=c.get("index"),
                 direction=_to_str(c.get("Direction")),
                 source=_to_str(c.get("Source")),
                 type=_to_str(c.get("Type")),
