@@ -1,7 +1,7 @@
 # Import all models for backward compatibility
 from app.analytics.analytics_management.models import Analytic, AnalyticDevice
 from app.analytics.device_management.models import (
-    File, Device, HashFile, Contact, DeepCommunication, Call
+    File, Device, HashFile, Contact, DeepCommunication, Call, SocialMedia
 )
 # Social media models removed
 # HashfileAnalytic model removed
@@ -15,7 +15,8 @@ __all__ = [
     "HashFile",
     "Contact",
     "DeepCommunication",
-    "Call"
+    "Call",
+    "SocialMedia"
     # Social media models removed
     # HashfileAnalytic model removed
 ]

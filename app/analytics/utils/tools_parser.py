@@ -63,7 +63,7 @@ class ToolsParser:
         
         sheet_mappings = {
             "contacts": ["contacts", "contact", "phonebook"],
-            "messages": ["messages", "sms", "text", "chat"],
+            "messages": ["messages", "text", "chat"],
             "calls": ["calls", "call_log", "call history"]
         }
         
@@ -90,7 +90,7 @@ class ToolsParser:
         # Parse other data types using existing logic
         xls = pd.ExcelFile(file_path)
         sheet_mappings = {
-            "messages": ["messages", "sms", "text messages", "im"],
+            "messages": ["messages", "text messages", "im"],
             "calls": ["calls", "call log", "call history", "phone calls"]
         }
         
@@ -117,7 +117,7 @@ class ToolsParser:
         # Parse other data types using existing logic
         xls = pd.ExcelFile(file_path)
         sheet_mappings = {
-            "messages": ["messages", "sms", "text", "chat", "conversations"],
+            "messages": ["messages", "text", "chat", "conversations"],
             "calls": ["calls", "call log", "call history", "phone calls"]
         }
         
@@ -144,7 +144,7 @@ class ToolsParser:
         # Parse other data types using existing logic
         xls = pd.ExcelFile(file_path)
         sheet_mappings = {
-            "messages": ["message", "sms", "text", "chat", "conversation"],
+            "messages": ["message", "text", "chat", "conversation"],
             "calls": ["call", "phone", "dial"]
         }
         

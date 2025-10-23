@@ -163,5 +163,3 @@ def get_contact_correlation(
         },
         status_code=200
     )
-
-

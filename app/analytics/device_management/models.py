@@ -39,6 +39,11 @@ class File(Base):
         back_populates="file",
         cascade="all, delete-orphan"
     )
+    social_media = relationship(
+        "SocialMedia",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
 
 
 class Device(Base):
@@ -76,6 +81,7 @@ class Device(Base):
     contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
     deep_communications = relationship("DeepCommunication", back_populates="device", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
+    social_media = relationship("SocialMedia", back_populates="device", cascade="all, delete-orphan")
 
 class HashFile(Base):
     __tablename__ = "hash_files"
@@ -120,12 +126,26 @@ class Contact(Base):
     device = relationship("Device", back_populates="contacts")
     file = relationship("File", back_populates="contacts")
 
+class SocialMedia(Base):
+    __tablename__ = "social_media"
+
+    id = Column(Integer, primary_key=True, index=True)
+    platform = Column(String, nullable=True)
+    account_name = Column(Text, nullable=True)
+    account_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=get_indonesia_time)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+
+    device = relationship("Device", back_populates="social_media")
+    file = relationship("File", back_populates="social_media")
+
 class DeepCommunication(Base):
     __tablename__ = "deep_communications"
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    index_row = Column(Integer, index=True)
     direction = Column(String, nullable=True)
     source = Column(String, nullable=True)
     type = Column(String, nullable=True)
@@ -135,7 +155,6 @@ class DeepCommunication(Base):
     receiver = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
     thread_id = Column(String, nullable=True)
-    attachment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
@@ -147,7 +166,6 @@ class Call(Base):
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    index_row = Column(Integer, index=True)
     direction = Column(String, nullable=True)
     source = Column(String, nullable=True)
     type = Column(String, nullable=True)

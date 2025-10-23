@@ -841,7 +841,7 @@ class ContactParser:
         # List of generic names that should be treated as invalid
         generic_names = [
             'contact', 'unknown', 'n/a', 'na', 'phone', 'mobile', 'telephone',
-            'call', 'sms', 'message', 'chat', 'conversation', 'user', 'person',
+            'call', 'message', 'chat', 'conversation', 'user', 'person',
             'friend', 'family', 'work', 'home', 'office', 'business', 'client',
             'customer', 'member', 'guest', 'visitor', 'anonymous', 'private',
             'public', 'group', 'team', 'department', 'company', 'organization',
