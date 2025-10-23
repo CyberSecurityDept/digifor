@@ -40,18 +40,6 @@ class File(Base):
         cascade="all, delete-orphan"
     )
 
-    apk_analytic = relationship(
-        "ApkAnalytic",
-        back_populates="file",
-        cascade="all, delete-orphan",
-        uselist=False
-    )
-    social_media = relationship(
-        "SocialMedia", 
-        back_populates="file", 
-        cascade="all, delete-orphan"
-    )
-
 
 class Device(Base):
     __tablename__ = "devices"
@@ -83,23 +71,11 @@ class Device(Base):
 
     file = relationship("File", back_populates="devices")
 
-    analytic_devices = relationship(
-        "AnalyticDevice",
-        back_populates="device",
-        cascade="all, delete-orphan"
-    )
-
-    analytics = relationship(
-        "Analytic",
-        secondary="analytic_device",
-        viewonly=True
-    )
 
     hash_files = relationship("HashFile", back_populates="device", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
     deep_communications = relationship("DeepCommunication", back_populates="device", cascade="all, delete-orphan")
     calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
-    social_media = relationship("SocialMedia", back_populates="device", cascade="all, delete-orphan")
 
 class HashFile(Base):
     __tablename__ = "hash_files"
@@ -122,7 +98,7 @@ class HashFile(Base):
     is_suspicious = Column(String, nullable=True)
     
     malware_detection = Column(String, nullable=True)
-    risk_level = Column(String, nullable=True)  # Low, Medium, High
+    risk_level = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)

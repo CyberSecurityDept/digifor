@@ -3,10 +3,8 @@ from app.analytics.analytics_management.models import Analytic, AnalyticDevice
 from app.analytics.device_management.models import (
     File, Device, HashFile, Contact, DeepCommunication, Call
 )
-from app.analytics.device_management.social_media_models import (
-    SocialMediaAccount, SocialMediaFollower, SocialMediaPost, 
-    SocialMediaChat, SocialMediaMessage
-)
+# Social media models removed
+# HashfileAnalytic model removed
 
 # Export all models
 __all__ = [
@@ -17,10 +15,7 @@ __all__ = [
     "HashFile",
     "Contact",
     "DeepCommunication",
-    "Call",
-    "SocialMediaAccount",
-    "SocialMediaFollower", 
-    "SocialMediaPost",
-    "SocialMediaChat",
-    "SocialMediaMessage"
+    "Call"
+    # Social media models removed
+    # HashfileAnalytic model removed
 ]

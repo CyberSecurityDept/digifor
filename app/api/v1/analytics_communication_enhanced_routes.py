@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Analytic, Device, AnalyticDevice, DeepCommunication, Contact
+from app.analytics.shared.models import Device, DeepCommunication, Contact
 from collections import defaultdict
 import re
 from typing import Optional, List

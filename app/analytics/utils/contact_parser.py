@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-# Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 class ContactParser:
@@ -156,13 +155,11 @@ class ContactParser:
             contact_type = self._clean_text(row.get('Source Account Type(s)', 'Contact'))
             last_contacted = self._parse_timestamp(row.get('Last Time Contacted Date/Time - UTC+00:00 (dd/MM/yyyy)'))
             
-            # Extract phone numbers from Magnet Axiom format
             phone_numbers = self._extract_magnet_phone_numbers(phone_field)
             
             if not display_name and not phone_numbers:
                 return None
             
-            # Use the most complete phone number
             best_phone = self._select_best_phone_number(phone_numbers)
             
             return {

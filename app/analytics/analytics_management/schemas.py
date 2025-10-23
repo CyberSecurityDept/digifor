@@ -4,7 +4,7 @@ from datetime import datetime
 
 class AnalyticCreate(BaseModel):
     analytic_name: str
-    method: str  # Required: "Contact Correlation", "Deep Communication", "Social Media Correlation", "Hashfile analytics"
+    method: str
 
 class AnalyticResponse(BaseModel):
     id: int
