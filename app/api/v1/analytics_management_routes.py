@@ -230,12 +230,11 @@ def save_analytic_summary(
         )
 
 @hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
-def get_hashfile_correlation(
+def get_hashfile_analytics(
     analytic_id: int,
     db: Session = Depends(get_db)
 ):
     try:
-        # Set minimum devices threshold to 2 (fixed value)
         min_devices = 2
         
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
@@ -243,6 +242,16 @@ def get_hashfile_correlation(
             return JSONResponse(
                 content={"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
+            )
+        
+        if analytic.type != "Hashfile Analytics":
+            return JSONResponse(
+                content={
+                    "status": 400, 
+                    "message": f"This endpoint is only for Hashfile Analytics. Current analytic type is '{analytic.type}'", 
+                    "data": None
+                },
+                status_code=400,
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -267,6 +276,18 @@ def get_hashfile_correlation(
             }
             for d in devices
         }
+        
+        # Create device labels (Device A, Device B, etc.)
+        device_labels = []
+        for i, device in enumerate(devices):
+            if i < 26:
+                device_label = f"Device {chr(65 + i)}"  # A, B, C, ..., Z
+            else:
+                # For devices beyond Z, use AA, AB, AC, etc.
+                first_char = chr(65 + (i - 26) // 26)
+                second_char = chr(65 + (i - 26) % 26)
+                device_label = f"Device {first_char}{second_char}"
+            device_labels.append(device_label)
 
         # Get all hashfiles from these devices
         hashfiles = db.query(HashFile).filter(
@@ -303,59 +324,88 @@ def get_hashfile_correlation(
         # Convert to list and add device presence info
         hashfile_list = []
         for hash_value, info in common_hashfiles.items():
+            # Get device labels for this hashfile
+            found_in_devices = []
+            for i, device in enumerate(devices):
+                if device.id in info["devices"]:
+                    found_in_devices.append(device_labels[i])
+            
+            # Get actual hashfile record for timestamps
+            hashfile_record = db.query(HashFile).filter(
+                HashFile.file_hash == hash_value,
+                HashFile.device_id.in_(info["devices"])
+            ).first()
+            
+            # Format file size
+            file_size_bytes = info["file_size"] if info["file_size"] else 0
+            file_size_display = format_file_size(file_size_bytes) if file_size_bytes else "Unknown size"
+            
+            # Get timestamps from database and format to Indonesian
+            if hashfile_record and hashfile_record.created_at:
+                created_at = hashfile_record.created_at.strftime("%d %B %Y at %H.%M")
+                # Convert month to Indonesian
+                month_map = {
+                    'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
+                    'April': 'April', 'May': 'Mei', 'June': 'Juni',
+                    'July': 'Juli', 'August': 'Agustus', 'September': 'September',
+                    'October': 'Oktober', 'November': 'November', 'December': 'Desember'
+                }
+                for eng, ind in month_map.items():
+                    created_at = created_at.replace(eng, ind)
+            else:
+                created_at = "Unknown"
+                
+            if hashfile_record and hashfile_record.updated_at:
+                modified_at = hashfile_record.updated_at.strftime("%d %B %Y at %H.%M")
+                # Convert month to Indonesian
+                for eng, ind in month_map.items():
+                    modified_at = modified_at.replace(eng, ind)
+            else:
+                modified_at = "Unknown"
+            
             hashfile_data = {
                 "hash_value": info["hash_value"],
-                "file_name": info["file_name"],
-                "file_path": info["file_path"],
-                "file_size": info["file_size"],
-                "file_type": info["file_type"],
-                "file_extension": info["file_extension"],
-                "is_suspicious": info["is_suspicious"],
-                "risk_level": info["risk_level"],
-                "source_type": info["source_type"],
-                "source_tool": info["source_tool"],
-                "device_count": len(info["devices"]),
-                "devices": {}
+                "file_info": {
+                    "file_name": info["file_name"],
+                    "file_kind": info["file_type"] or "Unknown",
+                    "file_size_bytes": file_size_bytes,
+                    "file_size_display": file_size_display,
+                    "file_location": info["file_path"] or "Unknown location",
+                    "created_at": created_at,
+                    "modified_at": modified_at,
+                    "attributes": {
+                        "stationery_pad": False,
+                        "locked": False
+                    }
+                },
+                "found_in_devices": found_in_devices
             }
-            
-            # Create device presence matrix for UI
-            for device in devices:
-                hashfile_data["devices"][device.id] = {
-                    "device_id": device.id,
-                    "device_name": device_info[device.id]["device_name"],
-                    "owner_name": device_info[device.id]["owner_name"],
-                    "phone_number": device_info[device.id]["phone_number"],
-                    "is_present": device.id in info["devices"],
-                    "device_info": device_info[device.id]
-                }
             
             hashfile_list.append(hashfile_data)
 
         # Sort by device count (most common first) - sesuai dengan "daftar teratas merupakan hashfile yang paling banyak ditemui di banyak device"
-        hashfile_list.sort(key=lambda x: x["device_count"], reverse=True)
+        hashfile_list.sort(key=lambda x: len(x["found_in_devices"]), reverse=True)
+
+        # Create devices list with labels
+        devices_list = []
+        for i, device in enumerate(devices):
+            devices_list.append({
+                "device_label": device_labels[i],
+                "owner_name": device.owner_name,
+                "phone_number": device.phone_number
+            })
+
+        # Get summary from analytics_history table based on id and type
+        summary = analytic.summary if analytic.summary else None
 
         return JSONResponse(
             content={
                 "status": 200,
-                "message": "Hashfile correlation retrieved successfully",
+                "message": "Hashfile correlation analysis completed successfully",
                 "data": {
-                    "analytic_id": analytic_id,
-                    "analytic_name": analytic.analytic_name,
-                    "devices": list(device_info.values()),
+                    "devices": devices_list,
                     "hashfiles": hashfile_list,
-                    "statistics": {
-                        "total_devices": len(devices),
-                        "total_hashfiles": len(hashfile_groups),
-                        "common_hashfiles": len(hashfile_list),  # Hashfiles yang muncul di minimal min_devices device
-                        "unique_hashfiles": len(hashfile_groups) - len(hashfile_list),  # Hashfiles yang hanya muncul di 1 device
-                        "min_devices_threshold": min_devices
-                    },
-                    "description": {
-                        "endpoints": {
-                            "save_summary": f"/api/v1/analytic/{analytic_id}/save-summary",
-                            "export_pdf": f"/api/v1/analytic/{analytic_id}/export-pdf"
-                        }
-                    }
+                    "summary": summary
                 }
             },
             status_code=200,
@@ -363,7 +413,7 @@ def get_hashfile_correlation(
 
     except Exception as e:
         return JSONResponse(
-            content={"status": 500, "message": f"Failed to get hashfile correlation: {str(e)}", "data": None},
+            content={"status": 500, "message": f"Failed to get hashfile analytics: {str(e)}", "data": None},
             status_code=500,
         )
 

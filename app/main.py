@@ -68,14 +68,13 @@ app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["D
 # app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 # app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 
-# Analytics Routes - Individual routers for better organization
 app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tags=["File Management"])
 app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
 app.include_router(analytics_management_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Management"])
-app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation Analysis"])
+app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation"])
 app.include_router(analytics_management_routes.hashfile_router, prefix=settings.API_V1_STR, tags=["Hashfile Analytics"])
-app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Deep Communication Analysis"])
-app.include_router(analytics_social_media_routes.router, prefix=settings.API_V1_STR, tags=["Social Media Analytics"])
+app.include_router(analytics_social_media_routes.router, prefix=settings.API_V1_STR, tags=["Social Media Correlation"])
+app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Deep Communication Analytics"])
 app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags=["APK Analysis"])
 
 app.include_router(health_router, prefix="/health", tags=["Health"])

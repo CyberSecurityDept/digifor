@@ -107,7 +107,6 @@ def get_all_devices(db: Session = Depends(get_db)):
                 status_code=200
             )
         
-        # Group devices by device_label (Device A, Device B, etc.)
         grouped_devices = []
         device_labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
         
@@ -138,7 +137,6 @@ def get_all_devices(db: Session = Depends(get_db)):
                 }
             }
             
-            # Create device label (Device A, Device B, etc.)
             if i < len(device_labels):
                 device_label = f"Device {device_labels[i]}"
             else:
@@ -215,15 +213,6 @@ def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
                 "tools": file_record.tools if file_record else None,
                 "total_size": file_record.total_size if file_record else None,
                 "total_size_formatted": format_file_size(file_record.total_size) if file_record and file_record.total_size else None
-            },
-            "data_extraction_status": {
-                "contacts_count": contacts_count,
-                "messages_count": messages_count,
-                "calls_count": calls_count,
-                "hash_files_count": hash_files_count,
-                # "social_media_count": social_media_count,
-                # "total_extracted": contacts_count + messages_count + calls_count + hash_files_count + social_media_count,
-                "is_extracted": device.extraction_date is not None
             }
         }
         

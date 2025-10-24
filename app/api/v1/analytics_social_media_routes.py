@@ -19,6 +19,17 @@ def social_media_correlation(
             {"status": 404, "message": f"Analytic with ID {analytic_id} not found", "data": {}},
             status_code=404
         )
+    
+    # Check if analytic type is "Social Media Correlation"
+    if analytic.type != "Social Media Correlation":
+        return JSONResponse(
+            content={
+                "status": 400, 
+                "message": f"This endpoint is only for Social Media Correlation. Current analytic type is '{analytic.type}'", 
+                "data": None
+            },
+            status_code=400,
+        )
 
     # --- Ambil semua device terkait analytic ---
     device_links = (

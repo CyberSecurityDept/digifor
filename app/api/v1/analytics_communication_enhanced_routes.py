@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Device, DeepCommunication, Contact
+from app.analytics.shared.models import Device, DeepCommunication, Contact, Analytic, AnalyticDevice
 from collections import defaultdict
 import re
 from typing import Optional, List
@@ -19,6 +19,16 @@ def get_deep_communication_analytics(
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         raise HTTPException(status_code=404, detail="Analytic not found")
+    
+    if analytic.type != "Deep Communication Analytics":
+        return JSONResponse(
+            content={
+                "status": 400, 
+                "message": f"This endpoint is only for Deep Communication Analytics. Current analytic type is '{analytic.type}'", 
+                "data": None
+            },
+            status_code=400,
+        )
 
     device_links = db.query(AnalyticDevice).filter(
         AnalyticDevice.analytic_id == analytic_id

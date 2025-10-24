@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 import os
 from app.utils.timezone import get_indonesia_time
 
-def create_file_record(file_name: str, file_path: str, notes: str, type: str, tools: str):
+def create_file_record(file_name: str, file_path: str, notes: str, type: str, tools: str, amount_of_data: int = None):
     db = SessionLocal()
     try:
         new_file = File(
@@ -14,7 +14,8 @@ def create_file_record(file_name: str, file_path: str, notes: str, type: str, to
             file_path=file_path,
             notes=notes,
             type=type,
-            tools=tools
+            tools=tools,
+            amount_of_data=amount_of_data
         )
         db.add(new_file)
         db.commit()
@@ -37,6 +38,7 @@ def get_all_files(db: Session):
                 "tools": f.tools,
                 "total_size": f.total_size,
                 "total_size_formatted": format_file_size(f.total_size) if f.total_size else None,
+                "amount_of_data": f.amount_of_data,
                 "created_at": f.created_at
             }
             for f in files

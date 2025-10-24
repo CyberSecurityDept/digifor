@@ -201,20 +201,6 @@ class UploadService:
                 })
                 await asyncio.sleep(0.03)
 
-            rel_path = os.path.relpath(original_path_abs, BASE_DIR)
-            db = next(get_db())
-            file_record = File(
-                file_name=file_name,
-                file_path=rel_path,
-                notes=notes,
-                type=type,
-                tools=tools,
-                total_size=total_size,
-            )
-            db.add(file_record)
-            db.commit()
-            db.refresh(file_record)
-
             self._progress[upload_id].update({
                 "message": "Starting data parsing...",
                 "percent": 95
@@ -234,12 +220,36 @@ class UploadService:
                 except Exception as e:
                     print(f"Hashfile parsing error: {str(e)}")
             
+            # Calculate amount of data count
+            amount_of_data_count = (
+                len(parsed_data.get("contacts", [])) +
+                len(parsed_data.get("messages", [])) +
+                len(parsed_data.get("calls", [])) +
+                hashfiles_count
+            )
+
+            rel_path = os.path.relpath(original_path_abs, BASE_DIR)
+            db = next(get_db())
+            file_record = File(
+                file_name=file_name,
+                file_path=rel_path,
+                notes=notes,
+                type=type,
+                tools=tools,
+                total_size=total_size,
+                amount_of_data=amount_of_data_count,
+            )
+            db.add(file_record)
+            db.commit()
+            db.refresh(file_record)
+            
             parsing_result = {
                 "tool_used": parsed_data.get("tool", tools),
                 "contacts_count": len(parsed_data.get("contacts", [])),
                 "messages_count": len(parsed_data.get("messages", [])),
                 "calls_count": len(parsed_data.get("calls", [])),
                 "hashfiles_count": hashfiles_count,
+                "amount_of_data_count": amount_of_data_count,
                 "parsing_success": "error" not in parsed_data
             }
 
@@ -319,12 +329,7 @@ class UploadService:
                         "total_size": format_bytes(total_size),
                         "done": True,
                         "encrypted_path": encrypted_path,
-                        "parsing_result": parsing_result,
-                        "parsed_data": {
-                            "contacts": self._serialize_contacts_for_json(parsed_data.get("contacts", [])),
-                            "messages": parsed_data.get("messages", []),
-                            "calls": parsed_data.get("calls", [])
-                        }
+                        "parsing_result": parsing_result
                     },
                 }
             

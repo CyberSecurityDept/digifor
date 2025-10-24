@@ -340,7 +340,6 @@ class ForenlyticAnalyzer:
         return success_count > 0
         
     def run_analytics(self) -> bool:
-        """Run various analytics"""
         self.print_step(6, "Running analytics...")
         
         analytics_endpoints = [

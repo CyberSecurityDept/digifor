@@ -1,7 +1,7 @@
 # Analytics API Contract
 
 ## Overview
-This document describes the API endpoints for the Analytics system, including Contact Correlation, Deep Communication, Hashfile Analytics, and APK Analytics.
+This document describes the Analytics API endpoints for the Forenlytic system, including File Management, Device Management, Analytics Management, Contact Correlation, Deep Communication, Hashfile Analytics, APK Analytics, and Social Media Analytics.
 
 ## Base URL
 ```
@@ -13,28 +13,237 @@ All endpoints require authentication (implementation depends on your auth system
 
 ---
 
-## 1. Universal Analytics Management
+## 1. File Management
 
-### 1.1 Create Analytics with Devices
+### 1.1 Get All Files
+**Endpoint**: `GET /api/v1/analytics/files/all`
+
+**Description**: Retrieves all uploaded files in the system.
+
+**Parameters**: None
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Files retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "file_name": "device_data.xlsx",
+      "original_name": "device_data.xlsx",
+      "file_path": "/uploads/data/device_data_123456.xlsx",
+      "file_size": 1024000,
+      "file_type": "xlsx",
+      "notes": "Device data from iPhone",
+      "created_at": "2025-10-22T15:08:14"
+    }
+  ]
+}
+```
+
+**Response 500**:
+```json
+{
+  "status": 500,
+  "message": "Database error",
+  "data": null
+}
+```
+
+### 1.2 Upload Data
+**Endpoint**: `POST /api/v1/analytics/upload-data`
+
+**Description**: Uploads and processes forensic data files.
+
+**Parameters**:
+- `file` (form-data): File to upload (required)
+- `file_name` (form-data): Name for the file (required)
+- `notes` (form-data): Additional notes (required)
+- `type` (form-data): Device type - "Handphone" | "SSD" | "Harddisk" | "PC" | "Laptop" | "DVR" (required)
+- `tools` (form-data): Forensic tool used - "Oxygen" | "Cellebrite" | "Axiom" | "Encase" (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "File uploaded and processed successfully",
+  "data": {
+    "upload_id": "upload_1698064894_abc12345",
+    "file_id": 1,
+    "file_name": "device_data.xlsx",
+    "file_size": 1024000,
+    "processing_status": "completed",
+    "parsing_result": {
+      "tool_used": "Oxygen",
+      "contacts_count": 150,
+      "messages_count": 500,
+      "calls_count": 200,
+      "hashfiles_count": 0,
+      "parsing_success": true
+    }
+  }
+}
+```
+
+**Response 400**:
+```json
+{
+  "status": 400,
+  "message": "Invalid file extension for type 'Handphone'. Allowed: ['xlsx', 'xls', 'csv', 'apk', 'ipa']",
+  "data": null
+}
+```
+
+**Response 500**:
+```json
+{
+  "status": 500,
+  "message": "Upload error: File processing failed",
+  "data": null
+}
+```
+
+---
+
+## 2. Device Management
+
+### 2.1 Add Device
+**Endpoint**: `POST /api/v1/analytics/add-device`
+
+**Description**: Creates a new device record linked to uploaded files.
+
+**Parameters**:
+- `owner_name` (form-data): Device owner name (required)
+- `phone_number` (form-data): Phone number (required)
+- `file_id` (form-data): ID of uploaded file (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Device created successfully",
+  "data": {
+    "device_id": 1,
+    "owner_name": "John Doe",
+    "phone_number": "+6281234567890",
+    "device_name": "John Doe Device",
+    "file_id": 1,
+    "created_at": "2025-10-22T15:08:14"
+  }
+}
+```
+
+**Response 400**:
+```json
+{
+  "status": 400,
+  "message": "File not found",
+  "data": null
+}
+```
+
+### 2.2 Get All Devices
+**Endpoint**: `GET /api/v1/analytics/device/get-all-devices`
+
+**Description**: Retrieves all devices in the system.
+
+**Parameters**: None
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Devices retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "owner_name": "John Doe",
+      "phone_number": "+6281234567890",
+      "device_name": "John Doe Device",
+      "created_at": "2025-10-22T15:08:14"
+    }
+  ]
+}
+```
+
+### 2.3 Get Device by ID
+**Endpoint**: `GET /api/v1/analytics/device/{device_id}`
+
+**Description**: Retrieves specific device information.
+
+**Parameters**:
+- `device_id` (path): Device ID (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Device retrieved successfully",
+  "data": {
+    "id": 1,
+    "owner_name": "John Doe",
+    "phone_number": "+6281234567890",
+    "device_name": "John Doe Device",
+    "created_at": "2025-10-22T15:08:14"
+  }
+}
+```
+
+**Response 404**:
+```json
+{
+  "status": 404,
+  "message": "Device not found",
+  "data": null
+}
+```
+
+---
+
+## 3. Analytics Management
+
+### 3.1 Get All Analytics
+**Endpoint**: `GET /api/v1/analytics/get-all-analytic`
+
+**Description**: Retrieves all analytics sessions.
+
+**Parameters**: None
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Retrieved 5 analytics successfully",
+  "data": [
+    {
+      "id": 1,
+      "analytic_name": "Contact Analysis 2024",
+      "method": "Contact Correlation",
+      "summary": "Found 15 common contacts",
+      "created_at": "2025-10-22T15:08:14"
+    }
+  ]
+}
+```
+
+### 3.2 Create Analytics with Devices
 **Endpoint**: `POST /api/v1/analytics/create-analytic-with-devices`
 
 **Description**: Creates analytics for any supported method with device linking.
 
 **Request Body**:
 
-**For Hashfile Analytics** (no description field):
+**For Hashfile Analytics**:
 ```json
 {
   "analytic_name": "Malware Analysis 2024",
   "method": "Hashfile Analytics",
-  "device_ids": [1, 2, 3],
-  "min_device_threshold": 2,
-  "include_suspicious_only": true,
-  "hash_algorithm": "MD5"
+  "device_ids": [1, 2, 3]
 }
 ```
 
-**For Other Analytics (Contact Correlation, Deep Communication, APK Analytics)**:
+**For Other Analytics**:
 ```json
 {
   "analytic_name": "Contact Analysis 2024",
@@ -45,14 +254,10 @@ All endpoints require authentication (implementation depends on your auth system
 
 **Field Descriptions**:
 - `analytic_name`: Name for the analytics session (required)
-- `method`: Analytics type - "Contact Correlation" | "Deep Communication" | "Hashfile Analytics" | "APK Analytics" (required)
+- `method`: Analytics type - "Contact Correlation" | "Deep Communication" | "Hashfile Analytics" | "APK Analytics" | "Social Media Analytics" (required)
 - `device_ids`: Array of device IDs to analyze (required)
-- `description`: Description for hashfile analytics only (optional, only for Hashfile Analytics)
-- `min_device_threshold`: Minimum devices to show hashfile (optional, default: 2, only for Hashfile Analytics)
-- `include_suspicious_only`: Include only suspicious files (optional, default: false, only for Hashfile Analytics)
-- `hash_algorithm`: Hash algorithm to use (optional, default: "MD5", only for Hashfile Analytics)
 
-**Response**:
+**Response 200**:
 ```json
 {
   "status": 200,
@@ -60,28 +265,10 @@ All endpoints require authentication (implementation depends on your auth system
   "data": {
     "analytic": {
       "id": 1,
-      "analytic_name": "Malware Analysis 2024",
-      "type": "Hashfile Analytics",
-      "method": "Hashfile Analytics",
+      "analytic_name": "Contact Analysis 2024",
+      "method": "Contact Correlation",
       "summary": null,
       "created_at": "2025-10-22T15:08:14"
-    },
-    "hashfile_analytics": {
-      "id": 1,
-      "analytic_name": "Malware Analysis 2024",
-      "total_hashfiles": 150,
-      "total_devices": 3,
-      "common_hashfiles_count": 25,
-      "min_device_threshold": 2,
-      "include_suspicious_only": true,
-      "created_at": "2025-10-22T15:08:14"
-    },
-    "statistics": {
-      "total_devices": 3,
-      "total_hashfiles": 150,
-      "common_hashfiles": 25,
-      "unique_hashfiles": 120,
-      "average_files_per_device": 50.0
     },
     "linked_devices": {
       "total_devices": 3,
@@ -100,32 +287,31 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
-### 1.2 Get All Analytics
-**Endpoint**: `GET /api/v1/analytics/get-all-analytic`
-
-**Response**:
+**Response 400**:
 ```json
 {
-  "status": 200,
-  "message": "Retrieved 5 analytics successfully",
-  "data": [
-    {
-      "id": 1,
-      "analytic_name": "Contact Analysis",
-      "method": "Contact Correlation",
-      "summary": "Found 15 common contacts",
-      "created_at": "2025-10-22T15:08:14"
-    }
-  ]
+  "status": 400,
+  "message": "Invalid method. Must be one of: Contact Correlation, Deep Communication, Hashfile Analytics, APK Analytics, Social Media Analytics",
+  "data": []
 }
 ```
 
----
+**Response 500**:
+```json
+{
+  "status": 500,
+  "message": "Failed to create analytics: Database connection error",
+  "data": null
+}
+```
 
-## 2. Universal Summary & Export
-
-### 2.1 Save Analytics Summary
+### 3.3 Save Analytics Summary
 **Endpoint**: `POST /api/v1/analytic/{analytic_id}/save-summary`
+
+**Description**: Saves or updates analytics summary.
+
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
 
 **Request Body**:
 ```json
@@ -134,7 +320,7 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
-**Response**:
+**Response 200**:
 ```json
 {
   "status": 200,
@@ -148,25 +334,47 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
-### 2.2 Export Analytics PDF
+**Response 404**:
+```json
+{
+  "status": 404,
+  "message": "Analytic not found",
+  "data": null
+}
+```
+
+### 3.4 Export Analytics PDF
 **Endpoint**: `GET /api/v1/analytic/{analytic_id}/export-pdf`
 
 **Description**: Exports analytics report as PDF. Automatically detects analytics type and generates appropriate report.
 
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
 **Response**: PDF file download
 
----
+**Response 404**:
+```json
+{
+  "status": 404,
+  "message": "Analytic not found",
+  "data": null
+}
+```
 
 ---
 
-## 4. Contact Correlation Analytics
+## 4. Contact Correlation Analysis
 
-### 4.1 Get Contact Correlation Matrix
-**Endpoint**: `GET /api/v1/analytics/contact-correlation/{analytic_id}`
+### 4.1 Get Contact Correlation
+**Endpoint**: `GET /api/v1/analytic/{analytic_id}/contact-correlation`
 
 **Description**: Returns contact correlation matrix showing which contacts are present on which devices.
 
-**Response**:
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
+**Response 200**:
 ```json
 {
   "status": 200,
@@ -206,20 +414,32 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
+**Response 404**:
+```json
+{
+  "status": 404,
+  "message": "Analytic not found",
+  "data": null
+}
+```
+
 ---
 
-## 5. Deep Communication Analytics
+## 5. Deep Communication Analysis
 
-### 5.1 Get Communication Matrix
-**Endpoint**: `GET /api/v1/analytics/communication/{analytic_id}`
+### 5.1 Get Deep Communication by Analytic
+**Endpoint**: `GET /api/v1/analytics/{analytic_id}/deep-communication`
 
-**Description**: Returns communication analysis matrix.
+**Description**: Returns deep communication analysis for specific analytics.
 
-**Response**:
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
+**Response 200**:
 ```json
 {
   "status": 200,
-  "message": "Communication analysis retrieved successfully",
+  "message": "Deep communication analysis retrieved successfully",
   "data": {
     "analytic_id": 1,
     "analytic_name": "Communication Analysis 2024",
@@ -233,12 +453,13 @@ All endpoints require authentication (implementation depends on your auth system
     ],
     "communications": [
       {
-        "message_id": 1,
+        "id": 1,
         "sender": "John Doe",
         "receiver": "Jane Smith",
         "message_text": "Hello, how are you?",
         "timestamp": "2025-10-22T15:08:14",
-        "device_id": 1
+        "device_id": 1,
+        "thread_id": "thread_123"
       }
     ],
     "statistics": {
@@ -250,16 +471,125 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
+### 5.2 Get Thread Messages
+**Endpoint**: `GET /api/v1/analytics/deep-communication/{device_id}/chat/{thread_id}`
+
+**Description**: Retrieves specific thread messages for a device.
+
+**Parameters**:
+- `device_id` (path): Device ID (required)
+- `thread_id` (path): Thread ID (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Thread messages retrieved successfully",
+  "data": {
+    "device_id": 1,
+    "thread_id": "thread_123",
+    "messages": [
+      {
+        "id": 1,
+        "sender": "John Doe",
+        "receiver": "Jane Smith",
+        "message_text": "Hello, how are you?",
+        "timestamp": "2025-10-22T15:08:14"
+      }
+    ]
+  }
+}
+```
+
 ---
 
-## 6. APK Analytics
+## 6. Hashfile Analytics
 
-### 6.1 Get APK Analysis
-**Endpoint**: `GET /api/v1/analytics/apk/{analytic_id}`
+### 6.1 Get Hashfile Analytics
+**Endpoint**: `GET /api/v1/analytic/{analytic_id}/hashfile-analytics`
 
-**Description**: Returns APK analysis results.
+**Description**: Returns hashfile correlation analysis showing which files are present on which devices.
 
-**Response**:
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Hashfile correlation retrieved successfully",
+  "data": {
+    "analytic_id": 1,
+    "analytic_name": "Hashfile Analysis 2024",
+    "devices": [
+      {
+        "id": 1,
+        "owner_name": "John Doe",
+        "phone_number": "+6281234567890",
+        "device_name": "iPhone 13"
+      }
+    ],
+    "hashfiles": [
+      {
+        "hash_value": "d41d8cd98f00b204e9800998ecf8427e",
+        "file_name": "suspicious.exe",
+        "file_path": "/system/bin/suspicious.exe",
+        "file_size": 1024000,
+        "file_type": "Executable",
+        "file_extension": "exe",
+        "is_suspicious": true,
+        "risk_level": "High",
+        "source_type": "File System",
+        "source_tool": "Cellebrite",
+        "device_count": 2,
+        "devices": {
+          "1": {
+            "device_id": 1,
+            "device_name": "iPhone 13",
+            "is_present": true
+          }
+        }
+      }
+    ],
+    "statistics": {
+      "total_devices": 3,
+      "total_hashfiles": 1500,
+      "common_hashfiles": 25,
+      "unique_hashfiles": 1475,
+      "min_devices_threshold": 2
+    },
+    "description": {
+      "endpoints": {
+        "save_summary": "/api/v1/analytic/1/save-summary",
+        "export_pdf": "/api/v1/analytic/1/export-pdf"
+      }
+    }
+  }
+}
+```
+
+**Response 404**:
+```json
+{
+  "status": 404,
+  "message": "Analytic not found",
+  "data": null
+}
+```
+
+---
+
+## 7. APK Analysis
+
+### 7.1 Get APK Analysis
+**Endpoint**: `GET /api/v1/analytics/{analytic_id}/apk-analytic`
+
+**Description**: Returns APK analysis results for specific analytics.
+
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
+**Response 200**:
 ```json
 {
   "status": 200,
@@ -302,27 +632,107 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
----
+### 7.2 Analyze APK
+**Endpoint**: `POST /api/v1/analytics/analyze-apk`
 
-## 7. Error Responses
+**Description**: Analyzes a specific APK file.
 
-### 7.1 Common Error Responses
+**Parameters**:
+- `file_id` (query): File ID to analyze (required)
+- `analytic_id` (query): Analytics ID (required)
 
-**404 Not Found**:
+**Response 200**:
 ```json
 {
-  "status": 404,
-  "message": "Analytic not found",
-  "data": null
+  "status": 200,
+  "message": "APK analysis completed successfully",
+  "data": {
+    "file_id": 1,
+    "analytic_id": 1,
+    "apk_analysis": {
+      "package_name": "com.suspicious.app",
+      "version": "1.0.0",
+      "risk_level": "High",
+      "is_malware": true,
+      "permissions": ["android.permission.INTERNET", "android.permission.CAMERA"],
+      "threats_detected": ["Keylogger", "Data Exfiltration"]
+    }
+  }
 }
 ```
+
+---
+
+## 8. Social Media Analytics
+
+### 8.1 Get Social Media Correlation
+**Endpoint**: `GET /api/v1/analytics/{analytic_id}/social-media-correlation`
+
+**Description**: Returns social media correlation analysis.
+
+**Parameters**:
+- `analytic_id` (path): Analytics ID (required)
+
+**Response 200**:
+```json
+{
+  "status": 200,
+  "message": "Social media correlation retrieved successfully",
+  "data": {
+    "analytic_id": 1,
+    "analytic_name": "Social Media Analysis 2024",
+    "devices": [
+      {
+        "id": 1,
+        "owner_name": "John Doe",
+        "phone_number": "+6281234567890",
+        "device_name": "iPhone 13"
+      }
+    ],
+    "social_media_data": [
+      {
+        "platform": "WhatsApp",
+        "account": "john.doe@example.com",
+        "device_count": 2,
+        "devices": {
+          "1": {
+            "device_id": 1,
+            "device_name": "iPhone 13",
+            "is_present": true
+          }
+        }
+      }
+    ],
+    "statistics": {
+      "total_devices": 3,
+      "total_accounts": 25,
+      "cross_device_accounts": 5
+    }
+  }
+}
+```
+
+---
+
+## 9. Error Responses
+
+### 9.1 Common Error Responses
 
 **400 Bad Request**:
 ```json
 {
   "status": 400,
-  "message": "Invalid method. Must be one of: Contact Correlation, Deep Communication, Hashfile Analytics, APK Analytics",
-  "data": []
+  "message": "Invalid request parameters",
+  "data": null
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "status": 404,
+  "message": "Resource not found",
+  "data": null
 }
 ```
 
@@ -330,76 +740,54 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 500,
-  "message": "Failed to create analytics: Database connection error",
+  "message": "Internal server error",
   "data": null
 }
 ```
 
 ---
 
-## 8. Workflow Examples
+## 10. Workflow Examples
 
-### 8.1 Complete Hashfile Analytics Workflow
+### 10.1 Complete Analytics Workflow
 
-1. **Create Analytics** (Hashfile Analytics without description):
+1. **Upload Data**:
+   ```bash
+   POST /api/v1/analytics/upload-data
+   ```
+
+2. **Add Device**:
+   ```bash
+   POST /api/v1/analytics/add-device
+   ```
+
+3. **Create Analytics**:
    ```bash
    POST /api/v1/analytics/create-analytic-with-devices
-   {
-     "analytic_name": "Malware Analysis 2024",
-     "method": "Hashfile Analytics",
-     "device_ids": [1, 2, 3],
-     "min_device_threshold": 2,
-     "include_suspicious_only": true,
-     "hash_algorithm": "MD5"
-   }
    ```
 
-2. **Save Summary**:
+4. **Get Analytics Results**:
    ```bash
-   POST /api/v1/analytic/1/save-summary
-   {
-     "summary": "Ditemukan 25 file mencurigakan yang sama di 3 device..."
-   }
+   GET /api/v1/analytic/{analytic_id}/contact-correlation
+   GET /api/v1/analytic/{analytic_id}/hashfile-analytics
+   GET /api/v1/analytics/{analytic_id}/deep-communication
+   GET /api/v1/analytics/{analytic_id}/apk-analytic
+   GET /api/v1/analytics/{analytic_id}/social-media-correlation
    ```
 
-4. **Export PDF**:
+5. **Save Summary**:
    ```bash
-   GET /api/v1/analytic/1/export-pdf
+   POST /api/v1/analytic/{analytic_id}/save-summary
    ```
 
-### 8.2 Contact Correlation Workflow
-
-1. **Create Analytics**:
+6. **Export PDF**:
    ```bash
-   POST /api/v1/analytics/create-analytic-with-devices
-   {
-     "analytic_name": "Contact Analysis 2024",
-          "method": "Contact Correlation",
-          "device_ids": [1, 2, 3]
-   }
+   GET /api/v1/analytic/{analytic_id}/export-pdf
    ```
-
-2. **Get Contact Matrix**:
-   ```bash
-   GET /api/v1/analytics/contact-correlation/1
-   ```
-
-3. **Save Summary**:
-   ```bash
-   POST /api/v1/analytic/1/save-summary
-   {
-     "summary": "Ditemukan 15 kontak yang sama di 3 device..."
-   }
-   ```
-
-4. **Export PDF**:
-   ```bash
-   GET /api/v1/analytic/1/export-pdf
-```
 
 ---
 
-## 9. Notes
+## 11. Notes
 
 - All timestamps are in ISO 8601 format
 - Device IDs must exist in the database
@@ -407,16 +795,8 @@ All endpoints require authentication (implementation depends on your auth system
 - PDF exports are generated with timestamp in filename
 - Summary can be saved multiple times (updates existing)
 - All analytics support universal summary and PDF export
+- File uploads support various forensic tool formats
 
 ---
 
-## 10. Deprecated Endpoints
-
-- `POST /api/v1/hashfile-analytics/create` → Use `POST /api/v1/analytics/create-analytic-with-devices`
-- `GET /api/v1/hashfile-analytics/` → Use `GET /api/v1/analytics/get-all-analytic`
-- `PUT /api/v1/hashfile-analytics/{id}` → Use universal summary endpoint
-- `DELETE /api/v1/hashfile-analytics/{id}` → Use universal analytics management
-
----
-
-*Last updated: 2025-10-22*
+*Last updated: 2025-10-23*

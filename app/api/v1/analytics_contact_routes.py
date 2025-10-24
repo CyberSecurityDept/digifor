@@ -35,6 +35,17 @@ def get_contact_correlation(
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         raise HTTPException(status_code=404, detail="Analytic not found")
+    
+    # Check if analytic type is "Contact Correlation"
+    if analytic.type != "Contact Correlation":
+        return JSONResponse(
+            content={
+                "status": 400, 
+                "message": f"This endpoint is only for Contact Correlation. Current analytic type is '{analytic.type}'", 
+                "data": None
+            },
+            status_code=400,
+        )
 
     device_links = db.query(AnalyticDevice).filter(
         AnalyticDevice.analytic_id == analytic_id
@@ -152,13 +163,17 @@ def get_contact_correlation(
     if not correlations:
         correlations = []
 
+    # Get summary from analytics_history table based on id and type
+    summary = analytic.summary if analytic.summary else None
+
     return JSONResponse(
         content={
             "status": 200,
             "message": "Contact correlation analysis completed",
             "data": {
                 "devices": list(device_info.values()),
-                "correlations": correlations
+                "correlations": correlations,
+                "summary": summary
             }
         },
         status_code=200

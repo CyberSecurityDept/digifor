@@ -13,6 +13,7 @@ class File(Base):
     type = Column(String, nullable=False)
     tools = Column(String, nullable=False)
     total_size = Column(Integer, nullable=True)
+    amount_of_data = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
