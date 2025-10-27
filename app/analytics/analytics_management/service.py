@@ -46,19 +46,26 @@ def get_analytic_by_id(db: Session, analytic_id: int):
     return db.query(Analytic).filter(Analytic.id == analytic_id).first()
 
 def link_device_to_analytic(db: Session, device_id: int, analytic_id: int):
+    # Check if analytic already exists
     existing_link = db.query(AnalyticDevice).filter(
-        AnalyticDevice.device_id == device_id,
         AnalyticDevice.analytic_id == analytic_id
     ).first()
     
     if existing_link:
-        return {"status": 409, "message": "Device already linked to this analytic"}
-    
-    new_link = AnalyticDevice(
-        device_id=device_id,
-        analytic_id=analytic_id,
-        created_at=get_indonesia_time()
-    )
+        # Add device_id to existing array if not already present
+        if device_id not in existing_link.device_ids:
+            existing_link.device_ids.append(device_id)
+            db.commit()
+            return {"status": 200, "message": "Device added to existing analytic"}
+        else:
+            return {"status": 409, "message": "Device already linked to this analytic"}
+    else:
+        # Create new link with device_ids array
+        new_link = AnalyticDevice(
+            device_ids=[device_id],
+            analytic_id=analytic_id,
+            created_at=get_indonesia_time()
+        )
     db.add(new_link)
     db.commit()
     return {"status": 200, "message": "Linked successfully"}

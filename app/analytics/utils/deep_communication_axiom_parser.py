@@ -1,15 +1,11 @@
 import re
-import pandas as pd
+import pandas as pd  # type: ignore
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.shared.models import DeepCommunication
 
 
 class DeepCommunicationParser:
-    """
-    Parser untuk membaca sheet Magnet Axiom (WhatsApp dan Telegram)
-    dan menyimpan hasilnya ke tabel DeepCommunication.
-    """
 
     VALID_SOURCES = {"Telegram", "WhatsApp Messenger"}
 
@@ -17,9 +13,6 @@ class DeepCommunicationParser:
         self.db = db
 
     def parse_axiom_deep_communication(self, file_path: str, device_id: int, file_id: int):
-        """
-        Parse 2 sheet: 'Android WhatsApp Messages' dan 'Telegram Messages - Android'
-        """
         results = []
 
         try:
@@ -36,16 +29,16 @@ class DeepCommunicationParser:
                 whatsapp_msgs = self._parse_whatsapp_sheet(xls, "Android WhatsApp Messages", device_id, file_id)
                 results.extend(whatsapp_msgs)
 
-            # ✅ Pastikan hanya dua sumber valid (hindari leak mmssms.db dsb)
+            # Pastikan hanya dua sumber valid (hindari leak mmssms.db dsb)
             results = [r for r in results if r.get("source") in self.VALID_SOURCES]
 
-            # ✅ Simpan ke DB
+            # Simpan ke DB
             if results:
                 self.db.bulk_insert_mappings(DeepCommunication, results)
                 self.db.commit()
-                print(f"✅ Inserted {len(results)} deep communication rows")
+                print(f"Inserted {len(results)} deep communication rows")
 
-                # 🧹 Bersihkan entry yang gak valid (type NULL)
+                # Bersihkan entry yang gak valid (type NULL)
                 deleted = (
                     self.db.query(DeepCommunication)
                     .filter(DeepCommunication.type.is_(None))
@@ -53,16 +46,13 @@ class DeepCommunicationParser:
                 )
                 if deleted:
                     self.db.commit()
-                    print(f"🧽 Cleaned up {deleted} invalid rows (type IS NULL)")
+                    print(f"Cleaned up {deleted} invalid rows (type IS NULL)")
 
         except Exception as e:
-            print(f"❌ Error parsing deep communication: {e}")
+            print(f"Error parsing deep communication: {e}")
 
         return results
 
-    # ===================================
-    # 🔹 Telegram
-    # ===================================
     def _parse_telegram_sheet(
         self, xls: pd.ExcelFile, sheet_name: str, device_id: int, file_id: int
     ) -> List[Dict[str, Any]]:
@@ -81,7 +71,7 @@ class DeepCommunicationParser:
                 "device_id": device_id,
                 "file_id": file_id,
                 "direction": direction,
-                "source": "Telegram",  # 💬 Hardcode, biar gak ketimpa kolom "Source" dari Excel
+                "source": "Telegram",
                 "type": "Telegram message",
                 "timestamp": self._clean(row.get("Creation Date/Time - UTC+00:00 (dd/MM/yyyy)")),
                 "text": self._clean(row.get("Message Body")),
@@ -96,9 +86,6 @@ class DeepCommunicationParser:
 
         return data
 
-    # ===================================
-    # 🔹 WhatsApp
-    # ===================================
     def _parse_whatsapp_sheet(
         self, xls: pd.ExcelFile, sheet_name: str, device_id: int, file_id: int
     ) -> List[Dict[str, Any]]:
@@ -110,7 +97,7 @@ class DeepCommunicationParser:
             receiver = self._clean(row.get("Receiver"))
             location = self._clean(row.get("Location"))
 
-            # ✅ hanya proses baris yang punya "chat_list"
+            # hanya proses baris yang punya "chat_list"
             if not location or "chat_list" not in location.lower():
                 continue
 
@@ -145,9 +132,6 @@ class DeepCommunicationParser:
 
         return data
 
-    # ===================================
-    # 🔧 Utility
-    # ===================================
     def _clean(self, value: Any) -> Optional[str]:
         """Membersihkan nilai kosong dan 'nan'"""
         if value is None or pd.isna(value):

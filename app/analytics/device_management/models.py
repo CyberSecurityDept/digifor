@@ -45,6 +45,12 @@ class File(Base):
         back_populates="file",
         cascade="all, delete-orphan"
     )
+    
+    hash_files = relationship(
+        "HashFile",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
 
 
 class Device(Base):
@@ -89,11 +95,18 @@ class HashFile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     name = Column(String, nullable=True)
-    file_path = Column(String, nullable=False)
     
-    file_hash = Column(String, nullable=True)
-    hash_algorithm = Column(String, nullable=True)
+    file_name = Column(String, nullable=True)
+    kind = Column(String, nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    path_original = Column(String, nullable=True)
+    created_at_original = Column(DateTime, nullable=True)
+    modified_at_original = Column(DateTime, nullable=True)
+    
+    md5_hash = Column(String, nullable=True)
+    sha1_hash = Column(String, nullable=True)
     file_size = Column(Integer, nullable=True)
     
     source_type = Column(String, nullable=True)
@@ -111,6 +124,7 @@ class HashFile(Base):
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
     device = relationship("Device", back_populates="hash_files")
+    file = relationship("File", back_populates="hash_files")
 
 class Contact(Base):
     __tablename__ = "contacts"

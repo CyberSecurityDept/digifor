@@ -1,7 +1,15 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, Response
+import warnings
+# Suppress all OLE2 warnings globally
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
+warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
+warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
+warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
+
+from fastapi import FastAPI, Request, HTTPException  # type: ignore
+from fastapi.responses import JSONResponse, Response  # type: ignore
 from contextlib import asynccontextmanager
-import uvicorn
+import uvicorn  # type: ignore
 
 from app.core.config import settings
 from app.core.logging import setup_logging

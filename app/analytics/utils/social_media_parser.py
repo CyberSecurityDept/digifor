@@ -1,8 +1,18 @@
 import re
-import pandas as pd
+import pandas as pd  # type: ignore
+from pathlib import Path
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import SocialMedia
+from .file_validator import file_validator
+
+# Suppress all OLE2 warnings globally
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
+warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
+warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
+warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
 
 SOCIAL_MEDIA_PLATFORMS = ["instagram", "facebook", "whatsapp", "telegram", "x", "tiktok"]
 
@@ -15,29 +25,32 @@ class SocialMediaParser:
         self.db = db
 
     def parse_oxygen_social_media(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
-        """
-        Parse sheet Contacts dari Oxygen dan simpan akun sosial media ke tabel SocialMedia.
-        - Hanya Type == 'Contact' atau 'Contact (merged)'
-        - Platform diambil dari kolom Source (bisa multiple)
-        - WhatsApp Messenger Backup di-skip
-        - account_name dari kolom Contact
-        - account_id dari Internet, fallback ke Phones & Emails
-        """
         results = []
 
+        # Validasi file terlebih dahulu
+        validation = file_validator.validate_excel_file(Path(file_path))
+        file_validator.print_validation_summary(validation)
+        
+        if not validation["is_valid"]:
+            print(f"File validation failed: {validation['errors']}")
+            if validation["warnings"]:
+                print(f"Warnings: {validation['warnings']}")
+
         try:
-            xls = pd.ExcelFile(file_path)
-            sheet_name = None
-            if "Contacts " in xls.sheet_names:
-                sheet_name = "Contacts "
-            elif "Contacts" in xls.sheet_names:
-                sheet_name = "Contacts"
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                xls = pd.ExcelFile(file_path)
+                sheet_name = file_validator._find_contacts_sheet(xls.sheet_names)
 
-            if not sheet_name:
-                print("⚠️ No 'Contacts' sheet found in Oxygen file.")
-                return results
+                if not sheet_name:
+                    return results
 
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine="openpyxl")
+                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine="openpyxl")
 
             for _, row in df.iterrows():
                 # --- Filter hanya contact / contact (merged) ---
@@ -98,9 +111,10 @@ class SocialMediaParser:
             self.db.commit()
 
         except Exception as e:
-            print(f"❌ Error parsing social media Oxygen: {e}")
+            print(f"Error parsing social media Oxygen: {e}")
 
         return results
+
 
     # -----------------------------
     # 🔧 Helper Functions
@@ -190,6 +204,7 @@ class SocialMediaParser:
         elif phone.startswith("0"):
             return f"+62{phone[1:]}"
         return phone
+
 
     def _clean(self, text: Any) -> Optional[str]:
         """Utility untuk membersihkan teks kosong / NaN."""

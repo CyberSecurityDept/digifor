@@ -2,11 +2,10 @@ import asyncio
 import os
 from pathlib import Path
 from typing import Any, Dict
-from fastapi import UploadFile
+from fastapi import UploadFile  # type: ignore
 from app.analytics.shared.models import File
 from app.analytics.device_management.service import create_device
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
-from app.analytics.utils.parser_xlsx import parse_sheet
 from app.analytics.utils.tools_parser import tools_parser
 from app.analytics.utils.hashfile_parser import hashfile_parser
 from app.analytics.utils.performance_optimizer import performance_optimizer
@@ -19,7 +18,7 @@ from datetime import datetime
 from app.analytics.utils.social_media_parser import SocialMediaParser
 from app.analytics.utils.deep_communication_axiom_parser import DeepCommunicationParser
 
-sm_db = next(get_db())  # ✅ ini hasilnya Session, bukan function
+sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
 dc_parser = DeepCommunicationParser(db=sm_db)
 
@@ -51,7 +50,16 @@ def encrypt_and_store_file(file: UploadFile, file_bytes: bytes, public_key_path:
     encrypted_filename = f"{base_filename}.sdp"
     encrypted_path = os.path.join(ENCRYPTED_DIR, encrypted_filename)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+    # Determine file extension based on original file
+    file_extension = Path(file.filename).suffix.lower()
+    if file_extension == '.csv':
+        suffix = '.csv'
+    elif file_extension == '.txt':
+        suffix = '.txt'
+    else:
+        suffix = '.xlsx'
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
@@ -211,14 +219,28 @@ class UploadService:
             # Parse hashfile if it's a hashfile
             hashfiles_data = []
             hashfiles_count = 0
-            if "hashfile" in file_name.lower() or "hash" in file_name.lower():
+            
+            # Detect hashfile based on file extension and content
+            is_hashfile = (
+                "hashfile" in file_name.lower() or 
+                "hash" in file_name.lower() or
+                file_name.lower().endswith(('.txt', '.csv', '.xml')) or
+                ('cellebrite' in file_name.lower() and file_name.lower().endswith('.xlsx')) or
+                ('oxygen' in file_name.lower() and 'hashfile' in file_name.lower()) or
+                ('encase' in file_name.lower() and file_name.lower().endswith('.txt')) or
+                ('magnet' in file_name.lower() and file_name.lower().endswith('.csv'))
+            )
+            
+            if is_hashfile:
                 try:
                     hashfile_result = hashfile_parser.parse_hashfile(Path(original_path_abs), tools)
                     if "error" not in hashfile_result:
                         hashfiles_data = hashfile_result.get("hashfiles", [])
                         hashfiles_count = len(hashfiles_data)
+                    else:
+                        pass  # Silent error handling
                 except Exception as e:
-                    print(f"Hashfile parsing error: {str(e)}")
+                    pass  # Silent error handling
             
             # Calculate amount of data count
             amount_of_data_count = (
@@ -273,10 +295,9 @@ class UploadService:
             # Save hashfiles to database if any were parsed
             if hashfiles_data:
                 try:
-                    saved_hashfiles = save_hashfiles_to_database(device_id, hashfiles_data, tools)
+                    saved_hashfiles = save_hashfiles_to_database(device_id, file_record.id, hashfiles_data, tools)
                     parsing_result["hashfiles_saved"] = saved_hashfiles
                 except Exception as e:
-                    print(f"Error saving hashfiles to database: {str(e)}")
                     parsing_result["hashfiles_save_error"] = str(e)
             
             # UNTUK PARSING SOCIAL MEDIA

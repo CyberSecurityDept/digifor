@@ -120,22 +120,25 @@ def create_analytic_with_devices(
         linked_count = 0
         already_linked = 0
         
-        for device_id in data.device_ids:
-            existing_link = db.query(AnalyticDevice).filter(
-                AnalyticDevice.analytic_id == new_analytic.id,
-                AnalyticDevice.device_id == device_id
-            ).first()
-            
-            if existing_link:
-                already_linked += 1
-                continue
-                
+        existing_link = db.query(AnalyticDevice).filter(
+            AnalyticDevice.analytic_id == new_analytic.id
+        ).first()
+        
+        if existing_link:
+
+            for device_id in data.device_ids:
+                if device_id not in existing_link.device_ids:
+                    existing_link.device_ids.append(device_id)
+                    linked_count += 1
+                else:
+                    already_linked += 1
+        else:
             new_link = AnalyticDevice(
                 analytic_id=new_analytic.id,
-                device_id=device_id
+                device_ids=data.device_ids
             )
             db.add(new_link)
-            linked_count += 1
+            linked_count = len(data.device_ids)
         
         db.commit()
 
@@ -257,7 +260,10 @@ def get_hashfile_analytics(
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
-        device_ids = [link.device_id for link in device_links]
+        device_ids = []
+        for link in device_links:
+            device_ids.extend(link.device_ids)
+        device_ids = list(set(device_ids))
         
         if not device_ids:
             return JSONResponse(
@@ -281,20 +287,17 @@ def get_hashfile_analytics(
         device_labels = []
         for i, device in enumerate(devices):
             if i < 26:
-                device_label = f"Device {chr(65 + i)}"  # A, B, C, ..., Z
+                device_label = f"Device {chr(65 + i)}"
             else:
-                # For devices beyond Z, use AA, AB, AC, etc.
                 first_char = chr(65 + (i - 26) // 26)
                 second_char = chr(65 + (i - 26) % 26)
                 device_label = f"Device {first_char}{second_char}"
             device_labels.append(device_label)
 
-        # Get all hashfiles from these devices
         hashfiles = db.query(HashFile).filter(
             HashFile.device_id.in_(device_ids)
         ).all()
 
-        # Group hashfiles by hash value
         hashfile_groups = {}
         for hashfile in hashfiles:
             hash_value = hashfile.file_hash
@@ -302,82 +305,101 @@ def get_hashfile_analytics(
                 if hash_value not in hashfile_groups:
                     hashfile_groups[hash_value] = {
                         "hash_value": hash_value,
-                        "file_name": hashfile.name or "Unknown",
-                        "file_path": hashfile.file_path,
-                        "file_size": hashfile.file_size,
+                        "file_path": hashfile.path_original,
+                        "file_kind": hashfile.kind or "Unknown",
+                        "file_size_bytes": hashfile.size_bytes or 0,
                         "file_type": hashfile.file_type,
                         "file_extension": hashfile.file_extension,
                         "is_suspicious": hashfile.is_suspicious == "True" if hashfile.is_suspicious else False,
                         "risk_level": hashfile.risk_level or "Low",
                         "source_type": hashfile.source_type,
                         "source_tool": hashfile.source_tool,
-                        "devices": set()
+                        "devices": set(),
+                        "hashfile_records": []  # Store all hashfile records for this hash
                     }
                 hashfile_groups[hash_value]["devices"].add(hashfile.device_id)
+                hashfile_groups[hash_value]["hashfile_records"].append(hashfile)
 
-        # Filter hashfiles that appear on at least min_devices devices
         common_hashfiles = {
             hash_value: info for hash_value, info in hashfile_groups.items() 
             if len(info["devices"]) >= min_devices
         }
 
-        # Convert to list and add device presence info
         hashfile_list = []
         for hash_value, info in common_hashfiles.items():
-            # Get device labels for this hashfile
             found_in_devices = []
+            
+            # Get hashfile records for each device
+            hashfile_records = info["hashfile_records"]
+            device_hashfiles = {}
+            
+            # Group hashfile records by device
+            for record in hashfile_records:
+                device_hashfiles[record.device_id] = record
+            
+            # Create device-specific file info
             for i, device in enumerate(devices):
                 if device.id in info["devices"]:
-                    found_in_devices.append(device_labels[i])
-            
-            # Get actual hashfile record for timestamps
-            hashfile_record = db.query(HashFile).filter(
-                HashFile.file_hash == hash_value,
-                HashFile.device_id.in_(info["devices"])
-            ).first()
-            
-            # Format file size
-            file_size_bytes = info["file_size"] if info["file_size"] else 0
-            file_size_display = format_file_size(file_size_bytes) if file_size_bytes else "Unknown size"
-            
-            # Get timestamps from database and format to Indonesian
-            if hashfile_record and hashfile_record.created_at:
-                created_at = hashfile_record.created_at.strftime("%d %B %Y at %H.%M")
-                # Convert month to Indonesian
-                month_map = {
-                    'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
-                    'April': 'April', 'May': 'Mei', 'June': 'Juni',
-                    'July': 'Juli', 'August': 'Agustus', 'September': 'September',
-                    'October': 'Oktober', 'November': 'November', 'December': 'Desember'
-                }
-                for eng, ind in month_map.items():
-                    created_at = created_at.replace(eng, ind)
-            else:
-                created_at = "Unknown"
-                
-            if hashfile_record and hashfile_record.updated_at:
-                modified_at = hashfile_record.updated_at.strftime("%d %B %Y at %H.%M")
-                # Convert month to Indonesian
-                for eng, ind in month_map.items():
-                    modified_at = modified_at.replace(eng, ind)
-            else:
-                modified_at = "Unknown"
+                    device_label = device_labels[i]
+                    hashfile_record = device_hashfiles.get(device.id)
+                    
+                    if hashfile_record:
+                        # Format file size for this specific device
+                        file_size_bytes = hashfile_record.size_bytes or 0
+                        if file_size_bytes > 0:
+                            formatted_size = f"{file_size_bytes:,}".replace(",", ".")
+                            if file_size_bytes >= 1024 * 1024 * 1024:  # GB
+                                size_display = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
+                            elif file_size_bytes >= 1024 * 1024:  # MB
+                                size_mb = file_size_bytes / (1000 * 1000)  # Use 1000 instead of 1024 for decimal MB
+                                size_display = f"{size_mb:.1f} MB"
+                            elif file_size_bytes >= 1024:  # KB
+                                size_display = f"{file_size_bytes / 1024:.1f} KB"
+                            else:
+                                size_display = f"{file_size_bytes} bytes"
+                            file_size_display = f"{formatted_size} ({size_display} on disk)"
+                        else:
+                            file_size_display = "Unknown size"
+                        
+                        # Format timestamps
+                        if hashfile_record.created_at:
+                            created_at = hashfile_record.created_at.strftime("%d %B %Y at %H.%M")
+                            month_map = {
+                                'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
+                                'April': 'April', 'May': 'Mei', 'June': 'Juni',
+                                'July': 'Juli', 'August': 'Agustus', 'September': 'September',
+                                'October': 'Oktober', 'November': 'November', 'December': 'Desember'
+                            }
+                            for eng, ind in month_map.items():
+                                created_at = created_at.replace(eng, ind)
+                        else:
+                            created_at = "Unknown"
+                            
+                        if hashfile_record.updated_at:
+                            modified_at = hashfile_record.updated_at.strftime("%d %B %Y at %H.%M")
+                            for eng, ind in month_map.items():
+                                modified_at = modified_at.replace(eng, ind)
+                        else:
+                            modified_at = "Unknown"
+                        
+                        device_file_info = {
+                            "device_label": device_label,
+                            "file_info": {
+                                "file_kind": hashfile_record.kind or "Unknown",
+                                "file_size_bytes": file_size_display,
+                                "file_location": hashfile_record.path_original or "Unknown location",
+                                "created_at": created_at,
+                                "modified_at": modified_at,
+                                "attributes": {
+                                    "stationery_pad": False,
+                                    "locked": False
+                                }
+                            }
+                        }
+                        found_in_devices.append(device_file_info)
             
             hashfile_data = {
                 "hash_value": info["hash_value"],
-                "file_info": {
-                    "file_name": info["file_name"],
-                    "file_kind": info["file_type"] or "Unknown",
-                    "file_size_bytes": file_size_bytes,
-                    "file_size_display": file_size_display,
-                    "file_location": info["file_path"] or "Unknown location",
-                    "created_at": created_at,
-                    "modified_at": modified_at,
-                    "attributes": {
-                        "stationery_pad": False,
-                        "locked": False
-                    }
-                },
                 "found_in_devices": found_in_devices
             }
             

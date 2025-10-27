@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, ARRAY
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.utils.timezone import get_indonesia_time
@@ -27,7 +27,7 @@ class AnalyticDevice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     analytic_id = Column(Integer, ForeignKey("analytics_history.id", ondelete="CASCADE"), nullable=False)
-    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
+    device_ids = Column(ARRAY(Integer), nullable=False)
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 

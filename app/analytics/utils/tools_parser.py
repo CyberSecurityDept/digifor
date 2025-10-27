@@ -142,16 +142,63 @@ class ToolsParser:
         }
         
         # Parse other data types using existing logic
-        xls = pd.ExcelFile(file_path)
-        sheet_mappings = {
-            "messages": ["message", "text", "chat", "conversation"],
-            "calls": ["call", "phone", "dial"]
-        }
+        # Check file extension to determine parsing method
+        file_extension = file_path.suffix.lower()
         
-        for data_type, sheet_keywords in sheet_mappings.items():
-            sheet_data = self._find_and_parse_sheet(xls, sheet_keywords)
-            if sheet_data:
-                result[data_type] = self._normalize_generic_data(sheet_data, data_type)
+        if file_extension == '.csv':
+            # Handle CSV files
+            try:
+                df = pd.read_csv(file_path, dtype=str)
+                # Try to identify data types based on column names
+                if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
+                    result["messages"] = df.to_dict('records')
+                elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
+                    result["calls"] = df.to_dict('records')
+            except Exception as e:
+                print(f"Error parsing CSV file: {e}")
+        elif file_extension == '.txt':
+            # Handle TXT files - try to parse as CSV first, then as delimited text
+            try:
+                # First try to parse as CSV
+                df = pd.read_csv(file_path, dtype=str, sep=',')
+                if len(df.columns) > 1:  # If it has multiple columns, treat as CSV
+                    if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
+                        result["messages"] = df.to_dict('records')
+                    elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
+                        result["calls"] = df.to_dict('records')
+                else:
+                    # If single column, try tab-separated
+                    df = pd.read_csv(file_path, dtype=str, sep='\t')
+                    if len(df.columns) > 1:
+                        if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
+                            result["messages"] = df.to_dict('records')
+                        elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
+                            result["calls"] = df.to_dict('records')
+                    else:
+                        # If still single column, try space-separated
+                        df = pd.read_csv(file_path, dtype=str, sep=' ')
+                        if len(df.columns) > 1:
+                            if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
+                                result["messages"] = df.to_dict('records')
+                            elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
+                                result["calls"] = df.to_dict('records')
+            except Exception as e:
+                print(f"Error parsing TXT file: {e}")
+        else:
+            # Handle Excel files
+            try:
+                xls = pd.ExcelFile(file_path)
+                sheet_mappings = {
+                    "messages": ["message", "text", "chat", "conversation"],
+                    "calls": ["call", "phone", "dial"]
+                }
+                
+                for data_type, sheet_keywords in sheet_mappings.items():
+                    sheet_data = self._find_and_parse_sheet(xls, sheet_keywords)
+                    if sheet_data:
+                        result[data_type] = self._normalize_generic_data(sheet_data, data_type)
+            except Exception as e:
+                print(f"Error parsing Excel file: {e}")
         
         return result
     

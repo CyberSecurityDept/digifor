@@ -31,7 +31,7 @@ async def upload_data(
         
         # Define allowed extensions for each type
         allowed_extensions = {
-            "Handphone": ["xlsx", "xls", "csv", "apk", "ipa"],
+            "Handphone": ["xlsx", "xls", "csv", "txt", "xml", "apk", "ipa"],
             "SSD": ["xlsx", "xls", "csv", "txt", "xml"],
             "Harddisk": ["xlsx", "xls", "csv", "txt", "xml"],
             "PC": ["xlsx", "xls", "csv", "txt", "xml"],

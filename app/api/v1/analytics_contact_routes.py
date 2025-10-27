@@ -51,7 +51,11 @@ def get_contact_correlation(
         AnalyticDevice.analytic_id == analytic_id
     ).order_by(AnalyticDevice.id).all()
 
-    device_ids = [link.device_id for link in device_links]
+    # Extract device_ids from array field
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
+    device_ids = list(set(device_ids))  # Remove duplicates
     if not device_ids:
         return JSONResponse(
             content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": []}},

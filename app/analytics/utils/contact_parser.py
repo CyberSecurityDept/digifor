@@ -1,11 +1,17 @@
-import pandas as pd
+import pandas as pd  # type: ignore
 import re
 import warnings
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from .file_validator import file_validator
 
+# Suppress all OLE2 warnings globally
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
+warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
+warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
+warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
 
 class ContactParser:
     
@@ -17,6 +23,15 @@ class ContactParser:
     def parse_contacts_from_file(self, file_path: Path) -> List[Dict[str, Any]]:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
+        
+        # Validasi file terlebih dahulu
+        validation = file_validator.validate_excel_file(file_path)
+        file_validator.print_validation_summary(validation)
+        
+        if not validation["is_valid"]:
+            print(f"File validation failed: {validation['errors']}")
+            if validation["warnings"]:
+                print(f"Warnings: {validation['warnings']}")
         
         file_name = file_path.name.lower()
         
@@ -31,17 +46,24 @@ class ContactParser:
         contacts = []
         
         try:
-            xls = pd.ExcelFile(file_path)
-            
-            if 'Android Contacts' in xls.sheet_names:
-                contacts.extend(self._parse_magnet_android_contacts(file_path, 'Android Contacts'))
-            
-            if 'Android WhatsApp Contacts' in xls.sheet_names:
-                contacts.extend(self._parse_magnet_whatsapp_contacts(file_path, 'Android WhatsApp Contacts'))
-            
-            if 'Telegram Contacts - Android' in xls.sheet_names:
-                contacts.extend(self._parse_magnet_telegram_contacts(file_path, 'Telegram Contacts - Android'))
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
                 
+                xls = pd.ExcelFile(file_path)
+                
+                if 'Android Contacts' in xls.sheet_names:
+                    contacts.extend(self._parse_magnet_android_contacts(file_path, 'Android Contacts'))
+                
+                if 'Android WhatsApp Contacts' in xls.sheet_names:
+                    contacts.extend(self._parse_magnet_whatsapp_contacts(file_path, 'Android WhatsApp Contacts'))
+                
+                if 'Telegram Contacts - Android' in xls.sheet_names:
+                    contacts.extend(self._parse_magnet_telegram_contacts(file_path, 'Telegram Contacts - Android'))
+                    
         except Exception as e:
             print(f"Error parsing Magnet Axiom file: {e}")
         
@@ -51,15 +73,22 @@ class ContactParser:
         contacts = []
         
         try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
-            
-            for _, row in df.iterrows():
-                contact = self._extract_magnet_contact_data(row)
-                if contact:
-                    contacts.append(contact)
-                    
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+                
+                for _, row in df.iterrows():
+                    contact = self._extract_magnet_contact_data(row)
+                    if contact:
+                        contacts.append(contact)
+                        
         except Exception as e:
-            print(f"Error parsing Android Contacts: {e}")
+            print(f"Error parsing Android Contacts sheet '{sheet_name}': {e}")
         
         return contacts
     
@@ -67,15 +96,22 @@ class ContactParser:
         contacts = []
         
         try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
-            
-            for _, row in df.iterrows():
-                contact = self._extract_whatsapp_contact_data(row)
-                if contact:
-                    contacts.append(contact)
-                    
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+                
+                for _, row in df.iterrows():
+                    contact = self._extract_whatsapp_contact_data(row)
+                    if contact:
+                        contacts.append(contact)
+                        
         except Exception as e:
-            print(f"Error parsing WhatsApp Contacts: {e}")
+            print(f"Error parsing WhatsApp Contacts sheet '{sheet_name}': {e}")
         
         return contacts
     
@@ -83,15 +119,22 @@ class ContactParser:
         contacts = []
         
         try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
-            
-            for _, row in df.iterrows():
-                contact = self._extract_telegram_contact_data(row)
-                if contact:
-                    contacts.append(contact)
-                    
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+                
+                for _, row in df.iterrows():
+                    contact = self._extract_telegram_contact_data(row)
+                    if contact:
+                        contacts.append(contact)
+                        
         except Exception as e:
-            print(f"Error parsing Telegram Contacts: {e}")
+            print(f"Error parsing Telegram Contacts sheet '{sheet_name}': {e}")
         
         return contacts
     
@@ -99,12 +142,20 @@ class ContactParser:
         contacts = []
         
         try:
-            xls = pd.ExcelFile(file_path)
-            
-            if 'Contacts ' in xls.sheet_names:
-                contacts.extend(self._parse_oxygen_contacts_sheet(file_path, 'Contacts '))
-            elif 'Contacts' in xls.sheet_names:
-                contacts.extend(self._parse_oxygen_contacts_sheet(file_path, 'Contacts'))
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                xls = pd.ExcelFile(file_path)
+                sheet_name = file_validator._find_contacts_sheet(xls.sheet_names)
+                
+                if not sheet_name:
+                    return contacts
+                
+                contacts.extend(self._parse_oxygen_contacts_sheet(file_path, sheet_name))
                 
         except Exception as e:
             print(f"Error parsing Oxygen file: {e}")
@@ -115,15 +166,22 @@ class ContactParser:
         contacts = []
         
         try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
-            
-            for _, row in df.iterrows():
-                contact_list = self._extract_oxygen_contact_data(row)
-                if contact_list:
-                    contacts.extend(contact_list)
+            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                
+                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+                
+                for _, row in df.iterrows():
+                    contact_list = self._extract_oxygen_contact_data(row)
+                    if contact_list:
+                        contacts.extend(contact_list)
                     
         except Exception as e:
-            print(f"Error parsing Oxygen Contacts: {e}")
+            print(f"Error parsing Oxygen Contacts sheet '{sheet_name}': {e}")
         
         return contacts
     
@@ -131,17 +189,64 @@ class ContactParser:
         contacts = []
         
         try:
-            xls = pd.ExcelFile(file_path)
+            file_extension = file_path.suffix.lower()
             
-            contact_sheets = [s for s in xls.sheet_names if 'contact' in s.lower()]
-            
-            for sheet_name in contact_sheets:
-                df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+            if file_extension == '.csv':
+                # Handle CSV files
+                df = pd.read_csv(file_path, dtype=str)
                 
                 for _, row in df.iterrows():
                     contact = self._extract_generic_contact_data(row)
                     if contact:
                         contacts.append(contact)
+            elif file_extension == '.txt':
+                # Handle TXT files - try different delimiters
+                try:
+                    # First try comma-separated
+                    df = pd.read_csv(file_path, dtype=str, sep=',')
+                    if len(df.columns) > 1:
+                        for _, row in df.iterrows():
+                            contact = self._extract_generic_contact_data(row)
+                            if contact:
+                                contacts.append(contact)
+                    else:
+                        # Try tab-separated
+                        df = pd.read_csv(file_path, dtype=str, sep='\t')
+                        if len(df.columns) > 1:
+                            for _, row in df.iterrows():
+                                contact = self._extract_generic_contact_data(row)
+                                if contact:
+                                    contacts.append(contact)
+                        else:
+                            # Try space-separated
+                            df = pd.read_csv(file_path, dtype=str, sep=' ')
+                            if len(df.columns) > 1:
+                                for _, row in df.iterrows():
+                                    contact = self._extract_generic_contact_data(row)
+                                    if contact:
+                                        contacts.append(contact)
+                except Exception as e:
+                    print(f"Error parsing TXT file: {e}")
+            else:
+                # Handle Excel files
+                # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+                    warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
+                    warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
+                    
+                    xls = pd.ExcelFile(file_path)
+                    
+                    contact_sheets = [s for s in xls.sheet_names if 'contact' in s.lower()]
+                    
+                    for sheet_name in contact_sheets:
+                        df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine='openpyxl')
+                        
+                        for _, row in df.iterrows():
+                            contact = self._extract_generic_contact_data(row)
+                            if contact:
+                                contacts.append(contact)
                         
         except Exception as e:
             print(f"Error parsing generic file: {e}")
@@ -334,6 +439,8 @@ class ContactParser:
             print(f"Error extracting generic contact data: {e}")
             return None
     
+
+
     def _clean_text(self, text: Any) -> Optional[str]:
         if pd.isna(text) or text is None:
             return None
@@ -362,13 +469,11 @@ class ContactParser:
                 phone_numbers.append(f"+62{number}")
             # Skip non-Indonesian phone numbers
         
-        # Handle phone numbers with spaces and dashes (e.g., "0832 2568997", "+62 812 20751811", "0878-2508-6209")
-        # Pattern untuk nomor dengan spasi dan dash: 08xx xxxx xxxx, +62 xxx xxxx xxxx, 08xx-xxxx-xxxx
         spaced_patterns = [
-            r'(\+?62\s*\d{2,3}\s*\d{3,4}\s*\d{3,4})',  # +62 xxx xxxx xxxx
-            r'(0\d{2,3}\s*\d{3,4}\s*\d{3,4})',         # 08xx xxxx xxxx
-            r'(\+?62\s*\d{2,3}[-]\d{3,4}[-]\d{3,4})',  # +62 xxx-xxxx-xxxx
-            r'(0\d{2,3}[-]\d{3,4}[-]\d{3,4})',         # 08xx-xxxx-xxxx
+            r'(\+?62\s*\d{2,3}\s*\d{3,4}\s*\d{3,4})',
+            r'(0\d{2,3}\s*\d{3,4}\s*\d{3,4})',
+            r'(\+?62\s*\d{2,3}[-]\d{3,4}[-]\d{3,4})',
+            r'(0\d{2,3}[-]\d{3,4}[-]\d{3,4})',
         ]
         
         for pattern in spaced_patterns:
@@ -408,7 +513,7 @@ class ContactParser:
         
         short_numbers = re.findall(r'\b\d{3,7}\b', text)
         for num in short_numbers:
-            if len(num) >= 3:  # Service numbers like 111, 1213, 80
+            if len(num) >= 3:
                 phone_numbers.append(num)
         
         return list(set(phone_numbers))
@@ -418,7 +523,7 @@ class ContactParser:
             return []
         
         emails = self.email_pattern.findall(text)
-        return list(set(emails))  # Remove duplicates
+        return list(set(emails))
     
     def _extract_primary_name(self, contact_field: str) -> Optional[str]:
         if not contact_field:
@@ -441,15 +546,12 @@ class ContactParser:
         lines = contact_field.split('\n')
         primary_name = lines[0].strip()
         
-        # Remove common prefixes
         prefixes_to_remove = ['Nickname:', 'First name:', 'Last name:']
         for prefix in prefixes_to_remove:
             if primary_name.startswith(prefix):
                 primary_name = primary_name[len(prefix):].strip()
         
-        # Check if primary name is generic or invalid
         if self._is_generic_contact_name(primary_name) or self._is_phone_number_only(primary_name):
-            # Cari nama yang valid dari baris-baris lainnya
             for line in lines[1:]:
                 line = line.strip()
                 if line and not self._is_phone_number_only(line) and not self._is_generic_contact_name(line):
@@ -468,8 +570,6 @@ class ContactParser:
         if not phones_emails or pd.isna(phones_emails) or phones_emails is None:
             return None
         
-        # First, try to extract phone number using specific patterns
-        # Pattern: "Phone number: +6289660149979" or "Mobile: 0878-2508-6209"
         phone_patterns = [
             re.compile(r'Phone number:\s*([+\d\s\-\(\)]+)', re.IGNORECASE),
             re.compile(r'Mobile:\s*([+\d\s\-\(\)]+)', re.IGNORECASE),
@@ -496,18 +596,16 @@ class ContactParser:
         if not valid_phones:
             return None
         
-        # Pilih phone number yang paling lengkap (terpanjang)
-        # Prioritas: +62xxxxxxxxxx > 62xxxxxxxxxx > 08xxxxxxxxxx > service numbers
         def phone_priority(phone):
             clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '') if phone else ''
             if clean_phone.startswith('62') and len(clean_phone) >= 10:
-                return (1, len(clean_phone))  # Full Indonesian numbers
+                return (1, len(clean_phone))
             elif clean_phone.startswith('08') and len(clean_phone) >= 10:
                 return (2, len(clean_phone))  # Local format
             elif clean_phone.isdigit() and 3 <= len(clean_phone) <= 7:
-                return (3, len(clean_phone))  # Service numbers
+                return (3, len(clean_phone))
             else:
-                return (4, len(clean_phone))  # Others
+                return (4, len(clean_phone))
         
         valid_phones.sort(key=phone_priority)
         return valid_phones[0]
@@ -518,7 +616,6 @@ class ContactParser:
         
         phone_number = str(phone_number).strip()
         
-        # Check if it's a social media ID (should not be treated as phone number)
         if self._is_social_media_id(phone_number):
             return False
         
@@ -527,7 +624,6 @@ class ContactParser:
         if phone_clean.startswith('62') or phone_clean.startswith('08'):
             return True
         
-        # Short service numbers
         if phone_clean.isdigit() and 3 <= len(phone_clean) <= 7:
             return True
         
@@ -566,34 +662,27 @@ class ContactParser:
                         def phone_priority(phone):
                             clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '') if phone else ''
                             if clean_phone.startswith('62') and len(clean_phone) >= 10:
-                                return (1, len(clean_phone))  # Full Indonesian numbers
+                                return (1, len(clean_phone))
                             elif clean_phone.startswith('08') and len(clean_phone) >= 10:
-                                return (2, len(clean_phone))  # Local format
+                                return (2, len(clean_phone))
                             elif clean_phone.isdigit() and 3 <= len(clean_phone) <= 7:
-                                return (3, len(clean_phone))  # Service numbers
+                                return (3, len(clean_phone))
                             else:
-                                return (4, len(clean_phone))  # Others
+                                return (4, len(clean_phone))
                         
-                        # Sort by priority and length
                         valid_phones.sort(key=phone_priority)
                         phone_number = valid_phones[0]
                         
-                        # Determine display name
                         display_name = name_part
                         
-                        # Skip social media IDs and generic labels
                         if (self._is_social_media_id(line) or 
                             name_part.lower() in ['mobile', 'phone number', 'email', 'phone'] or
                             'id' in name_part.lower()):
-                            # If it's a social media ID or generic label, we can't create a contact without a name
-                            # Skip this contact as it doesn't have a proper display name
                             continue
                         
-                        # Clean display name
                         if self._is_phone_number_only(display_name):
                             display_name = "Unknown"
                         
-                        # Only add contact if it has a phone number (skip NULL phone numbers)
                         if phone_number:
                             contacts.append({
                                 'display_name': display_name,
@@ -712,7 +801,6 @@ class ContactParser:
         normalized = []
         seen_phones = set()
         
-        # First pass: normalize all contacts
         normalized_contacts = []
         for contact in contacts:
             if not contact.get('phone_number'):
@@ -730,17 +818,13 @@ class ContactParser:
                 
             normalized_contacts.append(contact)
         
-        # Second pass: deduplicate by phone number, keeping the best contact
         for contact in normalized_contacts:
             phone = contact.get('phone_number', '')
             
             if phone in seen_phones:
-                # Find existing contact with same phone
                 existing_contact = next((c for c in normalized if c.get('phone_number') == phone), None)
                 if existing_contact:
-                    # Choose the better contact based on priority
                     if self._is_better_contact(contact, existing_contact):
-                        # Replace existing contact with better one
                         normalized.remove(existing_contact)
                         normalized.append(contact)
                 continue
@@ -766,13 +850,11 @@ class ContactParser:
         new_priority = type_priority.get(new_type, 999)
         existing_priority = type_priority.get(existing_type, 999)
         
-        # Lower number = higher priority
         if new_priority < existing_priority:
             return True
         elif new_priority > existing_priority:
             return False
         
-        # If same priority, prefer contact with last_time_contacted
         new_last_contacted = new_contact.get('last_time_contacted')
         existing_last_contacted = existing_contact.get('last_time_contacted')
         
@@ -781,7 +863,6 @@ class ContactParser:
         elif not new_last_contacted and existing_last_contacted:
             return False
         
-        # If both have or don't have last_time_contacted, prefer longer display_name
         new_name = new_contact.get('display_name', '')
         existing_name = existing_contact.get('display_name', '')
         
@@ -829,16 +910,11 @@ class ContactParser:
         return False
     
     def _is_generic_contact_name(self, name: str) -> bool:
-        """
-        Check if the name is a generic contact name that should be treated as invalid
-        Examples: "Contact", "Unknown", "N/A", "Phone", "Mobile", etc.
-        """
         if not name or pd.isna(name) or name is None:
             return True
         
         name = str(name).strip().lower()
         
-        # List of generic names that should be treated as invalid
         generic_names = [
             'contact', 'unknown', 'n/a', 'na', 'phone', 'mobile', 'telephone',
             'call', 'message', 'chat', 'conversation', 'user', 'person',
@@ -854,16 +930,11 @@ class ContactParser:
         return name in generic_names
     
     def _is_social_media_id(self, text: str) -> bool:
-        """
-        Check if the text is a social media ID that should not be treated as a phone number
-        Examples: "Telegram ID: 1420i4a0adb10a57cbf5", "Instagram ID: user123", "WhatsApp ID: 6287825086209"
-        """
         if not text or pd.isna(text) or text is None:
             return False
         
         text = str(text).strip()
         
-        # List of social media ID patterns
         social_media_patterns = [
             r'Telegram ID:\s*\w+',
             r'Instagram ID:\s*\w+',
@@ -904,17 +975,12 @@ class ContactParser:
         return False
     
     def _extract_magnet_phone_numbers(self, phone_field: str) -> List[str]:
-        """
-        Extract phone numbers from Magnet Axiom format
-        Examples: "Mobile: 0811-2185-386, Mobile: 08112185386"
-        """
         if not phone_field or pd.isna(phone_field) or phone_field is None:
             return []
         
         phone_field = str(phone_field).strip()
         phone_numbers = []
         
-        # Split by comma to handle multiple phone numbers
         parts = phone_field.split(',')
         
         for part in parts:
@@ -922,24 +988,18 @@ class ContactParser:
             if not part:
                 continue
             
-            # Remove prefixes like "Mobile:", "Phone:", etc.
             if ':' in part:
                 part = part.split(':', 1)[1].strip()
             
-            # Extract phone numbers from this part
             numbers = self._extract_phone_numbers(part)
             phone_numbers.extend(numbers)
         
         return phone_numbers
     
     def _select_best_phone_number(self, phone_numbers: List[str]) -> Optional[str]:
-        """
-        Select the best (most complete) phone number from a list
-        """
         if not phone_numbers:
             return None
         
-        # Filter out invalid numbers
         valid_phones = []
         for phone in phone_numbers:
             if phone and len(phone.replace('+', '').replace('-', '').replace(' ', '') if phone else '') >= 3:
@@ -948,19 +1008,17 @@ class ContactParser:
         if not valid_phones:
             return None
         
-        # Priority: +62xxxxxxxxxx > 62xxxxxxxxxx > 08xxxxxxxxxx > service numbers
         def phone_priority(phone):
             clean_phone = phone.replace('+', '').replace('-', '').replace(' ', '') if phone else ''
             if clean_phone.startswith('62') and len(clean_phone) >= 10:
-                return (1, len(clean_phone))  # Full Indonesian numbers
+                return (1, len(clean_phone))
             elif clean_phone.startswith('08') and len(clean_phone) >= 10:
-                return (2, len(clean_phone))  # Local format
+                return (2, len(clean_phone))
             elif clean_phone.isdigit() and 3 <= len(clean_phone) <= 7:
-                return (3, len(clean_phone))  # Service numbers
+                return (3, len(clean_phone))
             else:
-                return (4, len(clean_phone))  # Others
+                return (4, len(clean_phone))
         
-        # Sort by priority and length
         valid_phones.sort(key=phone_priority)
         return valid_phones[0]
 

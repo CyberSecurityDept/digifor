@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import Device, File, Contact, DeepCommunication, Call, HashFile
 from app.db.init_db import SessionLocal
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
@@ -195,7 +195,7 @@ def get_device_contacts(db: Session, device_id: int):
 def get_device_calls(db: Session, device_id: int):
     return db.query(Call).filter(Call.device_id == device_id).all()
 
-def save_hashfiles_to_database(device_id: int, hashfiles: List[Dict[str, Any]], source_tool: str = "Unknown"):
+def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dict[str, Any]], source_tool: str = "Unknown"):
     db = SessionLocal()
     try:
         saved_count = 0
@@ -237,19 +237,40 @@ def save_hashfiles_to_database(device_id: int, hashfiles: List[Dict[str, Any]], 
             
             # Get required fields with defaults
             file_name = normalize_str(hf.get('name', 'Unknown'))
-            file_path = normalize_str(hf.get('path', f'/unknown/{file_name}'))
-            file_hash = normalize_str(hf.get('md5') or hf.get('sha1') or hf.get('hash', ''))
+            md5_hash = normalize_str(hf.get('md5', ''))
+            sha1_hash = normalize_str(hf.get('sha1', ''))
             
-            # Skip if no hash value
-            if not file_hash:
+            # Get original file information from Get Info
+            original_file_name = normalize_str(hf.get('original_file_name', file_name))
+            original_file_path = normalize_str(hf.get('original_file_path', ''))
+            original_file_size = hf.get('original_file_size', 0)
+            original_file_kind = normalize_str(hf.get('original_file_kind', 'Unknown'))
+            original_created_at = hf.get('original_created_at')
+            original_modified_at = hf.get('original_modified_at')
+            
+            # Skip if no hash values
+            if not md5_hash and not sha1_hash:
+                continue
+                
+            # Skip files with empty or invalid names to avoid meaningless hash collisions
+            if not file_name or file_name.strip() == '' or file_name == 'Unknown':
                 continue
                 
             hashfile_record = HashFile(
                 device_id=device_id,
+                file_id=file_id,
                 name=file_name,
-                file_path=file_path,
-                file_hash=file_hash,
-                hash_algorithm=normalize_str(hf.get('algorithm', 'MD5')),
+                
+                # Original file information from Get Info
+                file_name=original_file_name,
+                kind=original_file_kind,
+                size_bytes=original_file_size,
+                path_original=original_file_path,
+                created_at_original=original_created_at,
+                modified_at_original=original_modified_at,
+                
+                md5_hash=md5_hash,
+                sha1_hash=sha1_hash,
                 file_size=int(hf.get('size', 0)) if hf.get('size') else None,
                 source_type=normalize_str(hf.get('source_type', 'File System')),
                 source_tool=source_tool,
