@@ -114,17 +114,23 @@ class ToolsParser:
             "metadata": {}
         }
         
-        # Parse other data types using existing logic
-        xls = pd.ExcelFile(file_path)
-        sheet_mappings = {
-            "messages": ["messages", "text", "chat", "conversations"],
-            "calls": ["calls", "call log", "call history", "phone calls"]
-        }
-        
-        for data_type, sheet_keywords in sheet_mappings.items():
-            sheet_data = self._find_and_parse_sheet(xls, sheet_keywords)
-            if sheet_data:
-                result[data_type] = self._normalize_magnet_axiom_data(sheet_data, data_type)
+        # Parse other data types using existing logic - only for Excel files
+        file_extension = file_path.suffix.lower()
+        if file_extension in ['.xlsx', '.xls']:
+            try:
+                xls = pd.ExcelFile(file_path)
+                sheet_mappings = {
+                    "messages": ["messages", "text", "chat", "conversations"],
+                    "calls": ["calls", "call log", "call history", "phone calls"]
+                }
+                
+                for data_type, sheet_keywords in sheet_mappings.items():
+                    sheet_data = self._find_and_parse_sheet(xls, sheet_keywords)
+                    if sheet_data:
+                        result[data_type] = self._normalize_magnet_axiom_data(sheet_data, data_type)
+            except Exception as e:
+                # Skip Excel parsing for non-Excel files
+                pass
         
         return result
     

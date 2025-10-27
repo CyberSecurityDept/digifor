@@ -1,22 +1,22 @@
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse, FileResponse
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends  # type: ignore
+from fastapi.responses import JSONResponse, FileResponse  # type: ignore
+from sqlalchemy.orm import Session  # type: ignore
 from app.db.session import get_db
 from app.analytics.analytics_management.service import store_analytic, get_all_analytics
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
 from app.analytics.device_management.models import HashFile, DeepCommunication
 from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel  # type: ignore
 from collections import defaultdict
 import re
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4  # type: ignore
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle  # type: ignore
+from reportlab.lib import colors  # type: ignore
+from reportlab.lib.enums import TA_CENTER  # type: ignore
 import os
 
 class SummaryRequest(BaseModel):
@@ -66,9 +66,6 @@ class CreateAnalyticWithDevicesRequest(BaseModel):
     analytic_name: str
     method: str
     device_ids: List[int]
-    min_device_threshold: Optional[int] = 2
-    include_suspicious_only: Optional[bool] = False
-    hash_algorithm: Optional[str] = "MD5"
 
 @router.post("/analytics/create-analytic-with-devices")
 def create_analytic_with_devices(
@@ -80,6 +77,14 @@ def create_analytic_with_devices(
             return {
                 "status": 400,
                 "message": "analytic_name wajib diisi",
+                "data": []
+            }
+
+        # Validasi minimal 2 device
+        if len(data.device_ids) < 2:
+            return {
+                "status": 400,
+                "message": "Minimal 2 device diperlukan untuk analisis",
                 "data": []
             }
 
@@ -300,11 +305,14 @@ def get_hashfile_analytics(
 
         hashfile_groups = {}
         for hashfile in hashfiles:
-            hash_value = hashfile.file_hash
+            # Use MD5 hash as primary, fallback to SHA-1 if MD5 is empty
+            hash_value = hashfile.md5_hash or hashfile.sha1_hash
             if hash_value:
                 if hash_value not in hashfile_groups:
                     hashfile_groups[hash_value] = {
                         "hash_value": hash_value,
+                        "md5_hash": hashfile.md5_hash or "",
+                        "sha1_hash": hashfile.sha1_hash or "",
                         "file_path": hashfile.path_original,
                         "file_kind": hashfile.kind or "Unknown",
                         "file_size_bytes": hashfile.size_bytes or 0,
@@ -327,8 +335,6 @@ def get_hashfile_analytics(
 
         hashfile_list = []
         for hash_value, info in common_hashfiles.items():
-            found_in_devices = []
-            
             # Get hashfile records for each device
             hashfile_records = info["hashfile_records"]
             device_hashfiles = {}
@@ -337,76 +343,81 @@ def get_hashfile_analytics(
             for record in hashfile_records:
                 device_hashfiles[record.device_id] = record
             
-            # Create device-specific file info
+            # Get the first record for general info (they should be similar)
+            first_record = hashfile_records[0] if hashfile_records else None
+            if not first_record:
+                continue
+                
+            # Format file size
+            file_size_bytes = first_record.size_bytes or 0
+            if file_size_bytes > 0:
+                formatted_size = f"{file_size_bytes:,}".replace(",", ".")
+                if file_size_bytes >= 1024 * 1024 * 1024:  # GB
+                    size_display = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
+                elif file_size_bytes >= 1024 * 1024:  # MB
+                    size_mb = file_size_bytes / (1000 * 1000)  # Use 1000 instead of 1024 for decimal MB
+                    size_display = f"{size_mb:.1f} MB"
+                elif file_size_bytes >= 1024:  # KB
+                    size_display = f"{file_size_bytes / 1024:.1f} KB"
+                else:
+                    size_display = f"{file_size_bytes} bytes"
+                file_size_display = f"{formatted_size} ({size_display} on disk)"
+            else:
+                file_size_display = "Unknown size"
+            
+            # Format timestamps
+            if first_record.created_at:
+                created_at = first_record.created_at.strftime("%Y-%m-%dT%H:%M:%S")
+            else:
+                created_at = "Unknown"
+                
+            if first_record.updated_at:
+                modified_at = first_record.updated_at.strftime("%Y-%m-%dT%H:%M:%S")
+            else:
+                modified_at = "Unknown"
+            
+            # Get device labels for this hashfile
+            device_labels_for_hashfile = []
             for i, device in enumerate(devices):
                 if device.id in info["devices"]:
-                    device_label = device_labels[i]
-                    hashfile_record = device_hashfiles.get(device.id)
-                    
-                    if hashfile_record:
-                        # Format file size for this specific device
-                        file_size_bytes = hashfile_record.size_bytes or 0
-                        if file_size_bytes > 0:
-                            formatted_size = f"{file_size_bytes:,}".replace(",", ".")
-                            if file_size_bytes >= 1024 * 1024 * 1024:  # GB
-                                size_display = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
-                            elif file_size_bytes >= 1024 * 1024:  # MB
-                                size_mb = file_size_bytes / (1000 * 1000)  # Use 1000 instead of 1024 for decimal MB
-                                size_display = f"{size_mb:.1f} MB"
-                            elif file_size_bytes >= 1024:  # KB
-                                size_display = f"{file_size_bytes / 1024:.1f} KB"
-                            else:
-                                size_display = f"{file_size_bytes} bytes"
-                            file_size_display = f"{formatted_size} ({size_display} on disk)"
-                        else:
-                            file_size_display = "Unknown size"
-                        
-                        # Format timestamps
-                        if hashfile_record.created_at:
-                            created_at = hashfile_record.created_at.strftime("%d %B %Y at %H.%M")
-                            month_map = {
-                                'January': 'Januari', 'February': 'Februari', 'March': 'Maret',
-                                'April': 'April', 'May': 'Mei', 'June': 'Juni',
-                                'July': 'Juli', 'August': 'Agustus', 'September': 'September',
-                                'October': 'Oktober', 'November': 'November', 'December': 'Desember'
-                            }
-                            for eng, ind in month_map.items():
-                                created_at = created_at.replace(eng, ind)
-                        else:
-                            created_at = "Unknown"
-                            
-                        if hashfile_record.updated_at:
-                            modified_at = hashfile_record.updated_at.strftime("%d %B %Y at %H.%M")
-                            for eng, ind in month_map.items():
-                                modified_at = modified_at.replace(eng, ind)
-                        else:
-                            modified_at = "Unknown"
-                        
-                        device_file_info = {
-                            "device_label": device_label,
-                            "file_info": {
-                                "file_kind": hashfile_record.kind or "Unknown",
-                                "file_size_bytes": file_size_display,
-                                "file_location": hashfile_record.path_original or "Unknown location",
-                                "created_at": created_at,
-                                "modified_at": modified_at,
-                                "attributes": {
-                                    "stationery_pad": False,
-                                    "locked": False
-                                }
-                            }
-                        }
-                        found_in_devices.append(device_file_info)
+                    device_labels_for_hashfile.append(device_labels[i])
+            
+            # Get file name from path
+            file_path = first_record.path_original or "Unknown"
+            file_name = file_path.split('/')[-1] if '/' in file_path else file_path.split('\\')[-1] if '\\' in file_path else file_path
+            
+            # Format file type
+            file_type = first_record.file_type or "Unknown"
+            if first_record.file_extension:
+                file_type = f"{file_type} ({first_record.file_extension.upper()})"
+            
+            # Format general info
+            general_info = {
+                "kind": first_record.kind or "Unknown",
+                "size": file_size_display,
+                "where": file_path,
+                "created": created_at.replace('T', ' ').replace('-', ' '),
+                "modified": modified_at.replace('T', ' ').replace('-', ' '),
+                "stationery_pad": False,
+                "locked": first_record.is_suspicious == "True" if first_record.is_suspicious else False
+            }
             
             hashfile_data = {
-                "hash_value": info["hash_value"],
-                "found_in_devices": found_in_devices
+                "hash_value": hash_value,
+                "file_name": file_name,
+                "file_type": file_type,
+                "file_size": size_display if file_size_bytes > 0 else "Unknown",
+                "file_path": file_path,
+                "created_at": created_at,
+                "modified_at": modified_at,
+                "devices": device_labels_for_hashfile,
+                "general_info": general_info
             }
             
             hashfile_list.append(hashfile_data)
 
         # Sort by device count (most common first) - sesuai dengan "daftar teratas merupakan hashfile yang paling banyak ditemui di banyak device"
-        hashfile_list.sort(key=lambda x: len(x["found_in_devices"]), reverse=True)
+        hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
 
         # Create devices list with labels
         devices_list = []

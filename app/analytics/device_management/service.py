@@ -206,21 +206,23 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
                 if '.' in hf['name']:
                     file_extension = hf['name'].split('.')[-1].lower()
             
-            # Determine file type based on extension
-            file_type = "Unknown"
-            if file_extension:
-                if file_extension in ['exe', 'bat', 'cmd', 'scr', 'pif', 'com']:
-                    file_type = "Executable"
-                elif file_extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp']:
-                    file_type = "Image"
-                elif file_extension in ['mp4', 'avi', 'mov', 'wmv', 'flv']:
-                    file_type = "Video"
-                elif file_extension in ['mp3', 'wav', 'flac', 'aac']:
-                    file_type = "Audio"
-                elif file_extension in ['pdf', 'doc', 'docx', 'txt', 'rtf']:
-                    file_type = "Document"
-                elif file_extension in ['zip', 'rar', '7z', 'tar', 'gz']:
-                    file_type = "Archive"
+            # Determine file type - prefer sheet name from parser, fallback to extension-based detection
+            file_type = normalize_str(hf.get('sheet', ''))  # Use sheet name from parser
+            if not file_type:  # Fallback to extension-based detection if no sheet name
+                file_type = "Unknown"
+                if file_extension:
+                    if file_extension in ['exe', 'bat', 'cmd', 'scr', 'pif', 'com']:
+                        file_type = "Executable"
+                    elif file_extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp']:
+                        file_type = "Image"
+                    elif file_extension in ['mp4', 'avi', 'mov', 'wmv', 'flv']:
+                        file_type = "Video"
+                    elif file_extension in ['mp3', 'wav', 'flac', 'aac']:
+                        file_type = "Audio"
+                    elif file_extension in ['pdf', 'doc', 'docx', 'txt', 'rtf']:
+                        file_type = "Document"
+                    elif file_extension in ['zip', 'rar', '7z', 'tar', 'gz']:
+                        file_type = "Archive"
             
             # Determine if suspicious
             is_suspicious = "False"

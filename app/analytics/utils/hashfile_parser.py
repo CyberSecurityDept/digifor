@@ -39,15 +39,14 @@ class HashFileParser:
         }
     
     def parse_hashfile(self, file_path: Path, format_type: str = None) -> Dict[str, Any]:
-        """
-        Parse hashfile dari berbagai format tools forensik
-        """
-        # Validasi file terlebih dahulu
-        validation = file_validator.validate_excel_file(file_path)
-        file_validator.print_validation_summary(validation)
-        
-        if not validation["is_valid"]:
-            return {"error": f"File validation failed: {validation['errors']}", "hashfiles": []}
+        # Validasi file terlebih dahulu - hanya untuk Excel files
+        file_extension = file_path.suffix.lower()
+        if file_extension in ['.xlsx', '.xls']:
+            validation = file_validator.validate_excel_file(file_path)
+            file_validator.print_validation_summary(validation)
+            
+            if not validation["is_valid"]:
+                return {"error": f"File validation failed: {validation['errors']}", "hashfiles": []}
         
         if format_type:
             format_enum = self._detect_format_from_name(format_type)
