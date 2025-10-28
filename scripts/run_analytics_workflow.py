@@ -3,6 +3,7 @@ import requests
 import json
 import os
 import sys
+import datetime
 from pathlib import Path
 
 # Configuration
@@ -21,8 +22,6 @@ class AnalyticsWorkflow:
         self.analytic_id = None
         
     def log(self, message, level="INFO"):
-        """Log message with timestamp"""
-        import datetime
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp}] [{level}] {message}")
         
@@ -71,7 +70,6 @@ class AnalyticsWorkflow:
             return False
     
     def add_device(self, owner_name, phone_number, file_id=None):
-        """Tambah device baru"""
         if file_id is None:
             file_id = self.file_id
             
@@ -136,7 +134,6 @@ class AnalyticsWorkflow:
             return False
     
     def run_contact_correlation(self, analytic_id=None):
-        """Jalankan analisis korelasi kontak"""
         if analytic_id is None:
             analytic_id = self.analytic_id
             
@@ -207,7 +204,6 @@ class AnalyticsWorkflow:
             return False
     
     def get_all_files(self):
-        """Get all uploaded files"""
         try:
             response = self.session.get(f"{self.base_url}/analytics/files/all")
             if response.status_code == 200:
@@ -222,7 +218,6 @@ class AnalyticsWorkflow:
             return []
     
     def get_all_devices(self):
-        """Get all devices"""
         try:
             response = self.session.get(f"{self.base_url}/analytics/device/get-all-devices")
             if response.status_code == 200:
@@ -237,7 +232,6 @@ class AnalyticsWorkflow:
             return []
     
     def get_all_analytics(self):
-        """Get all analytics"""
         try:
             response = self.session.get(f"{self.base_url}/analytics/get-all-analytics")
             if response.status_code == 200:
@@ -252,7 +246,6 @@ class AnalyticsWorkflow:
             return []
 
 def main():
-    """Main workflow function"""
     print("=" * 60)
     print("FORENLYTIC ANALYTICS WORKFLOW")
     print("=" * 60)

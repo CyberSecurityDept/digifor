@@ -242,12 +242,17 @@ class UploadService:
                 except Exception as e:
                     pass  # Silent error handling
             
+            
+            # Initialize social media count
+            social_media_count = 0
+            
             # Calculate amount of data count
             amount_of_data_count = (
                 len(parsed_data.get("contacts", [])) +
                 len(parsed_data.get("messages", [])) +
                 len(parsed_data.get("calls", [])) +
-                hashfiles_count
+                hashfiles_count +
+                social_media_count
             )
 
             rel_path = os.path.relpath(original_path_abs, BASE_DIR)
@@ -271,6 +276,7 @@ class UploadService:
                 "messages_count": len(parsed_data.get("messages", [])),
                 "calls_count": len(parsed_data.get("calls", [])),
                 "hashfiles_count": hashfiles_count,
+                "social_media_count": social_media_count,
                 "amount_of_data_count": amount_of_data_count,
                 "parsing_success": "error" not in parsed_data
             }
@@ -300,9 +306,30 @@ class UploadService:
                 except Exception as e:
                     parsing_result["hashfiles_save_error"] = str(e)
             
-            # UNTUK PARSING SOCIAL MEDIA
-            if tools.lower() == "oxygen":
-                sm_parser.parse_oxygen_social_media(original_path_abs, device_id, file_record.id)
+            # Parse social media files
+            is_social_media = (
+                "social" in file_name.lower() or
+                "instagram" in file_name.lower() or
+                "facebook" in file_name.lower() or
+                "whatsapp" in file_name.lower() or
+                "telegram" in file_name.lower() or
+                "twitter" in file_name.lower() or
+                "x" in file_name.lower() or
+                "tiktok" in file_name.lower() or
+                ('axiom' in file_name.lower() and file_name.lower().endswith('.xlsx')) or
+                ('cellebrite' in file_name.lower() and file_name.lower().endswith('.xlsx')) or
+                ('oxygen' in file_name.lower() and file_name.lower().endswith('.xls'))
+            )
+            
+            social_media_count = 0
+            if is_social_media:
+                try:
+                    social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, device_id, file_record.id)
+                    if social_media_result:
+                        social_media_count = len(social_media_result)
+                        parsing_result["social_media_count"] = social_media_count
+                except Exception as e:
+                    pass  # Silent error handling
 
             # UNTUK PARSING DEEP COMMUNICATION AXIOM 
             if tools.lower() == "axiom":

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.utils.timezone import get_indonesia_time
@@ -145,13 +145,43 @@ class SocialMedia(Base):
     __tablename__ = "social_media"
 
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(String, nullable=True)
-    account_name = Column(Text, nullable=True)
-    account_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=get_indonesia_time)
-    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    
+    # Basic account info
+    platform = Column(String, nullable=True)
+    account_name = Column(Text, nullable=True)
+    account_id = Column(String, nullable=True)  # Platform-specific ID
+    user_id = Column(String, nullable=True)  # Numeric user ID
+    full_name = Column(Text, nullable=True)  # Full name
+    
+    # Social metrics
+    following = Column(Integer, nullable=True)  # Number of people following
+    followers = Column(Integer, nullable=True)  # Number of followers
+    friends = Column(Integer, nullable=True)  # Number of friends (Twitter)
+    statuses = Column(Integer, nullable=True)  # Number of posts/tweets
+    
+    # Contact info
+    phone_number = Column(String, nullable=True)  # Phone number
+    email = Column(String, nullable=True)  # Email address
+    
+    # Profile info
+    biography = Column(Text, nullable=True)  # Bio/description
+    profile_picture_url = Column(Text, nullable=True)  # Profile picture URL
+    is_private = Column(Boolean, nullable=True)  # Private account flag
+    is_local_user = Column(Boolean, nullable=True)  # Local user flag
+    
+    # Activity info
+    chat_content = Column(Text, nullable=True)  # Chat/message content
+    last_message = Column(Text, nullable=True)  # Last message content
+    last_seen = Column(DateTime, nullable=True)  # Last seen timestamp
+    
+    # Additional data
+    other_info = Column(Text, nullable=True)  # Other platform-specific data
+    source_tool = Column(String, nullable=True)  # Tool used (Oxygen, Cellebrite, Axiom)
+    
+    created_at = Column(DateTime, default=get_indonesia_time)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
     device = relationship("Device", back_populates="social_media")
     file = relationship("File", back_populates="social_media")

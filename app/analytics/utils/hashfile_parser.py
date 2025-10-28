@@ -4,6 +4,8 @@ import re
 import csv
 import xml.etree.ElementTree as ET
 import warnings
+import platform
+import os
 from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
 from datetime import datetime
@@ -108,7 +110,6 @@ class HashFileParser:
             return HashFileFormat.AUTOMATIC
     
     def _detect_format_from_name(self, format_name: str) -> HashFileFormat:
-        """Detect format dari nama yang diberikan"""
         format_lower = format_name.lower()
         
         if 'encase' in format_lower:
@@ -129,7 +130,6 @@ class HashFileParser:
             return HashFileFormat.AUTOMATIC
     
     def _parse_encase_txt(self, file_path: Path) -> Dict[str, Any]:
-        """Parse Encase hashfile format (.txt)"""
         hashfiles = []
         
         try:
@@ -195,7 +195,6 @@ class HashFileParser:
         }
     
     def _parse_encase_xml(self, file_path: Path) -> Dict[str, Any]:
-        """Parse Encase hashfile format (.xml)"""
         hashfiles = []
         
         try:
@@ -230,7 +229,6 @@ class HashFileParser:
         }
     
     def _parse_magnet_axiom_csv(self, file_path: Path) -> Dict[str, Any]:
-        """Parse Magnet Axiom hashfile format (.csv)"""
         hashfiles = []
         
         try:
@@ -330,12 +328,10 @@ class HashFileParser:
         }
     
     def _parse_celebrate_xlsx(self, file_path: Path) -> Dict[str, Any]:
-        """Parse Cellebrite hashfile format (.xlsx)"""
         hashfiles = []
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -405,12 +401,9 @@ class HashFileParser:
         }
     
     def _parse_oxygen_xls(self, file_path: Path) -> Dict[str, Any]:
-        """Parse Oxygen Forensics hashfile format (.xls)"""
         hashfiles = []
         
         try:
-            # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -653,9 +646,6 @@ class HashFileParser:
             return None
     
     def _get_full_original_path(self, file_path: Path) -> str:
-        import platform
-        import os
-        
         if not file_path.exists():
             return str(file_path)
         

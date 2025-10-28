@@ -47,7 +47,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -74,7 +73,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -97,7 +95,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -120,7 +117,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -143,7 +139,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -167,7 +162,6 @@ class ContactParser:
         
         try:
             # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-            import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                 warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
@@ -230,7 +224,6 @@ class ContactParser:
             else:
                 # Handle Excel files
                 # Suppress OLE2 warnings untuk file Excel yang mungkin memiliki struktur tidak konsisten
-                import warnings
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
                     warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")

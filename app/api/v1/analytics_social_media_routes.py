@@ -43,7 +43,9 @@ def social_media_correlation(
             status_code=404
         )
 
-    device_ids = [link.device_id for link in device_links]
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
     devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
 
     if not devices:
