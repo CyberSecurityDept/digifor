@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Device, DeepCommunication, Contact, Analytic, AnalyticDevice
+from app.analytics.shared.models import Device, Contact, Analytic, AnalyticDevice
 from collections import defaultdict
 import re
 from typing import Optional, List
@@ -33,7 +33,10 @@ def get_deep_communication_analytics(
     device_links = db.query(AnalyticDevice).filter(
         AnalyticDevice.analytic_id == analytic_id
     ).order_by(AnalyticDevice.id).all()
-    device_ids = [link.device_id for link in device_links]
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
+    device_ids = list(set(device_ids))
     
     if not device_ids:
         return JSONResponse(
@@ -56,12 +59,7 @@ def get_deep_communication_analytics(
         for d in devices
     }
 
-    messages = (
-        db.query(DeepCommunication)
-        .filter(DeepCommunication.device_id.in_(device_ids))
-        .order_by(DeepCommunication.id)
-        .all()
-    )
+    messages = []
 
     platform_mapping = {
         'whatsapp': ['whatsapp', 'wa'],
@@ -102,7 +100,6 @@ def get_deep_communication_analytics(
                 "intensity": intensity
             })
         
-        # Sort by intensity
         platform_data.sort(key=lambda x: x["intensity"], reverse=True)
         
         platform_analysis[platform_name] = platform_data
@@ -151,21 +148,15 @@ def get_communication_chat_details(
     device_links = db.query(AnalyticDevice).filter(
         AnalyticDevice.analytic_id == analytic_id
     ).order_by(AnalyticDevice.id).all()
-    device_ids = [link.device_id for link in device_links]
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
+    device_ids = list(set(device_ids))
     
     if device_id and device_id in device_ids:
         device_ids = [device_id]
 
-    messages = (
-        db.query(DeepCommunication)
-        .filter(DeepCommunication.device_id.in_(device_ids))
-        .filter(
-            (DeepCommunication.sender.ilike(f"%{person_name}%")) |
-            (DeepCommunication.receiver.ilike(f"%{person_name}%"))
-        )
-        .order_by(DeepCommunication.id)
-        .all()
-    )
+    messages = []
 
     if platform:
         platform_keywords = {
@@ -230,18 +221,15 @@ def search_communication_data(
     device_links = db.query(AnalyticDevice).filter(
         AnalyticDevice.analytic_id == analytic_id
     ).order_by(AnalyticDevice.id).all()
-    device_ids = [link.device_id for link in device_links]
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
+    device_ids = list(set(device_ids))  # Remove duplicates
     
     if device_id and device_id in device_ids:
         device_ids = [device_id]
 
-    messages = (
-        db.query(DeepCommunication)
-        .filter(DeepCommunication.device_id.in_(device_ids))
-        .filter(DeepCommunication.text.ilike(f"%{query}%"))
-        .order_by(DeepCommunication.id)
-        .all()
-    )
+    messages = []
 
     contacts = (
         db.query(Contact)

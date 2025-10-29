@@ -7,7 +7,6 @@ from app.analytics.shared.models import File
 from app.analytics.device_management.service import create_device
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 from app.analytics.utils.tools_parser import tools_parser
-from app.analytics.utils.hashfile_parser import hashfile_parser
 from app.analytics.utils.performance_optimizer import performance_optimizer
 from app.analytics.device_management.service import save_hashfiles_to_database
 from app.db.session import get_db
@@ -16,11 +15,9 @@ import tempfile
 import time
 from datetime import datetime
 from app.analytics.utils.social_media_parser import SocialMediaParser
-from app.analytics.utils.deep_communication_axiom_parser import DeepCommunicationParser
 
 sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
-dc_parser = DeepCommunicationParser(db=sm_db)
 
 BASE_DIR = os.getcwd()
 UPLOAD_DIR = settings.UPLOAD_DIR
@@ -50,7 +47,6 @@ def encrypt_and_store_file(file: UploadFile, file_bytes: bytes, public_key_path:
     encrypted_filename = f"{base_filename}.sdp"
     encrypted_path = os.path.join(ENCRYPTED_DIR, encrypted_filename)
 
-    # Determine file extension based on original file
     file_extension = Path(file.filename).suffix.lower()
     if file_extension == '.csv':
         suffix = '.csv'
@@ -155,6 +151,7 @@ class UploadService:
         type: str,
         tools: str,
         file_bytes: bytes,
+        method: str = None,
     ):
         start_time = time.time()
         if upload_id in self._progress and not self._progress[upload_id].get("done"):
@@ -216,11 +213,9 @@ class UploadService:
 
             parsed_data = tools_parser.parse_file(Path(original_path_abs), tools)
             
-            # Parse hashfile if it's a hashfile
             hashfiles_data = []
             hashfiles_count = 0
             
-            # Detect hashfile based on file extension and content
             is_hashfile = (
                 "hashfile" in file_name.lower() or 
                 "hash" in file_name.lower() or
@@ -233,80 +228,16 @@ class UploadService:
             
             if is_hashfile:
                 try:
-                    hashfile_result = hashfile_parser.parse_hashfile(Path(original_path_abs), tools)
+                    hashfile_result = {"hashfiles": []}
                     if "error" not in hashfile_result:
                         hashfiles_data = hashfile_result.get("hashfiles", [])
                         hashfiles_count = len(hashfiles_data)
                     else:
-                        pass  # Silent error handling
+                        pass
                 except Exception as e:
-                    pass  # Silent error handling
+                    pass
             
             
-            # Initialize social media count
-            social_media_count = 0
-            
-            # Calculate amount of data count
-            amount_of_data_count = (
-                len(parsed_data.get("contacts", [])) +
-                len(parsed_data.get("messages", [])) +
-                len(parsed_data.get("calls", [])) +
-                hashfiles_count +
-                social_media_count
-            )
-
-            rel_path = os.path.relpath(original_path_abs, BASE_DIR)
-            db = next(get_db())
-            file_record = File(
-                file_name=file_name,
-                file_path=rel_path,
-                notes=notes,
-                type=type,
-                tools=tools,
-                total_size=total_size,
-                amount_of_data=amount_of_data_count,
-            )
-            db.add(file_record)
-            db.commit()
-            db.refresh(file_record)
-            
-            parsing_result = {
-                "tool_used": parsed_data.get("tool", tools),
-                "contacts_count": len(parsed_data.get("contacts", [])),
-                "messages_count": len(parsed_data.get("messages", [])),
-                "calls_count": len(parsed_data.get("calls", [])),
-                "hashfiles_count": hashfiles_count,
-                "social_media_count": social_media_count,
-                "amount_of_data_count": amount_of_data_count,
-                "parsing_success": "error" not in parsed_data
-            }
-
-            if "error" in parsed_data:
-                parsing_result["parsing_error"] = parsed_data["error"]
-                parsing_result["fallback_used"] = "fallback" in parsed_data
-
-            device_data = {
-                "owner_name": "Temporary",
-                "phone_number": "Temporary",
-                "file_id": file_record.id
-            }
-            
-            device_id = create_device(
-                device_data=device_data,
-                contacts=parsed_data.get("contacts", []),
-                messages=parsed_data.get("messages", []),
-                calls=parsed_data.get("calls", [])
-            )
-            
-            # Save hashfiles to database if any were parsed
-            if hashfiles_data:
-                try:
-                    saved_hashfiles = save_hashfiles_to_database(device_id, file_record.id, hashfiles_data, tools)
-                    parsing_result["hashfiles_saved"] = saved_hashfiles
-                except Exception as e:
-                    parsing_result["hashfiles_save_error"] = str(e)
-            
-            # Parse social media files
             is_social_media = (
                 "social" in file_name.lower() or
                 "instagram" in file_name.lower() or
@@ -320,20 +251,251 @@ class UploadService:
                 ('cellebrite' in file_name.lower() and file_name.lower().endswith('.xlsx')) or
                 ('oxygen' in file_name.lower() and file_name.lower().endswith('.xls'))
             )
-            
             social_media_count = 0
             if is_social_media:
                 try:
-                    social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, device_id, file_record.id)
-                    if social_media_result:
-                        social_media_count = len(social_media_result)
-                        parsing_result["social_media_count"] = social_media_count
+                    if tools.lower() in ['axiom', 'magnet axiom']:
+                        social_media_count = sm_parser.count_axiom_social_media(original_path_abs)
+                    elif tools.lower() == 'cellebrite':
+                        social_media_count = sm_parser.count_cellebrite_social_media(original_path_abs)
+                    else:
+                        social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, 1, 1)
+                        social_media_count = len(social_media_result) if social_media_result else 0
                 except Exception as e:
-                    pass  # Silent error handling
+                    pass
 
-            # UNTUK PARSING DEEP COMMUNICATION AXIOM 
-            if tools.lower() == "axiom":
-                dc_parser.parse_axiom_deep_communication(original_path_abs, device_id, file_record.id)
+            rel_path = os.path.relpath(original_path_abs, BASE_DIR)
+            db = next(get_db())
+            file_record = File(
+                file_name=file_name,
+                file_path=rel_path,
+                file_encrypted=encrypted_path,
+                notes=notes,
+                type=type,
+                tools=tools,
+                method=method,
+                total_size=total_size,
+                amount_of_data=0,
+            )
+            db.add(file_record)
+            db.commit()
+            db.refresh(file_record)
+            
+            parsing_result = {
+                "tool_used": parsed_data.get("tool", tools),
+                "contacts_count": len(parsed_data.get("contacts", [])),
+                "messages_count": len(parsed_data.get("messages", [])),
+                "calls_count": len(parsed_data.get("calls", [])),
+                "hashfiles_count": hashfiles_count,
+                "social_media_count": social_media_count,
+                "parsing_success": "error" not in parsed_data
+            }
+
+            if "error" in parsed_data:
+                parsing_result["parsing_error"] = parsed_data["error"]
+                parsing_result["fallback_used"] = "fallback" in parsed_data
+
+            print(f"Parsing data with file_id only (no device_id needed)")
+            
+            if hashfiles_data:
+                try:
+                    saved_hashfiles = save_hashfiles_to_database(file_record.id, hashfiles_data, tools)
+                    parsing_result["hashfiles_saved"] = saved_hashfiles
+                except Exception as e:
+                    parsing_result["hashfiles_save_error"] = str(e)
+
+            if method == "Social Media Correlation":
+                try:
+                    if tools == "Magnet Axiom":
+                        social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
+                    elif tools == "Cellebrite":
+                        social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
+                    elif tools == "Oxygen":
+                        try:
+                            import pandas as pd
+                            xls = pd.ExcelFile(original_path_abs, engine='xlrd')
+                            if 'Contacts ' in xls.sheet_names and 'Instagram ' in xls.sheet_names:
+                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
+                            else:
+                                social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                        except Exception as e:
+                            print(f"Error determining Oxygen format: {e}")
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                    else:
+                        social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                    
+                    if social_media_result:
+                        parsing_result["social_media_count"] = len(social_media_result)
+                except Exception as e:
+                    print(f"Error parsing social media: {e}")
+                    parsing_result["social_media_error"] = str(e)
+            
+            elif method == "Deep communication analytics":
+                try:
+                    if tools == "Magnet Axiom":
+                        chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                    elif tools == "Cellebrite":
+                        chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                    elif tools == "Oxygen":
+                        chat_messages_result = []
+                    else:
+                        chat_messages_result = []
+                    
+                    if chat_messages_result:
+                        parsing_result["chat_messages_count"] = len(chat_messages_result)
+                except Exception as e:
+                    print(f"Error parsing chat messages: {e}")
+                    parsing_result["chat_messages_error"] = str(e)
+            
+            elif method == "Contact Correlation":
+                try:
+                    from app.analytics.utils.contact_parser import ContactParser
+                    contact_parser = ContactParser(db=sm_db)
+                    
+                    if tools == "Magnet Axiom":
+                        contacts_result = contact_parser.parse_axiom_contacts(original_path_abs, file_record.id)
+                        calls_result = contact_parser.parse_axiom_calls(original_path_abs, file_record.id)
+                    elif tools == "Cellebrite":
+                        contacts_result = contact_parser.parse_cellebrite_contacts(original_path_abs, file_record.id)
+                        calls_result = contact_parser.parse_cellebrite_calls(original_path_abs, file_record.id)
+                    elif tools == "Oxygen":
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                    else:
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                    
+                    if contacts_result:
+                        parsing_result["contacts_count"] = len(contacts_result)
+                    if calls_result:
+                        parsing_result["calls_count"] = len(calls_result)
+                except Exception as e:
+                    print(f"Error parsing contacts/calls: {e}")
+                    parsing_result["contacts_calls_error"] = str(e)
+            
+            elif method == "Hashfile Analytics":
+                try:
+                    from app.analytics.utils.hashfile_parser import HashFileParser
+                    hashfile_parser_instance = HashFileParser(db=sm_db)
+                    
+                    is_sample_file = any(pattern in original_filename.lower() for pattern in [
+                        'oxygen', 'cellebrite', 'magnet axiom', 'encase', 'hashfile'
+                    ])
+                    
+                    if is_sample_file:
+                        original_file_path = os.path.abspath(os.path.join(os.getcwd(), 'sample_hashfile', original_filename))
+                    else:
+                        original_file_path = original_path_abs
+                    
+                    hashfiles_result = hashfile_parser_instance.parse_hashfile(original_path_abs, file_record.id, tools, original_file_path)
+                    
+                    if hashfiles_result:
+                        parsing_result["hashfiles_count"] = len(hashfiles_result)
+                except Exception as e:
+                    print(f"Error parsing hashfiles: {e}")
+                    parsing_result["hashfiles_error"] = str(e)
+            
+            else:
+                if is_social_media:
+                    try:
+                        if tools == "Magnet Axiom":
+                            social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
+                            chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                        elif tools == "Cellebrite":
+                            social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
+                            chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                        elif tools == "Oxygen":
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                        else:  # Default to Encase parser
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                        
+                        if social_media_result:
+                            parsing_result["social_media_count"] = len(social_media_result)
+                        if chat_messages_result:
+                            parsing_result["chat_messages_count"] = len(chat_messages_result)
+                    except Exception as e:
+                        print(f"Error parsing social media/chat: {e}")
+                        parsing_result["social_media_error"] = str(e)
+
+            # Note: DeepCommunication parsing has been moved to social media parser
+            # Chat messages are now handled by parse_axiom_chat_messages above
+
+            # Calculate actual counts from database first
+            from app.analytics.device_management.models import SocialMedia, Contact, Call, HashFile, ChatMessage
+            
+            actual_social_media_count = db.query(SocialMedia).filter(SocialMedia.file_id == file_record.id).count()
+            actual_contacts_count = db.query(Contact).filter(Contact.file_id == file_record.id).count()
+            actual_calls_count = db.query(Call).filter(Call.file_id == file_record.id).count()
+            actual_hashfiles_count = db.query(HashFile).filter(HashFile.file_id == file_record.id).count()
+            actual_chat_messages_count = db.query(ChatMessage).filter(ChatMessage.file_id == file_record.id).count()
+            
+            actual_amount_of_data = actual_social_media_count + actual_contacts_count + actual_calls_count + actual_hashfiles_count + actual_chat_messages_count
+            
+            # Update file record with actual amount_of_data from database
+            file_record.amount_of_data = actual_amount_of_data
+            db.commit()
+            
+            print(f"Updated amount_of_data to {actual_amount_of_data} (Social Media: {actual_social_media_count}, Contacts: {actual_contacts_count}, Calls: {actual_calls_count}, Hash Files: {actual_hashfiles_count}, Chat Messages: {actual_chat_messages_count})")
+            
+            # Calculate amount_of_data_count based on method-based parsing results
+            amount_of_data_count = (
+                parsing_result.get("contacts_count", 0) +
+                parsing_result.get("messages_count", 0) +
+                parsing_result.get("calls_count", 0) +
+                parsing_result.get("hashfiles_count", 0) +
+                parsing_result.get("social_media_count", 0) +
+                parsing_result.get("chat_messages_count", 0)
+            )
+            
+            # Clean parsing_result based on method - only show relevant data
+            if method == "Social Media Correlation":
+                # Only show social media related data
+                cleaned_parsing_result = {
+                    "tool_used": parsing_result.get("tool_used"),
+                    "social_media_count": actual_social_media_count,
+                    "parsing_success": parsing_result.get("parsing_success", True),
+                    "amount_of_data_count": actual_social_media_count
+                }
+                if "social_media_error" in parsing_result:
+                    cleaned_parsing_result["parsing_error"] = parsing_result["social_media_error"]
+            elif method == "Contact Correlation":
+                # Only show contact and call related data
+                cleaned_parsing_result = {
+                    "tool_used": parsing_result.get("tool_used"),
+                    "contacts_count": actual_contacts_count,
+                    "calls_count": actual_calls_count,
+                    "parsing_success": parsing_result.get("parsing_success", True),
+                    "amount_of_data_count": actual_contacts_count + actual_calls_count
+                }
+                if "contacts_calls_error" in parsing_result:
+                    cleaned_parsing_result["parsing_error"] = parsing_result["contacts_calls_error"]
+            elif method == "Hashfile Analytics":
+                # Only show hashfile related data
+                cleaned_parsing_result = {
+                    "tool_used": parsing_result.get("tool_used"),
+                    "hashfiles_count": actual_hashfiles_count,
+                    "parsing_success": parsing_result.get("parsing_success", True),
+                    "amount_of_data_count": actual_hashfiles_count
+                }
+                if "hashfiles_error" in parsing_result:
+                    cleaned_parsing_result["parsing_error"] = parsing_result["hashfiles_error"]
+            elif method == "Deep communication analytics":
+                # Only show chat messages related data
+                cleaned_parsing_result = {
+                    "tool_used": parsing_result.get("tool_used"),
+                    "chat_messages_count": actual_chat_messages_count,
+                    "parsing_success": parsing_result.get("parsing_success", True),
+                    "amount_of_data_count": actual_chat_messages_count
+                }
+                if "chat_messages_error" in parsing_result:
+                    cleaned_parsing_result["parsing_error"] = parsing_result["chat_messages_error"]
+            else:
+                # Default: show all data
+                cleaned_parsing_result = parsing_result.copy()
+                cleaned_parsing_result["amount_of_data_count"] = amount_of_data_count
+            
+            # Update parsing_result with cleaned version
+            parsing_result = cleaned_parsing_result
 
             self._progress[upload_id].update({
                 "percent": 100,
@@ -354,7 +516,6 @@ class UploadService:
                 )
                 response_data["data"].update({
                     "file_id": file_record.id,
-                    "device_id": device_id,
                     "upload_id": upload_id,
                     "percentage": 100,
                     "progress_size": format_bytes(total_size),
@@ -370,7 +531,6 @@ class UploadService:
                     "message": "File uploaded, encrypted & parsed successfully",
                     "data": {
                         "file_id": file_record.id,
-                        "device_id": device_id,
                         "upload_id": upload_id,
                         "percentage": 100,
                         "progress_size": format_bytes(total_size),
@@ -380,7 +540,6 @@ class UploadService:
                         "parsing_result": parsing_result
                     },
                 }
-            
             return response_data
 
         except Exception as e:
@@ -439,13 +598,23 @@ class UploadService:
                     "file_id": file_id
                 }
                 
-                device_id = create_device(
-                    device_data=device_data,
-                    contacts=parsed_data.get("contacts", []),
-                    messages=parsed_data.get("messages", []),
-                    calls=parsed_data.get("calls", []),
-                    existing_device_id=device_id
+                # Create device in the same session as the parser
+                from app.analytics.device_management.models import Device
+                from app.utils.timezone import get_indonesia_time
+                
+                device = Device(
+                    owner_name=device_data.get("owner_name"),
+                    phone_number=device_data.get("phone_number"),
+                    file_id=device_data.get("file_id"),
+                    created_at=get_indonesia_time(),
                 )
+                
+                sm_db.add(device)
+                sm_db.commit()
+                sm_db.refresh(device)
+                device_id = device.id
+                
+                print(f"Created device ID {device_id} in same session as parser")
             else:
                 device_data = {
                     "owner_name": owner_name,
@@ -527,6 +696,7 @@ class UploadService:
         type:str,
         tools: str,
         file_bytes: bytes,
+        method: str = None,
     ):
         APK_DIR = os.path.join(APK_DIR_BASE, "apk")
         os.makedirs(APK_DIR, exist_ok=True)
@@ -574,6 +744,7 @@ class UploadService:
                 notes=notes,
                 type=type,
                 tools=tools,
+                method=method,
             )
             db.add(file_record)
             db.commit()

@@ -16,7 +16,6 @@ from app.case_management.models import CaseLog, Case
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
 
 router = APIRouter(prefix="/evidence", tags=["Evidence Management"])
@@ -90,7 +89,6 @@ async def get_evidence(
         "message": "Evidence retrieved successfully",
         "data": {"id": evidence_id}
     }
-
 
 @router.post("/{evidence_id}/custody-events")
 async def log_custody_event(

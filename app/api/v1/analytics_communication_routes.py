@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Device, DeepCommunication, AnalyticDevice, Analytic
+from app.analytics.shared.models import Device, AnalyticDevice, Analytic
+from app.analytics.device_management.models import ChatMessage
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
 
 router = APIRouter()
@@ -31,12 +32,16 @@ def get_deep_communication_by_analytic(
             status_code=404
         )
 
-    devices = (
-        db.query(Device)
-        .join(AnalyticDevice, Device.id == AnalyticDevice.device_id)
-        .filter(AnalyticDevice.analytic_id == analytic_id)
-        .all()
-    )
+    device_links = db.query(AnalyticDevice).filter(
+        AnalyticDevice.analytic_id == analytic_id
+    ).all()
+    
+    device_ids = []
+    for link in device_links:
+        device_ids.extend(link.device_ids)
+    device_ids = list(set(device_ids))
+    
+    devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
 
     if not devices:
         return JSONResponse(
@@ -63,24 +68,22 @@ def get_deep_communication_by_analytic(
             "phone_number": device.phone_number,
         })
 
-        # Ambil semua platform yang digunakan oleh device
         platforms = (
-            db.query(DeepCommunication.source)
-            .filter(DeepCommunication.device_id == device.id)
+            db.query(ChatMessage.platform)
+            .filter(ChatMessage.device_id == device.id)
             .distinct()
             .all()
         )
-        platforms = [p[0] for p in platforms if p[0] in ALLOWED_SOURCES]
+        platforms = [p[0] for p in platforms if p[0]]
 
-        # Pastikan semua platform tetap tampil walau kosong
         platform_map = {normalize_platform_name(p): [] for p in ALLOWED_SOURCES}
 
         for plat in platforms:
             plat_key = normalize_platform_name(plat)
             thread_ids = (
-                db.query(DeepCommunication.thread_id)
-                .filter(DeepCommunication.device_id == device.id)
-                .filter(DeepCommunication.source == plat)
+                db.query(ChatMessage.thread_id)
+                .filter(ChatMessage.device_id == device.id)
+                .filter(ChatMessage.platform == plat)
                 .distinct()
                 .all()
             )
@@ -91,29 +94,27 @@ def get_deep_communication_by_analytic(
             for tid in thread_ids:
                 msgs = (
                     db.query(
-                        DeepCommunication.direction,
-                        DeepCommunication.sender,
-                        DeepCommunication.receiver,
-                        DeepCommunication.timestamp,
-                        DeepCommunication.source.label("platform")
+                        ChatMessage.direction,
+                        ChatMessage.sender_name.label("sender"),
+                        ChatMessage.receiver_name.label("receiver"),
+                        ChatMessage.timestamp,
+                        ChatMessage.platform.label("platform")
                     )
-                    .filter(DeepCommunication.device_id == device.id)
-                    .filter(DeepCommunication.thread_id == tid)
-                    .filter(DeepCommunication.source == plat)
+                    .filter(ChatMessage.device_id == device.id)
+                    .filter(ChatMessage.thread_id == tid)
+                    .filter(ChatMessage.platform == plat)
                     .all()
                 )
 
                 if not msgs:
                     continue
 
-                # Skip thread kalau semua pesan Outgoing
                 has_incoming = any(
                     (m.direction or "").lower().startswith("in") for m in msgs
                 )
                 if not has_incoming:
                     continue
 
-                # Ambil incoming pertama buat identifikasi peer
                 incoming_msg = next(
                     (m for m in msgs if (m.direction or "").lower().startswith("in")), None
                 )
@@ -185,18 +186,18 @@ def get_thread_messages(
 
     messages = (
         db.query(
-            DeepCommunication.id,
-            DeepCommunication.timestamp,
-            DeepCommunication.direction,
-            DeepCommunication.sender,
-            DeepCommunication.receiver,
-            DeepCommunication.text,
-            DeepCommunication.type,
-            DeepCommunication.source
+            ChatMessage.id,
+            ChatMessage.timestamp,
+            ChatMessage.direction,
+            ChatMessage.sender_name.label("sender"),
+            ChatMessage.receiver_name.label("receiver"),
+            ChatMessage.message_text.label("text"),
+            ChatMessage.message_type.label("type"),
+            ChatMessage.platform.label("source")
         )
-        .filter(DeepCommunication.device_id == device.id)
-        .filter(DeepCommunication.thread_id == thread_id)
-        .order_by(DeepCommunication.id.asc())
+        .filter(ChatMessage.device_id == device.id)
+        .filter(ChatMessage.thread_id == thread_id)
+        .order_by(ChatMessage.id.asc())
         .all()
     )
 

@@ -21,15 +21,14 @@ async def upload_data(
     notes: str = Form(...),
     type: str = Form(...),
     tools: str = Form(...),
+    method: str = Form(None),
 ):
     try:
         if not file.filename:
             return JSONResponse({"status": 400, "message": "File name is required"}, status_code=400)
 
-        # Validate file extension based on type
         file_extension = file.filename.lower().split('.')[-1] if '.' in file.filename else ""
         
-        # Define allowed extensions for each type
         allowed_extensions = {
             "Handphone": ["xlsx", "xls", "csv", "txt", "xml", "apk", "ipa"],
             "SSD": ["xlsx", "xls", "csv", "txt", "xml"],
@@ -44,6 +43,29 @@ async def upload_data(
         
         if file_extension not in allowed_extensions[type]:
             return JSONResponse({"status": 400, "message": f"Invalid file extension for type '{type}'. Allowed: {allowed_extensions[type]}"}, status_code=400)
+
+        valid_methods = [
+            "Deep communication analytics",
+            "Social Media Correlation", 
+            "Contact Correlation",
+            "Hashfile Analytics"
+        ]
+        
+        if not method or method.strip() == "":
+            return JSONResponse({"status": 400, "message": "Method parameter is required and cannot be empty"}, status_code=400)
+        
+        if method not in valid_methods:
+            return JSONResponse({"status": 400, "message": f"Invalid method. Must be one of: {valid_methods}"}, status_code=400)
+
+        valid_tools = [
+            "Magnet Axiom",
+            "Cellebrite", 
+            "Oxygen",
+            "Encase"
+        ]
+        
+        if tools and tools not in valid_tools:
+            return JSONResponse({"status": 400, "message": f"Invalid tools. Must be one of: {valid_tools}"}, status_code=400)
 
         file_bytes = await file.read()
 
@@ -60,6 +82,7 @@ async def upload_data(
                 type=type,
                 tools=tools,
                 file_bytes=file_bytes,
+                method=method,
             )
         else:
             resp = await upload_service.start_file_upload(
@@ -70,6 +93,7 @@ async def upload_data(
                 type=type,
                 tools=tools,
                 file_bytes=file_bytes,
+                method=method,
             )
 
         return JSONResponse(resp, status_code=resp.get("status", 200))

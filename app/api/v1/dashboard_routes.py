@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-
 @router.get("/landing")
 async def get_landing_page():
     return {

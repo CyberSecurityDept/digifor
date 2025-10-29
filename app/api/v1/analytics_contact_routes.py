@@ -36,7 +36,6 @@ def get_contact_correlation(
     if not analytic:
         raise HTTPException(status_code=404, detail="Analytic not found")
     
-    # Check if analytic type is "Contact Correlation"
     if analytic.type != "Contact Correlation":
         return JSONResponse(
             content={
@@ -51,11 +50,10 @@ def get_contact_correlation(
         AnalyticDevice.analytic_id == analytic_id
     ).order_by(AnalyticDevice.id).all()
 
-    # Extract device_ids from array field
     device_ids = []
     for link in device_links:
         device_ids.extend(link.device_ids)
-    device_ids = list(set(device_ids))  # Remove duplicates
+    device_ids = list(set(device_ids)) 
     if not device_ids:
         return JSONResponse(
             content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": []}},
@@ -167,7 +165,6 @@ def get_contact_correlation(
     if not correlations:
         correlations = []
 
-    # Get summary from analytics_history table based on id and type
     summary = analytic.summary if analytic.summary else None
 
     return JSONResponse(

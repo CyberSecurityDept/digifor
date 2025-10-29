@@ -12,7 +12,6 @@ def social_media_correlation(
     analytic_id: int,
     db: Session = Depends(get_db),
 ):
-    # --- Validasi Analytic ---
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         return JSONResponse(
@@ -20,7 +19,6 @@ def social_media_correlation(
             status_code=404
         )
     
-    # Check if analytic type is "Social Media Correlation"
     if analytic.type != "Social Media Correlation":
         return JSONResponse(
             content={
@@ -30,8 +28,6 @@ def social_media_correlation(
             },
             status_code=400,
         )
-
-    # --- Ambil semua device terkait analytic ---
     device_links = (
         db.query(AnalyticDevice)
         .filter(AnalyticDevice.analytic_id == analytic_id)
@@ -54,7 +50,6 @@ def social_media_correlation(
             status_code=404
         )
 
-    # --- Ambil semua akun sosial media dari devices itu ---
     social_accounts = (
         db.query(SocialMedia)
         .filter(SocialMedia.device_id.in_(device_ids))
@@ -67,12 +62,10 @@ def social_media_correlation(
             status_code=200
         )
 
-    # --- Analisis korelasi berdasarkan platform ---
     correlations = {}
     for platform in ["instagram", "facebook", "whatsapp", "tiktok", "telegram", "x"]:
         correlation = defaultdict(list)
 
-        # Ambil semua akun untuk platform ini
         platform_accounts = [a for a in social_accounts if (a.platform or "").lower() == platform]
 
         for acc in platform_accounts:
@@ -86,13 +79,12 @@ def social_media_correlation(
                 "account_id": acc.account_id,
             })
 
-        # --- Kelompokkan berdasarkan jumlah device yang punya akun yang sama ---
         grouped = defaultdict(list)
         for key, devs in correlation.items():
             unique_devs = {d["device_id"]: d for d in devs}
             count = len(unique_devs)
 
-            if count >= 2:  # hanya korelasi antar device
+            if count >= 2:
                 all_devices_complete = []
                 for device_id in device_ids:
                     if device_id in unique_devs:
@@ -101,7 +93,6 @@ def social_media_correlation(
                         all_devices_complete.append(None)
                 grouped[f"{count}_connections"].append(all_devices_complete)
 
-        # --- Siapkan hasil per platform ---
         buckets = []
         for label, dev_groups in sorted(
             grouped.items(), key=lambda x: int(x[0].split("_")[0]), reverse=True
@@ -113,7 +104,6 @@ def social_media_correlation(
 
         correlations[platform.capitalize()] = {"buckets": buckets}
 
-    # --- Siapkan data devices untuk frontend ---
     devices_data = [
         {
             "device_id": d.id,

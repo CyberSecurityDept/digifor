@@ -5,7 +5,7 @@ import warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.shared.models import Device, Contact, DeepCommunication, Call
+from app.analytics.shared.models import Device, Contact, Call
 
 # Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
@@ -108,20 +108,8 @@ def save_device(
                 last_time_contacted=None
             ))
 
-        # --- Messages ---
-        for m in messages:
-            db.add(DeepCommunication(
-                device_id=device.id,
-                direction=_to_str(m.get("Direction")),
-                source=_to_str(m.get("Source")),
-                type=_to_str(m.get("Type")),
-                timestamp=normalize_str(_to_str(m.get("Time stamp (UTC 0)"))),
-                text=_to_str(m.get("Text")),
-                sender=_to_str(m.get("From")),
-                receiver=_to_str(m.get("To")),
-                details=_to_str(m.get("Details")),
-                thread_id=normalize_str(_to_str(m.get("Thread id"))),
-            ))
+        # Note: DeepCommunication table has been removed, using ChatMessage instead
+        # Messages are now handled by the social media parser
 
         # --- Calls ---
         for c in calls:

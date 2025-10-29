@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session  # type: ignore
-from app.analytics.device_management.models import Device, File, Contact, DeepCommunication, Call, HashFile
+from app.analytics.device_management.models import Device, File, Contact, Call, HashFile, ChatMessage
 from app.db.init_db import SessionLocal
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
 from typing import List, Dict, Any
@@ -144,21 +144,6 @@ def create_device(
             ))
             saved_contacts += 1
 
-        for m in messages:
-            db.add(DeepCommunication(
-                device_id=device_id,
-                file_id=device_data.get("file_id"),
-                direction=_to_str(m.get("Direction")),
-                source=_to_str(m.get("Source")),
-                type=_to_str(m.get("Type")),
-                timestamp=normalize_str(_to_str(m.get("Time stamp (UTC 0)"))),
-                text=_to_str(m.get("Text")),
-                sender=_to_str(m.get("From")),
-                receiver=_to_str(m.get("To")),
-                details=_to_str(m.get("Details")),
-                thread_id=normalize_str(_to_str(m.get("Thread id"))),
-            ))
-
         for c in calls:
             db.add(Call(
                 device_id=device_id,
@@ -187,7 +172,8 @@ def get_device_by_id(db: Session, device_id: int):
     return db.query(Device).filter(Device.id == device_id).first()
 
 def get_device_messages(db: Session, device_id: int):
-    return db.query(DeepCommunication).filter(DeepCommunication.device_id == device_id).all()
+    # Note: DeepCommunication table has been removed, using ChatMessage instead
+    return db.query(ChatMessage).filter(ChatMessage.device_id == device_id).all()
 
 def get_device_contacts(db: Session, device_id: int):
     return db.query(Contact).filter(Contact.device_id == device_id).all()

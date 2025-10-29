@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session  # type: ignore
 from app.db.session import get_db
 from app.analytics.analytics_management.service import store_analytic, get_all_analytics
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
-from app.analytics.device_management.models import HashFile, DeepCommunication
+from app.analytics.device_management.models import HashFile
 from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List, Optional
 from pydantic import BaseModel  # type: ignore
@@ -39,7 +39,6 @@ def format_file_size(size_bytes):
 
 router = APIRouter()
 
-# Hashfile Analytics Router with separate tags
 hashfile_router = APIRouter(tags=["Hashfile Analytics"])
 
 @router.get("/analytics/get-all-analytic")
@@ -74,19 +73,24 @@ def create_analytic_with_devices(
 ):
     try:
         if not data.analytic_name.strip():
-            return {
-                "status": 400,
-                "message": "analytic_name wajib diisi",
-                "data": []
-            }
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "analytic_name wajib diisi",
+                    "data": []
+                },
+                status_code=400
+            )
 
-        # Validasi minimal 2 device
         if len(data.device_ids) < 2:
-            return {
-                "status": 400,
-                "message": "Minimal 2 device diperlukan untuk analisis",
-                "data": []
-            }
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Minimal 2 device diperlukan untuk analisis",
+                    "data": []
+                },
+                status_code=400
+            )
 
         valid_methods = [
             "Deep communication analytics",
@@ -97,24 +101,29 @@ def create_analytic_with_devices(
         ]
         
         if data.method not in valid_methods:
-            return {
-                "status": 400,
-                "message": f"Invalid method. Must be one of: {valid_methods}",
-                "data": []
-            }
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": f"Invalid method. Must be one of: {valid_methods}",
+                    "data": []
+                },
+                status_code=400
+            )
 
         existing_devices = db.query(Device).filter(Device.id.in_(data.device_ids)).all()
         existing_device_ids = [d.id for d in existing_devices]
         missing_device_ids = [did for did in data.device_ids if did not in existing_device_ids]
         
         if missing_device_ids:
-            return {
-                "status": 400,
-                "message": f"Devices not found: {missing_device_ids}",
-                "data": []
-            }
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": f"Devices not found: {missing_device_ids}",
+                    "data": []
+                },
+                status_code=400
+            )
 
-        # Create general analytic for all methods
         new_analytic = store_analytic(
             db=db,
             analytic_name=data.analytic_name,
@@ -276,7 +285,6 @@ def get_hashfile_analytics(
                 status_code=400,
             )
 
-        # Get devices info
         devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
         device_info = {
             d.id: {
@@ -288,7 +296,6 @@ def get_hashfile_analytics(
             for d in devices
         }
         
-        # Create device labels (Device A, Device B, etc.)
         device_labels = []
         for i, device in enumerate(devices):
             if i < 26:
@@ -305,7 +312,6 @@ def get_hashfile_analytics(
 
         hashfile_groups = {}
         for hashfile in hashfiles:
-            # Use MD5 hash as primary, fallback to SHA-1 if MD5 is empty
             hash_value = hashfile.md5_hash or hashfile.sha1_hash
             if hash_value:
                 if hash_value not in hashfile_groups:
@@ -323,7 +329,7 @@ def get_hashfile_analytics(
                         "source_type": hashfile.source_type,
                         "source_tool": hashfile.source_tool,
                         "devices": set(),
-                        "hashfile_records": []  # Store all hashfile records for this hash
+                        "hashfile_records": []
                     }
                 hashfile_groups[hash_value]["devices"].add(hashfile.device_id)
                 hashfile_groups[hash_value]["hashfile_records"].append(hashfile)
@@ -335,29 +341,25 @@ def get_hashfile_analytics(
 
         hashfile_list = []
         for hash_value, info in common_hashfiles.items():
-            # Get hashfile records for each device
             hashfile_records = info["hashfile_records"]
             device_hashfiles = {}
             
-            # Group hashfile records by device
             for record in hashfile_records:
                 device_hashfiles[record.device_id] = record
             
-            # Get the first record for general info (they should be similar)
             first_record = hashfile_records[0] if hashfile_records else None
             if not first_record:
                 continue
                 
-            # Format file size
             file_size_bytes = first_record.size_bytes or 0
             if file_size_bytes > 0:
                 formatted_size = f"{file_size_bytes:,}".replace(",", ".")
-                if file_size_bytes >= 1024 * 1024 * 1024:  # GB
+                if file_size_bytes >= 1024 * 1024 * 1024:
                     size_display = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
-                elif file_size_bytes >= 1024 * 1024:  # MB
-                    size_mb = file_size_bytes / (1000 * 1000)  # Use 1000 instead of 1024 for decimal MB
+                elif file_size_bytes >= 1024 * 1024:
+                    size_mb = file_size_bytes / (1000 * 1000)
                     size_display = f"{size_mb:.1f} MB"
-                elif file_size_bytes >= 1024:  # KB
+                elif file_size_bytes >= 1024:
                     size_display = f"{file_size_bytes / 1024:.1f} KB"
                 else:
                     size_display = f"{file_size_bytes} bytes"
@@ -365,7 +367,6 @@ def get_hashfile_analytics(
             else:
                 file_size_display = "Unknown size"
             
-            # Format timestamps
             if first_record.created_at:
                 created_at = first_record.created_at.strftime("%Y-%m-%dT%H:%M:%S")
             else:
@@ -375,23 +376,19 @@ def get_hashfile_analytics(
                 modified_at = first_record.updated_at.strftime("%Y-%m-%dT%H:%M:%S")
             else:
                 modified_at = "Unknown"
-            
-            # Get device labels for this hashfile
+
             device_labels_for_hashfile = []
             for i, device in enumerate(devices):
                 if device.id in info["devices"]:
                     device_labels_for_hashfile.append(device_labels[i])
             
-            # Get file name from path
             file_path = first_record.path_original or "Unknown"
             file_name = file_path.split('/')[-1] if '/' in file_path else file_path.split('\\')[-1] if '\\' in file_path else file_path
             
-            # Format file type
             file_type = first_record.file_type or "Unknown"
             if first_record.file_extension:
                 file_type = f"{file_type} ({first_record.file_extension.upper()})"
             
-            # Format general info
             general_info = {
                 "kind": first_record.kind or "Unknown",
                 "size": file_size_display,
@@ -416,10 +413,8 @@ def get_hashfile_analytics(
             
             hashfile_list.append(hashfile_data)
 
-        # Sort by device count (most common first) - sesuai dengan "daftar teratas merupakan hashfile yang paling banyak ditemui di banyak device"
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
 
-        # Create devices list with labels
         devices_list = []
         for i, device in enumerate(devices):
             devices_list.append({
@@ -428,7 +423,6 @@ def get_hashfile_analytics(
                 "phone_number": device.phone_number
             })
 
-        # Get summary from analytics_history table based on id and type
         summary = analytic.summary if analytic.summary else None
 
         return JSONResponse(
@@ -468,14 +462,16 @@ def export_analytics_pdf(
             AnalyticDevice.analytic_id == analytic_id
         ).order_by(AnalyticDevice.id).all()
 
-        device_ids = [link.device_id for link in device_links]
+        device_ids = []
+        for link in device_links:
+            device_ids.extend(link.device_ids)
+        device_ids = list(set(device_ids))
         if not device_ids:
             return JSONResponse(
                 content={"status": 400, "message": "No devices linked to this analytic", "data": None},
                 status_code=400,
             )
 
-        # Determine export type based on analytic method
         method = analytic.method or analytic.type or "Unknown"
         
         if "Contact" in method or "contact" in method.lower():
@@ -587,9 +583,6 @@ def _export_contact_correlation_pdf(analytic, device_ids, db):
         }
     )
 
-
-
-
 def _export_apk_analytics_pdf(analytic, device_ids, db):
     """Export APK Analytics PDF"""
     
@@ -609,13 +602,8 @@ def _export_apk_analytics_pdf(analytic, device_ids, db):
         }
     )
 
-
 def _export_communication_analytics_pdf(analytic, device_ids, db):
-    """Export Communication Analytics PDF"""
-    
-    communications = db.query(DeepCommunication).filter(
-        DeepCommunication.device_id.in_(device_ids)
-    ).all()
+    communications = []
     
     return _generate_pdf_report(
         analytic=analytic,
@@ -629,9 +617,7 @@ def _export_communication_analytics_pdf(analytic, device_ids, db):
         }
     )
 
-
 def _export_social_media_analytics_pdf(analytic, device_ids, db):
-    """Export Social Media Analytics PDF - DISABLED (tables removed)"""
     return _generate_pdf_report(
         analytic=analytic,
         device_ids=device_ids,
@@ -644,9 +630,7 @@ def _export_social_media_analytics_pdf(analytic, device_ids, db):
         }
     )
 
-
 def _export_generic_analytics_pdf(analytic, device_ids, db):
-    """Export Generic Analytics PDF"""
     return _generate_pdf_report(
         analytic=analytic,
         device_ids=device_ids,
@@ -658,9 +642,7 @@ def _export_generic_analytics_pdf(analytic, device_ids, db):
         }
     )
 
-
 def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix, data):
-    """Generate PDF report with common structure"""
     devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
     
     reports_dir = settings.REPORTS_DIR
@@ -676,7 +658,6 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
     styles = getSampleStyleSheet()
     story = []
 
-    # Title
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
@@ -688,7 +669,6 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
     story.append(Paragraph(report_type, title_style))
     story.append(Spacer(1, 12))
 
-    # Info
     info_style = ParagraphStyle(
         'InfoStyle',
         parent=styles['Normal'],
@@ -701,18 +681,16 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
     story.append(Paragraph(f"<b>Generated:</b> {get_indonesia_time().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
     story.append(Spacer(1, 20))
 
-    # Summary
+
     story.append(Paragraph("<b>Summary</b>", styles['Heading2']))
     story.append(Paragraph(f"Total Devices: {len(device_ids)}", info_style))
-    
-    # Add specific data based on report type
+
     for key, value in data.items():
         if isinstance(value, (int, str)):
             story.append(Paragraph(f"{key.replace('_', ' ').title()}: {value}", info_style))
     
     story.append(Spacer(1, 20))
 
-    # Device Information
     story.append(Paragraph("<b>Device Information</b>", styles['Heading2']))
     device_data = [['Device ID', 'Device Name', 'Phone Number']]
     for device in devices:
@@ -736,7 +714,6 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
     story.append(device_table)
     story.append(Spacer(1, 20))
 
-    # Add summary if available
     if analytic.summary:
         story.append(Paragraph("<b>Analytic Summary</b>", styles['Heading2']))
         story.append(Paragraph(analytic.summary, info_style))
@@ -751,6 +728,5 @@ def _generate_pdf_report(analytic, device_ids, db, report_type, filename_prefix,
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
-# Export both routers
 __all__ = ["router", "hashfile_router"]
 

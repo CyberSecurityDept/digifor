@@ -11,7 +11,6 @@ from app.case_management.schemas import (
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
-
 @router.post("/create-case", response_model=CaseResponse)
 async def create_case(
     case_data: CaseCreate,
@@ -32,7 +31,6 @@ async def create_case(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
 async def get_case_detail_comprehensive(
     case_id: int,
@@ -50,7 +48,6 @@ async def get_case_detail_comprehensive(
             status_code=404, 
             detail=f"Case with ID {case_id} not found"
         )
-
 
 @router.get("/get-all-cases", response_model=CaseListResponse)
 async def get_cases(
@@ -75,7 +72,6 @@ async def get_cases(
             status_code=500, 
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.put("/update-case/{case_id}", response_model=CaseResponse)
 async def update_case(
@@ -102,7 +98,6 @@ async def update_case(
                 detail="Unexpected server error, please try again later"
             )
 
-
 @router.delete("/delete-case/{case_id}")
 async def delete_case(
     case_id: int,
@@ -128,7 +123,6 @@ async def delete_case(
                 status_code=500, 
                 detail="Unexpected server error, please try again later"
             )
-
 
 @router.get("/statistics/summary")
 async def get_case_statistics(

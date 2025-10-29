@@ -9,9 +9,11 @@ class File(Base):
     id = Column(Integer, primary_key=True, index=True)
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
+    file_encrypted = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     type = Column(String, nullable=False)
     tools = Column(String, nullable=False)
+    method = Column(String, nullable=True)
     total_size = Column(Integer, nullable=True)
     amount_of_data = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)
@@ -29,12 +31,6 @@ class File(Base):
         cascade="all, delete-orphan"
     )
     
-    deep_communications = relationship(
-        "DeepCommunication",
-        back_populates="file",
-        cascade="all, delete-orphan"
-    )
-    
     calls = relationship(
         "Call",
         back_populates="file",
@@ -48,6 +44,12 @@ class File(Base):
     
     hash_files = relationship(
         "HashFile",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
+    
+    chat_messages = relationship(
+        "ChatMessage",
         back_populates="file",
         cascade="all, delete-orphan"
     )
@@ -83,18 +85,10 @@ class Device(Base):
 
     file = relationship("File", back_populates="devices")
 
-
-    hash_files = relationship("HashFile", back_populates="device", cascade="all, delete-orphan")
-    contacts = relationship("Contact", back_populates="device", cascade="all, delete-orphan")
-    deep_communications = relationship("DeepCommunication", back_populates="device", cascade="all, delete-orphan")
-    calls = relationship("Call", back_populates="device", cascade="all, delete-orphan")
-    social_media = relationship("SocialMedia", back_populates="device", cascade="all, delete-orphan")
-
 class HashFile(Base):
     __tablename__ = "hash_files"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     name = Column(String, nullable=True)
     
@@ -123,13 +117,11 @@ class HashFile(Base):
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
-    device = relationship("Device", back_populates="hash_files")
     file = relationship("File", back_populates="hash_files")
 
 class Contact(Base):
     __tablename__ = "contacts"
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     display_name = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
@@ -138,78 +130,56 @@ class Contact(Base):
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
-    device = relationship("Device", back_populates="contacts")
     file = relationship("File", back_populates="contacts")
 
 class SocialMedia(Base):
     __tablename__ = "social_media"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     
     # Basic account info
     platform = Column(String, nullable=True)
     account_name = Column(Text, nullable=True)
-    account_id = Column(String, nullable=True)  # Platform-specific ID
-    user_id = Column(String, nullable=True)  # Numeric user ID
-    full_name = Column(Text, nullable=True)  # Full name
+    account_id = Column(String, nullable=True)
+    user_id = Column(String, nullable=True)
+    full_name = Column(Text, nullable=True)
     
     # Social metrics
-    following = Column(Integer, nullable=True)  # Number of people following
-    followers = Column(Integer, nullable=True)  # Number of followers
-    friends = Column(Integer, nullable=True)  # Number of friends (Twitter)
-    statuses = Column(Integer, nullable=True)  # Number of posts/tweets
+    following = Column(Integer, nullable=True)
+    followers = Column(Integer, nullable=True)
+    friends = Column(Integer, nullable=True)
+    statuses = Column(Integer, nullable=True)
     
     # Contact info
-    phone_number = Column(String, nullable=True)  # Phone number
-    email = Column(String, nullable=True)  # Email address
+    phone_number = Column(String, nullable=True)
+    email = Column(String, nullable=True)
     
     # Profile info
-    biography = Column(Text, nullable=True)  # Bio/description
-    profile_picture_url = Column(Text, nullable=True)  # Profile picture URL
-    is_private = Column(Boolean, nullable=True)  # Private account flag
-    is_local_user = Column(Boolean, nullable=True)  # Local user flag
+    biography = Column(Text, nullable=True)
+    profile_picture_url = Column(Text, nullable=True)
+    is_private = Column(Boolean, nullable=True)
+    is_local_user = Column(Boolean, nullable=True)
     
     # Activity info
-    chat_content = Column(Text, nullable=True)  # Chat/message content
-    last_message = Column(Text, nullable=True)  # Last message content
-    last_seen = Column(DateTime, nullable=True)  # Last seen timestamp
+    chat_content = Column(Text, nullable=True)
+    last_message = Column(Text, nullable=True)
+    last_seen = Column(DateTime, nullable=True)
     
     # Additional data
-    other_info = Column(Text, nullable=True)  # Other platform-specific data
-    source_tool = Column(String, nullable=True)  # Tool used (Oxygen, Cellebrite, Axiom)
+    other_info = Column(Text, nullable=True)
+    source_tool = Column(String, nullable=True)
+    sheet_name = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
-    device = relationship("Device", back_populates="social_media")
     file = relationship("File", back_populates="social_media")
 
-class DeepCommunication(Base):
-    __tablename__ = "deep_communications"
-    id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    direction = Column(String, nullable=True)
-    source = Column(String, nullable=True)
-    type = Column(String, nullable=True)
-    timestamp = Column(String, nullable=True)
-    text = Column(Text, nullable=True)
-    sender = Column(Text, nullable=True)
-    receiver = Column(Text, nullable=True)
-    details = Column(Text, nullable=True)
-    thread_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=get_indonesia_time)
-    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
-
-    device = relationship("Device", back_populates="deep_communications")
-    file = relationship("File", back_populates="deep_communications")
 
 class Call(Base):
     __tablename__ = "calls"
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     direction = Column(String, nullable=True)
     source = Column(String, nullable=True)
@@ -223,5 +193,27 @@ class Call(Base):
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
-    device = relationship("Device", back_populates="calls")
     file = relationship("File", back_populates="calls")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    platform = Column(String, nullable=False)
+    message_text = Column(Text, nullable=True)
+    sender_name = Column(String, nullable=True)
+    sender_id = Column(String, nullable=True)
+    receiver_name = Column(String, nullable=True)
+    receiver_id = Column(String, nullable=True)
+    timestamp = Column(String, nullable=True)
+    thread_id = Column(String, nullable=True)
+    chat_id = Column(String, nullable=True)
+    message_id = Column(String, nullable=True)
+    message_type = Column(String, nullable=True) 
+    direction = Column(String, nullable=True)
+    source_tool = Column(String, nullable=True)
+    created_at = Column(DateTime, default=get_indonesia_time)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
+
+    file = relationship("File", back_populates="chat_messages")

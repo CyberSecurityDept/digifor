@@ -94,8 +94,6 @@ async def add_device(
             status_code=500
         )
 
-
-
 @router.get("/analytics/device/get-all-devices")
 def get_all_devices(db: Session = Depends(get_db)):
     try:
@@ -114,10 +112,10 @@ def get_all_devices(db: Session = Depends(get_db)):
             file_record = db.query(File).filter(File.id == device.file_id).first()
             
             contacts_count = len(device.contacts) if device.contacts else 0
-            messages_count = len(device.deep_communications) if device.deep_communications else 0
+            messages_count = len(device.chat_messages) if device.chat_messages else 0
             calls_count = len(device.calls) if device.calls else 0
             hash_files_count = len(device.hash_files) if device.hash_files else 0
-            social_media_count = 0  # social_media_accounts relationship removed
+            social_media_count = 0
             
             device_data = {
                 "device_id": device.id,
@@ -140,7 +138,6 @@ def get_all_devices(db: Session = Depends(get_db)):
             if i < len(device_labels):
                 device_label = f"Device {device_labels[i]}"
             else:
-                # For devices beyond Z, use AA, AB, AC, etc.
                 first_char = chr(65 + (i - 26) // 26)
                 second_char = chr(65 + (i - 26) % 26)
                 device_label = f"Device {first_char}{second_char}"
@@ -180,10 +177,10 @@ def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
         file_record = db.query(File).filter(File.id == device.file_id).first()
         
         contacts_count = len(device.contacts) if device.contacts else 0
-        messages_count = len(device.deep_communications) if device.deep_communications else 0
+        messages_count = len(device.chat_messages) if device.chat_messages else 0
         calls_count = len(device.calls) if device.calls else 0
         hash_files_count = len(device.hash_files) if device.hash_files else 0
-        social_media_count = 0  # social_media_accounts relationship removed
+        social_media_count = 0
         
         device_data = {
             "device_id": device.id,

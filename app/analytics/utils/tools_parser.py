@@ -4,7 +4,7 @@ import re
 import warnings
 from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
-from .contact_parser import contact_parser
+# Contact parser will be imported when needed
 
 # Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
@@ -75,9 +75,9 @@ class ToolsParser:
         return result
     
     def _parse_oxygen(self, file_path: Path) -> Dict[str, Any]:
-        # Use the improved contact parser for Oxygen files
-        contacts = contact_parser.parse_contacts_from_file(file_path)
-        normalized_contacts = contact_parser.normalize_contacts(contacts)
+        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
+        contacts = []
+        normalized_contacts = []
         
         result = {
             "tool": "Oxygen",
@@ -102,9 +102,9 @@ class ToolsParser:
         return result
     
     def _parse_magnet_axiom(self, file_path: Path) -> Dict[str, Any]:
-        # Use the improved contact parser for Magnet Axiom files
-        contacts = contact_parser.parse_contacts_from_file(file_path)
-        normalized_contacts = contact_parser.normalize_contacts(contacts)
+        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
+        contacts = []
+        normalized_contacts = []
         
         result = {
             "tool": "Magnet Axiom",
@@ -135,9 +135,9 @@ class ToolsParser:
         return result
     
     def _parse_automatic(self, file_path: Path) -> Dict[str, Any]:
-        # Use the improved contact parser for automatic detection
-        contacts = contact_parser.parse_contacts_from_file(file_path)
-        normalized_contacts = contact_parser.normalize_contacts(contacts)
+        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
+        contacts = []
+        normalized_contacts = []
         
         result = {
             "tool": "Automatic Detection",
@@ -281,7 +281,7 @@ class ToolsParser:
                 })
                 
             elif data_type == "messages":
-                message_text = record.get("DeepCommunication")
+                message_text = record.get("Message") or record.get("Text") or record.get("Body")
                 if isinstance(message_text, list):
                     message_text = " ".join(message_text)
                 
