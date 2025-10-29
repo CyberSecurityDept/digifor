@@ -86,7 +86,7 @@ def migrate_messages_add_file_id():
         print("\n🎯 **MIGRATION COMPLETED SUCCESSFULLY!**")
         
         # Verify the migration
-        print("\n📊 **VERIFICATION:**")
+        print("\n **VERIFICATION:**")
         
         # Check messages with file_id
         result = db.execute(text("""

@@ -102,7 +102,7 @@ for contact in normalized_contacts:
 📱 Kontak dengan nomor telepon: 17
 ⏰ Kontak dengan info last contacted: 13
 
-📊 Kontak berdasarkan tipe:
+ Kontak berdasarkan tipe:
    Contact: 15
    Telegram Contact: 7
    WhatsApp Contact: 8

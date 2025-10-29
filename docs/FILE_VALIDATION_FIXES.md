@@ -104,7 +104,7 @@ Output akan menampilkan:
 ============================================================
 ✅ File is valid and can be processed
 📁 File size: 164,550 bytes
-📊 Number of sheets: 5
+ Number of sheets: 5
 ✅ Contacts sheet found: 'Contacts'
 ⚠️  WARNINGS:
    • File size (164,550 bytes) is not a multiple of sector size (512 bytes)

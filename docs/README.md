@@ -8,7 +8,7 @@ Sistem Forenlytic Analytics adalah platform analisis forensik digital yang memun
 
 ## 📋 **DOCUMENTATION FILES**
 
-### **📊 API Documentation**
+### ** API Documentation**
 - **[ANALYTICS_API_CONTRACT.md](ANALYTICS_API_CONTRACT.md)** - Kontrak API dan schema lengkap
 - **[ANALYTICS_API_EXAMPLES.md](ANALYTICS_API_EXAMPLES.md)** - Contoh penggunaan API
 - **[COMPLETE_API_WORKFLOW_GUIDE.md](COMPLETE_API_WORKFLOW_GUIDE.md)** - Panduan lengkap workflow API
@@ -66,15 +66,15 @@ python scripts/run_complete_analysis.py
 
 ---
 
-## 📊 **ANALYTICS WORKFLOW**
+##  **ANALYTICS WORKFLOW**
 
 ### **Step-by-Step Process:**
 
 1. **📤 Upload File** - Upload forensic reports (Excel/CSV)
 2. **📱 Add Device** - Buat device dengan single file (1 device = 1 file)
-3. **📊 Create Analytic** - Buat analytic dengan linked devices
+3. ** Create Analytic** - Buat analytic dengan linked devices
 4. **🔗 Contact Correlation** - Jalankan analisis korelasi kontak
-5. **📄 Export PDF** - Export hasil ke PDF
+5. **Export PDF** - Export hasil ke PDF
 
 ### **File Types Supported:**
 - **Excel**: .xlsx, .xls
@@ -97,7 +97,7 @@ python scripts/run_complete_analysis.py
 
 ---
 
-## 📄 **REPORTS GENERATED**
+## **REPORTS GENERATED**
 
 ### **PDF Reports:**
 1. **Contact Correlation Report** - Laporan korelasi kontak
@@ -166,7 +166,7 @@ python -c "from app.database import engine; print('Database connected')"
 
 ---
 
-## 📊 **STATISTICS**
+##  **STATISTICS**
 
 ### **System Capabilities:**
 - ✅ **Analytics API Endpoints** untuk analisis lengkap

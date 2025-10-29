@@ -36,7 +36,7 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 - Support for unknown persons and unidentified individuals
 - Automatic case log creation when persons are added to cases
 
-**📊 Reporting & Analytics**
+** Reporting & Analytics**
 - Generate comprehensive case reports with multiple templates
 - Create evidence chain documentation and custody reports
 - Real-time dashboard with key metrics and statistics

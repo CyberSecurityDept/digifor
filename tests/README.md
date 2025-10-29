@@ -67,7 +67,7 @@ Tests menggunakan environment yang sama dengan aplikasi:
 - Test data di-cleanup setelah test
 - Isolated test environment
 
-## 📊 Test Results
+##  Test Results
 
 ### **API Test Output**
 ```
@@ -92,7 +92,7 @@ Tests menggunakan environment yang sama dengan aplikasi:
 ✅ Add person successful
 ✅ Get case stats successful
 
-📄 Testing report generation...
+Testing report generation...
 ✅ Generate comprehensive report successful
    Filename: case_1_comprehensive_TEST-001.json
 ✅ List reports successful

@@ -314,10 +314,16 @@ class UploadService:
                         try:
                             import pandas as pd
                             xls = pd.ExcelFile(original_path_abs, engine='xlrd')
-                            if 'Contacts ' in xls.sheet_names and 'Instagram ' in xls.sheet_names:
-                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
-                            else:
+                            # Check if this is a complex Oxygen UFED file with multiple social media sheets
+                            social_media_sheets = ['Instagram ', 'Telegram ', 'WhatsApp Messenger ', 'X (Twitter) ', 'Users-Following ', 'Users-Followers ']
+                            has_social_media_sheets = any(sheet in xls.sheet_names for sheet in social_media_sheets)
+                            
+                            if has_social_media_sheets:
+                                # Use enhanced parser for complex Oxygen files
                                 social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            else:
+                                # Use UFED parser for simple Oxygen files
+                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
                         except Exception as e:
                             print(f"Error determining Oxygen format: {e}")
                             social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)

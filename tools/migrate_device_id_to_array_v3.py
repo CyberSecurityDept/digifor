@@ -47,7 +47,7 @@ def run_migration():
                 print("❌ Column 'device_id' not found in 'analytic_device' table.")
                 return
                 
-            print(f"📊 Current device_id type: {current_structure[1]}")
+            print(f" Current device_id type: {current_structure[1]}")
             
             # Check if already array type
             if 'array' in current_structure[1].lower():
@@ -58,7 +58,7 @@ def run_migration():
             result = conn.execute(text("SELECT id, analytic_id, device_id FROM analytic_device;"))
             existing_data = result.fetchall()
             
-            print(f"📊 Found {len(existing_data)} existing records")
+            print(f" Found {len(existing_data)} existing records")
             
             # Step 1: Create new table with array column
             print("📝 Creating new table structure...")

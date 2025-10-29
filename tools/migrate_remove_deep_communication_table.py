@@ -34,7 +34,7 @@ def remove_deep_communication_table():
             print("✅ deep_communication table does not exist, nothing to remove")
             return
         
-        print("📊 Found deep_communication table, proceeding with removal...")
+        print(" Found deep_communication table, proceeding with removal...")
         
         # Drop foreign key constraints first
         print("🔗 Dropping foreign key constraints...")

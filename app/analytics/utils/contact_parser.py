@@ -148,8 +148,8 @@ class ContactParser:
                 return results
             
             df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
+                
+                for _, row in df.iterrows():
                 contact_data = {
                     "file_id": file_id,
                     "display_name": str(row.get('Contacts (40)', '')),

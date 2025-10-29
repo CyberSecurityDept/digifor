@@ -60,7 +60,7 @@ is_hashfile = (
 print(f"🔍 File detection: {file_name}")
 print(f"🔍 Is hashfile: {is_hashfile}")
 print(f"🚀 Starting hashfile parsing for: {file_name}")
-print(f"📊 Hashfile parsing result keys: {list(hashfile_result.keys())}")
+print(f" Hashfile parsing result keys: {list(hashfile_result.keys())}")
 print(f"✅ Hashfile parsed successfully: {hashfiles_count} files found")
 ```
 
@@ -149,7 +149,7 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
 ### 2. **Hashfile Parsing**
 ```
 🚀 Starting hashfile parsing for: Oxygen iPhone - Hashfile SHA1.xls
-📊 Hashfile parsing result keys: ['tool', 'format', 'hashfiles', 'total_files', 'format_detected', 'file_path']
+ Hashfile parsing result keys: ['tool', 'format', 'hashfiles', 'total_files', 'format_detected', 'file_path']
 ✅ Hashfile parsed successfully: 99655 files found
 📋 Tool detected: Oxygen Forensics
 📋 Format detected: XLS

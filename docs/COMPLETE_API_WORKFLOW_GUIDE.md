@@ -10,9 +10,9 @@ Panduan lengkap untuk menggunakan API Forenlytic dari upload file hingga mendapa
 1. **📤 Upload File** - Upload forensic reports
 2. **🔍 View Files** - Lihat semua file yang sudah di-upload
 3. **📱 Add Device** - Buat device dengan single file (1 device = 1 file)
-4. **📊 Create Analytic** - Buat analytic dengan linked devices
+4. ** Create Analytic** - Buat analytic dengan linked devices
 5. **🔗 Contact Correlation** - Jalankan analisis korelasi kontak
-6. **📄 Export PDF** - Export hasil ke PDF
+6. **Export PDF** - Export hasil ke PDF
 
 ---
 
@@ -172,7 +172,7 @@ phone_number: "082121200905"  // Nomor telepon device
 
 ---
 
-## 📊 **STEP 4: CREATE ANALYTIC WITH DEVICES**
+##  **STEP 4: CREATE ANALYTIC WITH DEVICES**
 
 ### **Endpoint:**
 ```
@@ -376,7 +376,7 @@ Contact correlation mencari **kontak yang sama** (nomor telepon yang sama) yang 
 
 ---
 
-## 📄 **STEP 6: EXPORT CONTACT CORRELATION TO PDF**
+## **STEP 6: EXPORT CONTACT CORRELATION TO PDF**
 
 ### **Endpoint:**
 ```
@@ -542,12 +542,12 @@ curl -o "contact_correlation_report.pdf" \
 - Support berbagai format input: `+62`, `0812`, `0812-8415-3434`
 - Handle nomor tanpa nama sebagai "Unknown"
 
-### **📊 Cross-Device Correlation:**
+### ** Cross-Device Correlation:**
 - Deteksi kontak yang sama di minimal 2 device
 - Sorting berdasarkan jumlah device (descending)
 - Support untuk nama berbeda di device berbeda
 
-### **📄 PDF Export:**
+### **PDF Export:**
 - Generate PDF report dengan hasil analisis
 - Include device information dan correlation details
 - Professional formatting untuk forensic reports
