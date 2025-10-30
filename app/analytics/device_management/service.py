@@ -103,10 +103,9 @@ def create_device(
                 created_at=get_indonesia_time(),
             ))
 
-        # Save contacts with enhanced duplicate checking
         saved_contacts = 0
         skipped_contacts = 0
-        seen_phones = set()  # Track phone numbers in current batch
+        seen_phones = set()
         
         for c in contacts:
             phone_number = c.get("phone_number")
@@ -117,14 +116,12 @@ def create_device(
                 skipped_contacts += 1
                 continue
             
-            # Skip if phone number already seen in current batch
             if phone_number in seen_phones:
                 skipped_contacts += 1
                 continue
             
-            # Check if contact with same phone_number and device_id already exists in database
             existing_contact = db.query(Contact).filter(
-                Contact.device_id == device_id,
+                Contact.file_id == device_data.get("file_id"),
                 Contact.phone_number == phone_number
             ).first()
             
@@ -135,7 +132,6 @@ def create_device(
             # Add to seen phones and save contact
             seen_phones.add(phone_number)
             db.add(Contact(
-                device_id=device_id,
                 file_id=device_data.get("file_id"),
                 display_name=display_name,
                 phone_number=phone_number,
@@ -146,7 +142,6 @@ def create_device(
 
         for c in calls:
             db.add(Call(
-                device_id=device_id,
                 file_id=device_data.get("file_id"),
                 direction=_to_str(c.get("Direction")),
                 source=_to_str(c.get("Source")),
@@ -172,29 +167,35 @@ def get_device_by_id(db: Session, device_id: int):
     return db.query(Device).filter(Device.id == device_id).first()
 
 def get_device_messages(db: Session, device_id: int):
-    # Note: DeepCommunication table has been removed, using ChatMessage instead
-    return db.query(ChatMessage).filter(ChatMessage.device_id == device_id).all()
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        return []
+    return db.query(ChatMessage).filter(ChatMessage.file_id == device.file_id).all()
 
 def get_device_contacts(db: Session, device_id: int):
-    return db.query(Contact).filter(Contact.device_id == device_id).all()
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        return []
+    return db.query(Contact).filter(Contact.file_id == device.file_id).all()
 
 def get_device_calls(db: Session, device_id: int):
-    return db.query(Call).filter(Call.device_id == device_id).all()
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        return []
+    return db.query(Call).filter(Call.file_id == device.file_id).all()
 
-def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dict[str, Any]], source_tool: str = "Unknown"):
+def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], source_tool: str = "Unknown"):
     db = SessionLocal()
     try:
         saved_count = 0
         for hf in hashfiles:
-            # Determine file extension
             file_extension = None
             if hf.get('name'):
                 if '.' in hf['name']:
                     file_extension = hf['name'].split('.')[-1].lower()
-            
-            # Determine file type - prefer sheet name from parser, fallback to extension-based detection
-            file_type = normalize_str(hf.get('sheet', ''))  # Use sheet name from parser
-            if not file_type:  # Fallback to extension-based detection if no sheet name
+
+            file_type = normalize_str(hf.get('sheet', ''))
+            if not file_type:
                 file_type = "Unknown"
                 if file_extension:
                     if file_extension in ['exe', 'bat', 'cmd', 'scr', 'pif', 'com']:
@@ -209,25 +210,25 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
                         file_type = "Document"
                     elif file_extension in ['zip', 'rar', '7z', 'tar', 'gz']:
                         file_type = "Archive"
-            
+
             # Determine if suspicious
             is_suspicious = "False"
             suspicious_extensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js']
             if file_extension and file_extension in suspicious_extensions:
                 is_suspicious = "True"
-            
+
             # Determine risk level
             risk_level = "Low"
             if is_suspicious == "True":
                 risk_level = "High"
             elif file_extension in ['.dll', '.sys', '.drv']:
                 risk_level = "Medium"
-            
+
             # Get required fields with defaults
             file_name = normalize_str(hf.get('name', 'Unknown'))
             md5_hash = normalize_str(hf.get('md5', ''))
             sha1_hash = normalize_str(hf.get('sha1', ''))
-            
+
             # Get original file information from Get Info
             original_file_name = normalize_str(hf.get('original_file_name', file_name))
             original_file_path = normalize_str(hf.get('original_file_path', ''))
@@ -235,20 +236,19 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
             original_file_kind = normalize_str(hf.get('original_file_kind', 'Unknown'))
             original_created_at = hf.get('original_created_at')
             original_modified_at = hf.get('original_modified_at')
-            
+
             # Skip if no hash values
             if not md5_hash and not sha1_hash:
                 continue
-                
+
             # Skip files with empty or invalid names to avoid meaningless hash collisions
             if not file_name or file_name.strip() == '' or file_name == 'Unknown':
                 continue
-                
+
             hashfile_record = HashFile(
-                device_id=device_id,
                 file_id=file_id,
                 name=file_name,
-                
+
                 # Original file information from Get Info
                 file_name=original_file_name,
                 kind=original_file_kind,
@@ -256,7 +256,7 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
                 path_original=original_file_path,
                 created_at_original=original_created_at,
                 modified_at_original=original_modified_at,
-                
+
                 md5_hash=md5_hash,
                 sha1_hash=sha1_hash,
                 file_size=int(hf.get('size', 0)) if hf.get('size') else None,
@@ -270,7 +270,7 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
                 risk_level=risk_level,
                 created_at=get_indonesia_time()
             )
-            
+
             db.add(hashfile_record)
             saved_count += 1
         
@@ -284,4 +284,7 @@ def save_hashfiles_to_database(device_id: int, file_id: int, hashfiles: List[Dic
         db.close()
 
 def get_device_hashfiles(db: Session, device_id: int):
-    return db.query(HashFile).filter(HashFile.device_id == device_id).all()
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        return []
+    return db.query(HashFile).filter(HashFile.file_id == device.file_id).all()

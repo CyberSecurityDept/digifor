@@ -73,9 +73,9 @@ class ContactService:
                         skipped_count += 1
                         continue
                     
-                    # Check if contact with same phone_number and device_id already exists
+                    # Check if contact with same phone_number and file_id already exists
                     existing_contact = db.query(Contact).filter(
-                        Contact.device_id == device_id,
+                        Contact.file_id == device.file_id,
                         Contact.phone_number == phone_number
                     ).first()
                     
@@ -85,7 +85,6 @@ class ContactService:
                         continue
                     
                     contact = Contact(
-                        device_id=device_id,
                         file_id=device.file_id,
                         display_name=display_name,
                         phone_number=phone_number,
@@ -121,13 +120,17 @@ class ContactService:
         db: Session = SessionLocal()
         
         try:
-            contacts = db.query(Contact).filter(Contact.device_id == device_id).all()
+            device = db.query(Device).filter(Device.id == device_id).first()
+            if not device:
+                return []
+            
+            contacts = db.query(Contact).filter(Contact.file_id == device.file_id).all()
             
             result = []
             for contact in contacts:
                 result.append({
                     "id": contact.id,
-                    "device_id": contact.device_id,
+                    "file_id": contact.file_id,
                     "display_name": contact.display_name,
                     "phone_number": contact.phone_number,
                     "type": contact.type,
@@ -148,7 +151,15 @@ class ContactService:
         db: Session = SessionLocal()
         
         try:
-            contacts = db.query(Contact).filter(Contact.device_id == device_id).all()
+            device = db.query(Device).filter(Device.id == device_id).first()
+            if not device:
+                return {
+                    "total_contacts": 0,
+                    "unique_phone_numbers": 0,
+                    "contacts_with_names": 0
+                }
+            
+            contacts = db.query(Contact).filter(Contact.file_id == device.file_id).all()
             
             total_contacts = len(contacts)
             

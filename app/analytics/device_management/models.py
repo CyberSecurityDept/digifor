@@ -9,7 +9,6 @@ class File(Base):
     id = Column(Integer, primary_key=True, index=True)
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
-    file_encrypted = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     type = Column(String, nullable=False)
     tools = Column(String, nullable=False)

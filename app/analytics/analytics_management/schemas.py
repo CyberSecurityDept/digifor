@@ -9,8 +9,6 @@ class AnalyticCreate(BaseModel):
 class AnalyticResponse(BaseModel):
     id: int
     analytic_name: str
-    type: Optional[str] = None
-    notes: Optional[str] = None
     method: Optional[str] = None
     summary: Optional[str] = None
     created_at: datetime
@@ -25,8 +23,7 @@ class AnalyticDeviceLink(BaseModel):
 class AnalyticWithDevices(BaseModel):
     id: int
     analytic_name: str
-    type: Optional[str] = None
-    notes: Optional[str] = None
+    method: Optional[str] = None
     created_at: datetime
     devices: List[dict] = []
 

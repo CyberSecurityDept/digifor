@@ -20,11 +20,11 @@ def get_deep_communication_analytics(
     if not analytic:
         raise HTTPException(status_code=404, detail="Analytic not found")
     
-    if analytic.type != "Deep Communication Analytics":
+    if analytic.method != "Deep communication analytics":
         return JSONResponse(
             content={
                 "status": 400, 
-                "message": f"This endpoint is only for Deep Communication Analytics. Current analytic type is '{analytic.type}'", 
+                "message": f"This endpoint is only for Deep Communication Analytics. Current analytic method is '{analytic.method}'", 
                 "data": None
             },
             status_code=400,
@@ -231,9 +231,14 @@ def search_communication_data(
 
     messages = []
 
+    # Get file_ids from devices
+    devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
+    file_ids = [d.file_id for d in devices]
+    
+    # Query Contact via file_id (not device_id)
     contacts = (
         db.query(Contact)
-        .filter(Contact.device_id.in_(device_ids))
+        .filter(Contact.file_id.in_(file_ids))
         .filter(Contact.display_name.ilike(f"%{query}%"))
         .all()
     )
@@ -273,7 +278,7 @@ def search_communication_data(
                 "display_name": contact.display_name,
                 "phone_number": contact.phone_number,
                 "type": contact.type,
-                "device_id": contact.device_id
+                "file_id": contact.file_id
             }
             for contact in contacts
         ]

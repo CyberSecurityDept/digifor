@@ -36,11 +36,11 @@ def get_contact_correlation(
     if not analytic:
         raise HTTPException(status_code=404, detail="Analytic not found")
     
-    if analytic.type != "Contact Correlation":
+    if analytic.method != "Contact Correlation":
         return JSONResponse(
             content={
                 "status": 400, 
-                "message": f"This endpoint is only for Contact Correlation. Current analytic type is '{analytic.type}'", 
+                "message": f"This endpoint is only for Contact Correlation. Current analytic method is '{analytic.method}'", 
                 "data": None
             },
             status_code=400,
@@ -60,14 +60,19 @@ def get_contact_correlation(
             status_code=200
         )
 
+    devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
+    
+    # Get file_ids from devices
+    file_ids = [d.file_id for d in devices]
+    
+    # Query Contact via file_id (not device_id)
     contacts = (
         db.query(Contact)
-        .filter(Contact.device_id.in_(device_ids))
+        .filter(Contact.file_id.in_(file_ids))
         .order_by(Contact.id)
         .all()
     )
 
-    devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
     device_info = {}
     device_labels = {}
     
@@ -137,7 +142,14 @@ def get_contact_correlation(
             if not contact_name or re.match(r'^[\+\d\s\-\(\)]+$', contact_name):
                 contact_name = "Unknown"
 
-            correlation_map[normalized_phone][contact.device_id] = contact_name
+            # Find device_id from contact's file_id
+            contact_device_id = None
+            for d in devices:
+                if d.file_id == contact.file_id:
+                    contact_device_id = d.id
+                    break
+            if contact_device_id:
+                correlation_map[normalized_phone][contact_device_id] = contact_name
 
     filtered_correlations = {
         phone: devices_dict for phone, devices_dict in correlation_map.items()

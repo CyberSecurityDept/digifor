@@ -9,7 +9,6 @@ class Analytic(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     analytic_name = Column(String, nullable=False)
-    type = Column(String, nullable=True)
     method = Column(String, nullable=True)
     summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)

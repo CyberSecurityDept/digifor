@@ -41,7 +41,7 @@ def get_apk_analysis(
         "message": "Success",
         "data": {
             "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
-            "method": apk_records[0].analytic.type if apk_records else None,
+            "method": apk_records[0].analytic.method if apk_records else None,
             "malware_scoring": malware_scoring,
             "permissions": permissions
         }

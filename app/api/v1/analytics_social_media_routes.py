@@ -19,11 +19,11 @@ def social_media_correlation(
             status_code=404
         )
     
-    if analytic.type != "Social Media Correlation":
+    if analytic.method != "Social Media Correlation":
         return JSONResponse(
             content={
                 "status": 400, 
-                "message": f"This endpoint is only for Social Media Correlation. Current analytic type is '{analytic.type}'", 
+                "message": f"This endpoint is only for Social Media Correlation. Current analytic method is '{analytic.method}'", 
                 "data": None
             },
             status_code=400,

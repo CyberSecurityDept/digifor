@@ -14,7 +14,7 @@ class ContactParser:
     def __init__(self, db: Session):
         self.db = db
     
-    def parse_axiom_contacts(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
+    def parse_axiom_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         """Parse contacts from Axiom file"""
         results = []
         
@@ -36,7 +36,6 @@ class ContactParser:
             
             for _, row in df.iterrows():
                 contact_data = {
-                    "device_id": device_id,
                     "file_id": file_id,
                     "display_name": str(row.get('Display Name', '')),
                     "phone_number": str(row.get('Phone Number(s)', '')),
@@ -55,7 +54,7 @@ class ContactParser:
                     self.db.query(Contact)
                     .filter(
                         Contact.display_name == contact["display_name"],
-                        Contact.device_id == device_id,
+                        Contact.file_id == file_id,
                         Contact.phone_number == contact["phone_number"]
                     )
                     .first()
@@ -73,7 +72,7 @@ class ContactParser:
         
         return results
     
-    def parse_axiom_calls(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
+    def parse_axiom_calls(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         """Parse calls from Axiom file"""
         results = []
         
@@ -95,7 +94,6 @@ class ContactParser:
             
             for _, row in df.iterrows():
                 call_data = {
-                    "device_id": device_id,
                     "file_id": file_id,
                     "direction": str(row.get('Direction', '')),
                     "source": str(row.get('Source', '')),
@@ -118,7 +116,7 @@ class ContactParser:
                     self.db.query(Call)
                     .filter(
                         Call.caller == call["caller"],
-                        Call.device_id == device_id,
+                        Call.file_id == file_id,
                         Call.timestamp == call["timestamp"]
                     )
                     .first()
@@ -136,57 +134,55 @@ class ContactParser:
         
         return results
     
-    def parse_cellebrite_contacts(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
-        """Parse contacts from Cellebrite file"""
+    def parse_cellebrite_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
         try:
             xls = pd.ExcelFile(file_path, engine='openpyxl')
-            
+
             if 'Contacts' not in xls.sheet_names:
                 print("No Contacts sheet found in Cellebrite file")
                 return results
-            
+
             df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str)
-                
-                for _, row in df.iterrows():
+            
+            for _, row in df.iterrows():
                 contact_data = {
                     "file_id": file_id,
-                    "display_name": str(row.get('Contacts (40)', '')),
-                    "phone_number": str(row.get('Unnamed: 8', '')),  # Entries column
+                    "display_name": str(row.get('Contacts (40)', '')).strip(),
+                    "phone_number": str(row.get('Unnamed: 8', '')).strip(),   # Entries column
                     "email": "",
-                    "type": str(row.get('Unnamed: 20', '')),  # Source column
-                    "last_time_contacted": str(row.get('Unnamed: 16', ''))  # Last time contacted
+                    "type": str(row.get('Unnamed: 20', '')).strip(),          # Source column
+                    "last_time_contacted": str(row.get('Unnamed: 16', '')).strip()  # Last time contacted
                 }
-                
-                # Only add if has meaningful data
-                if contact_data["display_name"] and contact_data["display_name"] != 'nan':
+
+                if contact_data["display_name"] and contact_data["display_name"].lower() != 'nan':
                     results.append(contact_data)
-            
-            # Save to database
+
             for contact in results:
                 existing = (
                     self.db.query(Contact)
                     .filter(
                         Contact.display_name == contact["display_name"],
-                        Contact.device_id == device_id
+                        Contact.file_id == file_id
                     )
                     .first()
                 )
                 if not existing:
                     self.db.add(Contact(**contact))
-            
+
             self.db.commit()
             print(f"Successfully saved {len(results)} Cellebrite contacts to database")
-                        
+                    
         except Exception as e:
             print(f"Error parsing Cellebrite contacts: {e}")
             self.db.rollback()
             raise e
-        
+
         return results
+
     
-    def parse_cellebrite_calls(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
+    def parse_cellebrite_calls(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         """Parse calls from Cellebrite file"""
         results = []
         
@@ -208,7 +204,6 @@ class ContactParser:
             
             for _, row in df.iterrows():
                 call_data = {
-                    "device_id": device_id,
                     "file_id": file_id,
                     "direction": str(row.get('Direction', '')),
                     "source": str(row.get('Source', '')),
@@ -231,7 +226,7 @@ class ContactParser:
                     self.db.query(Call)
                     .filter(
                         Call.caller == call["caller"],
-                        Call.device_id == device_id,
+                        Call.file_id == file_id,
                         Call.timestamp == call["timestamp"]
                     )
                     .first()
@@ -249,7 +244,7 @@ class ContactParser:
         
         return results
     
-    def parse_oxygen_contacts(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
+    def parse_oxygen_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         """Parse contacts from Oxygen file"""
         results = []
         
@@ -279,7 +274,6 @@ class ContactParser:
             
             for _, row in df.iterrows():
                 contact_data = {
-                    "device_id": device_id,
                     "file_id": file_id,
                     "display_name": str(row.get('Name', '')),
                     "phone_number": str(row.get('Phone', '')),
@@ -298,7 +292,7 @@ class ContactParser:
                     self.db.query(Contact)
                     .filter(
                         Contact.display_name == contact["display_name"],
-                        Contact.device_id == device_id
+                        Contact.file_id == file_id
                     )
                     .first()
                 )
@@ -315,8 +309,7 @@ class ContactParser:
         
         return results
     
-    def parse_oxygen_calls(self, file_path: str, device_id: int, file_id: int) -> List[Dict[str, Any]]:
-        """Parse calls from Oxygen file"""
+    def parse_oxygen_calls(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
         try:
@@ -345,7 +338,6 @@ class ContactParser:
             
             for _, row in df.iterrows():
                 call_data = {
-                    "device_id": device_id,
                     "file_id": file_id,
                     "direction": str(row.get('Direction', '')),
                     "source": str(row.get('Source', '')),
@@ -368,7 +360,7 @@ class ContactParser:
                     self.db.query(Call)
                     .filter(
                         Call.caller == call["caller"],
-                        Call.device_id == device_id,
+                        Call.file_id == file_id,
                         Call.timestamp == call["timestamp"]
                     )
                     .first()

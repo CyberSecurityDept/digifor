@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.analytics.shared.models import Device, File
+from app.analytics.shared.models import Device, File, Analytic, AnalyticDevice
 from app.utils.timezone import get_indonesia_time
+from typing import Optional
 
 router = APIRouter()
 
@@ -25,11 +26,24 @@ def format_file_size(size_bytes):
 @router.post("/analytics/add-device")
 async def add_device(
     file_id: int = Form(...),
-    owner_name: str = Form(...),
+    name: str = Form(...),
     phone_number: str = Form(...),
     db: Session = Depends(get_db)
 ):
     try:
+        # Automatically get the latest analytic (from workflow: create analytic then add device)
+        latest_analytic = db.query(Analytic).order_by(Analytic.created_at.desc()).first()
+        
+        if not latest_analytic:
+            return JSONResponse(
+                {"status": 404, "message": "No analytic found. Please create an analytic first.", "data": []},
+                status_code=404
+            )
+        
+        analytic_id = latest_analytic.id
+        analytic = latest_analytic
+        
+        # Validate file
         file_record = db.query(File).filter(File.id == file_id).first()
         if not file_record:
             return JSONResponse(
@@ -37,12 +51,24 @@ async def add_device(
                 status_code=404
             )
         
+        # Validate method match (file method must match analytic method)
+        if file_record.method != analytic.method:
+            return JSONResponse(
+                {
+                    "status": 400, 
+                    "message": f"File method '{file_record.method}' does not match analytic method '{analytic.method}'", 
+                    "data": []
+                },
+                status_code=400
+            )
+        
+        # Check if device already exists for this file
         existing_device = db.query(Device).filter(Device.file_id == file_id).first()
         
         if existing_device:
-            existing_device.owner_name = owner_name
+            existing_device.owner_name = name
             existing_device.phone_number = phone_number
-            existing_device.device_name = f"{owner_name} Device"
+            existing_device.device_name = f"{name} Device"
             existing_device.updated_at = get_indonesia_time()
             
             db.commit()
@@ -51,9 +77,9 @@ async def add_device(
         else:
             new_device = Device(
                 file_id=file_id,
-                owner_name=owner_name,
+                owner_name=name,
                 phone_number=phone_number,
-                device_name=f"{owner_name} Device",
+                device_name=f"{name} Device",
                 created_at=get_indonesia_time()
             )
             
@@ -61,6 +87,26 @@ async def add_device(
             db.commit()
             db.refresh(new_device)
             device = new_device
+        
+        # Link device to analytic (required for workflow)
+        existing_link = db.query(AnalyticDevice).filter(
+            AnalyticDevice.analytic_id == analytic_id
+        ).first()
+        
+        if existing_link:
+            # Add device_id to array if not already present
+            if device.id not in existing_link.device_ids:
+                existing_link.device_ids.append(device.id)
+                existing_link.updated_at = get_indonesia_time()
+        else:
+            # Create new AnalyticDevice link
+            new_link = AnalyticDevice(
+                analytic_id=analytic_id,
+                device_ids=[device.id]
+            )
+            db.add(new_link)
+        
+        db.commit()
         
         return JSONResponse(
             {
@@ -72,13 +118,16 @@ async def add_device(
                     "owner_name": device.owner_name,
                     "phone_number": device.phone_number,
                     "device_name": device.device_name,
+                    "name": device.owner_name,
                     "file_name": file_record.file_name,
+                    "analytic_id": analytic_id,
                     "created_at": str(device.created_at),
                     "file_info": {
                         "file_name": file_record.file_name,
                         "file_type": file_record.type,
                         "notes": file_record.notes,
                         "tools": file_record.tools,
+                        "method": file_record.method,
                         "total_size": file_record.total_size,
                         "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None
                     }
@@ -94,46 +143,129 @@ async def add_device(
             status_code=500
         )
 
-@router.get("/analytics/device/get-all-devices")
-def get_all_devices(db: Session = Depends(get_db)):
+@router.get("/analytics/latest/files")
+def get_files_by_latest_analytic_method(
+    db: Session = Depends(get_db)
+):
     try:
-        devices = db.query(Device).order_by(Device.id).all()
+        latest_analytic = db.query(Analytic).order_by(Analytic.created_at.desc()).first()
         
-        if not devices:
+        if not latest_analytic:
             return JSONResponse(
-                {"status": 200, "message": "No devices found", "data": []},
+                content={
+                    "status": 404,
+                    "message": "No analytic found. Please create an analytic first.",
+                    "data": []
+                },
+                status_code=404
+            )
+        
+        if not latest_analytic.method:
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Latest analytic has no method specified.",
+                    "data": []
+                },
+                status_code=400
+            )
+
+        # Get files that match the latest analytic's method
+        files = db.query(File).filter(File.method == latest_analytic.method).order_by(File.created_at.desc()).all()
+
+        files_data = []
+        for file_record in files:
+            files_data.append({
+                "id": file_record.id,
+                "file_name": file_record.file_name,
+                "notes": file_record.notes,
+                "type": file_record.type,
+                "tools": file_record.tools,
+                "method": file_record.method,
+                "total_size": file_record.total_size,
+                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None,
+                "amount_of_data": file_record.amount_of_data,
+                "created_at": str(file_record.created_at),
+                "date": file_record.created_at.strftime("%d/%m/%Y") if file_record.created_at else None
+            })
+
+        return JSONResponse(
+            {
+                "status": 200,
+                "message": f"Retrieved {len(files_data)} files for method '{latest_analytic.method}' from latest analytic '{latest_analytic.analytic_name}'",
+                "data": {
+                    "analytic": {
+                        "id": latest_analytic.id,
+                        "analytic_name": latest_analytic.analytic_name,
+                        "method": latest_analytic.method
+                    },
+                    "files": files_data
+                }
+            },
+            status_code=200
+        )
+
+    except Exception as e:
+        return JSONResponse(
+            {
+                "status": 500,
+                "message": f"Failed to get files: {str(e)}",
+                "data": []
+            },
+            status_code=500
+        )
+
+@router.get("/analytics/{analytic_id}/get-devices")
+def get_devices_by_analytic_id(
+    analytic_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Validate analytic
+        analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
+        if not analytic:
+            return JSONResponse(
+                {"status": 404, "message": "Analytic not found", "data": []},
+                status_code=404
+            )
+        
+        # Get device IDs from AnalyticDevice
+        device_links = db.query(AnalyticDevice).filter(
+            AnalyticDevice.analytic_id == analytic_id
+        ).all()
+        
+        device_ids = []
+        for link in device_links:
+            device_ids.extend(link.device_ids)
+        device_ids = list(set(device_ids))
+        
+        if not device_ids:
+            return JSONResponse(
+                {
+                    "status": 200,
+                    "message": "No devices linked to this analytic yet",
+                    "data": {
+                        "analytic": {
+                            "id": analytic.id,
+                            "analytic_name": analytic.analytic_name,
+                            "method": analytic.method
+                        },
+                        "devices": [],
+                        "device_count": 0
+                    }
+                },
                 status_code=200
             )
         
-        grouped_devices = []
+        # Get devices
+        devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
+        
+        # Format devices as cards
         device_labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        device_cards = []
         
         for i, device in enumerate(devices):
             file_record = db.query(File).filter(File.id == device.file_id).first()
-            
-            contacts_count = len(device.contacts) if device.contacts else 0
-            messages_count = len(device.chat_messages) if device.chat_messages else 0
-            calls_count = len(device.calls) if device.calls else 0
-            hash_files_count = len(device.hash_files) if device.hash_files else 0
-            social_media_count = 0
-            
-            device_data = {
-                "device_id": device.id,
-                "owner_name": device.owner_name,
-                "phone_number": device.phone_number,
-                "device_name": device.device_name,
-                "file_name": file_record.file_name if file_record else None,
-                "created_at": str(device.created_at),
-                "file_info": {
-                    "file_id": file_record.id if file_record else None,
-                    "file_name": file_record.file_name if file_record else None,
-                    "file_type": file_record.type if file_record else None,
-                    "notes": file_record.notes if file_record else None,
-                    "tools": file_record.tools if file_record else None,
-                    "total_size": file_record.total_size if file_record else None,
-                    "total_size_formatted": format_file_size(file_record.total_size) if file_record and file_record.total_size else None
-                }
-            }
             
             if i < len(device_labels):
                 device_label = f"Device {device_labels[i]}"
@@ -142,88 +274,39 @@ def get_all_devices(db: Session = Depends(get_db)):
                 second_char = chr(65 + (i - 26) % 26)
                 device_label = f"Device {first_char}{second_char}"
             
-            grouped_devices.append({
+            device_card = {
+                "device_id": device.id,
                 "device_label": device_label,
-                "data_device": [device_data]
-            })
-        
-        return JSONResponse(
-            {
-                "status": 200,
-                "message": f"Retrieved {len(devices)} devices successfully",
-                "data": grouped_devices
-            },
-            status_code=200
-        )
-        
-    except Exception as e:
-        return JSONResponse(
-            {"status": 500, "message": f"Failed to get all devices: {str(e)}", "data": []},
-            status_code=500
-        )
-
-
-@router.get("/analytics/device/{device_id}")
-def get_device_by_id(device_id: int, db: Session = Depends(get_db)):
-    try:
-        device = db.query(Device).filter(Device.id == device_id).first()
-        
-        if not device:
-            return JSONResponse(
-                {"status": 404, "message": "Device not found", "data": []},
-                status_code=404
-            )
-        
-        file_record = db.query(File).filter(File.id == device.file_id).first()
-        
-        contacts_count = len(device.contacts) if device.contacts else 0
-        messages_count = len(device.chat_messages) if device.chat_messages else 0
-        calls_count = len(device.calls) if device.calls else 0
-        hash_files_count = len(device.hash_files) if device.hash_files else 0
-        social_media_count = 0
-        
-        device_data = {
-            "device_id": device.id,
-            "owner_name": device.owner_name,
-            "phone_number": device.phone_number,
-            "device_name": device.device_name,
-            "device_type": device.device_type,
-            "device_model": device.device_model,
-            "os_version": device.os_version,
-            "imei": device.imei,
-            "serial_number": device.serial_number,
-            "extraction_tool": device.extraction_tool,
-            "extraction_method": device.extraction_method,
-            "extraction_date": str(device.extraction_date) if device.extraction_date else None,
-            "is_encrypted": device.is_encrypted,
-            "encryption_type": device.encryption_type,
-            "is_rooted": device.is_rooted,
-            "is_jailbroken": device.is_jailbroken,
-            "file_name": file_record.file_name if file_record else None,
-            "created_at": str(device.created_at),
-            "updated_at": str(device.updated_at) if device.updated_at else None,
-            "file_info": {
+                "name": device.owner_name or "",
+                "phone_number": device.phone_number or "",
+                "file_name": file_record.file_name if file_record else "Unknown",
+                "file_size": format_file_size(file_record.total_size) if file_record and file_record.total_size else "0 B",
                 "file_id": file_record.id if file_record else None,
-                "file_name": file_record.file_name if file_record else None,
-                "file_type": file_record.type if file_record else None,
-                "notes": file_record.notes if file_record else None,
-                "tools": file_record.tools if file_record else None,
-                "total_size": file_record.total_size if file_record else None,
-                "total_size_formatted": format_file_size(file_record.total_size) if file_record and file_record.total_size else None
+                "id": str(device.id) if device.id else "",
+                "created_at": str(device.created_at) if device.created_at else ""
             }
-        }
+            
+            device_cards.append(device_card)
         
         return JSONResponse(
             {
                 "status": 200,
-                "message": "Device retrieved successfully",
-                "data": device_data
+                "message": f"Retrieved {len(device_cards)} devices for analytic",
+                "data": {
+                    "analytic": {
+                        "id": analytic.id,
+                        "analytic_name": analytic.analytic_name,
+                        "method": analytic.method
+                    },
+                    "devices": device_cards,
+                    "device_count": len(device_cards)
+                }
             },
             status_code=200
         )
         
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Failed to get device: {str(e)}", "data": []},
+            {"status": 500, "message": f"Failed to get devices: {str(e)}", "data": []},
             status_code=500
         )

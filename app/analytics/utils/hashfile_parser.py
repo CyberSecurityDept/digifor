@@ -76,21 +76,21 @@ class HashFileParser:
                 "modified_at_original": None
             }
     
-    def parse_hashfile(self, file_path: str, device_id: int, file_id: int, tools: str, original_file_path: str = None) -> List[Dict[str, Any]]:
+    def parse_hashfile(self, file_path: str, file_id: int, tools: str, original_file_path: str = None) -> List[Dict[str, Any]]:
         
         if tools == "Magnet Axiom":
-            return self.parse_axiom_hashfile(file_path, device_id, file_id, original_file_path)
+            return self.parse_axiom_hashfile(file_path, file_id, original_file_path)
         elif tools == "Cellebrite":
-            return self.parse_cellebrite_hashfile(file_path, device_id, file_id, original_file_path)
+            return self.parse_cellebrite_hashfile(file_path, file_id, original_file_path)
         elif tools == "Oxygen":
-            return self.parse_oxygen_hashfile(file_path, device_id, file_id, original_file_path)
+            return self.parse_oxygen_hashfile(file_path, file_id, original_file_path)
         elif tools == "Encase":
-            return self.parse_encase_hashfile(file_path, device_id, file_id, original_file_path)
+            return self.parse_encase_hashfile(file_path, file_id, original_file_path)
         else:
             print(f"Unknown tool: {tools}. Supported tools: Magnet Axiom, Cellebrite, Oxygen, Encase")
             return []
     
-    def parse_axiom_hashfile(self, file_path: str, device_id: int, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
+    def parse_axiom_hashfile(self, file_path: str, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
         results = []
         
         try:
@@ -99,7 +99,6 @@ class HashFileParser:
                 
                 for _, row in df.iterrows():
                     hashfile_data = {
-                        "device_id": device_id,
                         "file_id": file_id,
                         "name": str(row.get('Name', '')),
                         "file_name": str(row.get('Name', '')),
@@ -133,7 +132,6 @@ class HashFileParser:
                     
                     for _, row in df.iterrows():
                         hashfile_data = {
-                            "device_id": device_id,
                             "file_id": file_id,
                             "name": str(row.get('Name', '')),
                             "file_name": str(row.get('Name', '')),
@@ -156,7 +154,7 @@ class HashFileParser:
                     self.db.query(HashFile)
                     .filter(
                         HashFile.file_name == hashfile["file_name"],
-                        HashFile.device_id == device_id,
+                        HashFile.file_id == file_id,
                         HashFile.md5_hash == hashfile["md5_hash"]
                     )
                     .first()
@@ -174,7 +172,7 @@ class HashFileParser:
         
         return results
     
-    def parse_cellebrite_hashfile(self, file_path: str, device_id: int, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
+    def parse_cellebrite_hashfile(self, file_path: str, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
         results = []
         
         try:
@@ -201,7 +199,6 @@ class HashFileParser:
                     hash_type = 'md5' if 'md5' in sheet_name.lower() else 'sha1'
                     
                     hashfile_data = {
-                        "device_id": device_id,
                         "file_id": file_id,
                         "name": file_name,
                         "file_name": file_name,
@@ -224,7 +221,7 @@ class HashFileParser:
                     self.db.query(HashFile)
                     .filter(
                         HashFile.file_name == hashfile["file_name"],
-                        HashFile.device_id == device_id,
+                        HashFile.file_id == file_id,
                         HashFile.md5_hash == hashfile["md5_hash"]
                     )
                     .first()
@@ -242,7 +239,7 @@ class HashFileParser:
         
         return results
     
-    def parse_oxygen_hashfile(self, file_path: str, device_id: int, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
+    def parse_oxygen_hashfile(self, file_path: str, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
         results = []
         
         try:
@@ -272,7 +269,6 @@ class HashFileParser:
                 
                 for _, row in df.iterrows():
                     hashfile_data = {
-                        "device_id": device_id,
                         "file_id": file_id,
                         "name": str(row.get('Name', '')),
                         "file_name": str(row.get('Name', '')),
@@ -294,7 +290,7 @@ class HashFileParser:
                     self.db.query(HashFile)
                     .filter(
                         HashFile.file_name == hashfile["file_name"],
-                        HashFile.device_id == device_id,
+                        HashFile.file_id == file_id,
                         HashFile.md5_hash == hashfile["md5_hash"]
                     )
                     .first()
@@ -312,7 +308,7 @@ class HashFileParser:
         
         return results
     
-    def parse_encase_hashfile(self, file_path: str, device_id: int, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
+    def parse_encase_hashfile(self, file_path: str, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
         results = []
 
         try:
@@ -328,7 +324,6 @@ class HashFileParser:
                         parts = line.strip().split('\t')
                         if len(parts) >= 3:
                             hashfile_data = {
-                                "device_id": device_id,
                                 "file_id": file_id,
                                 "name": parts[0].strip(),
                                 "file_name": parts[0].strip(),
@@ -349,7 +344,6 @@ class HashFileParser:
                         parts = line.strip().split()
                         if len(parts) >= 2:
                             hashfile_data = {
-                                "device_id": device_id,
                                 "file_id": file_id,
                                 "name": parts[-1] if len(parts) > 1 else '',
                                 "file_name": parts[-1] if len(parts) > 1 else '',
@@ -370,7 +364,7 @@ class HashFileParser:
             elif file_extension in ['.xls', '.xlsx']:
                 if file_extension == '.xls':
                     engine = "xlrd"
-                else:
+                        else:
                     engine = "openpyxl"
 
                 xls = pd.ExcelFile(file_path, engine=engine)
@@ -380,7 +374,6 @@ class HashFileParser:
 
                     for _, row in df.iterrows():
                         hashfile_data = {
-                            "device_id": device_id,
                             "file_id": file_id,
                             "file_name": str(row.get('Name', '')).strip(),
                             "file_path": str(row.get('Path', '')).strip(),
@@ -401,7 +394,7 @@ class HashFileParser:
                     self.db.query(HashFile)
                     .filter(
                         HashFile.file_name == hashfile["file_name"],
-                        HashFile.device_id == device_id,
+                        HashFile.file_id == file_id,
                         HashFile.md5_hash == hashfile["md5_hash"]
                     )
                     .first()

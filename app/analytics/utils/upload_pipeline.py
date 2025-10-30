@@ -5,7 +5,7 @@ from typing import Any, Dict
 from fastapi import UploadFile  # type: ignore
 from app.analytics.shared.models import File
 from app.analytics.device_management.service import create_device
-from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
+from app.analytics.utils.sdp_crypto import decrypt_from_sdp
 from app.analytics.utils.tools_parser import tools_parser
 from app.analytics.utils.performance_optimizer import performance_optimizer
 from app.analytics.device_management.service import save_hashfiles_to_database
@@ -30,44 +30,14 @@ for d in [UPLOAD_DIR, DATA_DIR, ENCRYPTED_DIR, KEY_DIR]:
     os.makedirs(d, exist_ok=True)
 
 
-def encrypt_and_store_file(file: UploadFile, file_bytes: bytes, public_key_path: str) -> str:
-    public_key_path = os.path.join(KEY_DIR, "public.key")
+def _load_existing_private_key() -> bytes:
     private_key_path = os.path.join(KEY_DIR, "private.key")
-
-    if not (os.path.exists(public_key_path) and os.path.exists(private_key_path)):
-        print("Keypair belum ada - generate baru...")
-        private_key, public_key = generate_keypair()
-        with open(private_key_path, "wb") as f:
-            f.write(private_key)
-        with open(public_key_path, "wb") as f:
-            f.write(public_key)
-        print(f"Keypair dibuat: {public_key_path}, {private_key_path}")
-
-    base_filename = Path(file.filename).stem
-    encrypted_filename = f"{base_filename}.sdp"
-    encrypted_path = os.path.join(ENCRYPTED_DIR, encrypted_filename)
-
-    file_extension = Path(file.filename).suffix.lower()
-    if file_extension == '.csv':
-        suffix = '.csv'
-    elif file_extension == '.txt':
-        suffix = '.txt'
-    else:
-        suffix = '.xlsx'
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(file_bytes)
-        tmp_path = tmp.name
-
-    try:
-        with open(public_key_path, "rb") as f:
-            pub_key = f.read()
-        encrypt_to_sdp(pub_key, tmp_path, encrypted_path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-    return os.path.relpath(encrypted_path, BASE_DIR)
+    if not os.path.exists(private_key_path):
+        raise FileNotFoundError(
+            f"Private key not found at {private_key_path}. Please place your key in the 'keys' folder."
+        )
+    with open(private_key_path, "rb") as f:
+        return f.read()
 
 
 def format_bytes(n: int) -> str:
@@ -161,36 +131,85 @@ class UploadService:
 
         try:
             original_filename = file.filename
-            original_path_abs = os.path.join(DATA_DIR, original_filename)
             total_size = len(file_bytes)
             self._progress[upload_id].update(
                 {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
             )
 
-            chunk_size = 1024 * 512
+            # Tentukan target penyimpanan awal
+            file_ext = Path(original_filename).suffix.lower()
+            CHUNK = 1024 * 512
             written = 0
-            with open(original_path_abs, "wb") as f:
-                for i in range(0, total_size, chunk_size):
-                    if self._is_canceled(upload_id):
-                        self._mark_done(upload_id, "Upload canceled")
-                        return {"status": 200, "message": "Upload canceled", "data": {"done": True}}
+            if file_ext == ".sdp":
+                # Simpan .sdp ke folder encrypted, lalu decrypt ke DATA_DIR
+                encrypted_path_abs = os.path.join(ENCRYPTED_DIR, original_filename)
+                with open(encrypted_path_abs, "wb") as f:
+                    for i in range(0, total_size, CHUNK):
+                        if self._is_canceled(upload_id):
+                            self._mark_done(upload_id, "Upload canceled")
+                            return {"status": 200, "message": "Upload canceled", "data": {"done": True}}
+                        chunk = file_bytes[i:i + CHUNK]
+                        f.write(chunk)
+                        written += len(chunk)
 
-                    chunk = file_bytes[i:i + chunk_size]
-                    f.write(chunk)
-                    written += len(chunk)
+                        percent = (written / total_size) * 60
+                        progress_bytes = int((percent / 100) * total_size)
+                        self._progress[upload_id].update({
+                            "percent": round(percent, 2),
+                            "progress_size": format_bytes(progress_bytes),
+                            "message": f"Uploading... ({percent:.2f}%)",
+                        })
+                        await asyncio.sleep(0.02)
 
-                    percent = (written / total_size) * 60
-                    progress_bytes = int((percent / 100) * total_size)
-                    self._progress[upload_id].update({
-                        "percent": round(percent, 2),
-                        "progress_size": format_bytes(progress_bytes),
-                        "message": f"Uploading... ({percent:.2f}%)",
-                    })
-                    await asyncio.sleep(0.02)
+                # Decrypt menggunakan private key pada folder keys
+                try:
+                    self._progress[upload_id].update({"message": "Decrypting file...", "percent": 75})
+                    priv_key = _load_existing_private_key()
+                    decrypted_path_abs = decrypt_from_sdp(priv_key, encrypted_path_abs, DATA_DIR)
+                    # Pastikan nama file hasil dekripsi sesuai nama asli dari .sdp (tanpa .sdp)
+                    expected_name = os.path.splitext(original_filename)[0]  # e.g. ...xlsx
+                    expected_abs = os.path.join(DATA_DIR, expected_name)
+                    if os.path.abspath(decrypted_path_abs) != os.path.abspath(expected_abs):
+                        # Jika file target sudah ada, hapus lalu ganti nama
+                        if os.path.exists(expected_abs):
+                            try:
+                                os.remove(expected_abs)
+                            except Exception:
+                                pass
+                        try:
+                            os.replace(decrypted_path_abs, expected_abs)
+                            decrypted_path_abs = expected_abs
+                        except Exception:
+                            # fallback: copy-like rename failure, biarkan path hasil decrypt
+                            pass
+                except Exception as e:
+                    self._mark_done(upload_id, f"Decryption error: {str(e)}")
+                    return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
 
-            self._progress[upload_id]["message"] = "Encrypting file..."
-            public_key_path = os.path.join(KEY_DIR, "public.key")
-            encrypted_path = encrypt_and_store_file(file, file_bytes, public_key_path)
+                original_path_abs = decrypted_path_abs
+                original_filename = Path(decrypted_path_abs).name
+            else:
+                # Saat ini endpoint upload hanya menerima .sdp, namun untuk robustness simpan non-sdp ke DATA_DIR
+                original_path_abs = os.path.join(DATA_DIR, original_filename)
+                with open(original_path_abs, "wb") as f:
+                    for i in range(0, total_size, CHUNK):
+                        if self._is_canceled(upload_id):
+                            self._mark_done(upload_id, "Upload canceled")
+                            return {"status": 200, "message": "Upload canceled", "data": {"done": True}}
+                        chunk = file_bytes[i:i + CHUNK]
+                        f.write(chunk)
+                        written += len(chunk)
+
+                        percent = (written / total_size) * 60
+                        progress_bytes = int((percent / 100) * total_size)
+                        self._progress[upload_id].update({
+                            "percent": round(percent, 2),
+                            "progress_size": format_bytes(progress_bytes),
+                            "message": f"Uploading... ({percent:.2f}%)",
+                        })
+                        await asyncio.sleep(0.02)
+
+            # Tidak ada proses enkripsi. Jika file .sdp sudah didekripsi di atas.
 
             for i in range(60, 95):
                 if self._is_canceled(upload_id):
@@ -202,7 +221,7 @@ class UploadService:
                 self._progress[upload_id].update({
                     "percent": i,
                     "progress_size": format_bytes(current_bytes),
-                    "message": f"Encrypting... ({i}%)"
+                    "message": f"Preparing... ({i}%)"
                 })
                 await asyncio.sleep(0.03)
 
@@ -269,7 +288,6 @@ class UploadService:
             file_record = File(
                 file_name=file_name,
                 file_path=rel_path,
-                file_encrypted=encrypted_path,
                 notes=notes,
                 type=type,
                 tools=tools,
@@ -303,7 +321,7 @@ class UploadService:
                     parsing_result["hashfiles_saved"] = saved_hashfiles
                 except Exception as e:
                     parsing_result["hashfiles_save_error"] = str(e)
-
+            
             if method == "Social Media Correlation":
                 try:
                     if tools == "Magnet Axiom":
@@ -511,10 +529,9 @@ class UploadService:
                 "file_id": file_record.id,
             })
 
-            # Optimize response for large datasets
             total_records = len(parsed_data.get("contacts", [])) + len(parsed_data.get("messages", [])) + len(parsed_data.get("calls", []))
             
-            if total_records > 5000:  # Threshold for large datasets
+            if total_records > 5000:
                 response_data = performance_optimizer.create_summary_response(
                     total_records=total_records,
                     file_size=total_size,
@@ -527,11 +544,10 @@ class UploadService:
                     "progress_size": format_bytes(total_size),
                     "total_size": format_bytes(total_size),
                     "done": True,
-                    "encrypted_path": encrypted_path,
+                    "file_path": rel_path,
                     "parsing_result": parsing_result
                 })
             else:
-                # For smaller datasets, return full data
                 response_data = {
                     "status": 200,
                     "message": "File uploaded, encrypted & parsed successfully",
@@ -542,7 +558,7 @@ class UploadService:
                         "progress_size": format_bytes(total_size),
                         "total_size": format_bytes(total_size),
                         "done": True,
-                        "encrypted_path": encrypted_path,
+                        "file_path": rel_path,
                         "parsing_result": parsing_result
                     },
                 }

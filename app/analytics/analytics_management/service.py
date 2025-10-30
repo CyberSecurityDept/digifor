@@ -12,10 +12,9 @@ import requests
 import re
 from datetime import datetime
 
-def store_analytic(db: Session, analytic_name: str, type: str = None, method: str = None):
+def store_analytic(db: Session, analytic_name: str, method: str = None):
     new_analytic = Analytic(
         analytic_name=analytic_name,
-        type=type,
         method=method,
         created_at=get_indonesia_time()
     )
@@ -32,7 +31,6 @@ def get_all_analytics(db: Session):
         formatted_analytic = {
             "id": analytic.id,
             "analytic_name": analytic.analytic_name,
-            "type": analytic.type,
             "method": analytic.method,
             "summary": analytic.summary,
             "created_at": analytic.created_at,

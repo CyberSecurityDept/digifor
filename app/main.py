@@ -1,5 +1,4 @@
 import warnings
-# Suppress all OLE2 warnings globally
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
@@ -20,14 +19,15 @@ from app.middleware.timeout import TimeoutMiddleware
 from app.api.v1 import (
     dashboard_routes,
     analytics_file_routes,
+    analytics_sdp_routes,
     analytics_device_routes,
     analytics_management_routes,
+    analytics_report_routes,
     analytics_communication_routes,
     analytics_contact_routes,
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
     analytics_social_media_routes
-    # analytics_hashfile_enhanced_routes - removed
 )
 from app.db.init_db import init_db
 
@@ -76,9 +76,11 @@ app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["D
 # app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 # app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 
+app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])
+app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["SDP Converter"])
 app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tags=["File Management"])
-app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
 app.include_router(analytics_management_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Management"])
+app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])
 app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation"])
 app.include_router(analytics_management_routes.hashfile_router, prefix=settings.API_V1_STR, tags=["Hashfile Analytics"])
 app.include_router(analytics_social_media_routes.router, prefix=settings.API_V1_STR, tags=["Social Media Correlation"])
