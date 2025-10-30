@@ -169,11 +169,9 @@ def edit_analytic_summary(
         )
 
 def _export_contact_correlation_pdf(analytic, device_ids, db):
-    # Get file_ids from devices
     devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
     file_ids = [d.file_id for d in devices]
     
-    # Query Contact via file_id (not device_id)
     contacts = (
         db.query(Contact)
         .filter(Contact.file_id.in_(file_ids))

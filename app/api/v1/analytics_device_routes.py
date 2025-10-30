@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.shared.models import Device, File, Analytic, AnalyticDevice
 from app.utils.timezone import get_indonesia_time
 from typing import Optional
+from sqlalchemy import or_
 
 router = APIRouter()
 
@@ -145,33 +146,30 @@ async def add_device(
 
 @router.get("/analytics/latest/files")
 def get_files_by_latest_analytic_method(
+    search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
+    dropdown: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
     db: Session = Depends(get_db)
 ):
     try:
-        latest_analytic = db.query(Analytic).order_by(Analytic.created_at.desc()).first()
-        
-        if not latest_analytic:
-            return JSONResponse(
-                content={
-                    "status": 404,
-                    "message": "No analytic found. Please create an analytic first.",
-                    "data": []
-                },
-                status_code=404
-            )
-        
-        if not latest_analytic.method:
-            return JSONResponse(
-                content={
-                    "status": 400,
-                    "message": "Latest analytic has no method specified.",
-                    "data": []
-                },
-                status_code=400
+        allowed_methods = {"Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"}
+
+        query = db.query(File)
+
+        if dropdown and dropdown in allowed_methods and dropdown != "All":
+            query = query.filter(File.method == dropdown)
+
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    File.file_name.ilike(term),
+                    File.notes.ilike(term),
+                    File.tools.ilike(term),
+                    File.method.ilike(term),
+                )
             )
 
-        # Get files that match the latest analytic's method
-        files = db.query(File).filter(File.method == latest_analytic.method).order_by(File.created_at.desc()).all()
+        files = query.order_by(File.created_at.desc()).all()
 
         files_data = []
         for file_record in files:
@@ -192,12 +190,11 @@ def get_files_by_latest_analytic_method(
         return JSONResponse(
             {
                 "status": 200,
-                "message": f"Retrieved {len(files_data)} files for method '{latest_analytic.method}' from latest analytic '{latest_analytic.analytic_name}'",
+                "message": f"Retrieved {len(files_data)} files",
                 "data": {
-                    "analytic": {
-                        "id": latest_analytic.id,
-                        "analytic_name": latest_analytic.analytic_name,
-                        "method": latest_analytic.method
+                    "filters": {
+                        "search": search,
+                        "dropdown": dropdown if dropdown in allowed_methods else None
                     },
                     "files": files_data
                 }
@@ -221,7 +218,6 @@ def get_devices_by_analytic_id(
     db: Session = Depends(get_db)
 ):
     try:
-        # Validate analytic
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -229,7 +225,6 @@ def get_devices_by_analytic_id(
                 status_code=404
             )
         
-        # Get device IDs from AnalyticDevice
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
@@ -257,10 +252,8 @@ def get_devices_by_analytic_id(
                 status_code=200
             )
         
-        # Get devices
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
         
-        # Format devices as cards
         device_labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
         device_cards = []
         

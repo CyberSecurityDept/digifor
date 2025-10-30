@@ -129,7 +129,6 @@ def create_device(
                 skipped_contacts += 1
                 continue
             
-            # Add to seen phones and save contact
             seen_phones.add(phone_number)
             db.add(Contact(
                 file_id=device_data.get("file_id"),
@@ -211,25 +210,21 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
                     elif file_extension in ['zip', 'rar', '7z', 'tar', 'gz']:
                         file_type = "Archive"
 
-            # Determine if suspicious
             is_suspicious = "False"
             suspicious_extensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js']
             if file_extension and file_extension in suspicious_extensions:
                 is_suspicious = "True"
 
-            # Determine risk level
             risk_level = "Low"
             if is_suspicious == "True":
                 risk_level = "High"
             elif file_extension in ['.dll', '.sys', '.drv']:
                 risk_level = "Medium"
 
-            # Get required fields with defaults
             file_name = normalize_str(hf.get('name', 'Unknown'))
             md5_hash = normalize_str(hf.get('md5', ''))
             sha1_hash = normalize_str(hf.get('sha1', ''))
 
-            # Get original file information from Get Info
             original_file_name = normalize_str(hf.get('original_file_name', file_name))
             original_file_path = normalize_str(hf.get('original_file_path', ''))
             original_file_size = hf.get('original_file_size', 0)
@@ -237,11 +232,9 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
             original_created_at = hf.get('original_created_at')
             original_modified_at = hf.get('original_modified_at')
 
-            # Skip if no hash values
             if not md5_hash and not sha1_hash:
                 continue
 
-            # Skip files with empty or invalid names to avoid meaningless hash collisions
             if not file_name or file_name.strip() == '' or file_name == 'Unknown':
                 continue
 
@@ -249,7 +242,6 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
                 file_id=file_id,
                 name=file_name,
 
-                # Original file information from Get Info
                 file_name=original_file_name,
                 kind=original_file_kind,
                 size_bytes=original_file_size,
@@ -264,7 +256,7 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
                 source_tool=source_tool,
                 file_type=file_type,
                 file_extension=file_extension,
-                is_duplicate="False",  # Will be updated later if needed
+                is_duplicate="False",
                 is_suspicious=is_suspicious,
                 malware_detection=normalize_str(hf.get('malware_detection', '')),
                 risk_level=risk_level,

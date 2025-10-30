@@ -154,7 +154,6 @@ def get_hashfile_analytics(
             for d in devices
         }
         
-        # Get file_ids from devices
         file_ids = [d.file_id for d in devices]
         
         device_labels = []
@@ -167,7 +166,6 @@ def get_hashfile_analytics(
                 device_label = f"Device {first_char}{second_char}"
             device_labels.append(device_label)
 
-        # Query HashFile via file_id (not device_id)
         hashfiles = db.query(HashFile).filter(
             HashFile.file_id.in_(file_ids)
         ).all()
@@ -193,7 +191,7 @@ def get_hashfile_analytics(
                         "devices": set(),
                         "hashfile_records": []
                     }
-                # Find device_id from hashfile's file_id
+
                 hashfile_device_id = None
                 for d in devices:
                     if d.file_id == hashfile.file_id:
@@ -214,7 +212,6 @@ def get_hashfile_analytics(
             device_hashfiles = {}
             
             for record in hashfile_records:
-                # Find device_id from hashfile's file_id
                 hashfile_device_id = None
                 for d in devices:
                     if d.file_id == record.file_id:
@@ -327,7 +324,6 @@ def start_data_extraction(
     db: Session = Depends(get_db)
 ):
     try:
-        # Validate analytic
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -335,7 +331,6 @@ def start_data_extraction(
                 status_code=404
             )
 
-        # Get device IDs from AnalyticDevice
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
@@ -345,7 +340,6 @@ def start_data_extraction(
             device_ids.extend(link.device_ids)
         device_ids = list(set(device_ids))
         
-        # Check minimum device requirement (min 2 devices)
         if len(device_ids) < 2:
             return JSONResponse(
                 {
@@ -359,11 +353,9 @@ def start_data_extraction(
                 status_code=400
             )
 
-        # Process analytics based on method
         method = analytic.method
         
         if method == "Contact Correlation":
-            # Return success - the actual correlation can be retrieved via GET endpoint
             return JSONResponse(
                 {
                     "status": 200,

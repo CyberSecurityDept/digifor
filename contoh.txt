@@ -1,0 +1,105 @@
+{
+  "status": 200,
+  "message": "Retrieved 1 analytics successfully",
+  "data": [
+    {
+      "id": 1,
+      "analytic_name": "testing analytics Social Media Correlation",
+      "method": "Social Media Correlation",
+      "summary": null,
+      "date": "29/10/2025"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "skip": 0,
+    "limit": 100,
+    "returned": 1
+  }
+}
+
+
+
+ini untuk upload dengan status success
+{
+  "status": "Success",
+  "message": "Upload successful"
+  "upload_id": "upload_1761798407_20e4d68f",
+  "file_name": "contoh_file.xlsx",
+  "size": "7.622 MB",
+  "percentage": 100, -> 100%
+  "upload_status": "Success",
+  "data": [
+    {
+      "file_id": 1,
+      "file_path": "data/uploads/data/Exported results.xlsx",
+      "file_encrypted": "data/uploads/encrypted/Exported results.sdp",
+      "notes": null,
+      "type": "Handphone",
+      "tools": "Magnet Axiom", 
+      "method": "Social Media Correlation",
+      "total_size": "7.622 MB",
+      "amount_of_data": "1114",
+      "create_at": "2025-10-29 00:48:32.462115",
+      "update_at": "2025-10-29 00:48:33.91467"
+    }
+  ]
+}
+
+
+ini untuk upload dengan status progress
+
+{
+  "status": "Progress",
+  "message": "Upload Progress"
+  "upload_id": "upload_1761798407_20e4d68f",
+  "file_name": "contoh_file.xlsx",
+  "size": "3.811/7.622 MB",
+  "percentage": 50, -> 50%
+  "upload_status": "Progress",
+  "data": []
+}
+
+
+
+ini untuk upload dengan status Failed
+
+{
+  "status": "Failed",
+  "message": "Upload Progress"
+  "upload_id": "upload_1761798407_20e4d68f",
+  "file_name": "contoh_file.xlsx",
+  "size": "Upload Failed! Please try again",
+  "percentage": "Error",
+  "upload_status": "Failed",
+  "data": []
+}
+
+
+{
+  "status": 200,
+  "message": "File uploaded, encrypted & parsed successfully",
+  "data": {
+    "file_id": 1,
+    "upload_id": "upload_1761803087_e231d3c7",
+    "status_upload": "Pending",
+    "total_size": "18.34 MB",
+    "encrypted_path": "data/uploads/encrypted/Exported results.sdp",
+    "parsing_result": {
+      "tool_used": "Magnet Axiom",
+      "social_media_count": 462,
+      "amount_of_data_count": 462
+    }
+  }
+}
+
+
+
+{
+  "status": 200,
+  "message": "Successfully convert file to .sdp",
+  "data":[{
+    "file": "Magnet_Axiom_Report_CCC.xlsx.sdp
+    "status": "Converted"
+  }]
+}
