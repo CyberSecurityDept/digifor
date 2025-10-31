@@ -141,6 +141,7 @@ def social_media_correlation(
                     "correlations": {
                         platform_display_name: {"buckets": []}
                     },
+                    "summary": getattr(analytic, 'summary', None)
                 }
             },
             status_code=200
@@ -196,6 +197,7 @@ def social_media_correlation(
                 "total_devices": total_devices,
                 "devices": devices_data,
                 "correlations": correlations,
+                "summary": analytic.summary if hasattr(analytic, 'summary') and analytic.summary else None
             }
         },
         status_code=200
