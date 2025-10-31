@@ -6,19 +6,60 @@ from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
+from .social_media_parsers_extended import SocialMediaParsersExtended
 
 import warnings
-warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+import sys
+
+warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', module='openpyxl')
+warnings.filterwarnings('ignore', module='xlrd')
+warnings.filterwarnings('ignore', message='.*OLE2.*')
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
+# Suppress stderr for OLE2 warnings from xlrd/openpyxl
+import io
+class FilteredStderr(io.TextIOWrapper):
+    def write(self, s):
+        if isinstance(s, str):
+            if 'OLE2 inconsistency' not in s and 'SSCS size is 0' not in s and 'WARNING ***' not in s:
+                super().write(s)
+        else:
+            super().write(s)
+
+try:
+    if sys.stderr:
+        original_stderr = sys.stderr
+        def write_filtered(data):
+            if isinstance(data, str):
+                if 'OLE2 inconsistency' not in data and 'SSCS size is 0' not in data and 'WARNING ***' not in data:
+                    original_stderr.write(data)
+            else:
+                original_stderr.write(data)
+        
+        class FilteredStderrWrapper:
+            def write(self, data):
+                write_filtered(data)
+            def flush(self):
+                original_stderr.flush()
+            def __getattr__(self, name):
+                return getattr(original_stderr, name)
+        
+        sys.stderr = FilteredStderrWrapper()
+except:
+    pass
 
 SOCIAL_MEDIA_PLATFORMS = ["instagram", "facebook", "whatsapp", "telegram", "x", "tiktok"]
 
-class SocialMediaParser:
+class SocialMediaParser(SocialMediaParsersExtended):
 
     def __init__(self, db: Session):
+        super().__init__(db)
         self.db = db
 
     def _to_int_safe(self, value: Optional[str], max_value: int = 2147483647) -> Optional[int]:
@@ -27,7 +68,6 @@ class SocialMediaParser:
         text = str(value).strip()
         if text == "" or text.lower() == "nan":
             return None
-        # Keep leading '-' if present; strip non-digits
         sign = -1 if text.startswith('-') else 1
         digits = ''.join(ch for ch in text if ch.isdigit())
         if digits == "":
@@ -36,7 +76,6 @@ class SocialMediaParser:
             num = sign * int(digits)
             if -max_value <= num <= max_value:
                 return num
-            # Out of 32-bit integer range -> treat as invalid
             return None
         except Exception:
             return None
@@ -50,69 +89,117 @@ class SocialMediaParser:
             if 'Contacts ' in xls.sheet_names:
                 contacts_df = pd.read_excel(file_path, sheet_name='Contacts ', dtype=str, engine='xlrd')
                 
-                social_platforms = ['X (Twitter)', 'Instagram', 'Telegram Messenger', 'Facebook', 'WhatsApp', 'TikTok']
-                social_accounts = contacts_df[contacts_df['Source'].isin(social_platforms)]
-                
-                for _, row in social_accounts.iterrows():
+                print("=" * 60)
+                print("FOCUS: Parsing Instagram only from Contacts sheet")
+                print("=" * 60)
+
+                if 'Source' not in contacts_df.columns:
+                    print("  Column 'Source' not found in Contacts sheet")
+                    return results
+
+                instagram_rows = contacts_df[contacts_df['Source'].str.contains('Instagram', case=False, na=False)]
+                print(f"  Found {len(instagram_rows)} rows with Source containing 'Instagram'")
+
+                if len(instagram_rows) == 0:
+                    print("  No Instagram rows found")
+                    return results
+
+                for _, row in instagram_rows.iterrows():
                     source = self._clean(row.get('Source', ''))
+                    type_field = self._clean(row.get('Type', ''))
                     contact = self._clean(row.get('Contact', ''))
-                    phones_emails = self._clean(row.get('Phones & Emails', ''))
                     internet = self._clean(row.get('Internet', ''))
+                    addresses = self._clean(row.get('Addresses', ''))
                     
-                    if not source or not contact:
+                    if not source or self._is_header_or_metadata(source):
                         continue
-                    
-                    platform = self._determine_platform_from_source(source)
-                    if not platform:
-                        continue
-                    
-                    account_name = self._extract_account_name_enhanced(contact, platform, phones_emails, internet)
-                    account_id = self._extract_account_id_enhanced(contact, platform, phones_emails, internet)
-                    user_id = self._extract_user_id_enhanced(contact, platform, phones_emails, internet)
-                    
-                    if account_name:
+
+                    full_name = self._extract_full_name_from_contact(contact)
+                    account_name = self._extract_nickname(contact)
+                    instagram_id = self._extract_platform_id(internet, "instagram")
+                    location = self._extract_location(addresses)
+
+                    if account_name or instagram_id:
                         acc = {
-                            "platform": platform,
-                            "account_name": account_name,
-                            "account_id": account_id,
-                            "user_id": user_id,
-                            "full_name": account_name,
-                            "source_tool": "Oxygen",
-                            "sheet_name": "Contacts",
                             "file_id": file_id,
+                            "type": type_field,
+                            "source": source.strip(),
+                            "phone_number": None,
+                            "full_name": full_name,
+                            "account_name": account_name,
+                            "instagram_id": instagram_id,
+                            "location": location,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "X_id": None,
+                            "facebook_id": None,
+                            "tiktok_id": None,
+                            "sheet_name": "Contacts",
                         }
-                        results.append(acc)
+
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            results.append(acc)
+                        else:
+                            if len(results) < 5:
+                                print(f"⚠️  Skipping invalid record: {error_msg}")
             
             batch_size = 50
             saved_count = 0
+            skipped_count = 0
+            invalid_count = 0
             
             for i in range(0, len(results), batch_size):
                 batch = results[i:i + batch_size]
+                batch_saved = 0
                 
                 try:
                     for acc in batch:
-                        existing = (
-                            self.db.query(SocialMedia)
-                            .filter(
-                                SocialMedia.account_name == acc["account_name"],
-                                SocialMedia.platform == acc["platform"],
-                                SocialMedia.file_id == file_id,
-                            )
-                            .first()
-                        )
-                        if not existing:
+                        is_valid, error_msg = self._validate_social_media_data(acc)
+                        if not is_valid:
+                            invalid_count += 1
+                            if invalid_count <= 5:
+                                log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
+                                platform_info = []
+                                if log_acc.get('instagram_id'):
+                                    platform_info.append(f"IG:{log_acc['instagram_id']}")
+                                if log_acc.get('facebook_id'):
+                                    platform_info.append(f"FB:{log_acc['facebook_id']}")
+                                if log_acc.get('whatsapp_id'):
+                                    platform_info.append(f"WA:{log_acc['whatsapp_id']}")
+                                if log_acc.get('X_id'):
+                                    platform_info.append(f"X:{log_acc['X_id']}")
+                                platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
+                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                            continue
+
+                        if "platform" in acc:
+                            acc = self._convert_old_to_new_structure(acc)
+
+                        if self._check_existing_social_media(acc):
+                            skipped_count += 1
+                            continue
+
+                        # Simpan ke DB
                             self.db.add(SocialMedia(**acc))
+                        batch_saved += 1
                     
                     self.db.commit()
-                    saved_count += len(batch)
-                    print(f"Saved batch {i//batch_size + 1}: {len(batch)} records (Total: {saved_count})")
+                    saved_count += batch_saved
+                    print(f"Saved batch {i//batch_size + 1}: {batch_saved}/{len(batch)} records inserted (Total saved: {saved_count}, Skipped: {skipped_count})")
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
+                    import traceback
+                    traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
             
             print(f"Successfully saved {saved_count} Oxygen UFED social media accounts to database")
+            if skipped_count > 0:
+                print(f"  ({skipped_count} records skipped - already exist)")
+            if invalid_count > 0:
+                print(f"  ({invalid_count} records skipped - invalid data)")
 
         except Exception as e:
             print(f"Error parsing Oxygen UFED social media: {e}")
@@ -122,6 +209,7 @@ class SocialMediaParser:
         
         return results
     
+
     def _determine_platform_from_source(self, source: str) -> str:
         source_lower = source.lower()
         
@@ -370,7 +458,6 @@ class SocialMediaParser:
         try:
             df = pd.read_excel(file_path, sheet_name='X (Twitter) ', dtype=str, engine='xlrd')
             
-            # Skip header rows and look for actual user data
             skip_keywords = ['identifier', 'user data', 'version', 'container type', 'container', 
                            'purchase date', 'apple id', 'genre', 'copyright', 'passwords', 'accounts', 
                            'categories', 'following', 'feed', 'stories', 'messages', 'media', 'contacts',
@@ -428,20 +515,38 @@ class SocialMediaParser:
                 
                 print(f"Total sheets available: {len(xls.sheet_names)}")
                 
-                # Parse multiple sheets for social media data
+                # FOKUS PARSING INSTAGRAM SAJA - Skip platform lain untuk sementara
+                print("=" * 60)
+                print("FOCUS: Parsing Instagram only (other platforms disabled)")
+                print("=" * 60)
+                
+                # Parse Instagram sheets dan Contacts sheet (Instagram only)
                 results.extend(self._parse_oxygen_instagram_sheets(file_path, xls, file_id, engine))
-                results.extend(self._parse_oxygen_twitter_sheets(file_path, xls, file_id, engine))
-                results.extend(self._parse_oxygen_telegram_sheets(file_path, xls, file_id, engine))
-                results.extend(self._parse_oxygen_whatsapp_sheets(file_path, xls, file_id, engine))
                 results.extend(self._parse_oxygen_contacts_sheet(file_path, xls, file_id, engine))
-                results.extend(self._parse_oxygen_tiktok_facebook_sheets(file_path, xls, file_id, engine))
 
-            # Remove duplicates before saving
             unique_results = []
             seen_accounts = set()
             
             for acc in results:
-                account_key = f"{acc['platform']}_{acc['account_id']}_{acc['account_name']}"
+                if "platform" in acc:
+                    account_key = f"{acc.get('platform', '')}_{acc.get('account_id', '')}_{acc.get('account_name', '')}"
+                else:
+                    # Struktur baru - gunakan platform IDs
+                    platform_ids = []
+                    if acc.get('instagram_id'):
+                        platform_ids.append(f"ig:{acc['instagram_id']}")
+                    if acc.get('facebook_id'):
+                        platform_ids.append(f"fb:{acc['facebook_id']}")
+                    if acc.get('whatsapp_id'):
+                        platform_ids.append(f"wa:{acc['whatsapp_id']}")
+                    if acc.get('telegram_id'):
+                        platform_ids.append(f"tg:{acc['telegram_id']}")
+                    if acc.get('X_id'):
+                        platform_ids.append(f"x:{acc['X_id']}")
+                    if acc.get('tiktok_id'):
+                        platform_ids.append(f"tt:{acc['tiktok_id']}")
+                    account_key = f"{acc.get('account_name', '')}_{'_'.join(platform_ids)}"
+                
                 if account_key not in seen_accounts:
                     seen_accounts.add(account_key)
                     unique_results.append(acc)
@@ -452,34 +557,63 @@ class SocialMediaParser:
             # Save to database in batches
             batch_size = 50
             saved_count = 0
+            skipped_count = 0
+            invalid_count = 0
             
             for i in range(0, len(unique_results), batch_size):
                 batch = unique_results[i:i + batch_size]
+                batch_saved = 0
                 
                 try:
                     for acc in batch:
-                        existing = (
-                            self.db.query(SocialMedia)
-                            .filter(
-                                SocialMedia.platform == acc["platform"],
-                                SocialMedia.account_id == acc["account_id"],
-                                SocialMedia.file_id == acc["file_id"]
-                            )
-                            .first()
-                        )
-                        if not existing:
+                        # Validasi data sebelum insert
+                        is_valid, error_msg = self._validate_social_media_data(acc)
+                        if not is_valid:
+                            invalid_count += 1
+                            if invalid_count <= 5:  # Log first 5 invalid records
+                                # Convert untuk logging
+                                log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
+                                platform_info = []
+                                if log_acc.get('instagram_id'):
+                                    platform_info.append(f"IG:{log_acc['instagram_id']}")
+                                if log_acc.get('facebook_id'):
+                                    platform_info.append(f"FB:{log_acc['facebook_id']}")
+                                if log_acc.get('whatsapp_id'):
+                                    platform_info.append(f"WA:{log_acc['whatsapp_id']}")
+                                if log_acc.get('X_id'):
+                                    platform_info.append(f"X:{log_acc['X_id']}")
+                                platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
+                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                            continue
+                        
+                        # Convert ke struktur baru jika perlu
+                        if "platform" in acc:
+                            acc = self._convert_old_to_new_structure(acc)
+                        
+                        # Check duplicate menggunakan struktur baru
+                        if self._check_existing_social_media(acc):
+                            skipped_count += 1
+                            continue
+                        
                             self.db.add(SocialMedia(**acc))
+                        batch_saved += 1
                     
                     self.db.commit()
-                    saved_count += len(batch)
-                    print(f"Saved batch {i//batch_size + 1}: {len(batch)} records (Total: {saved_count})")
+                    saved_count += batch_saved
+                    print(f"Saved batch {i//batch_size + 1}: {batch_saved}/{len(batch)} records inserted (Total saved: {saved_count}, Skipped: {skipped_count})")
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
+                    import traceback
+                    traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
             
             print(f"Successfully saved {saved_count} unique Oxygen social media accounts to database")
+            if skipped_count > 0:
+                print(f"  ({skipped_count} records skipped - already exist)")
+            if invalid_count > 0:
+                print(f"  ({invalid_count} records skipped - invalid data)")
 
         except Exception as e:
             print(f"Error parsing social media Oxygen: {e}")
@@ -490,91 +624,7 @@ class SocialMediaParser:
 
     def _parse_oxygen_instagram_sheets(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
-        
-        try:
-            # Parse Users-Following sheet
-            if 'Users-Following ' in xls.sheet_names:
-                print("Parsing Instagram Users-Following sheet...")
-                df = pd.read_excel(file_path, sheet_name='Users-Following ', engine=engine, dtype=str)
-                
-                for _, row in df.iterrows():
-                    user_name = self._clean(row.get('User name'))
-                    full_name = self._clean(row.get('Full name'))
-                    user_id = self._clean(row.get('User ID'))
-                    profile_picture_url = self._clean(row.get('User picture URL'))
-                    is_private = self._clean(row.get('Private'))
-                    is_verified = self._clean(row.get('Verified'))
-                    
-                    if user_name and user_id:
-                        acc = {
-                            "platform": "instagram",
-                            "account_name": user_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
-                            "full_name": full_name,
-                            "following": None,
-                            "followers": None,
-                            "friends": None,
-                            "statuses": None,
-                            "phone_number": None,
-                            "email": None,
-                            "biography": None,
-                            "profile_picture_url": profile_picture_url,
-                            "is_private": is_private == 'Yes' if is_private else None,
-                            "is_local_user": None,
-                            "chat_content": None,
-                            "last_message": None,
-                            "other_info": f"Verified: {is_verified}" if is_verified else None,
-                            "source_tool": "Oxygen",
-                            "sheet_name": "Users-Following",
-                            "file_id": file_id,
-                        }
-                        results.append(acc)
-            
-            # Parse Users-Followers sheet
-            if 'Users-Followers ' in xls.sheet_names:
-                print("Parsing Instagram Users-Followers sheet...")
-                df = pd.read_excel(file_path, sheet_name='Users-Followers ', engine=engine, dtype=str)
-                
-                for _, row in df.iterrows():
-                    user_name = self._clean(row.get('User name'))
-                    full_name = self._clean(row.get('Full name'))
-                    user_id = self._clean(row.get('UID'))
-                    profile_picture_url = self._clean(row.get('User picture URL'))
-                    description = self._clean(row.get('Description'))
-                    followers_count = self._clean(row.get('Followers'))
-                    following_count = self._clean(row.get('Following'))
-                    is_verified = self._clean(row.get('Verified'))
-                    
-                    if user_name and user_id:
-                        acc = {
-                            "platform": "instagram",
-                            "account_name": user_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
-                            "full_name": full_name,
-                            "following": int(following_count) if following_count and following_count.isdigit() else None,
-                            "followers": int(followers_count) if followers_count and followers_count.isdigit() else None,
-                            "friends": None,
-                            "statuses": None,
-                            "phone_number": None,
-                            "email": None,
-                            "biography": description,
-                            "profile_picture_url": profile_picture_url,
-                            "is_private": None,
-                            "is_local_user": None,
-                            "chat_content": None,
-                            "last_message": None,
-                            "other_info": f"Verified: {is_verified}" if is_verified else None,
-                            "source_tool": "Oxygen",
-                            "sheet_name": "Users-Followers",
-                            "file_id": file_id,
-                        }
-                        results.append(acc)
-        
-        except Exception as e:
-            print(f"Error parsing Instagram sheets: {e}")
-        
+        print("Note: Instagram dedicated sheets skipped - only parsing from Contacts sheet")
         return results
 
     def _parse_oxygen_twitter_sheets(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
@@ -607,17 +657,7 @@ class SocialMediaParser:
                                 "full_name": full_name,
                                 "following": int(following_count) if following_count and following_count.isdigit() else None,
                                 "followers": int(followers_count) if followers_count and followers_count.isdigit() else None,
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": None,
-                                "email": None,
-                                "biography": description,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": f"Verified: {is_verified}" if is_verified else None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Users-Followers",
                                 "file_id": file_id,
@@ -644,17 +684,7 @@ class SocialMediaParser:
                             "full_name": full_name,
                             "following": None,
                             "followers": None,
-                            "friends": None,
-                            "statuses": None,
                             "phone_number": None,
-                            "email": None,
-                            "biography": None,
-                            "profile_picture_url": None,
-                            "is_private": None,
-                            "is_local_user": None,
-                            "chat_content": tweet_text,
-                            "last_message": tweet_text,
-                            "other_info": None,
                             "source_tool": "Oxygen",
                             "sheet_name": "Tweets-Following",
                             "file_id": file_id,
@@ -681,17 +711,7 @@ class SocialMediaParser:
                             "full_name": full_name,
                             "following": None,
                             "followers": None,
-                            "friends": None,
-                            "statuses": None,
                             "phone_number": None,
-                            "email": None,
-                            "biography": None,
-                            "profile_picture_url": None,
-                            "is_private": None,
-                            "is_local_user": None,
-                            "chat_content": tweet_text,
-                            "last_message": tweet_text,
-                            "other_info": None,
                             "source_tool": "Oxygen",
                             "sheet_name": "Tweets-Other",
                             "file_id": file_id,
@@ -728,6 +748,10 @@ class SocialMediaParser:
                     contact_field = self._clean(row.get("Contact"))
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
+                    # Skip jika source_field adalah header
+                    if source_field and self._is_header_or_metadata(source_field):
+                        continue
+                    
                     if source_field and 'telegram' in source_field.lower():
                         telegram_id = None
                         if internet_field and 'telegram id:' in internet_field.lower():
@@ -739,6 +763,10 @@ class SocialMediaParser:
                         if not account_name and telegram_id:
                             account_name = telegram_id
                         
+                        # Skip jika account_name adalah header/metadata
+                        if account_name and self._is_header_or_metadata(account_name):
+                            continue
+                        
                         if telegram_id:
                             acc = {
                                 "platform": "telegram",
@@ -748,17 +776,7 @@ class SocialMediaParser:
                                 "full_name": self._extract_full_name(contact_field),
                                 "following": None,
                                 "followers": None,
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": self._extract_phone_number(phones_emails_field),
-                                "email": self._extract_email(phones_emails_field),
-                                "biography": None,
-                                "profile_picture_url": None,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Contacts",
                                 "file_id": file_id,
@@ -789,12 +807,17 @@ class SocialMediaParser:
                 print("Parsing WhatsApp data from Contacts sheet...")
                 df = pd.read_excel(file_path, sheet_name='Contacts ', engine=engine, dtype=str)
                 
+                # Skip header row jika terdeteksi
                 for _, row in df.iterrows():
                     source_field = self._clean(row.get("Source"))
                     internet_field = self._clean(row.get("Internet"))
                     contact_field = self._clean(row.get("Contact"))
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     other_field = self._clean(row.get("Other"))
+                    
+                    # Skip jika source_field adalah header
+                    if source_field and self._is_header_or_metadata(source_field):
+                        continue
                     
                     if source_field and 'whatsapp' in source_field.lower():
                         whatsapp_id = None
@@ -806,6 +829,10 @@ class SocialMediaParser:
                         account_name = self._extract_name(contact_field)
                         if not account_name and whatsapp_id:
                             account_name = whatsapp_id
+                        
+                        # Skip jika account_name adalah header/metadata
+                        if account_name and self._is_header_or_metadata(account_name):
+                            continue
                         
                         phone_number = self._extract_phone_number(phones_emails_field)
                         if not phone_number and whatsapp_id:
@@ -820,17 +847,7 @@ class SocialMediaParser:
                                 "full_name": self._extract_full_name(contact_field),
                                 "following": None,
                                 "followers": None,
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": phone_number,
-                                "email": self._extract_email(phones_emails_field),
-                                "biography": None,
-                                "profile_picture_url": None,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": other_field,
-                                "last_message": other_field,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Contacts",
                                 "file_id": file_id,
@@ -842,93 +859,1188 @@ class SocialMediaParser:
         
         return results
 
+    def _extract_platform_id(self, text: str, platform: str) -> Optional[str]:
+        """Extract platform ID dari text berdasarkan platform"""
+        if not text:
+            return None
+        
+        text_str = str(text)
+        platform_lower = platform.lower()
+        
+        patterns = {
+            "instagram": r"Instagram\s+ID[:\s]*(\d+)",
+            "facebook": r"Facebook\s+ID[:\s]*(\d+)",
+            "whatsapp": r"WhatsApp\s+ID[:\s]*([\+\d\s\-\(\)]+)|Phone\s+number[:\s]*([\+\d\s\-\(\)]+)",
+            "telegram": r"Telegram\s+ID[:\s]*(\d+)",
+            "x": r"(?:X|Twitter)\s+ID[:\s]*(\d+)",
+            "twitter": r"(?:X|Twitter)\s+ID[:\s]*(\d+)",
+            "tiktok": r"TikTok\s+ID[:\s]*(\d+)",
+        }
+        
+        pattern = patterns.get(platform_lower)
+        if pattern:
+            match = re.search(pattern, text_str, re.IGNORECASE)
+            if match:
+                # Ambil group pertama yang tidak None
+                for group in match.groups():
+                    if group:
+                        return group.strip()
+        return None
+    
+    def _extract_nickname(self, text: str) -> Optional[str]:
+        """Extract nickname dari Contact field"""
+        if not text:
+            return None
+        
+        text_str = str(text)
+        # Cari "Nickname: username"
+        match = re.search(r"Nickname[:\s]+([^\n]+)", text_str, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+    
+    def _extract_location(self, text: str) -> Optional[str]:
+        """Extract location dari Addresses field"""
+        if not text:
+            return None
+        
+        text_str = str(text)
+        # Cari "Location: Bandung, Indonesia"
+        match = re.search(r"Location[:\s]+([^\n]+)", text_str, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+    
+    def _extract_phone_number_from_text(self, text: str) -> Optional[str]:
+        """Extract phone number dari text, format: Phone number: +13605295588, Phone number: 6281356150918, atau Home: 0812 18973570"""
+        if not text:
+            return None
+        
+        text_str = str(text)
+        
+        # Cari "Phone number: 6281356150918" atau "Phone number: +13605295588"
+        match = re.search(r"Phone\s+number[:\s]+([\+\d\s\-\(\)@\.]+)", text_str, re.IGNORECASE)
+        if match:
+            phone = match.group(1).strip()
+            # Clean @s.whatsapp.net jika ada
+            phone = phone.replace('@s.whatsapp.net', '')
+            # Clean whitespace dan karakter non-digit (kecuali + di awal)
+            phone = re.sub(r'\s+', '', phone)
+            # Hapus karakter selain digit dan + (di awal saja)
+            if phone.startswith('+'):
+                phone = '+' + re.sub(r'[^\d]', '', phone[1:])
+            else:
+                phone = re.sub(r'[^\d]', '', phone)
+            if phone and len(phone) >= 8:
+                return phone
+        
+        
+        phone_match = re.search(r"(?:Home|Mobile|Work|Cell|Phone|Office)[:\s]+([\+\d\s\-\(\)]+)", text_str, re.IGNORECASE)
+        if phone_match:
+            phone = phone_match.group(1).strip()
+            # Clean @s.whatsapp.net jika ada
+            phone = phone.replace('@s.whatsapp.net', '')
+            # Clean whitespace
+            phone = re.sub(r'\s+', '', phone)
+            # Hapus karakter selain digit dan + (di awal saja)
+            if phone.startswith('+'):
+                phone = '+' + re.sub(r'[^\d]', '', phone[1:])
+            else:
+                phone = re.sub(r'[^\d]', '', phone)
+            if phone and len(phone) >= 8:
+                return phone
+        
+        return None
+    
+    def _extract_full_name_from_contact(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        lines = [line.strip() for line in text_str.split('\n') if line.strip()]
+        
+        if not lines:
+            return None
+        
+        # Ambil line pertama yang tidak dimulai dengan "Nickname:"
+        for line in lines:
+            if not line.lower().startswith('nickname:'):
+                full_name = line.strip()
+                if '@s.whatsapp.net' in full_name:
+                    full_name = full_name.replace('@s.whatsapp.net', '').strip()
+                    # Jika hanya tersisa angka, gunakan sebagai full_name
+                    if full_name and full_name.isdigit():
+                        return full_name
+                return full_name
+        
+        return None
+
+    def _extract_whatsapp_id_from_text(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        # Cari "WhatsApp ID: 84927223310@s.whatsapp.net" atau format serupa
+        match = re.search(r'WhatsApp\s+ID[:\s]+([^\n\r]+)', text_str, re.IGNORECASE)
+        if match:
+            whatsapp_id_raw = match.group(1).strip()
+            
+            # Jika ada @s.whatsapp.net, extract nomor dan simpan format lengkap
+            if '@s.whatsapp.net' in whatsapp_id_raw:
+                # Extract nomor sebelum @s.whatsapp.net
+                number_part = whatsapp_id_raw.split('@s.whatsapp.net')[0].strip()
+                # Clean dari karakter non-digit di awal/akhir
+                number_part = re.sub(r'^[^\d]+', '', number_part)
+                number_part = re.sub(r'[^\d]+$', '', number_part)
+                
+                if number_part and number_part.isdigit() and len(number_part) >= 11 and number_part.startswith('8'):
+                    number_part = number_part[1:]  # Hapus digit pertama "8"
+                
+                # Pastikan minimal 8 digit setelah cleaning
+                if number_part and number_part.isdigit() and len(number_part) >= 8:
+                    # Return dengan format @s.whatsapp.net
+                    return f"{number_part}@s.whatsapp.net"
+            else:
+                # Jika tidak ada @s.whatsapp.net, extract nomor saja (backward compatibility)
+                whatsapp_id = whatsapp_id_raw
+                whatsapp_id = re.sub(r'^[^\d]+', '', whatsapp_id)
+                whatsapp_id = re.sub(r'[^\d]+$', '', whatsapp_id)
+                
+                # Jika nomor dimulai dengan "8" dan panjang >= 11 digit, hapus digit pertama "8"
+                if whatsapp_id and whatsapp_id.isdigit() and len(whatsapp_id) >= 11 and whatsapp_id.startswith('8'):
+                    whatsapp_id = whatsapp_id[1:]
+                
+                if whatsapp_id and whatsapp_id.isdigit() and len(whatsapp_id) >= 8:
+                    return whatsapp_id
+        
+        return None
+    
+    def _extract_telegram_id_from_text(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        
+        # Cari "Telegram ID: 123456789"
+        match = re.search(r'Telegram\s+ID[:\s]+(\d+)', text_str, re.IGNORECASE)
+        if match:
+            telegram_id = match.group(1).strip()
+            if telegram_id and telegram_id.isdigit():
+                return telegram_id
+        
+        # Cari "Username: @username" atau "Telegram: @username"
+        username_match = re.search(r'(?:Telegram|Username)[:\s]+@?([a-zA-Z0-9_]+)', text_str, re.IGNORECASE)
+        if username_match:
+            username = username_match.group(1).strip()
+            if username and len(username) > 0:
+                return username
+        
+        return None
+    
+    def _extract_tiktok_id_from_text(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        
+        # Cari "TikTok ID: 123456789" atau "TikTok: @username"
+        match = re.search(r'TikTok\s+(?:ID|Username)[:\s]+@?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
+        if match:
+            tiktok_id = match.group(1).strip()
+            if tiktok_id:
+                return tiktok_id
+        
+        # Cari "TikTok: username" atau "@username"
+        username_match = re.search(r'TikTok[:\s]+@?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
+        if username_match:
+            username = username_match.group(1).strip()
+            if username:
+                return username
+        
+        return None
+    
+    def _extract_x_id_from_text(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        
+        match = re.search(r'(?:Twitter|X)\s+ID[:\s]+([a-zA-Z0-9_]+)', text_str, re.IGNORECASE)
+        if match:
+            x_id = match.group(1).strip()
+            if x_id and len(x_id) > 0:
+                return x_id
+        
+        # Cari "Twitter: @username" atau "X: @username" (format lama untuk backward compatibility)
+        username_match = re.search(r'(?:Twitter|X)[:\s]+@?([a-zA-Z0-9_]+)', text_str, re.IGNORECASE)
+        if username_match:
+            username = username_match.group(1).strip()
+            if username:
+                return username
+        
+        return None
+    
+    def _extract_facebook_id_from_text(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        
+        text_str = str(text)
+        
+        # Cari "Facebook ID: 123456789"
+        match = re.search(r'Facebook\s+ID[:\s]+(\d+)', text_str, re.IGNORECASE)
+        if match:
+            facebook_id = match.group(1).strip()
+            if facebook_id and facebook_id.isdigit():
+                return facebook_id
+        
+        # Cari "Facebook: profile/username" atau "Facebook: username"
+        username_match = re.search(r'Facebook[:\s]+(?:profile/)?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
+        if username_match:
+            username = username_match.group(1).strip()
+            if username and len(username) > 0:
+                return username
+        
+        return None
+    
+    def _extract_whatsapp_account_name_from_contact(self, contact_field: str) -> Optional[str]:
+        if not contact_field:
+            return None
+        
+        contact_str = str(contact_field).strip()
+        
+        # Skip jika kosong atau nan
+        if contact_str.lower() in ['nan', 'none', 'null', '']:
+            return None
+        
+        if '@s.whatsapp.net' in contact_str:
+            account_name = contact_str.split('@s.whatsapp.net')[0].strip()
+            # Clean dari karakter non-digit di awal/akhir
+            account_name = re.sub(r'^[^\d]+', '', account_name)
+            account_name = re.sub(r'[^\d]+$', '', account_name)
+            if account_name and account_name.isdigit() and len(account_name) >= 8:  # Minimal 8 digit
+                return account_name
+        
+        # Jika format "Nickname: username" atau multi-line
+        if '\n' in contact_str or 'nickname:' in contact_str.lower():
+            # Extract nickname seperti biasa
+            nickname = self._extract_nickname(contact_str)
+            if nickname:
+                # Clean @s.whatsapp.net jika ada
+                nickname = self._clean_whatsapp_suffix(nickname)
+                # Jika nickname adalah angka panjang (>=8 digit), gunakan sebagai account_name
+                if nickname and nickname.isdigit() and len(nickname) >= 8:
+                    return nickname
+                # Jika bukan angka atau angka pendek, tetap return jika valid
+                if nickname and len(nickname) > 1 and not nickname.isdigit():
+                    return nickname
+        
+       
+        contact_clean = contact_str.strip()
+        if contact_clean.isdigit() and len(contact_clean) >= 8:
+            return contact_clean
+        
+        # Jika berisi format lain, coba clean dan return jika valid
+        contact_clean = self._clean_whatsapp_suffix(contact_str)
+        if contact_clean and len(contact_clean) > 1:
+            # Skip jika terlihat seperti header/metadata
+            if not self._is_header_or_metadata(contact_clean):
+                return contact_clean
+        
+        return None
+
     def _parse_oxygen_contacts_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
         try:
             sheet_name = file_validator._find_contacts_sheet(xls.sheet_names)
             if not sheet_name:
+                print("  Contacts sheet not found")
                 return results
 
             print(f"Parsing Contacts sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine)
 
-            for _, row in df.iterrows():
+            required_columns = ['Source', 'Type', 'Contact', 'Internet', 'Addresses']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                print(f"  Missing required columns: {missing_columns}")
+                return results
+
+            instagram_rows = df[df['Source'].str.contains('Instagram', case=False, na=False)]
+            
+            print(f"  Found {len(instagram_rows)} rows with Source containing 'Instagram'")
+            
+            if len(instagram_rows) > 0:
+                print(f"  Parsing {len(instagram_rows)} Instagram rows from Contacts sheet...")
+
+            for _, row in instagram_rows.iterrows():
+                source_field = self._clean(row.get("Source"))
+                if not source_field or self._is_header_or_metadata(source_field):
+                    continue
+                
+                # Ambil data dari kolom yang diperlukan
                 type_field = self._clean(row.get("Type"))
-                if not type_field:
-                    continue
-
-                if type_field.lower() not in ["contact", "contact (merged)"]:
-                    continue
-
+                source_clean = source_field.strip()
                 contact_field = self._clean(row.get("Contact"))
                 internet_field = self._clean(row.get("Internet"))
-                phones_emails_field = self._clean(row.get("Phones & Emails"))
-                source_field = self._clean(row.get("Source"))
-
-                if not source_field:
-                    continue
-
-                detected_platforms = self._extract_multiple_platforms(source_field)
-                if not detected_platforms:
-                    continue
-
-                account_name = self._extract_name(contact_field)
-
-                following = self._extract_following_count(contact_field, internet_field, phones_emails_field)
-                followers = self._extract_followers_count(contact_field, internet_field, phones_emails_field)
-                friends = self._extract_friends_count(contact_field, internet_field, phones_emails_field)
-                statuses = self._extract_statuses_count(contact_field, internet_field, phones_emails_field)
-                phone_number = self._extract_phone_number(phones_emails_field)
-                email = self._extract_email(phones_emails_field)
-                biography = self._extract_biography(contact_field, internet_field, phones_emails_field)
-                profile_picture_url = self._extract_profile_picture_url(internet_field)
-                is_private = self._extract_is_private(contact_field, internet_field, phones_emails_field)
-                is_local_user = self._extract_is_local_user(contact_field, internet_field, phones_emails_field)
-                chat_content = self._extract_chat_content(contact_field, internet_field, phones_emails_field)
-                last_message = self._extract_last_message(contact_field, internet_field, phones_emails_field)
-                other_info = self._extract_other_info(contact_field, internet_field, phones_emails_field)
-
-                for platform in detected_platforms:
-                    account_id = self._extract_account_id(internet_field, platform)
-                    if not account_id:
-                        account_id = self._extract_account_id(phones_emails_field, platform)
+                addresses_field = self._clean(row.get("Addresses"))
+                
+                # Extract data dari Contact field
+                full_name = self._extract_full_name_from_contact(contact_field)
+                account_name = self._extract_nickname(contact_field)
+                
+                if not account_name and contact_field:
+                    contact_str = str(contact_field).strip()
+                    # Skip jika ini pure numeric panjang (kemungkinan Group ID, bukan username)
+                    if contact_str.isdigit() and len(contact_str) > 15:
+                        # Ini mungkin Group ID, akan ditangani nanti di extract instagram_id
+                        pass
+                    elif ('\n' not in contact_str and 'nickname:' not in contact_str.lower() and 
+                        len(contact_str) > 1 and len(contact_str) < 50 and  # Panjang wajar untuk username
+                        not contact_str.isdigit() and  # Bukan pure number
+                        '@' not in contact_str and '/' not in contact_str and '\\' not in contact_str):
+                        # Kemungkinan ini langsung username
+                        account_name = contact_str
+                        full_name = None  # Jika langsung username, full_name = None
+                
+                if not account_name:
+                    # Cek kolom dengan nama yang mungkin berisi Instagram username
+                    possible_columns = ['Instagram', 'instagram', 'Account Name', 'account_name', 'Username', 'username']
+                    for col_name in possible_columns:
+                        if col_name in df.columns:
+                            col_value = self._clean(row.get(col_name))
+                            if col_value and not self._is_header_or_metadata(col_value):
+                                # Jika kolom berisi username/handle Instagram (bukan ID, bukan path, bukan email)
+                                col_str = str(col_value).strip()
+                                if (col_str.lower() not in ['nan', 'n/a', 'none', 'null', ''] and 
+                                    '@' not in col_str and '/' not in col_str and 
+                                    '\\' not in col_str and len(col_str) > 1 and 
+                                    not col_str.isdigit()):  # Bukan pure numeric (mungkin ID)
+                                    account_name = col_str
+                                    print(f"  Found account_name in column '{col_name}': {account_name}")
+                                    break
                     
-                    user_id = self._extract_user_id(internet_field, phones_emails_field, platform)
-                    full_name = self._extract_full_name(contact_field)
-
-                    if not account_id and not account_name:
+                    if not account_name:
+                        # Cek semua kolom (kecuali yang sudah dicek)
+                        excluded_cols = ['Source', 'Type', 'Contact', 'Internet', 'Addresses', 'Photo', 'Deleted', 'Calls', 'Messages']
+                        for col_name in df.columns:
+                            if col_name in excluded_cols:
+                                continue
+                            col_value = self._clean(row.get(col_name))
+                            if col_value and not self._is_header_or_metadata(col_value):
+                                col_str = str(col_value).strip()
+                                # Validasi: bukan null/nan, bukan email, bukan path, bukan pure number, minimal 2 karakter
+                                if (col_str.lower() not in ['nan', 'n/a', 'none', 'null', ''] and 
+                                    '@' not in col_str and '/' not in col_str and 
+                                    '\\' not in col_str and len(col_str) > 1 and 
+                                    not col_str.isdigit() and
+                                    not col_str.lower().startswith('http')):
+                                    account_name = col_str
+                                    print(f"  Found account_name in column '{col_name}': {account_name}")
+                                    break
+                
+                # Extract location dari Addresses field
+                location = self._extract_location(addresses_field)
+                
+                # Extract Instagram ID dari Internet field
+                instagram_id = self._extract_platform_id(internet_field, "instagram")
+                
+                if not instagram_id and internet_field:
+                    group_id_match = re.search(r'Group\s+ID[:\s]+(\d+)', str(internet_field), re.IGNORECASE)
+                    if group_id_match:
+                        instagram_id = group_id_match.group(1).strip()
+                        print(f"  Found Group ID as instagram_id: {instagram_id}")
+                
+                if not instagram_id and contact_field:
+                    contact_str = str(contact_field).strip()
+                    # Jika Contact field adalah pure numeric panjang (>15 digits), gunakan sebagai instagram_id
+                    if contact_str.isdigit() and len(contact_str) > 15:
+                        instagram_id = contact_str
+                        print(f"  Found Group ID from Contact field (pure numeric): {instagram_id}")
+                    # Atau jika Type=Group dan Contact field numeric
+                    elif type_field and 'group' in type_field.lower() and contact_str.isdigit():
+                        instagram_id = contact_str
+                        print(f"  Found Group ID from Contact field (Type=Group): {instagram_id}")
+                
+                # Extract phone_number dari Internet field jika ada (optional)
+                phone_number = None
+                phone_from_internet = self._extract_phone_number_from_text(internet_field)
+                if phone_from_internet:
+                    phone_number = self._clean_whatsapp_suffix(phone_from_internet)
+                
+                acc = {
+                    "file_id": file_id,
+                    "type": type_field, 
+                    "source": source_clean,
+                    "phone_number": phone_number,
+                    "full_name": full_name,
+                    "account_name": account_name,
+                    "instagram_id": instagram_id,
+                    "location": location,  # dari kolom Addresses
+                    "whatsapp_id": None,  # tidak diisi (hanya Instagram)
+                    "telegram_id": None,  # tidak diisi (hanya Instagram)
+                    "X_id": None,  # tidak diisi (hanya Instagram)
+                    "facebook_id": None,  # tidak diisi (hanya Instagram)
+                    "tiktok_id": None,  # tidak diisi (hanya Instagram)
+                    "sheet_name": sheet_name,
+                }
+  
+                if account_name or instagram_id:
+                    # Validasi data sebelum append
+                    is_valid, error_msg = self._validate_social_media_data_new(acc)
+                    if is_valid:
+                        results.append(acc)
+                    else:
+                        print(f"⚠️  Skipping invalid Instagram record: {error_msg}")
+                        print(f"   Details: account_name={account_name}, instagram_id={instagram_id}, full_name={full_name}, type={type_field}")
+                else:
+                    # Log rows yang tidak punya account_name maupun instagram_id
+                    print(f"⚠️  Skipping row: No account_name and no instagram_id")
+                    print(f"   Details: Type={type_field}, Source={source_clean}, Contact={contact_field[:50] if contact_field else 'None'}, Internet={internet_field[:50] if internet_field else 'None'}")
+                    # Cek semua kolom untuk debugging
+                    for col in df.columns:
+                        col_val = self._clean(row.get(col))
+                        if col_val and col_val.lower() not in ['nan', 'none', 'null', ''] and len(col_val) > 1:
+                            print(f"   Column '{col}': {col_val[:50]}")
+            
+            # Save to database
+            if results:
+                print(f"  Found {len(results)} valid Instagram records from Contacts sheet")
+                batch_size = 50
+                saved_count = 0
+                skipped_count = 0
+                
+                for i in range(0, len(results), batch_size):
+                    batch = results[i:i + batch_size]
+                    batch_saved = 0
+                    
+                    try:
+                        for acc in batch:
+                            # Check duplicate menggunakan struktur baru
+                            if self._check_existing_social_media(acc):
+                                skipped_count += 1
+                                continue
+                            
+                            self.db.add(SocialMedia(**acc))
+                            batch_saved += 1
+                        
+                        self.db.commit()
+                        saved_count += batch_saved
+                        print(f"Saved contacts batch {i//batch_size + 1}: {batch_saved}/{len(batch)} records inserted (Total saved: {saved_count}, Skipped: {skipped_count})")
+                        
+                    except Exception as batch_error:
+                        print(f"Error saving contacts batch {i//batch_size + 1}: {batch_error}")
+                        import traceback
+                        traceback.print_exc()
+                        self.db.rollback()
+                
+                print(f"Successfully saved {saved_count} Instagram records from Contacts sheet")
+            
+            whatsapp_rows = df[
+                (df['Source'].str.contains('WhatsApp Messenger', case=False, na=False))
+            ]
+            
+            print(f"  Found {len(whatsapp_rows)} rows with Source containing 'WhatsApp Messenger' or 'WhatsApp Messenger backup'")
+            
+            # Show Source distribution untuk debugging
+            if len(whatsapp_rows) > 0:
+                source_dist = whatsapp_rows['Source'].value_counts()
+                print(f"  WhatsApp Source distribution: {dict(source_dist)}")
+                
+                # Breakdown per Source
+                whatsapp_messenger_only = df[
+                    df['Source'].str.contains('WhatsApp Messenger', case=False, na=False) &
+                    ~df['Source'].str.contains('backup', case=False, na=False)
+                ]
+                whatsapp_backup_only = df[
+                    df['Source'].str.contains('WhatsApp Messenger backup', case=False, na=False)
+                ]
+                print(f"  Breakdown:")
+                print(f"    - WhatsApp Messenger (no backup): {len(whatsapp_messenger_only)} rows")
+                print(f"    - WhatsApp Messenger backup: {len(whatsapp_backup_only)} rows")
+            
+            if len(whatsapp_rows) > 0:
+                print(f"  Parsing {len(whatsapp_rows)} WhatsApp rows from Contacts sheet...")
+                
+                whatsapp_results = []
+                
+                # Count Type distribution untuk logging
+                whatsapp_type_dist = whatsapp_rows['Type'].value_counts()
+                print(f"  WhatsApp Type distribution: {dict(whatsapp_type_dist)}")
+                
+                # Count rows dengan Type=Account atau Account(merged)
+                account_whatsapp = whatsapp_rows[
+                    whatsapp_rows['Type'].str.contains('Account', case=False, na=False)
+                ]
+                print(f"  WhatsApp rows with Type containing 'Account': {len(account_whatsapp)}")
+                
+                # Show sample data untuk verification
+                if len(account_whatsapp) > 0:
+                    print(f"\n  Sample WhatsApp Account records (first 3):")
+                    for idx, (row_idx, row) in enumerate(account_whatsapp.head(3).iterrows(), 1):
+                        print(f"    Record {idx} (Row {row_idx}):")
+                        print(f"      Source: {row.get('Source')}")
+                        print(f"      Type: {row.get('Type')}")
+                        contact = str(row.get('Contact', '') or '')[:100]
+                        internet = str(row.get('Internet', '') or '')[:100]
+                        phones = str(row.get('Phones & Emails', '') or '')[:100]
+                        print(f"      Contact: {contact}")
+                        print(f"      Internet: {internet}")
+                        print(f"      Phones & Emails: {phones}")
+                        print()
+                
+                # Parse semua rows dengan Source=WhatsApp Messenger atau WhatsApp Messenger backup
+                skipped_by_type = 0
+                skipped_by_source = 0
+                
+                for row_idx, row in whatsapp_rows.iterrows():
+                    # Skip jika Source adalah header/metadata
+                    source_field = self._clean(row.get("Source"))
+                    if not source_field or self._is_header_or_metadata(source_field):
+                        skipped_by_source += 1
+                        if skipped_by_source <= 3:  # Log first 3 skipped rows
+                            print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Source filter: '{source_field}'")
+                        continue
+                    
+                    source_clean = "WhatsApp"
+                    
+                    type_field = self._clean(row.get("Type"))
+                    if not type_field:
+                        skipped_by_type += 1
                         continue
 
+                    type_lower = type_field.lower().strip()
+                    
+                    is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
+                    is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    
+                    if not (is_account_type or is_contact_type):
+                        skipped_by_type += 1
+                        if skipped_by_type <= 3:  # Log first 3 skipped rows
+                            print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Type filter: Type='{type_field}' (not Account/Contact)")
+                        continue
+
+                    contact_field = self._clean(row.get("Contact"))
+                    internet_field = self._clean(row.get("Internet"))
+                    addresses_field = self._clean(row.get("Addresses"))
+                    phones_emails_field = self._clean(row.get("Phones & Emails"))
+                    
+                    print(f"\nProcessing WhatsApp Row {row_idx}:")
+                    print(f"   Type: {type_field}")
+                    print(f"   Source: {source_field}")
+                    print(f"   Contact: {contact_field[:80] if contact_field else 'None'}")
+                    print(f"   Internet: {internet_field[:80] if internet_field else 'None'}")
+                    print(f"   Phones & Emails: {phones_emails_field[:80] if phones_emails_field else 'None'}")
+                    
+                    account_name = None
+                    
+                    full_name = self._extract_full_name_from_contact(contact_field)
+                    if full_name and '@s.whatsapp.net' in full_name:
+
+                        full_name = full_name.replace('@s.whatsapp.net', '').strip()
+                        if full_name:
+                            print(f"  ✓ Cleaned full_name (removed @s.whatsapp.net): {full_name}")
+                    
+                    location = self._extract_location(addresses_field)
+
+                    phone_number = None
+                    if internet_field:
+                        phone_from_internet = self._extract_phone_number_from_text(internet_field)
+                        if phone_from_internet:
+                            phone_number = self._clean_whatsapp_suffix(phone_from_internet)
+                            if phone_number:
+                                print(f"  ✓ Extracted phone_number from Internet: {phone_number}")
+                    
+                    if not phone_number and phones_emails_field:
+                        phone_from_phones = self._extract_phone_number_from_text(phones_emails_field)
+                        if phone_from_phones:
+                            phone_number = self._clean_whatsapp_suffix(phone_from_phones)
+                            if phone_number:
+                                print(f"  ✓ Extracted phone_number from Phones & Emails: {phone_number}")
+
+                    # Extract whatsapp_id dari Internet field
+                    whatsapp_id = self._extract_whatsapp_id_from_text(internet_field)
+                    if whatsapp_id:
+                        print(f"  ✓ Extracted whatsapp_id from Internet: {whatsapp_id}")
+                    
+                    # Jika whatsapp_id belum ada, coba dari Contact field jika berisi @s.whatsapp.net
+                    # Contoh: "84927223310@s.whatsapp.net" -> "4927223310@s.whatsapp.net"
+                    # Contoh: "6281275907774@s.whatsapp.net" -> "6281275907774@s.whatsapp.net"
+                    if not whatsapp_id and contact_field:
+                        contact_str = str(contact_field).strip()
+                        if '@s.whatsapp.net' in contact_str:
+                            # Extract nomor sebelum @s.whatsapp.net
+                            number_part = contact_str.split('@s.whatsapp.net')[0].strip()
+                            # Clean dari karakter non-digit di awal/akhir
+                            number_part = re.sub(r'^[^\d]+', '', number_part)
+                            number_part = re.sub(r'[^\d]+$', '', number_part)
+                            
+                            # Jika nomor dimulai dengan "8" dan panjang >= 11 digit, hapus digit pertama "8"
+                            # Contoh: "84927223310" -> "4927223310"
+                            if number_part and number_part.isdigit() and len(number_part) >= 11 and number_part.startswith('8'):
+                                number_part = number_part[1:]  # Hapus digit pertama "8"
+                            
+                            if number_part and number_part.isdigit() and len(number_part) >= 8:
+                                # Simpan dengan format @s.whatsapp.net
+                                whatsapp_id = f"{number_part}@s.whatsapp.net"
+                                print(f"  ✓ Extracted whatsapp_id from Contact field: {whatsapp_id}")
+                    
+                    # Jika whatsapp_id masih belum ada, coba dari Phones & Emails field
+                    if not whatsapp_id and phones_emails_field:
+                        whatsapp_id_from_phones = self._extract_whatsapp_id_from_text(phones_emails_field)
+                        if whatsapp_id_from_phones:
+                            whatsapp_id = whatsapp_id_from_phones
+                            print(f"  ✓ Extracted whatsapp_id from Phones & Emails: {whatsapp_id}")
+                    
+                    # Jika whatsapp_id masih belum ada tapi phone_number ada, gunakan phone_number sebagai whatsapp_id
+                    if not whatsapp_id and phone_number:
+                        # Clean phone_number dari karakter non-digit
+                        phone_clean = re.sub(r'[^\d]', '', str(phone_number))
+                        if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 8:
+                            whatsapp_id = phone_clean
+                            print(f"  ✓ Using phone_number as whatsapp_id: {whatsapp_id}")
+                    
                     acc = {
-                        "platform": platform,
-                        "account_name": account_name,
-                        "account_id": account_id,
-                        "user_id": user_id,
-                        "full_name": full_name,
-                        "following": following,
-                        "followers": followers,
-                        "friends": friends,
-                        "statuses": statuses,
-                        "phone_number": phone_number,
-                        "email": email,
-                        "biography": biography,
-                        "profile_picture_url": profile_picture_url,
-                        "is_private": is_private,
-                        "is_local_user": is_local_user,
-                        "chat_content": chat_content,
-                        "last_message": last_message,
-                        "other_info": other_info,
-                        "source_tool": "Oxygen",
-                        "sheet_name": sheet_name,
                         "file_id": file_id,
+                        "type": type_field,
+                        "source": source_clean,  # Normalisasi menjadi "WhatsApp"
+                        "phone_number": phone_number,  # dari Internet atau Phones & Emails
+                        "full_name": full_name,  # dari Contact (bisa null)
+                        "account_name": None,  # Untuk WhatsApp, account_name tidak diisi
+                        "whatsapp_id": whatsapp_id,  # dari Internet (6281356150918 dari WhatsApp ID: 6281356150918@s.whatsapp.net)
+                        "location": location,  # dari Addresses
+                        "instagram_id": None,  # tidak diisi (hanya WhatsApp)
+                        "telegram_id": None,  # tidak diisi (hanya WhatsApp)
+                        "X_id": None,
+                        "facebook_id": None,  # tidak diisi (hanya WhatsApp)
+                        "tiktok_id": None,  # tidak diisi (hanya WhatsApp)
+                        "sheet_name": sheet_name,
                     }
-                    results.append(acc)
+                    
+                    # KONDISI: Ambil data jika ada whatsapp_id atau phone_number (account_name tidak diperlukan untuk WhatsApp)
+                    if whatsapp_id or phone_number:
+                        # Validasi data sebelum append
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            whatsapp_results.append(acc)
+                        else:
+                            print(f"⚠️  Skipping invalid WhatsApp record: {error_msg}")
+                            print(f"   Details: whatsapp_id={whatsapp_id}, phone_number={phone_number}, type={type_field}")
+                    else:
+                        print(f"⚠️  Skipping WhatsApp row: No whatsapp_id or phone_number")
+                        print(f"   Details: Type={type_field}, Source={source_field}")
+                        print(f"   Contact: {contact_field[:80] if contact_field else 'None'}")
+                        print(f"   Internet: {internet_field[:80] if internet_field else 'None'}")
+                        print(f"   Phones & Emails: {phones_emails_field[:80] if phones_emails_field else 'None'}")
+                        # Debug: tampilkan hasil ekstraksi
+                        print(f"   Extracted - whatsapp_id: {whatsapp_id}, phone_number: {phone_number}")
+                
+                # Log summary dengan detail lengkap
+                print(f"\n  WhatsApp parsing summary:")
+                print(f"    - Total WhatsApp rows found: {len(whatsapp_rows)}")
+                print(f"    - Skipped by Source (header/metadata): {skipped_by_source}")
+                print(f"    - Skipped by Type (not Account): {skipped_by_type}")
+                print(f"    - Valid Account rows processed: {len(whatsapp_results)} records")
+                
+                # Show sample of processed records
+                if len(whatsapp_results) > 0:
+                    print(f"\n  Sample WhatsApp records that will be saved (first 5):")
+                    for idx, acc in enumerate(whatsapp_results[:5], 1):
+                        print(f"    Record {idx}:")
+                        print(f"      whatsapp_id: {acc.get('whatsapp_id')}")
+                        print(f"      phone_number: {acc.get('phone_number')}")
+                        print(f"      full_name: {acc.get('full_name')}")
+                        print(f"      source: {acc.get('source')}")
+                        print(f"      type: {acc.get('type')}")
+                        print(f"      account_name: {acc.get('account_name')} (None for WhatsApp)")
+                        print()
+                    if len(whatsapp_results) > 5:
+                        print(f"    ... and {len(whatsapp_results) - 5} more records")
+                
+                # Save WhatsApp results to database
+                if whatsapp_results:
+                    print(f"  Found {len(whatsapp_results)} valid WhatsApp records from Contacts sheet")
+                    batch_size = 50
+                    whatsapp_saved_count = 0
+                    whatsapp_skipped_count = 0
+                    
+                    for i in range(0, len(whatsapp_results), batch_size):
+                        batch = whatsapp_results[i:i + batch_size]
+                        batch_saved = 0
+                        
+                        try:
+                            for acc in batch:
+                                # Check duplicate menggunakan struktur baru
+                                if self._check_existing_social_media(acc):
+                                    whatsapp_skipped_count += 1
+                                    continue
+                                
+                                self.db.add(SocialMedia(**acc))
+                                batch_saved += 1
+                            
+                            self.db.commit()
+                            whatsapp_saved_count += batch_saved
+                            print(f"Saved WhatsApp batch {i//batch_size + 1}: {batch_saved}/{len(batch)} records inserted (Total saved: {whatsapp_saved_count}, Skipped: {whatsapp_skipped_count})")
+                            
+                        except Exception as batch_error:
+                            print(f"Error saving WhatsApp batch {i//batch_size + 1}: {batch_error}")
+                            import traceback
+                            traceback.print_exc()
+                            self.db.rollback()
+                    
+                    print(f"Successfully saved {whatsapp_saved_count} WhatsApp records from Contacts sheet")
+                    # Tambahkan WhatsApp results ke results utama
+                    results.extend(whatsapp_results)
+                else:
+                    print(f"  No valid WhatsApp records found to save from Contacts sheet")
+            
+            # Parse TikTok data
+            tiktok_rows = df[df['Source'].str.contains('TikTok', case=False, na=False)]
+            print(f"  Found {len(tiktok_rows)} rows with Source containing 'TikTok'")
+            
+            tiktok_results = []
+            if len(tiktok_rows) > 0:
+                print(f"  Parsing {len(tiktok_rows)} TikTok rows from Contacts sheet...")
+                
+                for _, row in tiktok_rows.iterrows():
+                    source_field = self._clean(row.get("Source"))
+                    if not source_field or self._is_header_or_metadata(source_field):
+                        continue
+                    
+                    type_field = self._clean(row.get("Type"))
+                    type_lower = (type_field or "").lower().strip()
+                    
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
+                    is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    
+                    if not (is_account_type or is_contact_type):
+                        continue
+                    
+                    contact_field = self._clean(row.get("Contact"))
+                    internet_field = self._clean(row.get("Internet"))
+                    addresses_field = self._clean(row.get("Addresses"))
+                    
+                    # Extract data
+                    full_name = self._extract_full_name_from_contact(contact_field)
+                    account_name = self._extract_nickname(contact_field)
+                    
+                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
+                    if not account_name and contact_field:
+                        contact_str = str(contact_field).strip()
+                        if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
+                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
+                            not contact_str.isdigit() and '@' not in contact_str and 
+                            '/' not in contact_str and '\\' not in contact_str):
+                            account_name = contact_str
+                    
+                    # Extract TikTok ID dari Internet field
+                    tiktok_id = self._extract_tiktok_id_from_text(internet_field) if internet_field else None
+                    
+                    # Extract location
+                    location = self._extract_location(addresses_field)
+                    
+                    acc = {
+                        "file_id": file_id,
+                        "type": type_field,
+                        "source": "TikTok",
+                        "full_name": full_name,
+                        "account_name": account_name,
+                        "tiktok_id": tiktok_id,
+                        "location": location,
+                        "whatsapp_id": None,
+                        "telegram_id": None,
+                        "instagram_id": None,
+                        "X_id": None,
+                        "facebook_id": None,
+                        "phone_number": None,
+                        "sheet_name": sheet_name,
+                    }
+                    
+                    if account_name or tiktok_id:
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            tiktok_results.append(acc)
+                        else:
+                            print(f"⚠️  Skipping invalid TikTok record: {error_msg}")
+            
+            # Save TikTok records
+            if tiktok_results:
+                print(f"  Found {len(tiktok_results)} valid TikTok records from Contacts sheet")
+                batch_size = 50
+                tiktok_saved_count = 0
+                for i in range(0, len(tiktok_results), batch_size):
+                    batch = tiktok_results[i:i+batch_size]
+                    try:
+                        for acc in batch:
+                            self.db.add(SocialMedia(**acc))
+                        self.db.commit()
+                        tiktok_saved_count += len(batch)
+                        print(f"  Saved TikTok batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {tiktok_saved_count}, Skipped: 0)")
+                    except Exception as batch_error:
+                        print(f"  Error saving TikTok batch {i//batch_size + 1}: {batch_error}")
+                        import traceback
+                        traceback.print_exc()
+                        self.db.rollback()
+                
+                print(f"Successfully saved {tiktok_saved_count} TikTok records from Contacts sheet")
+                results.extend(tiktok_results)
+            
+            # Parse Telegram data
+            telegram_rows = df[df['Source'].str.contains('Telegram', case=False, na=False)]
+            print(f"  Found {len(telegram_rows)} rows with Source containing 'Telegram'")
+            
+            telegram_results = []
+            if len(telegram_rows) > 0:
+                print(f"  Parsing {len(telegram_rows)} Telegram rows from Contacts sheet...")
+                
+                for _, row in telegram_rows.iterrows():
+                    source_field = self._clean(row.get("Source"))
+                    if not source_field or self._is_header_or_metadata(source_field):
+                        continue
+                    
+                    type_field = self._clean(row.get("Type"))
+                    type_lower = (type_field or "").lower().strip()
+                    
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
+                    is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    
+                    if not (is_account_type or is_contact_type):
+                        continue
+                    
+                    contact_field = self._clean(row.get("Contact"))
+                    internet_field = self._clean(row.get("Internet"))
+                    addresses_field = self._clean(row.get("Addresses"))
+                    
+                    # Extract data
+                    full_name = self._extract_full_name_from_contact(contact_field)
+                    account_name = self._extract_nickname(contact_field)
+                    
+                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
+                    if not account_name and contact_field:
+                        contact_str = str(contact_field).strip()
+                        if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
+                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
+                            not contact_str.isdigit() and '@' not in contact_str and 
+                            '/' not in contact_str and '\\' not in contact_str):
+                            account_name = contact_str
+                    
+                    # Extract Telegram ID dari Internet field
+                    telegram_id = self._extract_telegram_id_from_text(internet_field) if internet_field else None
+                    
+                    # Extract location
+                    location = self._extract_location(addresses_field)
+                    
+                    acc = {
+                        "file_id": file_id,
+                        "type": type_field,
+                        "source": "Telegram",
+                        "full_name": full_name,
+                        "account_name": account_name,
+                        "telegram_id": telegram_id,
+                        "location": location,
+                        "whatsapp_id": None,
+                        "instagram_id": None,
+                        "X_id": None,
+                        "facebook_id": None,
+                        "tiktok_id": None,
+                        "phone_number": None,
+                        "sheet_name": sheet_name,
+                    }
+                    
+                    if account_name or telegram_id:
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            telegram_results.append(acc)
+                        else:
+                            print(f"⚠️  Skipping invalid Telegram record: {error_msg}")
+            
+            # Save Telegram records
+            if telegram_results:
+                print(f"  Found {len(telegram_results)} valid Telegram records from Contacts sheet")
+                batch_size = 50
+                telegram_saved_count = 0
+                for i in range(0, len(telegram_results), batch_size):
+                    batch = telegram_results[i:i+batch_size]
+                    try:
+                        for acc in batch:
+                            self.db.add(SocialMedia(**acc))
+                        self.db.commit()
+                        telegram_saved_count += len(batch)
+                        print(f"  Saved Telegram batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {telegram_saved_count}, Skipped: 0)")
+                    except Exception as batch_error:
+                        print(f"  Error saving Telegram batch {i//batch_size + 1}: {batch_error}")
+                        import traceback
+                        traceback.print_exc()
+                        self.db.rollback()
+                
+                print(f"Successfully saved {telegram_saved_count} Telegram records from Contacts sheet")
+                results.extend(telegram_results)
+            
+            # Parse X (Twitter) data
+            # Mencari Source yang mengandung "Twitter" atau "X" (bisa sebagai kata terpisah)
+            twitter_rows = df[df['Source'].str.contains('Twitter', case=False, na=False) | 
+                             df['Source'].str.contains(r'\bX\b', case=False, na=False, regex=True)]
+            print(f"  Found {len(twitter_rows)} rows with Source containing 'Twitter' or 'X'")
+            
+            twitter_results = []
+            if len(twitter_rows) > 0:
+                print(f"  Parsing {len(twitter_rows)} X (Twitter) rows from Contacts sheet...")
+                
+                for _, row in twitter_rows.iterrows():
+                    source_field = self._clean(row.get("Source"))
+                    if not source_field or self._is_header_or_metadata(source_field):
+                        continue
+                    
+                    type_field = self._clean(row.get("Type"))
+                    type_lower = (type_field or "").lower().strip()
+                    
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
+                    is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    
+                    if not (is_account_type or is_contact_type):
+                        continue
+                    
+                    contact_field = self._clean(row.get("Contact"))
+                    internet_field = self._clean(row.get("Internet"))
+                    addresses_field = self._clean(row.get("Addresses"))
+                    
+                    # Extract data
+                    full_name = self._extract_full_name_from_contact(contact_field)
+                    account_name = self._extract_nickname(contact_field)
+                    
+                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
+                    if not account_name and contact_field:
+                        contact_str = str(contact_field).strip()
+                        if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
+                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
+                            not contact_str.isdigit() and '@' not in contact_str and 
+                            '/' not in contact_str and '\\' not in contact_str):
+                            account_name = contact_str
+                    
+                    # Extract X (Twitter) ID dari Internet field
+                    x_id = self._extract_x_id_from_text(internet_field) if internet_field else None
+                    
+                    # Extract location
+                    location = self._extract_location(addresses_field)
+                    
+                    acc = {
+                        "file_id": file_id,
+                        "type": type_field,
+                        "source": "X (Twitter)",
+                        "full_name": full_name,
+                        "account_name": account_name,
+                        "X_id": x_id,
+                        "location": location,
+                        "whatsapp_id": None,
+                        "telegram_id": None,
+                        "instagram_id": None,
+                        "facebook_id": None,
+                        "tiktok_id": None,
+                        "phone_number": None,
+                        "sheet_name": sheet_name,
+                    }
+                    
+                    if account_name or x_id:
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            twitter_results.append(acc)
+                        else:
+                            print(f"⚠️  Skipping invalid X (Twitter) record: {error_msg}")
+            
+            # Save X (Twitter) records
+            if twitter_results:
+                print(f"  Found {len(twitter_results)} valid X (Twitter) records from Contacts sheet")
+                batch_size = 50
+                twitter_saved_count = 0
+                for i in range(0, len(twitter_results), batch_size):
+                    batch = twitter_results[i:i+batch_size]
+                    try:
+                        for acc in batch:
+                            self.db.add(SocialMedia(**acc))
+                        self.db.commit()
+                        twitter_saved_count += len(batch)
+                        print(f"  Saved X (Twitter) batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {twitter_saved_count}, Skipped: 0)")
+                    except Exception as batch_error:
+                        print(f"  Error saving X (Twitter) batch {i//batch_size + 1}: {batch_error}")
+                        import traceback
+                        traceback.print_exc()
+                        self.db.rollback()
+                
+                print(f"Successfully saved {twitter_saved_count} X (Twitter) records from Contacts sheet")
+                results.extend(twitter_results)
+            
+            # Parse Facebook data
+            facebook_rows = df[df['Source'].str.contains('Facebook', case=False, na=False)]
+            print(f"  Found {len(facebook_rows)} rows with Source containing 'Facebook'")
+            
+            facebook_results = []
+            if len(facebook_rows) > 0:
+                print(f"  Parsing {len(facebook_rows)} Facebook rows from Contacts sheet...")
+                
+                for _, row in facebook_rows.iterrows():
+                    source_field = self._clean(row.get("Source"))
+                    if not source_field or self._is_header_or_metadata(source_field):
+                        continue
+                    
+                    type_field = self._clean(row.get("Type"))
+                    type_lower = (type_field or "").lower().strip()
+                    
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
+                    is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    
+                    if not (is_account_type or is_contact_type):
+                        continue
+                    
+                    contact_field = self._clean(row.get("Contact"))
+                    internet_field = self._clean(row.get("Internet"))
+                    addresses_field = self._clean(row.get("Addresses"))
+                    
+                    # Extract data
+                    full_name = self._extract_full_name_from_contact(contact_field)
+                    account_name = self._extract_nickname(contact_field)
+                    
+                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
+                    if not account_name and contact_field:
+                        contact_str = str(contact_field).strip()
+                        if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
+                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
+                            not contact_str.isdigit() and '@' not in contact_str and 
+                            '/' not in contact_str and '\\' not in contact_str):
+                            account_name = contact_str
+                    
+                    # Extract Facebook ID dari Internet field
+                    facebook_id = self._extract_facebook_id_from_text(internet_field) if internet_field else None
+                    
+                    # Extract location
+                    location = self._extract_location(addresses_field)
+                    
+                    acc = {
+                        "file_id": file_id,
+                        "type": type_field,
+                        "source": "Facebook",
+                        "full_name": full_name,
+                        "account_name": account_name,
+                        "facebook_id": facebook_id,
+                        "location": location,
+                        "whatsapp_id": None,
+                        "telegram_id": None,
+                        "instagram_id": None,
+                        "X_id": None,
+                        "tiktok_id": None,
+                        "phone_number": None,
+                        "sheet_name": sheet_name,
+                    }
+                    
+                    if account_name or facebook_id:
+                        is_valid, error_msg = self._validate_social_media_data_new(acc)
+                        if is_valid:
+                            facebook_results.append(acc)
+                        else:
+                            print(f"⚠️  Skipping invalid Facebook record: {error_msg}")
+            
+            # Save Facebook records
+            if facebook_results:
+                print(f"  Found {len(facebook_results)} valid Facebook records from Contacts sheet")
+                batch_size = 50
+                facebook_saved_count = 0
+                for i in range(0, len(facebook_results), batch_size):
+                    batch = facebook_results[i:i+batch_size]
+                    try:
+                        for acc in batch:
+                            self.db.add(SocialMedia(**acc))
+                        self.db.commit()
+                        facebook_saved_count += len(batch)
+                        print(f"  Saved Facebook batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {facebook_saved_count}, Skipped: 0)")
+                    except Exception as batch_error:
+                        print(f"  Error saving Facebook batch {i//batch_size + 1}: {batch_error}")
+                        import traceback
+                        traceback.print_exc()
+                        self.db.rollback()
+                
+                print(f"Successfully saved {facebook_saved_count} Facebook records from Contacts sheet")
+                results.extend(facebook_results)
 
         except Exception as e:
             print(f"Error parsing Contacts sheet: {e}")
+            import traceback
+            traceback.print_exc()
         
         return results
+    
+    def _check_existing_social_media(self, acc: Dict[str, Any]) -> bool:
+        file_id = acc.get("file_id")
+        if not file_id:
+            return False
+        
+        # Build query filter berdasarkan platform IDs yang ada
+        query = self.db.query(SocialMedia).filter(SocialMedia.file_id == file_id)
+        
+        # Cek berdasarkan platform ID yang ada
+        filters = []
+        
+        if acc.get("instagram_id"):
+            filters.append(SocialMedia.instagram_id == acc["instagram_id"])
+        if acc.get("facebook_id"):
+            filters.append(SocialMedia.facebook_id == acc["facebook_id"])
+        if acc.get("whatsapp_id"):
+            filters.append(SocialMedia.whatsapp_id == acc["whatsapp_id"])
+        if acc.get("telegram_id"):
+            filters.append(SocialMedia.telegram_id == acc["telegram_id"])
+        if acc.get("X_id"):
+            filters.append(SocialMedia.X_id == acc["X_id"])
+        if acc.get("tiktok_id"):
+            filters.append(SocialMedia.tiktok_id == acc["tiktok_id"])
+        
+        # Jika ada account_name, juga cek berdasarkan account_name
+        if acc.get("account_name"):
+            filters.append(SocialMedia.account_name == acc["account_name"])
+        
+        # Jika tidak ada filter, return False (tidak bisa check duplicate)
+        if not filters:
+            return False
+        
+        # Combine filters dengan OR - jika ada salah satu yang match, berarti duplicate
+        from sqlalchemy import or_
+        existing = query.filter(or_(*filters)).first()
+        
+        return existing is not None
+    
+    def _validate_social_media_data_new(self, acc: Dict[str, Any]) -> tuple[bool, str]:
+        # file_id wajib ada
+        if not acc.get("file_id"):
+            return False, "file_id is required"
+        
+        # Minimal harus ada account_name atau salah satu platform ID
+        has_data = (
+            acc.get("account_name") or
+            acc.get("instagram_id") or
+            acc.get("facebook_id") or
+            acc.get("whatsapp_id") or
+            acc.get("telegram_id") or
+            acc.get("X_id") or
+            acc.get("tiktok_id")
+        )
+        
+        if not has_data:
+            return False, "account_name or at least one platform ID is required"
+        
+        # Clean invalid values
+        invalid_values = ["nan", "none", "null", "", "n/a", "undefined"]
+        
+        # Validasi account_name
+        if acc.get("account_name"):
+            account_name_str = str(acc["account_name"]).strip()
+            if account_name_str.lower() in invalid_values:
+                return False, "account_name is invalid"
+            if self._is_header_or_metadata(account_name_str):
+                return False, f"account_name appears to be header/metadata: '{account_name_str}'"
+        
+        
+        return True, ""
 
     def _parse_oxygen_facebook_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
@@ -967,17 +2079,7 @@ class SocialMediaParser:
                                 "full_name": full_name,
                                 "following": None,
                                 "followers": None,
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": phone_number,
-                                "email": email,
-                                "biography": None,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Facebook",
                                 "file_id": file_id,
@@ -997,55 +2099,107 @@ class SocialMediaParser:
                 print("Parsing Instagram dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='Instagram ', engine=engine, dtype=str)
                 
-                if any('Unnamed' in str(col) for col in df.columns):
-                    df.columns = df.iloc[0]
-                    df = df.drop(df.index[0])
-                    df = df.reset_index(drop=True)
+                if len(df) < 4:
+                    print("  Instagram sheet too short, skipping")
+                    return results
                 
-                if len(df) > 3:
-                    data_df = df.iloc[3:].copy()
-                    data_df = data_df.reset_index(drop=True)
+                # Parse account owner (row 4, index 4)
+                # Format: Col[4]=Full name, Col[5]=User name, Col[9]=Followers
+                if len(df) > 4:
+                    owner_row = df.iloc[4]
+                    owner_full_name = self._clean(owner_row.iloc[4]) if len(owner_row) > 4 else None
+                    owner_user_name = self._clean(owner_row.iloc[5]) if len(owner_row) > 5 else None
+                    owner_followers = self._clean(owner_row.iloc[9]) if len(owner_row) > 9 else None
                     
-                    for _, row in data_df.iterrows():
-                        if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() in ['Categories', 'Identifier']:
+                    if owner_user_name and owner_user_name.lower() not in ['nan', 'accounts', 'source', 'categories']:
+                        # Try to extract user_id from other columns
+                        owner_user_id = None
+                        # Check all columns for user ID (Instagram IDs are usually 9-15 digits)
+                        for col_idx in range(len(owner_row)):
+                            val = self._clean(owner_row.iloc[col_idx])
+                            if val and val.isdigit() and 8 <= len(val) <= 15:  # Instagram IDs are usually 9-15 digits
+                                # Additional check: skip very small numbers that might be flags/counts
+                                if int(val) > 1000000:  # Skip numbers that are too small
+                                    owner_user_id = val
+                                    break
+                        
+                        if owner_user_id:
+                            acc = {
+                                "platform": "instagram",
+                                "account_name": owner_user_name,
+                                "account_id": owner_user_id,
+                                "user_id": owner_user_id,
+                                "full_name": owner_full_name,
+                                "following": None,
+                                "followers": self._to_int_safe(owner_followers),
+                                "phone_number": None,
+                                "source_tool": "Oxygen",
+                                "sheet_name": "Instagram",
+                                "file_id": file_id,
+                            }
+                            results.append(acc)
+                            print(f"  Found account owner: {owner_user_name}")
+                
+                if len(df) > 8:
+                    following_count = 0
+                    for idx in range(8, len(df)):
+                        row = df.iloc[idx]
+                        
+                        # Skip empty rows
+                        if len(row) < 6:
                             continue
                         
-                        full_name = self._clean(row.iloc[2]) if len(row) > 2 else None
-                        user_name = self._clean(row.iloc[3]) if len(row) > 3 else None
-                        biography = self._clean(row.iloc[5]) if len(row) > 5 else None
-                        profile_picture_url = self._clean(row.iloc[6]) if len(row) > 6 else None
-                        followers_count = self._clean(row.iloc[7]) if len(row) > 7 else None
-                        following_count = self._clean(row.iloc[8]) if len(row) > 8 else None
-                        user_id = self._clean(row.iloc[19]) if len(row) > 19 else None
+                        full_name = self._clean(row.iloc[4]) if len(row) > 4 else None
+                        user_name = self._clean(row.iloc[5]) if len(row) > 5 else None
+                        source_path = self._clean(row.iloc[2]) if len(row) > 2 else None
                         
-                        if user_name and user_name not in ['Accounts', 'Source', 'Categories'] and user_id and user_id.isdigit():
+                        # Skip header rows or invalid rows
+                        if not user_name or user_name.lower() in ['nan', 'user name', 'accounts', 'source', 'categories', 'deleted', '']:
+                            continue
+                        
+                        # Skip if source_path contains path-like structure (metadata)
+                        if source_path and ('\\' in str(source_path) or '/' in str(source_path)):
+                            # This might be a path, but continue if user_name is valid
+                            pass
+                        
+                        # Extract user_id if available (check all columns for Instagram ID)
+                        user_id = None
+                        for col_idx in range(len(row)):
+                            val = self._clean(row.iloc[col_idx])
+                            if val and val.isdigit() and 8 <= len(val) <= 15:  # Instagram IDs are usually 9-15 digits
+                                # Additional check: skip very small numbers that might be flags/counts
+                                if int(val) > 1000000:  # Skip numbers that are too small
+                                    user_id = val
+                                    break
+                        
+                        # If no user_id found, skip this row
+                        if not user_id:
+                            continue
+                        
+                        if user_name and user_id:
                             acc = {
                                 "platform": "instagram",
                                 "account_name": user_name,
                                 "account_id": user_id,
                                 "user_id": user_id,
                                 "full_name": full_name,
-                                "following": self._to_int_safe(following_count),
-                                "followers": self._to_int_safe(followers_count),
-                                "friends": None,
-                                "statuses": None,
+                                "following": None,
+                                "followers": None,
                                 "phone_number": None,
-                                "email": None,
-                                "biography": biography,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Instagram",
                                 "file_id": file_id,
                             }
                             results.append(acc)
+                            following_count += 1
+                    
+                    if following_count > 0:
+                        print(f"  Found {following_count} following accounts from Instagram sheet")
         
         except Exception as e:
             print(f"Error parsing Instagram dedicated sheet: {e}")
+            import traceback
+            traceback.print_exc()
         
         return results
 
@@ -1057,50 +2211,160 @@ class SocialMediaParser:
                 print("Parsing WhatsApp Messenger dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='WhatsApp Messenger ', engine=engine, dtype=str)
                 
-                if any('Unnamed' in str(col) for col in df.columns):
-                    df.columns = df.iloc[0]
-                    df = df.drop(df.index[0])
-                    df = df.reset_index(drop=True)
-                
-                if len(df) > 3:
-                    data_df = df.iloc[3:].copy()
-                    data_df = data_df.reset_index(drop=True)
+                # Cari header row yang berisi "Full name", "User name", "User picture URL", "User ID", "Phone number"
+                header_row_idx = None
+                for idx in range(min(10, len(df))):  # Check first 10 rows
+                    row_text = ' '.join([str(df.iloc[idx, col_idx]) if col_idx < len(df.columns) else '' 
+                                        for col_idx in range(min(10, len(df.columns)))])
+                    row_text_lower = row_text.lower()
                     
-                    for _, row in data_df.iterrows():
-                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None
-                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None
-                        phone_number = self._clean(row.iloc[3]) if len(row) > 3 else None
-                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None
-                        user_id = self._clean(row.iloc[5]) if len(row) > 5 else None
-                        
-                        if user_name and user_id:
-                            acc = {
-                                "platform": "whatsapp",
-                                "account_name": user_name,
-                                "account_id": user_id,
-                                "user_id": user_id,
-                                "full_name": full_name,
-                                "following": None,
-                                "followers": None,
-                                "friends": None,
-                                "statuses": None,
-                                "phone_number": phone_number,
-                                "email": None,
-                                "biography": None,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
-                                "source_tool": "Oxygen",
-                                "sheet_name": "WhatsApp Messenger",
-                                "file_id": file_id,
-                            }
-                            results.append(acc)
+                    # Cari row yang berisi kolom header untuk account data
+                    # Minimal harus ada "User name" atau "User ID" dan salah satu: "Full name", "Phone number", atau "User picture"
+                    if ('user name' in row_text_lower or 'user id' in row_text_lower) and \
+                       ('full name' in row_text_lower or 'phone number' in row_text_lower or 'phone' in row_text_lower or 'user picture' in row_text_lower):
+                        header_row_idx = idx
+                        break
+                
+                if header_row_idx is None:
+                    print("Warning: Could not find header row for WhatsApp account data")
+                    return results
+                
+                # Set columns dari header row
+                df.columns = df.iloc[header_row_idx]
+                df = df.drop(df.index[0:header_row_idx+1])
+                df = df.reset_index(drop=True)
+                
+                # Cari kolom yang tepat
+                col_mapping = {}
+                for col in df.columns:
+                    col_lower = str(col).lower()
+                    if 'full name' in col_lower:
+                        col_mapping['full_name'] = col
+                    elif 'user name' in col_lower and 'user id' not in col_lower:
+                        col_mapping['user_name'] = col
+                    elif 'user picture' in col_lower or 'profile picture' in col_lower:
+                        col_mapping['profile_picture_url'] = col
+                    elif 'user id' in col_lower:
+                        col_mapping['user_id'] = col
+                    elif 'phone number' in col_lower or 'phone' in col_lower:
+                        col_mapping['phone_number'] = col
+                
+                # Skip keywords yang menandakan row bukan account data
+                skip_keywords = [
+                    'source', 'status', 'received', 'delivered', 'seen', 'categories',
+                    'direction', 'time stamp', 'timestamp', 'deleted', 'chats\\', 'calls\\',
+                    'at the server', 'failed call', 'outgoing', 'incoming', 'message', 'call',
+                    'riko suloyo\\chats', 'riko suloyo\\calls'
+                ]
+                
+                for _, row in df.iterrows():
+                    # Skip jika row kosong atau hanya whitespace
+                    row_values = [str(row.get(col, '')).strip() for col in df.columns]
+                    if not any(val and val.lower() not in ['nan', 'none', ''] for val in row_values):
+                        continue
+                    
+                    # Skip jika row berisi skip keywords (header/metadata chat/call)
+                    row_text = ' '.join(row_values).lower()
+                    if any(keyword in row_text for keyword in skip_keywords):
+                        continue
+                    
+                    # Skip jika row berisi path chat (misal: "Riko Suloyo\Chats\Private\...")
+                    if '\\chats\\' in row_text or '\\calls\\' in row_text:
+                        continue
+                    
+                    # Ambil data dari kolom yang tepat
+                    full_name = None
+                    user_name = None
+                    profile_picture_url = None
+                    user_id = None
+                    phone_number = None
+                    
+                    if 'full_name' in col_mapping:
+                        full_name = self._clean(row.get(col_mapping['full_name']))
+                    if 'user_name' in col_mapping:
+                        user_name = self._clean(row.get(col_mapping['user_name']))
+                    if 'profile_picture_url' in col_mapping:
+                        profile_picture_url = self._clean(row.get(col_mapping['profile_picture_url']))
+                    if 'user_id' in col_mapping:
+                        user_id = self._clean(row.get(col_mapping['user_id']))
+                    if 'phone_number' in col_mapping:
+                        phone_number = self._clean(row.get(col_mapping['phone_number']))
+                    
+                    # Jika kolom tidak ditemukan, coba ambil dari index (fallback)
+                    # Order: Full name (1), User name (2), Phone number (3), User picture URL (4), User ID (5)
+                    if not full_name and len(row) > 1:
+                        full_name = self._clean(row.iloc[1] if isinstance(row, pd.Series) else row.get(1))
+                    if not user_name and len(row) > 2:
+                        user_name = self._clean(row.iloc[2] if isinstance(row, pd.Series) else row.get(2))
+                    if not phone_number and len(row) > 3:
+                        phone_number = self._clean(row.iloc[3] if isinstance(row, pd.Series) else row.get(3))
+                    if not profile_picture_url and len(row) > 4:
+                        profile_picture_url = self._clean(row.iloc[4] if isinstance(row, pd.Series) else row.get(4))
+                    if not user_id and len(row) > 5:
+                        user_id = self._clean(row.iloc[5] if isinstance(row, pd.Series) else row.get(5))
+                    
+                    # Validasi: harus ada user_id yang valid (numeric atau phone number format)
+                    if not user_id:
+                        continue
+                    
+                    # Validasi user_id bukan keyword invalid
+                    user_id_str = str(user_id).strip().lower()
+                    if user_id_str in skip_keywords or len(user_id_str) < 3:
+                        continue
+                    
+                    # Prioritaskan phone_number dari kolom jika ada, jika tidak gunakan user_id
+                    phone_to_use = phone_number if phone_number else user_id
+                    
+                    if not phone_to_use:
+                        continue
+                    
+                    phone_to_use_str = str(phone_to_use).strip().lower()
+                    
+                    # Validasi: harus numeric atau phone number format
+                    phone_clean = phone_to_use_str.replace('+', '').replace('-', '').replace('@s.whatsapp.net', '').replace('@', '')
+                    
+                    if not phone_clean.isdigit():
+                        # Bisa jadi bukan account data valid
+                        continue
+                    
+                    # Normalize phone number untuk account_id
+                    account_id = self._normalize_phone(phone_to_use)
+                    
+                    # Validasi panjang phone number (minimal 10 digit)
+                    account_id_clean = str(account_id).replace('+', '').replace('-', '')
+                    if len(account_id_clean) < 10:
+                        continue
+                    
+                    # Normalize phone_number field juga
+                    if phone_number:
+                        phone_number = self._normalize_phone(phone_number)
+                    else:
+                        # Jika tidak ada phone_number di kolom, gunakan account_id
+                        phone_number = account_id
+                    
+                    # Jika tidak ada user_name, gunakan full_name atau account_id
+                    if not user_name:
+                        user_name = full_name if full_name else account_id
+                    
+                    acc = {
+                        "platform": "whatsapp",
+                        "account_name": user_name if user_name else (full_name if full_name else phone_number),
+                        "account_id": account_id,  # Phone number sebagai identifier unik
+                        "user_id": user_id if user_id and user_id != account_id else account_id,  # User ID atau phone number
+                        "full_name": full_name,  # Required field untuk WhatsApp
+                        "following": None,  # Tidak ada di WhatsApp
+                        "followers": None,  # Tidak ada di WhatsApp
+                        "phone_number": phone_number,  # Phone number yang sudah dinormalisasi (Required untuk WhatsApp)
+                        "source_tool": "Oxygen",
+                        "sheet_name": "WhatsApp Messenger",
+                        "file_id": file_id,
+                    }
+                    results.append(acc)
         
         except Exception as e:
             print(f"Error parsing WhatsApp Messenger dedicated sheet: {e}")
+            import traceback
+            traceback.print_exc()
         
         return results
 
@@ -1137,17 +2401,7 @@ class SocialMediaParser:
                                 "full_name": full_name,
                                 "following": None,
                                 "followers": None,
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": phone_number,
-                                "email": None,
-                                "biography": None,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "Telegram",
                                 "file_id": file_id,
@@ -1159,6 +2413,12 @@ class SocialMediaParser:
         
         return results
 
+    def _clean_whatsapp_suffix(self, value: str) -> str:
+        if not value:
+            return value
+        value_str = str(value)
+        return value_str.replace('@s.whatsapp.net', '').strip()
+
     def _parse_oxygen_twitter_dedicated_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
@@ -1167,44 +2427,117 @@ class SocialMediaParser:
                 print("Parsing X (Twitter) dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='X (Twitter) ', engine=engine, dtype=str)
                 
-                if any('Unnamed' in str(col) for col in df.columns):
-                    df.columns = df.iloc[0]
-                    df = df.drop(df.index[0])
-                    df = df.reset_index(drop=True)
+                # Normalize column names
+                df.columns = [str(col).strip() for col in df.columns]
                 
-                if len(df) > 3:
-                    data_df = df.iloc[3:].copy()
-                    data_df = data_df.reset_index(drop=True)
+                # Handle case where first row might be headers
+                if any('Unnamed' in str(col) for col in df.columns):
+                    # Try to use first row as column names
+                    potential_header_row = None
+                    for idx in range(min(3, len(df))):
+                        row_values = [str(val).strip().lower() for val in df.iloc[idx].values]
+                        if any(col in row_values for col in ['uid', 'username', 'full name']):
+                            potential_header_row = idx
+                            break
                     
-                    for _, row in data_df.iterrows():
-                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None
-                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None
-                        biography = self._clean(row.iloc[3]) if len(row) > 3 else None
-                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None
-                        followers_count = self._clean(row.iloc[5]) if len(row) > 5 else None
-                        following_count = self._clean(row.iloc[6]) if len(row) > 6 else None
-                        user_id = self._clean(row.iloc[7]) if len(row) > 7 else None
+                    if potential_header_row is not None:
+                        df.columns = df.iloc[potential_header_row]
+                        df = df.drop(df.index[:potential_header_row + 1])
+                        df = df.reset_index(drop=True)
+                        df.columns = [str(col).strip() for col in df.columns]
+                
+                # Cek apakah kolom yang diperlukan ada
+                required_columns = ['UID', 'Username', 'Full name', 'Followers', 'Following']
+                column_mapping = {}
+                
+                for req_col in required_columns:
+                    # Cari kolom yang cocok (case insensitive)
+                    for col in df.columns:
+                        if req_col.lower() == str(col).lower().strip():
+                            column_mapping[req_col] = col
+                            break
+                        # Juga cek variasi nama
+                        if req_col.lower() in ['uid'] and 'uid' in str(col).lower():
+                            column_mapping[req_col] = col
+                            break
+                        elif req_col.lower() in ['username'] and 'username' in str(col).lower():
+                            column_mapping[req_col] = col
+                            break
+                        elif req_col.lower() in ['full name'] and ('full name' in str(col).lower() or 'fullname' in str(col).lower()):
+                            column_mapping[req_col] = col
+                            break
+                        elif req_col.lower() in ['followers'] and 'followers' in str(col).lower():
+                            column_mapping[req_col] = col
+                            break
+                        elif req_col.lower() in ['following'] and 'following' in str(col).lower():
+                            column_mapping[req_col] = col
+                            break
+                
+                # Cek kolom yang harus di-skip
+                skip_columns = ['category', 'source', 'delete']
+                skip_column_names = []
+                for skip_col in skip_columns:
+                    for col in df.columns:
+                        if skip_col.lower() == str(col).lower().strip():
+                            skip_column_names.append(col)
+                
+                print(f"  Found columns: UID={column_mapping.get('UID')}, Username={column_mapping.get('Username')}, "
+                      f"Full name={column_mapping.get('Full name')}, Followers={column_mapping.get('Followers')}, "
+                      f"Following={column_mapping.get('Following')}")
+                if skip_column_names:
+                    print(f"  Skip columns detected: {skip_column_names}")
+                
+                # Parse data
+                for _, row in df.iterrows():
+                    # Skip row jika ada nilai di kolom category, source, atau delete
+                    should_skip = False
+                    for skip_col in skip_column_names:
+                        skip_value = self._clean(row.get(skip_col, ''))
+                        if skip_value and str(skip_value).strip().lower() not in ['', 'nan', 'none', 'null']:
+                            should_skip = True
+                            break
+                    
+                    if should_skip:
+                        continue
+                    
+                    # Ambil data hanya dari kolom yang diperlukan
+                    user_id_col = column_mapping.get('UID')
+                    username_col = column_mapping.get('Username')
+                    full_name_col = column_mapping.get('Full name')
+                    followers_col = column_mapping.get('Followers')
+                    following_col = column_mapping.get('Following')
+                    
+                    user_id = self._clean(row.get(user_id_col, '')) if user_id_col else None
+                    username = self._clean(row.get(username_col, '')) if username_col else None
+                    full_name = self._clean(row.get(full_name_col, '')) if full_name_col else None
+                    followers_count = self._clean(row.get(followers_col, '')) if followers_col else None
+                    following_count = self._clean(row.get(following_col, '')) if following_col else None
+                    
+                    # Clean data dari @s.whatsapp.net jika ada
+                    if user_id:
+                        user_id = self._clean_whatsapp_suffix(user_id)
+                    if username:
+                        username = self._clean_whatsapp_suffix(username)
+                    if full_name:
+                        full_name = self._clean_whatsapp_suffix(full_name)
+                    
+                    # Hanya insert jika ada minimal UID atau Username
+                    if user_id or username:
+                        account_name = username or user_id
                         
-                        if user_name and user_id:
+                        # Skip jika account_name adalah header/metadata
+                        if account_name and self._is_header_or_metadata(account_name):
+                            continue
+                        
                             acc = {
                                 "platform": "x",
-                                "account_name": user_name,
-                                "account_id": user_id,
+                            "account_name": account_name,
+                            "account_id": user_id or username,
                                 "user_id": user_id,
                                 "full_name": full_name,
                                 "following": self._to_int_safe(following_count),
                                 "followers": self._to_int_safe(followers_count),
-                                "friends": None,
-                                "statuses": None,
                                 "phone_number": None,
-                                "email": None,
-                                "biography": biography,
-                                "profile_picture_url": profile_picture_url,
-                                "is_private": None,
-                                "is_local_user": None,
-                                "chat_content": None,
-                                "last_message": None,
-                                "other_info": None,
                                 "source_tool": "Oxygen",
                                 "sheet_name": "X (Twitter)",
                                 "file_id": file_id,
@@ -1213,6 +2546,8 @@ class SocialMediaParser:
         
         except Exception as e:
             print(f"Error parsing X (Twitter) dedicated sheet: {e}")
+            import traceback
+            traceback.print_exc()
         
         return results
 
@@ -1240,17 +2575,7 @@ class SocialMediaParser:
                                             "full_name": username,
                                             "following": None,
                                             "followers": None,
-                                            "friends": None,
-                                            "statuses": None,
                                             "phone_number": None,
-                                            "email": None,
-                                            "biography": cell_value,
-                                            "profile_picture_url": None,
-                                            "is_private": None,
-                                            "is_local_user": None,
-                                            "chat_content": cell_value,
-                                            "last_message": cell_value,
-                                            "other_info": None,
                                             "source_tool": "Oxygen",
                                             "sheet_name": sheet_name,
                                             "file_id": file_id,
@@ -1367,9 +2692,127 @@ class SocialMediaParser:
         if text is None or pd.isna(text):
             return None
         text = str(text).strip()
-        if text.lower() in ["", "nan", "none"]:
+        if text.lower() in ["", "nan", "none", "null", "n/a", "none"]:
             return None
         return text
+    
+    def _is_header_or_metadata(self, value: str) -> bool:
+        """Cek apakah value adalah header kolom atau metadata sistem"""
+        if not value:
+            return False
+        
+        value_str = str(value).strip()
+        value_lower = value_str.lower()
+        
+        # Header kolom yang umum ditemukan di Excel (exact match)
+        exact_header_keywords = [
+            "source", "file name", "file size", "source file", "source table",
+            "source file size", "source table", "path", "/", 
+            "user picture url", "thumbnail url", "tweet url", "remote party name"
+        ]
+        
+        if value_lower in exact_header_keywords:
+            return True
+        
+        # Cek apakah value adalah ukuran file (berisi angka + KB/MB/GB)
+        if re.search(r'^\d+[,\s\.]?\d*\s*(kb|mb|gb)$', value_lower):
+            return True
+        
+        # Cek apakah value terlalu pendek (kecuali untuk username yang sangat pendek yang valid)
+        if len(value_str) <= 1:
+            # Single character bisa valid untuk beberapa platform, tapi "/" jelas tidak valid
+            if value_str == "/":
+                return True
+            # Skip single character yang bukan alphanumeric
+            if not value_str.isalnum():
+                return True
+        
+        # Cek apakah value adalah hanya simbol tanpa karakter valid
+        if not re.search(r'[a-zA-Z0-9]', value_str):
+            return True
+        
+        return False
+    
+    def _is_system_path(self, value: str) -> bool:
+        """Cek apakah value terlihat seperti system path yang bukan social media account"""
+        if not value:
+            return False
+        
+        value_str = str(value).strip()
+        
+        # Cek apakah mengandung backslash (Windows path)
+        if '\\' in value_str:
+            path_parts = value_str.split('\\')
+            if len(path_parts) >= 2:
+                first_part = path_parts[0].lower()
+                # Cek bagian pertama yang umum untuk system paths
+                if first_part in ["cache", "cookies", "source", "users"]:
+                    # Cek apakah bagian berikutnya juga terlihat seperti path sistem
+                    if any(part.lower() in ["links", "cache", "cookies"] for part in path_parts[1:]):
+                        return True
+                    # Jika account_name adalah path tapi account_id juga invalid, kemungkinan besar system path
+                    return False  # Akan dicek di validasi bersama dengan account_id
+        
+        # Cek pattern seperti "Cache\Links" atau "Source" yang jelas bukan account
+        suspicious_patterns = [
+            r'^cache\\links?$',
+            r'^cookies$',
+            r'^source$',
+        ]
+        
+        for pattern in suspicious_patterns:
+            if re.match(pattern, value_str.lower()):
+                return True
+        
+        return False
+    
+    def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert struktur lama ke struktur baru"""
+        if "platform" not in acc:
+            # Sudah struktur baru
+            return acc
+        
+        new_acc = {
+            "file_id": acc.get("file_id"),
+            "type": acc.get("type"),
+            "source": acc.get("source") or acc.get("source_tool"),
+            "phone_number": acc.get("phone_number"),
+            "full_name": acc.get("full_name"),
+            "account_name": acc.get("account_name"),
+            "whatsapp_id": None,
+            "telegram_id": None,
+            "instagram_id": None,
+            "X_id": None,
+            "facebook_id": None,
+            "tiktok_id": None,
+            "location": acc.get("location"),
+            "sheet_name": acc.get("sheet_name"),
+        }
+        
+        # Map platform dan account_id ke field yang sesuai
+        platform = acc.get("platform", "").lower()
+        account_id = acc.get("account_id") or acc.get("user_id")
+        
+        if platform == "instagram":
+            new_acc["instagram_id"] = account_id
+        elif platform == "facebook":
+            new_acc["facebook_id"] = account_id
+        elif platform == "whatsapp":
+            new_acc["whatsapp_id"] = account_id
+        elif platform in ["x", "twitter"]:
+            new_acc["X_id"] = account_id
+        elif platform == "telegram":
+            new_acc["telegram_id"] = account_id
+        elif platform == "tiktok":
+            new_acc["tiktok_id"] = account_id
+        
+        return new_acc
+    
+    def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
+        if "platform" in acc:
+            acc = self._convert_old_to_new_structure(acc)
+    
+        return self._validate_social_media_data_new(acc)
 
     def _extract_following_count(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[int]:
         fields = [contact_field, internet_field, phones_emails_field]
@@ -1492,2239 +2935,56 @@ class SocialMediaParser:
     def _extract_phone_number(self, phones_emails_field: Optional[str]) -> Optional[str]:
         if not phones_emails_field:
             return None
-            
-        patterns = [
-            r'phone\s+number[:\s]*(\+?\d{10,15})',
-            r'mobile[:\s]*(\+?\d{10,15})',
-            r'tel[:\s]*(\+?\d{10,15})',
-        ]
         
-        for pattern in patterns:
-            match = re.search(pattern, phones_emails_field.lower())
+        
+        phones_found = []
+        
+        mobile_pattern = r'mobile[:\s]+(\+?\d+)'
+        mobile_matches = re.findall(mobile_pattern, phones_emails_field.lower())
+        for match in mobile_matches:
+            phone_clean = match.replace('+', '').replace('-', '').replace(' ', '')
+            if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 3:  # Minimal 3 digit
+                phones_found.append((len(phone_clean), match))  # Simpan dengan length untuk sorting
+        
+        if not phones_found:
+            phone_number_pattern = r'phone\s+number[:\s]+(\+?\d+)'
+            phone_matches = re.findall(phone_number_pattern, phones_emails_field.lower())
+            for match in phone_matches:
+                phone_clean = match.replace('+', '').replace('-', '').replace(' ', '')
+                if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 3:
+                    phones_found.append((len(phone_clean), match))
+                    break
+        
+        if not phones_found:
+            direct_mobile_pattern = r'mobile[:\s]+(\+?\d{3,15})'
+            match = re.search(direct_mobile_pattern, phones_emails_field.lower())
             if match:
-                return match.group(1)
+                phone_clean = match.group(1).replace('+', '').replace('-', '').replace(' ', '')
+                if phone_clean.isdigit():
+                    phones_found.append((len(phone_clean), match.group(1)))
         
-        return None
-
-    def _extract_email(self, phones_emails_field: Optional[str]) -> Optional[str]:
-        if not phones_emails_field:
-            return None
-            
-        email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-        match = re.search(email_pattern, phones_emails_field)
-        if match:
-            return match.group(0)
-        
-        return None
-
-    def _extract_biography(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[str]:
-        fields = [contact_field, internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            patterns = [
-                r'biography[:\s]*(.+?)(?:\n|$)',
-                r'bio[:\s]*(.+?)(?:\n|$)',
-                r'description[:\s]*(.+?)(?:\n|$)',
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, field.lower())
-                if match:
-                    bio = match.group(1).strip()
-                    if bio and len(bio) > 3:
-                        return bio
-        
-        return None
-
-    def _extract_profile_picture_url(self, internet_field: Optional[str]) -> Optional[str]:
-        if not internet_field:
-            return None
-        
-        url_pattern = r'https?://[^\s]+\.(?:jpg|jpeg|png|gif)'
-        match = re.search(url_pattern, internet_field)
-        if match:
-            return match.group(0)
-        
-        return None
-
-    def _extract_is_private(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[bool]:
-        fields = [contact_field, internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            if 'private' in field.lower():
-                return True
-            elif 'public' in field.lower():
-                return False
-        
-        return None
-
-    def _extract_is_local_user(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[bool]:
-        fields = [contact_field, internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            if 'local user' in field.lower():
-                return True
-        
-        return None
-
-    def _extract_last_message(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[str]:
-        fields = [contact_field, internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            patterns = [
-                r'last\s+message[:\s]*(.+?)(?:\n|$)',
-                r'last\s+msg[:\s]*(.+?)(?:\n|$)',
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, field.lower())
-                if match:
-                    message = match.group(1).strip()
-                    if message and len(message) > 3:
-                        return message
-        
-        return None
-
-    def _extract_other_info(self, contact_field: Optional[str], internet_field: Optional[str], phones_emails_field: Optional[str]) -> Optional[str]:
-        fields = [contact_field, internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            patterns = [
-                r'birthday[:\s]*(.+?)(?:\n|$)',
-                r'age[:\s]*(.+?)(?:\n|$)',
-                r'location[:\s]*(.+?)(?:\n|$)',
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, field.lower())
-                if match:
-                    info = match.group(1).strip()
-                    if info and len(info) > 1:
-                        return info
-        
-        return None
-
-    def _extract_user_id(self, internet_field: Optional[str], phones_emails_field: Optional[str], platform: str) -> Optional[str]:
-        fields = [internet_field, phones_emails_field]
-        
-        for field in fields:
-            if not field:
-                continue
-                
-            patterns = []
-            if platform.lower() == 'x' or platform.lower() == 'twitter':
-                patterns = [r'x\s+id[:\s]*(\d+)', r'twitter\s+id[:\s]*(\d+)']
-            elif platform.lower() == 'instagram':
-                patterns = [r'instagram\s+id[:\s]*(\d+)']
-            elif platform.lower() == 'telegram':
-                patterns = [r'telegram\s+id[:\s]*(\d+)']
-            
-            for pattern in patterns:
-                match = re.search(pattern, field.lower())
-                if match:
-                    return match.group(1)
-        
-        return None
-
-    def _extract_full_name(self, contact_field: Optional[str]) -> Optional[str]:
-        if not contact_field:
-            return None
-            
-        patterns = [
-            r'full\s+name[:\s]*(.+?)(?:\n|$)',
-            r'name[:\s]*(.+?)(?:\n|$)',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, contact_field.lower())
+        if not phones_found:
+            tel_pattern = r'(?:tel|phone)[:\s]+(\+?\d{10,15})'
+            match = re.search(tel_pattern, phones_emails_field.lower())
             if match:
-                name = match.group(1).strip()
-                if name and len(name) > 1:
-                    return name
+                phone_clean = match.group(1).replace('+', '').replace('-', '').replace(' ', '')
+                if phone_clean.isdigit():
+                    phones_found.append((len(phone_clean), match.group(1)))
         
+        phones_found.sort(key=lambda x: x[0], reverse=True)
+        
+        for length, phone in phones_found:
+            phone_normalized = self._normalize_phone(phone)
+            if phone_normalized:
+                phone_digits = phone_normalized.replace('+', '').replace('-', '').replace(' ', '')
+                if len(phone_digits) >= 10:
+                    return phone_normalized
+        
+        if phones_found:
+            length, phone = phones_found[0]
+            phone_normalized = self._normalize_phone(phone)
+            if phone_normalized:
+                phone_digits = phone_normalized.replace('+', '').replace('-', '').replace(' ', '')
+                if len(phone_digits) >= 3:
+                    return phone_normalized
         return None
-
-    def parse_axiom_social_media(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            
-            print(f" Total sheets available: {len(xls.sheet_names)}")
-            
-            for sheet_name in xls.sheet_names:
-                print(f"Processing sheet: {sheet_name}")
-                
-                if 'Instagram Profiles' in sheet_name:
-                    results.extend(self._parse_axiom_instagram_profiles(file_path, sheet_name, file_id))
-                elif 'Android Instagram Following' in sheet_name:
-                    results.extend(self._parse_axiom_instagram_following(file_path, sheet_name, file_id))
-                elif 'Android Instagram Users' in sheet_name:
-                    results.extend(self._parse_axiom_instagram_users(file_path, sheet_name, file_id))
-                
-                elif 'Twitter Users' in sheet_name:
-                    results.extend(self._parse_axiom_twitter_users(file_path, sheet_name, file_id))
-                
-                elif 'Telegram Accounts' in sheet_name:
-                    results.extend(self._parse_axiom_telegram_accounts(file_path, sheet_name, file_id))
-                elif 'User Accounts' in sheet_name:
-                    results.extend(self._parse_axiom_user_accounts(file_path, sheet_name, file_id))
-                
-                elif 'TikTok Contacts' in sheet_name:
-                    results.extend(self._parse_axiom_tiktok_contacts(file_path, sheet_name, file_id))
-                
-                elif 'Facebook Contacts' in sheet_name:
-                    results.extend(self._parse_axiom_facebook_contacts(file_path, sheet_name, file_id))
-                elif 'Facebook User-Friends' in sheet_name:
-                    results.extend(self._parse_axiom_facebook_users(file_path, sheet_name, file_id))
-                
-                elif 'WhatsApp Contacts - Android' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_contacts(file_path, sheet_name, file_id))
-                elif 'WhatsApp User Profiles - Androi' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_users(file_path, sheet_name, file_id))
-                elif 'WhatsApp Accounts Information' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_accounts(file_path, sheet_name, file_id))
-                
-                elif 'Android WhatsApp Accounts Infor' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_accounts_info(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Chats' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_chats(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Contacts' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_contacts_android(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Messages' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_messages(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp User Profiles' in sheet_name:
-                    results.extend(self._parse_axiom_whatsapp_user_profiles(file_path, sheet_name, file_id))
-                elif 'Telegram Chats - Android' in sheet_name:
-                    results.extend(self._parse_axiom_telegram_chats(file_path, sheet_name, file_id))
-                elif 'Telegram Contacts - Android' in sheet_name:
-                    results.extend(self._parse_axiom_telegram_contacts_android(file_path, sheet_name, file_id))
-                elif 'Telegram Messages - Android' in sheet_name:
-                    results.extend(self._parse_axiom_telegram_messages(file_path, sheet_name, file_id))
-                elif 'Telegram Users - Android' in sheet_name:
-                    results.extend(self._parse_axiom_telegram_users_android(file_path, sheet_name, file_id))
-
-            unique_results = []
-            seen_accounts = set()
-            
-            for acc in results:
-                account_key = f"{acc['platform']}_{acc['account_id']}_{acc['account_name']}"
-                if account_key not in seen_accounts:
-                    seen_accounts.add(account_key)
-                    unique_results.append(acc)
-            
-            print(f"Removed {len(results) - len(unique_results)} duplicate records")
-            print(f"Unique social media accounts: {len(unique_results)}")
-            
-            batch_size = 50
-            saved_count = 0
-            
-            for i in range(0, len(unique_results), batch_size):
-                batch = unique_results[i:i + batch_size]
-                
-                try:
-                    for acc in batch:
-                        existing = (
-                            self.db.query(SocialMedia)
-                            .filter(
-                                SocialMedia.platform == acc["platform"],
-                                SocialMedia.account_id == acc["account_id"],
-                                SocialMedia.file_id == acc["file_id"]
-                            )
-                            .first()
-                        )
-                        if not existing:
-                            self.db.add(SocialMedia(**acc))
-                    
-                    self.db.commit()
-                    saved_count += len(batch)
-                    print(f"Saved batch {i//batch_size + 1}: {len(batch)} records (Total: {saved_count})")
-                    
-                except Exception as batch_error:
-                    print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    self.db.rollback()
-                    raise batch_error
-            
-            print(f"Successfully saved {saved_count} unique Axiom social media accounts to database")
-            
-        except Exception as e:
-            print(f"Error parsing Axiom social media: {e}")
-            self.db.rollback()
-            raise e
-        
-        return unique_results
-    
-    def count_axiom_social_media(self, file_path: str) -> int:
-        try:
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            total_count = 0
-            
-            for sheet_name in xls.sheet_names:
-                if 'Instagram Profiles' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['User ID'].notna()])
-                elif 'Twitter Users' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['User ID'].notna()])
-                elif 'Telegram Accounts' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['Account ID'].notna()])
-                elif 'TikTok Contacts' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['ID'].notna()])
-                elif 'Facebook Contacts' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['Profile ID'].notna()])
-                elif 'Facebook User-Friends' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['User ID'].notna()])
-                elif 'WhatsApp Contacts' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['ID'].notna()])
-                elif 'WhatsApp User Profiles' in sheet_name:
-                    df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-                    total_count += len(df[df['Phone Number'].notna()])
-            
-            return total_count
-            
-        except Exception as e:
-            print(f"Error counting Axiom social media: {e}")
-            return 0
-    
-    def parse_cellebrite_social_media(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            if file_path.endswith('.xlsx'):
-                engine = 'openpyxl'
-            elif file_path.endswith('.xls'):
-                engine = 'xlrd'
-            else:
-                engine = 'openpyxl'
-            
-            xls = pd.ExcelFile(file_path, engine=engine)
-            
-            print(f"📊 Total sheets available: {len(xls.sheet_names)}")
-            print(f"📋 Sheet names: {xls.sheet_names}")
-            
-            if 'Social Media' in xls.sheet_names:
-                print("🔍 Detected Cellebrite format - parsing Social Media sheet")
-                # Parse all sheets with enhanced detection
-                for sheet_name in xls.sheet_names:
-                    print(f"Processing sheet: {sheet_name}")
-                    
-                    if sheet_name == 'Social Media':
-                        results.extend(self._parse_cellebrite_social_media_sheet(file_path, sheet_name, file_id))
-                    elif sheet_name == 'User Accounts':
-                        results.extend(self._parse_cellebrite_user_accounts_sheet(file_path, sheet_name, file_id))
-                    elif sheet_name == 'Contacts':
-                        results.extend(self._parse_cellebrite_contacts_sheet(file_path, sheet_name, file_id))
-                    elif sheet_name == 'Chats':
-                        results.extend(self._parse_cellebrite_chats_sheet(file_path, sheet_name, file_id))
-                    else:
-                        # Check other sheets for social media data
-                        results.extend(self._parse_cellebrite_generic_sheet(file_path, sheet_name, file_id))
-            
-            elif any(keyword in ' '.join(xls.sheet_names).lower() for keyword in ['instagram', 'facebook', 'twitter', 'whatsapp', 'telegram', 'tiktok']):
-                print("🔍 Detected Oxygen format - parsing dedicated social media sheets")
-                # Use Oxygen parser for dedicated social media sheets
-                results.extend(self.parse_oxygen_social_media(file_path, file_id))
-            
-            else:
-                print("🔍 Unknown format - attempting generic parsing")
-                # Try generic parsing for unknown formats
-                for sheet_name in xls.sheet_names:
-                    print(f"Processing sheet: {sheet_name}")
-                    results.extend(self._parse_cellebrite_generic_sheet(file_path, sheet_name, file_id))
-            
-            # Remove duplicates before saving
-            unique_results = []
-            seen_accounts = set()
-            
-            for acc in results:
-                account_key = f"{acc['platform']}_{acc['account_id']}_{acc['account_name']}_{acc['file_id']}"
-                if account_key not in seen_accounts:
-                    seen_accounts.add(account_key)
-                    unique_results.append(acc)
-            
-            print(f"Removed {len(results) - len(unique_results)} duplicate records")
-            print(f"Unique social media accounts: {len(unique_results)}")
-            
-            # Save to database in batches
-            batch_size = 50
-            saved_count = 0
-            
-            for i in range(0, len(unique_results), batch_size):
-                batch = unique_results[i:i + batch_size]
-                
-                try:
-                    for acc in batch:
-                        existing = (
-                            self.db.query(SocialMedia)
-                            .filter(
-                                SocialMedia.platform == acc["platform"],
-                                SocialMedia.account_id == acc["account_id"],
-                                SocialMedia.file_id == acc["file_id"]
-                            )
-                            .first()
-                        )
-                        if not existing:
-                            self.db.add(SocialMedia(**acc))
-                    
-                    self.db.commit()
-                    saved_count += len(batch)
-                    print(f"Saved batch {i//batch_size + 1}: {len(batch)} records (Total: {saved_count})")
-                    
-                except Exception as batch_error:
-                    print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    self.db.rollback()
-                    raise batch_error
-            
-            print(f"Successfully saved {saved_count} unique Cellebrite social media accounts to database")
-            
-        except Exception as e:
-            print(f"Error parsing Cellebrite social media: {e}")
-            self.db.rollback()
-            raise e
-        
-        return unique_results
-    
-    def _parse_cellebrite_social_media_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
-                    continue
-                
-                source = self._clean(row.get('Source', ''))
-                author = self._clean(row.get('Author', ''))
-                body = self._clean(row.get('Body', ''))
-                url = self._clean(row.get('URL', ''))
-                account = self._clean(row.get('Account', ''))
-                
-                if source and source.lower() == 'instagram':
-                    if author and account:
-                        parts = author.split()
-                        user_id = parts[0] if parts else account
-                        account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
-                        
-                        acc = {
-                            "platform": "instagram",
-                            "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
-                            "full_name": account_name,
-                            "biography": body,
-                            "profile_picture_url": url,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id
-                        }
-                        results.append(acc)
-                
-                elif source and source.lower() == 'facebook':
-                    if author and account:
-                        parts = author.split()
-                        user_id = parts[0] if parts else account
-                        account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
-                        
-                        acc = {
-                            "platform": "facebook",
-                            "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
-                            "full_name": account_name,
-                            "biography": body,
-                            "profile_picture_url": url,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id
-                        }
-                        results.append(acc)
-                
-                elif source and source.lower() == 'twitter':
-                    if author and account:
-                        parts = author.split()
-                        user_id = parts[0] if parts else account
-                        account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
-                        
-                        acc = {
-                            "platform": "x",
-                            "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
-                            "full_name": account_name,
-                            "biography": body,
-                            "profile_picture_url": url,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id
-                        }
-                        results.append(acc)
-            
-            print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-    
-    def _parse_cellebrite_generic_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse generic sheets for social media data"""
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            # Check all text columns for social media mentions
-            for _, row in df.iterrows():
-                for col_name, col_value in row.items():
-                    if pd.isna(col_value) or not isinstance(col_value, str):
-                        continue
-                    
-                    col_value_lower = col_value.lower()
-                    
-                    # Check for TikTok mentions
-                    if 'tiktok' in col_value_lower:
-                        # Extract TikTok username or ID
-                        tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', col_value)
-                        if tiktok_match:
-                            username = tiktok_match.group(1)
-                            acc = {
-                                "platform": "tiktok",
-                                "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
-                                "full_name": username,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-                    
-                    # Check for Instagram mentions
-                    elif 'instagram' in col_value_lower:
-                        # Extract Instagram username or ID
-                        instagram_match = re.search(r'instagram\.com/([a-zA-Z0-9_.]+)', col_value)
-                        if instagram_match:
-                            username = instagram_match.group(1)
-                            acc = {
-                                "platform": "instagram",
-                                "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
-                                "full_name": username,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-                    
-                    # Check for WhatsApp mentions
-                    elif 'whatsapp' in col_value_lower:
-                        # Extract WhatsApp number
-                        whatsapp_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', col_value)
-                        if whatsapp_match:
-                            phone_number = whatsapp_match.group(1)
-                            acc = {
-                                "platform": "whatsapp",
-                                "account_name": phone_number,
-                                "account_id": phone_number,
-                                "user_id": phone_number,
-                                "full_name": phone_number,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-                    
-                    # Check for Telegram mentions
-                    elif 'telegram' in col_value_lower:
-                        # Extract Telegram username
-                        telegram_match = re.search(r'@([a-zA-Z0-9_]+)', col_value)
-                        if telegram_match:
-                            username = telegram_match.group(1)
-                            acc = {
-                                "platform": "telegram",
-                                "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
-                                "full_name": username,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-                    
-                    # Check for X/Twitter mentions
-                    elif 'twitter' in col_value_lower or 'x.com' in col_value_lower:
-                        # Extract Twitter/X username
-                        twitter_match = re.search(r'(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)', col_value)
-                        if twitter_match:
-                            username = twitter_match.group(1)
-                            acc = {
-                                "platform": "x",
-                                "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
-                                "full_name": username,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-                    
-                    # Check for Facebook mentions
-                    elif 'facebook' in col_value_lower:
-                        # Extract Facebook ID or username
-                        facebook_match = re.search(r'facebook\.com/([a-zA-Z0-9_.]+)', col_value)
-                        if facebook_match:
-                            username = facebook_match.group(1)
-                            acc = {
-                                "platform": "facebook",
-                                "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
-                                "full_name": username,
-                                "biography": col_value,
-                                "source_tool": "Cellebrite",
-                                "sheet_name": sheet_name,
-                                "file_id": file_id
-                            }
-                            results.append(acc)
-            
-            if results:
-                print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-    
-    def _parse_cellebrite_user_accounts_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
-                    continue
-                
-                username = self._clean(row.get('Username', ''))
-                service_type = self._clean(row.get('Service Type', ''))
-                account_name = self._clean(row.get('Account Name', ''))
-                entries = self._clean(row.get('Entries', ''))
-                source = self._clean(row.get('Source', ''))
-                
-                # Skip if no username
-                if not username or username.lower() == 'n/a':
-                    continue
-                
-                # Determine platform based on service type and source
-                platform = None
-                if 'instagram' in service_type.lower() or 'instagram' in source.lower():
-                    platform = 'instagram'
-                elif 'twitter' in service_type.lower() or 'twitter' in source.lower():
-                    platform = 'x'
-                elif 'telegram' in service_type.lower() or 'telegram' in source.lower():
-                    platform = 'telegram'
-                elif 'whatsapp' in service_type.lower() or 'whatsapp' in source.lower():
-                    platform = 'whatsapp'
-                elif 'facebook' in service_type.lower() or 'facebook' in source.lower():
-                    platform = 'facebook'
-                elif 'tiktok' in service_type.lower() or 'tiktok' in source.lower():
-                    platform = 'tiktok'
-                
-                if platform:
-                    phone_number = None
-                    email = None
-                    profile_picture_url = None
-                    user_id = None
-                    
-                    if entries and entries.lower() != 'n/a':
-                        # Extract phone number
-                        phone_patterns = [
-                            r'Phone-([^\\n]+)',
-                            r'Mobile: ([^\\n]+)',
-                            r'Main: ([^\\n]+)',
-                            r'Phone Number: ([^\\n]+)'
-                        ]
-                        for pattern in phone_patterns:
-                            match = re.search(pattern, entries)
-                            if match:
-                                phone_number = match.group(1).strip()
-                                break
-                        
-                        # Extract email
-                        email_patterns = [
-                            r'Email-([^\\n]+)',
-                            r'Email: ([^\\n]+)',
-                            r'Google Drive Account: ([^\\n]+)'
-                        ]
-                        for pattern in email_patterns:
-                            match = re.search(pattern, entries)
-                            if match:
-                                email = match.group(1).strip()
-                                break
-                        
-                        # Extract profile picture URL
-                        pic_patterns = [
-                            r'Profile Picture-([^\\n]+)',
-                            r'Profile Picture Url: ([^\\n]+)',
-                            r'Pic Square: ([^\\n]+)',
-                            r'profile_picture_url: ([^\\n]+)'
-                        ]
-                        for pattern in pic_patterns:
-                            match = re.search(pattern, entries)
-                            if match:
-                                profile_picture_url = match.group(1).strip()
-                                break
-                        
-                        # Extract user ID
-                        id_patterns = [
-                            r'User ID-([^\\n]+)',
-                            r'User Id: ([^\\n]+)',
-                            r'WhatsApp User Id: ([^\\n]+)',
-                            r'Facebook Id: ([^\\n]+)'
-                        ]
-                        for pattern in id_patterns:
-                            match = re.search(pattern, entries)
-                            if match:
-                                user_id = match.group(1).strip()
-                                break
-                    
-                    acc = {
-                        'platform': platform,
-                        'account_name': username,
-                        'account_id': user_id or username,
-                        'user_id': user_id or username,
-                        'full_name': account_name if account_name and account_name.lower() != 'n/a' else username,
-                        'phone_number': phone_number,
-                        'email': email,
-                        'profile_picture_url': profile_picture_url,
-                        'source_tool': 'Cellebrite',
-                        'sheet_name': sheet_name,
-                        'file_id': file_id,
-                    }
-                    results.append(acc)
-            
-            print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-    
-    def _parse_cellebrite_contacts_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
-                    continue
-                
-                name = self._clean(row.get('Name', ''))
-                entries = self._clean(row.get('Entries', ''))
-                source = self._clean(row.get('Source', ''))
-                
-                if not name or name.lower() == 'n/a':
-                    continue
-                
-                # Check for WhatsApp contacts
-                if '@s.whatsapp.net' in entries:
-                    whatsapp_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', entries)
-                    if whatsapp_match:
-                        phone_number = whatsapp_match.group(1)
-                        acc = {
-                            'platform': 'whatsapp',
-                            'account_name': phone_number,
-                            'account_id': phone_number,
-                            'user_id': phone_number,
-                            'full_name': name,
-                            'phone_number': phone_number,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for Instagram contacts
-                elif 'instagram' in entries.lower() or source.lower() == 'instagram':
-                    instagram_match = re.search(r'instagram\.com/([a-zA-Z0-9_.]+)', entries)
-                    if instagram_match:
-                        username = instagram_match.group(1)
-                        acc = {
-                            'platform': 'instagram',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for Facebook contacts
-                elif 'facebook' in entries.lower() or source.lower() == 'facebook':
-                    facebook_match = re.search(r'Facebook Id: ([0-9]+)', entries)
-                    if facebook_match:
-                        facebook_id = facebook_match.group(1)
-                        acc = {
-                            'platform': 'facebook',
-                            'account_name': facebook_id,
-                            'account_id': facebook_id,
-                            'user_id': facebook_id,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for Twitter contacts
-                elif 'twitter' in entries.lower() or source.lower() == 'twitter':
-                    twitter_match = re.search(r'twitter\.com/([a-zA-Z0-9_]+)', entries)
-                    if twitter_match:
-                        username = twitter_match.group(1)
-                        acc = {
-                            'platform': 'x',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for TikTok contacts
-                elif 'tiktok' in entries.lower():
-                    tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', entries)
-                    if tiktok_match:
-                        username = tiktok_match.group(1)
-                        acc = {
-                            'platform': 'tiktok',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for Telegram contacts
-                elif 'telegram' in entries.lower() or source.lower() == 'telegram':
-                    telegram_match = re.search(r'@([a-zA-Z0-9_]+)', entries)
-                    if telegram_match:
-                        username = telegram_match.group(1)
-                        acc = {
-                            'platform': 'telegram',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
-            
-            print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-    
-    def _parse_cellebrite_chats_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
-                    continue
-                
-                source = self._clean(row.get('Source', ''))
-                participants = self._clean(row.get('Participants', ''))
-                from_user = self._clean(row.get('From', ''))
-                to_user = self._clean(row.get('To', ''))
-                body = self._clean(row.get('Body', ''))
-                account = self._clean(row.get('Account', ''))
-                
-                if source and source.lower() == 'instagram':
-                    if participants:
-                        participant_lines = participants.split('_x000d_')
-                        for line in participant_lines:
-                            line = line.strip()
-                            if line and not line.startswith('777000'):
-                                parts = line.split()
-                                if len(parts) >= 2:
-                                    user_id = parts[0]
-                                    username = ' '.join(parts[1:]).replace('(owner)', '').strip()
-                                    
-                                    acc = {
-                                        "platform": "instagram",
-                                        "account_name": username,
-                                        "account_id": user_id,
-                                        "user_id": user_id,
-                                        "full_name": username,
-                                        "biography": body,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
-                                        "file_id": file_id,
-                                    }
-                                    results.append(acc)
-                
-                # Check for WhatsApp chats
-                elif source and source.lower() == 'whatsapp':
-                    if participants:
-                        participant_lines = participants.split('_x000d_')
-                        for line in participant_lines:
-                            line = line.strip()
-                            if line and '@s.whatsapp.net' in line:
-                                whatsapp_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', line)
-                                if whatsapp_match:
-                                    phone_number = whatsapp_match.group(1)
-                                    acc = {
-                                        "platform": "whatsapp",
-                                        "account_name": phone_number,
-                                        "account_id": phone_number,
-                                        "user_id": phone_number,
-                                        "full_name": phone_number,
-                                        "biography": body,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
-                                        "file_id": file_id,
-                                    }
-                                    results.append(acc)
-                
-                # Check for Telegram chats
-                elif source and source.lower() == 'telegram':
-                    if participants:
-                        participant_lines = participants.split('_x000d_')
-                        for line in participant_lines:
-                            line = line.strip()
-                            if line and not line.startswith('777000'):
-                                parts = line.split()
-                                if len(parts) >= 2:
-                                    user_id = parts[0]
-                                    username = ' '.join(parts[1:]).replace('(owner)', '').strip()
-                                    
-                                    acc = {
-                                        "platform": "telegram",
-                                        "account_name": username,
-                                        "account_id": user_id,
-                                        "user_id": user_id,
-                                        "full_name": username,
-                                        "biography": body,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
-                                        "file_id": file_id,
-                                    }
-                                    results.append(acc)
-                
-                # Check for TikTok mentions in chat content
-                elif body and 'tiktok' in body.lower():
-                    tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', body)
-                    if tiktok_match:
-                        username = tiktok_match.group(1)
-                        acc = {
-                            "platform": "tiktok",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "biography": body,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for Facebook mentions in chat content
-                elif body and 'facebook' in body.lower():
-                    facebook_match = re.search(r'facebook\.com/([a-zA-Z0-9_.]+)', body)
-                    if facebook_match:
-                        username = facebook_match.group(1)
-                        acc = {
-                            "platform": "facebook",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "biography": body,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id,
-                        }
-                        results.append(acc)
-                
-                # Check for X/Twitter mentions in chat content
-                elif body and ('twitter' in body.lower() or 'x.com' in body.lower()):
-                    twitter_match = re.search(r'(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)', body)
-                    if twitter_match:
-                        username = twitter_match.group(1)
-                        acc = {
-                            "platform": "x",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "biography": body,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id,
-                        }
-                        results.append(acc)
-            
-            print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-    
-    def count_cellebrite_social_media(self, file_path: str) -> int:
-        try:
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            total_count = 0
-            
-            # Count Social Media sheet
-            if 'Social Media' in xls.sheet_names:
-                df = pd.read_excel(file_path, sheet_name='Social Media', engine='openpyxl', dtype=str)
-                instagram_count = len(df[df['Unnamed: 8'] == 'Instagram'])
-                total_count += instagram_count
-            
-            # Count Contacts sheet
-            if 'Contacts' in xls.sheet_names:
-                df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str)
-                telegram_contacts = df[df['Unnamed: 20'] == 'Telegram']
-                telegram_count = len(telegram_contacts[telegram_contacts['Unnamed: 8'].notna()])
-                total_count += telegram_count
-            
-            # Count Chats sheet
-            if 'Chats' in xls.sheet_names:
-                df = pd.read_excel(file_path, sheet_name='Chats', engine='openpyxl', dtype=str)
-                telegram_chats = df[df['Unnamed: 15'] == 'Telegram']
-                chat_count = len(telegram_chats[telegram_chats['Unnamed: 13'].notna()])
-                total_count += chat_count
-            
-            return total_count
-            
-        except Exception as e:
-            print(f"Error counting Cellebrite social media: {e}")
-            return 0
-
-    def _parse_axiom_instagram_profiles(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
-                    continue
-                    
-                # Handle following/followers as Yes/No strings
-                following_value = self._clean(row.get('Following'))
-                followers_value = self._clean(row.get('Is Followed By'))
-                
-                # Convert Yes/No to boolean, then to 1/0 for counting
-                following_count = 1 if following_value and following_value.lower() == 'yes' else None
-                followers_count = 1 if followers_value and followers_value.lower() == 'yes' else None
-                
-                acc = {
-                    "platform": "instagram",
-                    "account_name": self._clean(row.get('User Name')),
-                    "account_id": self._clean(row.get('User Name')),  # Username sebagai account_id
-                    "user_id": self._clean(row.get('User ID')),
-                    "full_name": self._clean(row.get('Name')),
-                    "following": following_count,
-                    "followers": followers_count,
-                    "biography": self._clean(row.get('Biography')),
-                    "profile_picture_url": self._clean(row.get('Profile Picture URL')),
-                    "is_private": self._safe_bool(row.get('Is Private')),
-                    "is_local_user": self._safe_bool(row.get('Local User')),
-                    "email": self._clean(row.get('Email')),
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Instagram Profiles",                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Instagram Profiles: {e}")
-        
-        return results
-
-    def _parse_axiom_instagram_following(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
-                    continue
-                
-                # Extract following status
-                following_value = self._clean(row.get('Status'))
-                following_count = 1 if following_value and following_value.lower() == 'following' else None
-                
-                acc = {
-                    "platform": "instagram",
-                    "account_name": self._clean(row.get('User Name')),
-                    "account_id": self._clean(row.get('User Name')),
-                    "user_id": self._clean(row.get('ID')),
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": following_count,
-                    "followers": None,
-                    "biography": self._clean(row.get('Biography')),
-                    "profile_picture_url": self._clean(row.get('Profile Picture URL')),
-                    "is_private": self._safe_bool(row.get('Account Type') == 'Private'),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Android Instagram Following",
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Android Instagram Following: {e}")
-        
-        return results
-
-    def _parse_axiom_instagram_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
-                    continue
-                
-                acc = {
-                    "platform": "instagram",
-                    "account_name": self._clean(row.get('User Name')),
-                    "account_id": self._clean(row.get('User Name')),
-                    "user_id": self._clean(row.get('ID')),
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": None,
-                    "followers": None,
-                    "biography": None,
-                    "profile_picture_url": self._clean(row.get('Profile Picture URL')),
-                    "is_private": None,
-                    "source_tool": "Axiom",
-                    "sheet_name": "Android Instagram Users",
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Android Instagram Users: {e}")
-        
-        return results
-
-    def _parse_axiom_user_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                service_name = self._clean(row.get('Service Name', ''))
-                user_name = self._clean(row.get('User Name', ''))
-                user_id = self._clean(row.get('User ID', ''))
-                
-                # Only process Telegram-related accounts
-                if not service_name or 'telegram' not in service_name.lower():
-                    continue
-                
-                if not user_name and not user_id:
-                    continue
-                
-                acc = {
-                    "platform": "telegram",
-                    "account_name": user_name or user_id,
-                    "account_id": user_id or user_name,
-                    "user_id": user_id,
-                    "full_name": user_name,
-                    "following": None,
-                    "followers": None,
-                    "biography": None,
-                    "profile_picture_url": self._clean(row.get('Profile Image URL')),
-                    "phone_number": self._clean(row.get('Phone Number(s)')),
-                    "email": self._clean(row.get('Email Address(es)')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "User Accounts",
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing User Accounts: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                whatsapp_name = self._clean(row.get('WhatsApp Name'))
-                phone_number = self._clean(row.get('Phone Number'))
-                
-                if not whatsapp_name and not phone_number:
-                    continue
-                
-                acc = {
-                    "platform": "whatsapp",
-                    "account_name": whatsapp_name or phone_number,
-                    "account_id": phone_number or whatsapp_name,
-                    "user_id": phone_number,
-                    "full_name": whatsapp_name,
-                    "following": None,
-                    "followers": None,
-                    "biography": None,
-                    "profile_picture_url": None,
-                    "phone_number": phone_number,
-                    "source_tool": "Axiom",
-                    "sheet_name": "WhatsApp Accounts Information",
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing WhatsApp Accounts Information: {e}")
-        
-        return results
-
-    def _parse_axiom_twitter_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
-                    continue
-                    
-                acc = {
-                    "platform": "x",
-                    "account_name": self._clean(row.get('User Name')),
-                    "account_id": self._clean(row.get('User Name')),  # Username sebagai account_id
-                    "user_id": self._clean(row.get('User ID')),
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": self._safe_int(row.get('Following')),
-                    "followers": self._safe_int(row.get('Followers')),
-                    "friends": self._safe_int(row.get('Friends')),
-                    "statuses": self._safe_int(row.get('Statuses')),
-                    "biography": self._clean(row.get('Description')),
-                    "profile_picture_url": self._clean(row.get('Image URL')),
-                    "is_private": self._safe_bool(row.get('Protected')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Twitter Users",                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Twitter Users: {e}")
-        
-        return results
-
-    def _parse_axiom_telegram_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
-                    continue
-                    
-                first_name = self._clean(row.get('First Name', ''))
-                last_name = self._clean(row.get('Last Name', ''))
-                full_name = f"{first_name} {last_name}".strip()
-                user_name = self._clean(row.get('User Name'))
-                
-                acc = {
-                    "platform": "telegram",
-                    "account_name": user_name or full_name or str(self._clean(row.get('User ID'))),
-                    "account_id": self._clean(row.get('Account ID')),
-                    "user_id": self._clean(row.get('User ID')),
-                    "full_name": full_name,
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "is_local_user": self._safe_bool(row.get('Active Account')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Telegram Accounts",                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Telegram Accounts: {e}")
-        
-        return results
-
-    def _parse_axiom_tiktok_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
-            
-            for _, row in df.iterrows():
-                # Skip rows without ID
-                if pd.isna(row.get("ID")):
-                    continue
-                
-                # Prioritize Nickname over User Name for account_name
-                nickname = self._clean(row.get("Nickname"))
-                user_name = self._clean(row.get("User Name"))
-                account_name = nickname or user_name
-                
-                acc = {
-                    "platform": "tiktok",
-                    "account_name": account_name,
-                    "account_id": self._clean(row.get("ID")),
-                    "user_id": self._clean(row.get("ID")),
-                    "full_name": nickname or user_name,
-                    "following": None,
-                    "followers": None,
-                    "biography": None,
-                    "profile_picture_url": self._clean(row.get("Profile Picture URL")),
-                    "source_tool": "Axiom",
-                    "sheet_name": "TikTok Contacts",
-                    "file_id": file_id,
-                }
-                
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing TikTok Contacts: {e}")
-        
-        return results
-
-    def _parse_axiom_facebook_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Profile ID')):
-                    continue
-                    
-                acc = {
-                    "platform": "facebook",
-                    "account_name": self._clean(row.get('Display Name')),
-                    "account_id": self._clean(row.get('Profile ID')),
-                    "user_id": self._clean(row.get('Profile ID')),
-                    "full_name": f"{self._clean(row.get('First Name'))} {self._clean(row.get('Last Name'))}".strip(),
-                    "profile_picture_url": self._clean(row.get('Picture URL')),
-                    "phone_number": self._clean(row.get('Phone Numbers')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Facebook Contacts: {e}")
-        
-        return results
-
-    def _parse_axiom_facebook_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
-                    continue
-                    
-                acc = {
-                    "platform": "facebook",
-                    "account_name": self._clean(row.get('Display Name')),
-                    "account_id": self._clean(row.get('User ID')),
-                    "user_id": self._clean(row.get('User ID')),
-                    "full_name": f"{self._clean(row.get('First Name'))} {self._clean(row.get('Last Name'))}".strip(),
-                    "profile_picture_url": self._clean(row.get('User Image URL')),
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "email": self._clean(row.get('Email(s)')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing Facebook Users: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('ID')):
-                    continue
-                    
-                acc = {
-                    "platform": "whatsapp",
-                    "account_name": self._clean(row.get('WhatsApp Name')),
-                    "account_id": self._clean(row.get('ID')),
-                    "user_id": self._clean(row.get('ID')),
-                    "full_name": f"{self._clean(row.get('Given Name'))} {self._clean(row.get('Family Name'))}".strip(),
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing WhatsApp Contacts: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Phone Number')):
-                    continue
-                    
-                acc = {
-                    "platform": "whatsapp",
-                    "account_name": self._clean(row.get('WhatsApp Name')),
-                    "account_id": self._clean(row.get('Phone Number')),
-                    "user_id": self._clean(row.get('Phone Number')),
-                    "full_name": self._clean(row.get('WhatsApp Name')),
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
-                }
-                results.append(acc)
-                
-        except Exception as e:
-            print(f"Error parsing WhatsApp Users: {e}")
-        
-        return results
-
-    def _safe_int(self, value) -> Optional[int]:
-        if pd.isna(value) or value is None:
-            return None
-        try:
-            return int(float(str(value)))
-        except (ValueError, TypeError):
-            return None
-
-    def _safe_bool(self, value) -> Optional[bool]:
-        if pd.isna(value) or value is None:
-            return None
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.lower() in ['true', 'yes', '1', 'y']
-        return bool(value)
-
-    def parse_social_media_from_sample_folder(self, sample_folder_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        sample_path = Path(sample_folder_path)
-        
-        if not sample_path.exists():
-            print(f"Sample folder tidak ditemukan: {sample_folder_path}")
-            return results
-        
-        for device_folder in sample_path.iterdir():
-            if not device_folder.is_dir():
-                continue
-                
-            print(f"Processing device folder: {device_folder.name}")
-            
-            # Cek setiap tool folder (Axiom, Cellebrite, Oxygen)
-            for tool_folder in device_folder.iterdir():
-                if not tool_folder.is_dir():
-                    continue
-                    
-                print(f"Processing tool folder: {tool_folder.name}")
-                
-                # Parse berdasarkan tool
-                if tool_folder.name.lower() == "axiom":
-                    tool_results = self._parse_axiom_social_media(tool_folder, file_id)
-                elif tool_folder.name.lower() == "cellebrite":
-                    tool_results = self._parse_cellebrite_social_media(tool_folder, file_id)
-                elif tool_folder.name.lower() == "oxygen":
-                    tool_results = self._parse_oxygen_folder_social_media(tool_folder, file_id)
-                else:
-                    continue
-                    
-                results.extend(tool_results)
-        
-        return results
-
-    def _parse_axiom_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        # Cari file Excel
-        excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
-        
-        for excel_file in excel_files:
-            print(f"Parsing Axiom file: {excel_file.name}")
-            try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
-                results.extend(file_results)
-            except Exception as e:
-                print(f"Error parsing Axiom file {excel_file.name}: {e}")
-        
-        return results
-
-    def _parse_cellebrite_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
-    
-        results = []
-        
-        # Cari file Excel
-        excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
-        
-        for excel_file in excel_files:
-            print(f"Parsing Cellebrite file: {excel_file.name}")
-            try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
-                results.extend(file_results)
-            except Exception as e:
-                print(f"Error parsing Cellebrite file {excel_file.name}: {e}")
-        
-        return results
-
-    def _parse_oxygen_folder_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        # Cari file Excel
-        excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
-        
-        for excel_file in excel_files:
-            print(f"Parsing Oxygen file: {excel_file.name}")
-            try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
-                results.extend(file_results)
-            except Exception as e:
-                print(f"Error parsing Oxygen file {excel_file.name}: {e}")
-        
-        return results
-
-    def parse_cellebrite_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            
-            # Parse Chats sheet for Telegram messages
-            if 'Chats' in xls.sheet_names:
-                results.extend(self._parse_cellebrite_chats_messages(file_path, 'Chats', file_id))
-            
-            # Save to database
-            for msg in results:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"],
-                                            )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(ChatMessage(**msg))
-            
-            self.db.commit()
-            print(f"Successfully saved {len(results)} Cellebrite chat messages to database")
-            
-        except Exception as e:
-            print(f"Error parsing Cellebrite chat messages: {e}")
-            self.db.rollback()
-            raise e
-        
-        return results
-
-    def _parse_cellebrite_chats_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                # Cek apakah ini adalah pesan Telegram
-                if pd.isna(row.get('Unnamed: 15')) or str(row.get('Unnamed: 15')).strip() != 'Telegram':
-                    continue
-                
-                # Ekstrak data pesan dari kolom Body (Unnamed: 32)
-                message_text = str(row.get('Unnamed: 32', ''))
-                if not message_text or message_text.strip() == 'nan':
-                    continue
-                
-                sender_info = str(row.get('Unnamed: 25', ''))
-                sender_name = ""
-                sender_id = ""
-                
-                # Parse sender info (format: "ID Name" atau "Name")
-                if sender_info and sender_info != 'nan':
-                    parts = sender_info.split()
-                    if len(parts) >= 2 and parts[0].isdigit():
-                        sender_id = parts[0]
-                        sender_name = ' '.join(parts[1:])
-                    else:
-                        sender_name = sender_info
-                
-                # Ekstrak timestamp dari kolom Timestamp: Time (Unnamed: 41)
-                timestamp = str(row.get('Unnamed: 41', ''))
-                
-                # Ekstrak chat identifier dari kolom Identifier (Unnamed: 2)
-                chat_id = str(row.get('Unnamed: 2', ''))
-                
-                # Ekstrak instant message number dari kolom Instant Message # (Unnamed: 24)
-                message_id = str(row.get('Unnamed: 24', ''))
-                
-                # Determine direction based on sender
-                direction = "Outgoing" if sender_id == "8229898490" else "Incoming"
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "telegram",
-                    "message_text": message_text,
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "receiver_name": "",
-                    "receiver_id": "",
-                    "timestamp": timestamp,
-                    "thread_id": chat_id,
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "message_type": "text",
-                    "direction": direction,
-                    "source_tool": "cellebrite"
-                }
-                
-                results.append(message_data)
-            
-        except Exception as e:
-            print(f"Error parsing Cellebrite chats messages: {e}")
-        
-        return results
-
-    def parse_axiom_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            
-            # Parse Telegram Messages
-            if 'Telegram Messages - iOS' in xls.sheet_names:
-                results.extend(self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id))
-            
-            # Parse Instagram Direct Messages
-            if 'Instagram Direct Messages' in xls.sheet_names:
-                results.extend(self._parse_instagram_messages(file_path, 'Instagram Direct Messages', file_id))
-            
-            # Parse TikTok Messages
-            if 'TikTok Messages' in xls.sheet_names:
-                results.extend(self._parse_tiktok_messages(file_path, 'TikTok Messages', file_id))
-            
-            # Parse Twitter Direct Messages
-            if 'Twitter Direct Messages' in xls.sheet_names:
-                results.extend(self._parse_twitter_messages(file_path, 'Twitter Direct Messages', file_id))
-            
-            # Save to database
-            for msg in results:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"],
-                                            )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(ChatMessage(**msg))
-            
-            self.db.commit()
-            print(f"Successfully saved {len(results)} chat messages to database")
-            
-        except Exception as e:
-            print(f"Error parsing Axiom chat messages: {e}")
-            self.db.rollback()
-            raise e
-        
-        return results
-
-    def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "telegram",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name', '')),
-                    "receiver_id": str(row.get('Recipient ID', '')),
-                    "timestamp": str(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": str(row.get('Chat ID', '')),
-                    "message_id": str(row.get('Message ID', '')),
-                    "message_type": str(row.get('Type', 'text')),
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
-                }
-                
-                results.append(message_data)
-            
-        except Exception as e:
-            print(f"Error parsing Telegram messages: {e}")
-        
-        return results
-
-    def _parse_instagram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    continue
-                
-                message_data = {                    
-                    "file_id": file_id,
-                    "platform": "instagram",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
-                    "timestamp": str(row.get('Message Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": str(row.get('Chat ID', '')),
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": str(row.get('Type', 'text')),
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
-                }
-                
-                results.append(message_data)
-            
-        except Exception as e:
-            print(f"Error parsing Instagram messages: {e}")
-        
-        return results
-
-    def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "tiktok",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
-                    "timestamp": str(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": "",
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": str(row.get('Message Type', 'text')),
-                    "direction": "",
-                    "source_tool": "axiom"
-                }
-                
-                results.append(message_data)
-            
-        except Exception as e:
-            print(f"Error parsing TikTok messages: {e}")
-        
-        return results
-
-    def _parse_twitter_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Text')) or not str(row.get('Text')).strip():
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "x",
-                    "message_text": str(row.get('Text', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name(s)', '')),
-                    "receiver_id": str(row.get('Recipient ID(s)', '')),
-                    "timestamp": str(row.get('Sent/Received Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": "",
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": "text",
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
-                }
-                
-                results.append(message_data)
-            
-        except Exception as e:
-            print(f"Error parsing Twitter messages: {e}")
-        
-        return results
-
-    # Magnet Axiom specific parsers for sample_data format
-    def _parse_axiom_whatsapp_accounts_info(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
-                phone_number = self._clean(row.get('Phone Number', ''))
-                
-                if whatsapp_name and phone_number:
-                    acc = {
-                        "platform": "whatsapp",
-                        "account_name": whatsapp_name,
-                        "account_id": phone_number,
-                        "user_id": phone_number,
-                        "full_name": whatsapp_name,
-                        "phone_number": phone_number,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_chats(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                individual_chat_name = self._clean(row.get('Individual Chat Name', ''))
-                group_chat_name = self._clean(row.get('Group Chat Name', ''))
-                chat_id = self._clean(row.get('Chat ID', ''))
-                
-                phone_number = None
-                if chat_id and '@s.whatsapp.net' in chat_id:
-                    phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', chat_id)
-                    if phone_match:
-                        phone_number = phone_match.group(1)
-                
-                account_name = individual_chat_name or group_chat_name
-                
-                if account_name and phone_number:
-                    acc = {
-                        "platform": "whatsapp",
-                        "account_name": account_name,
-                        "account_id": phone_number,
-                        "user_id": phone_number,
-                        "full_name": account_name,
-                        "phone_number": phone_number,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_contacts_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                contact_id = self._clean(row.get('ID', ''))
-                name = self._clean(row.get('Name', ''))
-                
-                phone_number = None
-                if contact_id and '@s.whatsapp.net' in contact_id:
-                    phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', contact_id)
-                    if phone_match:
-                        phone_number = phone_match.group(1)
-                
-                if phone_number:
-                    acc = {
-                        "platform": "whatsapp",
-                        "account_name": name or phone_number,
-                        "account_id": phone_number,
-                        "user_id": phone_number,
-                        "full_name": name,
-                        "phone_number": phone_number,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            seen_accounts = set()
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                sender = self._clean(row.get('Sender', ''))
-                
-                phone_number = None
-                if sender and '@s.whatsapp.net' in sender:
-                    phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', sender)
-                    if phone_match:
-                        phone_number = phone_match.group(1)
-                
-                if phone_number and phone_number not in seen_accounts:
-                    seen_accounts.add(phone_number)
-                    acc = {
-                        "platform": "whatsapp",
-                        "account_name": phone_number,
-                        "account_id": phone_number,
-                        "user_id": phone_number,
-                        "full_name": phone_number,
-                        "phone_number": phone_number,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_whatsapp_user_profiles(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
-                phone_number = self._clean(row.get('Phone Number', ''))
-                
-                if whatsapp_name and phone_number:
-                    acc = {
-                        "platform": "whatsapp",
-                        "account_name": whatsapp_name,
-                        "account_id": phone_number,
-                        "user_id": phone_number,
-                        "full_name": whatsapp_name,
-                        "phone_number": phone_number,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_telegram_chats(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                chat_name = self._clean(row.get('Chat Name', ''))
-                chat_id = self._clean(row.get('Chat ID', ''))
-                chat_type = self._clean(row.get('Chat Type', ''))
-                
-                if chat_name and chat_id:
-                    acc = {
-                        "platform": "telegram",
-                        "account_name": chat_name,
-                        "account_id": chat_id,
-                        "user_id": chat_id,
-                        "full_name": chat_name,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_telegram_contacts_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                user_id = self._clean(row.get('User ID', ''))
-                first_name = self._clean(row.get('First Name', ''))
-                last_name = self._clean(row.get('Last Name', ''))
-                username = self._clean(row.get('Username', ''))
-                
-                if user_id and (first_name or last_name or username):
-                    full_name = f"{first_name} {last_name}".strip() if first_name or last_name else username
-                    account_name = username or full_name
-                    
-                    acc = {
-                        "platform": "telegram",
-                        "account_name": account_name,
-                        "account_id": user_id,
-                        "user_id": user_id,
-                        "full_name": full_name,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            seen_accounts = set()
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                partner = self._clean(row.get('Partner', ''))
-                
-                if partner and partner not in seen_accounts:
-                    seen_accounts.add(partner)
-                    acc = {
-                        "platform": "telegram",
-                        "account_name": partner,
-                        "account_id": partner,
-                        "user_id": partner,
-                        "full_name": partner,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results
-
-    def _parse_axiom_telegram_users_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
-            
-            # Fix column names if they are unnamed
-            if any('Unnamed' in str(col) for col in df.columns):
-                df.columns = df.iloc[0]
-                df = df.drop(df.index[0])
-                df = df.reset_index(drop=True)
-            
-            for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
-                    continue
-                
-                user_id = self._clean(row.get('User ID', ''))
-                first_name = self._clean(row.get('First Name', ''))
-                last_name = self._clean(row.get('Last Name', ''))
-                username = self._clean(row.get('Username', ''))
-                
-                if user_id and (first_name or last_name or username):
-                    full_name = f"{first_name} {last_name}".strip() if first_name or last_name else username
-                    account_name = username or full_name
-                    
-                    acc = {
-                        "platform": "telegram",
-                        "account_name": account_name,
-                        "account_id": user_id,
-                        "user_id": user_id,
-                        "full_name": full_name,
-                        "source_tool": "Magnet Axiom",
-                        "sheet_name": sheet_name,
-                        "file_id": file_id,
-                    }
-                    results.append(acc)
-                    
-        except Exception as e:
-            print(f"Error parsing {sheet_name} sheet: {e}")
-        
-        return results

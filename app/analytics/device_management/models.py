@@ -137,37 +137,27 @@ class SocialMedia(Base):
     id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     
-    # Basic account info
-    platform = Column(String, nullable=True)
-    account_name = Column(Text, nullable=True)
-    account_id = Column(String, nullable=True)
-    user_id = Column(String, nullable=True)
-    full_name = Column(Text, nullable=True)
-    
-    # Social metrics
-    following = Column(Integer, nullable=True)
-    followers = Column(Integer, nullable=True)
-    friends = Column(Integer, nullable=True)
-    statuses = Column(Integer, nullable=True)
+    # Type and source
+    type = Column(String, nullable=True)
+    source = Column(String, nullable=True)
     
     # Contact info
     phone_number = Column(String, nullable=True)
-    email = Column(String, nullable=True)
+    full_name = Column(Text, nullable=True)
+    account_name = Column(Text, nullable=True)
     
-    # Profile info
-    biography = Column(Text, nullable=True)
-    profile_picture_url = Column(Text, nullable=True)
-    is_private = Column(Boolean, nullable=True)
-    is_local_user = Column(Boolean, nullable=True)
+    # Platform IDs
+    whatsapp_id = Column(String, nullable=True)
+    telegram_id = Column(String, nullable=True)
+    instagram_id = Column(String, nullable=True)
+    X_id = Column(String, nullable=True)
+    facebook_id = Column(String, nullable=True)
+    tiktok_id = Column(String, nullable=True)
     
-    # Activity info
-    chat_content = Column(Text, nullable=True)
-    last_message = Column(Text, nullable=True)
-    last_seen = Column(DateTime, nullable=True)
+    # Location
+    location = Column(Text, nullable=True)
     
-    # Additional data
-    other_info = Column(Text, nullable=True)
-    source_tool = Column(String, nullable=True)
+    # Sheet info
     sheet_name = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=get_indonesia_time)
