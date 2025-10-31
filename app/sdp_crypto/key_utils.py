@@ -11,7 +11,6 @@ def generate_keypair():
     private_key = x25519.X25519PrivateKey.generate()
     public_key = private_key.public_key()
     
-    # Serialize ke bytes
     private_bytes = private_key.private_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PrivateFormat.Raw,
@@ -32,10 +31,8 @@ def derive_symmetric_key(private_key, peer_public_key, salt, info=b"sdp_encrypti
     if isinstance(peer_public_key, bytes):
         peer_public_key = x25519.X25519PublicKey.from_public_bytes(peer_public_key)
     
-    # ECDH key exchange
     shared_secret = private_key.exchange(peer_public_key)
     
-    # HKDF untuk derive AES-256 key
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=32,  # AES-256

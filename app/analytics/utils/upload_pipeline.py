@@ -15,6 +15,10 @@ import tempfile
 import time
 from datetime import datetime
 from app.analytics.utils.social_media_parser import SocialMediaParser
+from app.analytics.device_management.models import SocialMedia, Contact, Call, HashFile, ChatMessage, Device
+from app.utils.timezone import get_indonesia_time
+from app.analytics.utils.contact_parser import ContactParser
+from app.analytics.utils.hashfile_parser import HashFileParser
 
 sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
@@ -136,7 +140,6 @@ class UploadService:
                 {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
             )
 
-            # Tentukan target penyimpanan awal
             file_ext = Path(original_filename).suffix.lower()
             CHUNK = 1024 * 512
             written = 0
@@ -161,16 +164,15 @@ class UploadService:
                         })
                         await asyncio.sleep(0.02)
 
-                # Decrypt menggunakan private key pada folder keys
                 try:
                     self._progress[upload_id].update({"message": "Decrypting file...", "percent": 75})
                     priv_key = _load_existing_private_key()
                     decrypted_path_abs = decrypt_from_sdp(priv_key, encrypted_path_abs, DATA_DIR)
-                    # Pastikan nama file hasil dekripsi sesuai nama asli dari .sdp (tanpa .sdp)
-                    expected_name = os.path.splitext(original_filename)[0]  # e.g. ...xlsx
+                    
+                    expected_name = os.path.splitext(original_filename)[0]
                     expected_abs = os.path.join(DATA_DIR, expected_name)
                     if os.path.abspath(decrypted_path_abs) != os.path.abspath(expected_abs):
-                        # Jika file target sudah ada, hapus lalu ganti nama
+                        
                         if os.path.exists(expected_abs):
                             try:
                                 os.remove(expected_abs)
@@ -180,7 +182,6 @@ class UploadService:
                             os.replace(decrypted_path_abs, expected_abs)
                             decrypted_path_abs = expected_abs
                         except Exception:
-                            # fallback: copy-like rename failure, biarkan path hasil decrypt
                             pass
                 except Exception as e:
                     self._mark_done(upload_id, f"Decryption error: {str(e)}")
@@ -189,7 +190,6 @@ class UploadService:
                 original_path_abs = decrypted_path_abs
                 original_filename = Path(decrypted_path_abs).name
             else:
-                # Saat ini endpoint upload hanya menerima .sdp, namun untuk robustness simpan non-sdp ke DATA_DIR
                 original_path_abs = os.path.join(DATA_DIR, original_filename)
                 with open(original_path_abs, "wb") as f:
                     for i in range(0, total_size, CHUNK):
@@ -208,8 +208,6 @@ class UploadService:
                             "message": f"Uploading... ({percent:.2f}%)",
                         })
                         await asyncio.sleep(0.02)
-
-            # Tidak ada proses enkripsi. Jika file .sdp sudah didekripsi di atas.
 
             for i in range(60, 95):
                 if self._is_canceled(upload_id):
@@ -332,15 +330,15 @@ class UploadService:
                         try:
                             import pandas as pd
                             xls = pd.ExcelFile(original_path_abs, engine='xlrd')
-                            # Check if this is a complex Oxygen UFED file with multiple social media sheets
+                            
                             social_media_sheets = ['Instagram ', 'Telegram ', 'WhatsApp Messenger ', 'X (Twitter) ', 'Users-Following ', 'Users-Followers ']
                             has_social_media_sheets = any(sheet in xls.sheet_names for sheet in social_media_sheets)
                             
                             if has_social_media_sheets:
-                                # Use enhanced parser for complex Oxygen files
+                                
                                 social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
                             else:
-                                # Use UFED parser for simple Oxygen files
+                                
                                 social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
                         except Exception as e:
                             print(f"Error determining Oxygen format: {e}")
@@ -373,7 +371,6 @@ class UploadService:
             
             elif method == "Contact Correlation":
                 try:
-                    from app.analytics.utils.contact_parser import ContactParser
                     contact_parser = ContactParser(db=sm_db)
                     
                     if tools == "Magnet Axiom":
@@ -399,7 +396,6 @@ class UploadService:
             
             elif method == "Hashfile Analytics":
                 try:
-                    from app.analytics.utils.hashfile_parser import HashFileParser
                     hashfile_parser_instance = HashFileParser(db=sm_db)
                     
                     is_sample_file = any(pattern in original_filename.lower() for pattern in [
@@ -440,12 +436,6 @@ class UploadService:
                     except Exception as e:
                         print(f"Error parsing social media/chat: {e}")
                         parsing_result["social_media_error"] = str(e)
-
-            # Note: DeepCommunication parsing has been moved to social media parser
-            # Chat messages are now handled by parse_axiom_chat_messages above
-
-            # Calculate actual counts from database first
-            from app.analytics.device_management.models import SocialMedia, Contact, Call, HashFile, ChatMessage
             
             actual_social_media_count = db.query(SocialMedia).filter(SocialMedia.file_id == file_record.id).count()
             actual_contacts_count = db.query(Contact).filter(Contact.file_id == file_record.id).count()
@@ -455,13 +445,11 @@ class UploadService:
             
             actual_amount_of_data = actual_social_media_count + actual_contacts_count + actual_calls_count + actual_hashfiles_count + actual_chat_messages_count
             
-            # Update file record with actual amount_of_data from database
             file_record.amount_of_data = actual_amount_of_data
             db.commit()
             
             print(f"Updated amount_of_data to {actual_amount_of_data} (Social Media: {actual_social_media_count}, Contacts: {actual_contacts_count}, Calls: {actual_calls_count}, Hash Files: {actual_hashfiles_count}, Chat Messages: {actual_chat_messages_count})")
             
-            # Calculate amount_of_data_count based on method-based parsing results
             amount_of_data_count = (
                 parsing_result.get("contacts_count", 0) +
                 parsing_result.get("messages_count", 0) +
@@ -471,9 +459,7 @@ class UploadService:
                 parsing_result.get("chat_messages_count", 0)
             )
             
-            # Clean parsing_result based on method - only show relevant data
             if method == "Social Media Correlation":
-                # Only show social media related data
                 cleaned_parsing_result = {
                     "tool_used": parsing_result.get("tool_used"),
                     "social_media_count": actual_social_media_count,
@@ -483,7 +469,6 @@ class UploadService:
                 if "social_media_error" in parsing_result:
                     cleaned_parsing_result["parsing_error"] = parsing_result["social_media_error"]
             elif method == "Contact Correlation":
-                # Only show contact and call related data
                 cleaned_parsing_result = {
                     "tool_used": parsing_result.get("tool_used"),
                     "contacts_count": actual_contacts_count,
@@ -494,7 +479,6 @@ class UploadService:
                 if "contacts_calls_error" in parsing_result:
                     cleaned_parsing_result["parsing_error"] = parsing_result["contacts_calls_error"]
             elif method == "Hashfile Analytics":
-                # Only show hashfile related data
                 cleaned_parsing_result = {
                     "tool_used": parsing_result.get("tool_used"),
                     "hashfiles_count": actual_hashfiles_count,
@@ -504,7 +488,6 @@ class UploadService:
                 if "hashfiles_error" in parsing_result:
                     cleaned_parsing_result["parsing_error"] = parsing_result["hashfiles_error"]
             elif method == "Deep communication analytics":
-                # Only show chat messages related data
                 cleaned_parsing_result = {
                     "tool_used": parsing_result.get("tool_used"),
                     "chat_messages_count": actual_chat_messages_count,
@@ -514,11 +497,9 @@ class UploadService:
                 if "chat_messages_error" in parsing_result:
                     cleaned_parsing_result["parsing_error"] = parsing_result["chat_messages_error"]
             else:
-                # Default: show all data
                 cleaned_parsing_result = parsing_result.copy()
                 cleaned_parsing_result["amount_of_data_count"] = amount_of_data_count
             
-            # Update parsing_result with cleaned version
             parsing_result = cleaned_parsing_result
 
             self._progress[upload_id].update({
@@ -619,10 +600,6 @@ class UploadService:
                     "phone_number": phone_number,
                     "file_id": file_id
                 }
-                
-                # Create device in the same session as the parser
-                from app.analytics.device_management.models import Device
-                from app.utils.timezone import get_indonesia_time
                 
                 device = Device(
                     owner_name=device_data.get("owner_name"),

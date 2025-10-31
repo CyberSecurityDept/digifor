@@ -502,7 +502,6 @@ def get_all_analytic(
         
         analytics = query.order_by(Analytic.created_at.desc()).offset(skip).limit(limit).all()
         
-        # Format response
         formatted_analytics = []
         for analytic in analytics:
             formatted_analytic = {

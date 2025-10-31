@@ -712,9 +712,8 @@ class SocialMediaParser:
                 print("Parsing Telegram sheet...")
                 df = pd.read_excel(file_path, sheet_name='Telegram ', engine=engine, dtype=str)
                 
-                # Extract user data count from sheet
                 if len(df) >= 2:
-                    user_data_count = self._clean(df.iloc[1, 2])  # Third column, second row
+                    user_data_count = self._clean(df.iloc[1, 2])
                     if user_data_count and user_data_count.isdigit():
                         print(f"Telegram user data count: {user_data_count}")
             
@@ -730,10 +729,8 @@ class SocialMediaParser:
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
                     if source_field and 'telegram' in source_field.lower():
-                        # Extract Telegram ID from Internet field
                         telegram_id = None
                         if internet_field and 'telegram id:' in internet_field.lower():
-                            import re
                             match = re.search(r'telegram id:\s*(\d+)', internet_field.lower())
                             if match:
                                 telegram_id = match.group(1)
@@ -782,7 +779,6 @@ class SocialMediaParser:
                 print("Parsing WhatsApp Messenger sheet...")
                 df = pd.read_excel(file_path, sheet_name='WhatsApp Messenger ', engine=engine, dtype=str)
                 
-                # Extract user data count from sheet
                 if len(df) >= 2:
                     user_data_count = self._clean(df.iloc[1, 2])  # Third column, second row
                     if user_data_count and user_data_count.isdigit():
@@ -801,10 +797,8 @@ class SocialMediaParser:
                     other_field = self._clean(row.get("Other"))
                     
                     if source_field and 'whatsapp' in source_field.lower():
-                        # Extract WhatsApp ID from Internet field
                         whatsapp_id = None
                         if internet_field and 'whatsapp id:' in internet_field.lower():
-                            import re
                             match = re.search(r'whatsapp id:\s*(\d+)', internet_field.lower())
                             if match:
                                 whatsapp_id = match.group(1)
@@ -813,7 +807,6 @@ class SocialMediaParser:
                         if not account_name and whatsapp_id:
                             account_name = whatsapp_id
                         
-                        # Extract phone number
                         phone_number = self._extract_phone_number(phones_emails_field)
                         if not phone_number and whatsapp_id:
                             phone_number = whatsapp_id
@@ -945,13 +938,11 @@ class SocialMediaParser:
                 print("Parsing Facebook sheet...")
                 df = pd.read_excel(file_path, sheet_name='Facebook ', engine=engine, dtype=str)
                 
-                # Fix column names if they are unnamed
                 if any('Unnamed' in str(col) for col in df.columns):
                     df.columns = df.iloc[0]
                     df = df.drop(df.index[0])
                     df = df.reset_index(drop=True)
                 
-                # Data starts from row 4 (index 3) - first actual user data
                 if len(df) > 3:
                     data_df = df.iloc[3:].copy()
                     data_df = data_df.reset_index(drop=True)
@@ -960,14 +951,12 @@ class SocialMediaParser:
                         if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() in ['Categories', 'Identifier']:
                             continue
                         
-                        # Extract data from the row - Facebook data is in specific columns
-                        # Based on actual data structure: Full Name, User Name, Email, Phone, Profile Picture, User ID
-                        full_name = self._clean(row.iloc[2]) if len(row) > 2 else None  # Full name
-                        user_name = self._clean(row.iloc[3]) if len(row) > 3 else None  # User name
-                        email = self._clean(row.iloc[4]) if len(row) > 4 else None  # Email
-                        phone_number = self._clean(row.iloc[5]) if len(row) > 5 else None  # Phone
-                        profile_picture_url = self._clean(row.iloc[6]) if len(row) > 6 else None  # Profile picture
-                        user_id = self._clean(row.iloc[14]) if len(row) > 14 else None  # UID
+                        full_name = self._clean(row.iloc[2]) if len(row) > 2 else None
+                        user_name = self._clean(row.iloc[3]) if len(row) > 3 else None
+                        email = self._clean(row.iloc[4]) if len(row) > 4 else None
+                        phone_number = self._clean(row.iloc[5]) if len(row) > 5 else None
+                        profile_picture_url = self._clean(row.iloc[6]) if len(row) > 6 else None
+                        user_id = self._clean(row.iloc[14]) if len(row) > 14 else None
                         
                         if user_name and user_name not in ['Accounts', 'Source', 'Categories'] and user_id and user_id.isdigit():
                             acc = {
@@ -1021,15 +1010,13 @@ class SocialMediaParser:
                         if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() in ['Categories', 'Identifier']:
                             continue
                         
-                        # Extract data from the row - Instagram data is in specific columns
-                        # Based on actual data structure: Full Name, User Name, Biography, Profile Picture, Followers, Following, User ID
-                        full_name = self._clean(row.iloc[2]) if len(row) > 2 else None  # Full name
-                        user_name = self._clean(row.iloc[3]) if len(row) > 3 else None  # User name
-                        biography = self._clean(row.iloc[5]) if len(row) > 5 else None  # Biography
-                        profile_picture_url = self._clean(row.iloc[6]) if len(row) > 6 else None  # Profile picture
-                        followers_count = self._clean(row.iloc[7]) if len(row) > 7 else None  # Followers
-                        following_count = self._clean(row.iloc[8]) if len(row) > 8 else None  # Following
-                        user_id = self._clean(row.iloc[19]) if len(row) > 19 else None  # User ID
+                        full_name = self._clean(row.iloc[2]) if len(row) > 2 else None
+                        user_name = self._clean(row.iloc[3]) if len(row) > 3 else None
+                        biography = self._clean(row.iloc[5]) if len(row) > 5 else None
+                        profile_picture_url = self._clean(row.iloc[6]) if len(row) > 6 else None
+                        followers_count = self._clean(row.iloc[7]) if len(row) > 7 else None
+                        following_count = self._clean(row.iloc[8]) if len(row) > 8 else None
+                        user_id = self._clean(row.iloc[19]) if len(row) > 19 else None
                         
                         if user_name and user_name not in ['Accounts', 'Source', 'Categories'] and user_id and user_id.isdigit():
                             acc = {
@@ -1080,11 +1067,11 @@ class SocialMediaParser:
                     data_df = data_df.reset_index(drop=True)
                     
                     for _, row in data_df.iterrows():
-                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None  # Full name
-                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None  # User name
-                        phone_number = self._clean(row.iloc[3]) if len(row) > 3 else None  # Phone number
-                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None  # Profile picture
-                        user_id = self._clean(row.iloc[5]) if len(row) > 5 else None  # User ID
+                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None
+                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None
+                        phone_number = self._clean(row.iloc[3]) if len(row) > 3 else None
+                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None
+                        user_id = self._clean(row.iloc[5]) if len(row) > 5 else None
                         
                         if user_name and user_id:
                             acc = {
@@ -1125,24 +1112,21 @@ class SocialMediaParser:
                 print("Parsing Telegram dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='Telegram ', engine=engine, dtype=str)
                 
-                # Fix column names if they are unnamed
                 if any('Unnamed' in str(col) for col in df.columns):
                     df.columns = df.iloc[0]
                     df = df.drop(df.index[0])
                     df = df.reset_index(drop=True)
                 
-                # Data starts from row 4 (index 3)
                 if len(df) > 3:
                     data_df = df.iloc[3:].copy()
                     data_df = data_df.reset_index(drop=True)
                     
                     for _, row in data_df.iterrows():
-                        # Extract data from the row - Telegram data is in specific columns
-                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None  # Full name
-                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None  # User name
-                        phone_number = self._clean(row.iloc[3]) if len(row) > 3 else None  # Phone number
-                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None  # Profile picture
-                        user_id = self._clean(row.iloc[5]) if len(row) > 5 else None  # User ID
+                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None
+                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None
+                        phone_number = self._clean(row.iloc[3]) if len(row) > 3 else None
+                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None
+                        user_id = self._clean(row.iloc[5]) if len(row) > 5 else None
                         
                         if user_name and user_id:
                             acc = {
@@ -1183,26 +1167,23 @@ class SocialMediaParser:
                 print("Parsing X (Twitter) dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='X (Twitter) ', engine=engine, dtype=str)
                 
-                # Fix column names if they are unnamed
                 if any('Unnamed' in str(col) for col in df.columns):
                     df.columns = df.iloc[0]
                     df = df.drop(df.index[0])
                     df = df.reset_index(drop=True)
                 
-                # Data starts from row 4 (index 3)
                 if len(df) > 3:
                     data_df = df.iloc[3:].copy()
                     data_df = data_df.reset_index(drop=True)
                     
                     for _, row in data_df.iterrows():
-                        # Extract data from the row - X (Twitter) data is in specific columns
-                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None  # Full name
-                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None  # User name
-                        biography = self._clean(row.iloc[3]) if len(row) > 3 else None  # Biography
-                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None  # Profile picture
-                        followers_count = self._clean(row.iloc[5]) if len(row) > 5 else None  # Followers
-                        following_count = self._clean(row.iloc[6]) if len(row) > 6 else None  # Following
-                        user_id = self._clean(row.iloc[7]) if len(row) > 7 else None  # User ID
+                        full_name = self._clean(row.iloc[1]) if len(row) > 1 else None
+                        user_name = self._clean(row.iloc[2]) if len(row) > 2 else None
+                        biography = self._clean(row.iloc[3]) if len(row) > 3 else None
+                        profile_picture_url = self._clean(row.iloc[4]) if len(row) > 4 else None
+                        followers_count = self._clean(row.iloc[5]) if len(row) > 5 else None
+                        following_count = self._clean(row.iloc[6]) if len(row) > 6 else None
+                        user_id = self._clean(row.iloc[7]) if len(row) > 7 else None
                         
                         if user_name and user_id:
                             acc = {
@@ -1239,18 +1220,15 @@ class SocialMediaParser:
         results = []
         
         try:
-            # Search for TikTok mentions across all sheets
             for sheet_name in xls.sheet_names:
                 try:
                     df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                     
-                    # Check all text columns for TikTok mentions
                     for col in df.columns:
                         if df[col].dtype == "object":
                             for _, row in df.iterrows():
                                 cell_value = self._clean(row.get(col))
                                 if cell_value and 'tiktok' in cell_value.lower():
-                                    # Extract TikTok username
                                     tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', cell_value)
                                     if tiktok_match:
                                         username = tiktok_match.group(1)
@@ -1424,7 +1402,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk followers count
             patterns = [
                 r'followers[:\s]*(\d+)',
                 r'follower[:\s]*(\d+)',
@@ -1449,7 +1426,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk chat content
             patterns = [
                 r'chat[:\s]*(.+?)(?:\n|$)',
                 r'message[:\s]*(.+?)(?:\n|$)',
@@ -1496,7 +1472,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk statuses count
             patterns = [
                 r'statuses[:\s]*(\d+)',
                 r'posts[:\s]*(\d+)',
@@ -1567,8 +1542,7 @@ class SocialMediaParser:
     def _extract_profile_picture_url(self, internet_field: Optional[str]) -> Optional[str]:
         if not internet_field:
             return None
-            
-        # Pattern untuk URL
+        
         url_pattern = r'https?://[^\s]+\.(?:jpg|jpeg|png|gif)'
         match = re.search(url_pattern, internet_field)
         if match:
@@ -1609,7 +1583,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk last message
             patterns = [
                 r'last\s+message[:\s]*(.+?)(?:\n|$)',
                 r'last\s+msg[:\s]*(.+?)(?:\n|$)',
@@ -1631,7 +1604,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk other info
             patterns = [
                 r'birthday[:\s]*(.+?)(?:\n|$)',
                 r'age[:\s]*(.+?)(?:\n|$)',
@@ -1654,7 +1626,6 @@ class SocialMediaParser:
             if not field:
                 continue
                 
-            # Pattern untuk user ID berdasarkan platform
             patterns = []
             if platform.lower() == 'x' or platform.lower() == 'twitter':
                 patterns = [r'x\s+id[:\s]*(\d+)', r'twitter\s+id[:\s]*(\d+)']
@@ -1674,7 +1645,6 @@ class SocialMediaParser:
         if not contact_field:
             return None
             
-        # Pattern untuk full name
         patterns = [
             r'full\s+name[:\s]*(.+?)(?:\n|$)',
             r'name[:\s]*(.+?)(?:\n|$)',
@@ -1693,16 +1663,13 @@ class SocialMediaParser:
         results = []
         
         try:
-            # Baca file dengan engine openpyxl untuk .xlsx
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             
             print(f" Total sheets available: {len(xls.sheet_names)}")
             
-            # Parse setiap sheet khusus platform dengan enhanced detection
             for sheet_name in xls.sheet_names:
                 print(f"Processing sheet: {sheet_name}")
                 
-                # Instagram sheets
                 if 'Instagram Profiles' in sheet_name:
                     results.extend(self._parse_axiom_instagram_profiles(file_path, sheet_name, file_id))
                 elif 'Android Instagram Following' in sheet_name:
@@ -1710,27 +1677,22 @@ class SocialMediaParser:
                 elif 'Android Instagram Users' in sheet_name:
                     results.extend(self._parse_axiom_instagram_users(file_path, sheet_name, file_id))
                 
-                # X (Twitter) sheets
                 elif 'Twitter Users' in sheet_name:
                     results.extend(self._parse_axiom_twitter_users(file_path, sheet_name, file_id))
                 
-                # Telegram sheets
                 elif 'Telegram Accounts' in sheet_name:
                     results.extend(self._parse_axiom_telegram_accounts(file_path, sheet_name, file_id))
                 elif 'User Accounts' in sheet_name:
                     results.extend(self._parse_axiom_user_accounts(file_path, sheet_name, file_id))
                 
-                # TikTok sheets
                 elif 'TikTok Contacts' in sheet_name:
                     results.extend(self._parse_axiom_tiktok_contacts(file_path, sheet_name, file_id))
                 
-                # Facebook sheets
                 elif 'Facebook Contacts' in sheet_name:
                     results.extend(self._parse_axiom_facebook_contacts(file_path, sheet_name, file_id))
                 elif 'Facebook User-Friends' in sheet_name:
                     results.extend(self._parse_axiom_facebook_users(file_path, sheet_name, file_id))
                 
-                # WhatsApp sheets
                 elif 'WhatsApp Contacts - Android' in sheet_name:
                     results.extend(self._parse_axiom_whatsapp_contacts(file_path, sheet_name, file_id))
                 elif 'WhatsApp User Profiles - Androi' in sheet_name:
@@ -1738,7 +1700,6 @@ class SocialMediaParser:
                 elif 'WhatsApp Accounts Information' in sheet_name:
                     results.extend(self._parse_axiom_whatsapp_accounts(file_path, sheet_name, file_id))
                 
-                # Magnet Axiom specific sheets
                 elif 'Android WhatsApp Accounts Infor' in sheet_name:
                     results.extend(self._parse_axiom_whatsapp_accounts_info(file_path, sheet_name, file_id))
                 elif 'Android WhatsApp Chats' in sheet_name:
@@ -1757,8 +1718,7 @@ class SocialMediaParser:
                     results.extend(self._parse_axiom_telegram_messages(file_path, sheet_name, file_id))
                 elif 'Telegram Users - Android' in sheet_name:
                     results.extend(self._parse_axiom_telegram_users_android(file_path, sheet_name, file_id))
-            
-            # Remove duplicates before saving
+
             unique_results = []
             seen_accounts = set()
             
@@ -1771,7 +1731,6 @@ class SocialMediaParser:
             print(f"Removed {len(results) - len(unique_results)} duplicate records")
             print(f"Unique social media accounts: {len(unique_results)}")
             
-            # Save to database in batches
             batch_size = 50
             saved_count = 0
             
@@ -1851,20 +1810,18 @@ class SocialMediaParser:
         results = []
         
         try:
-            # Detect file format and use appropriate engine
             if file_path.endswith('.xlsx'):
                 engine = 'openpyxl'
             elif file_path.endswith('.xls'):
                 engine = 'xlrd'
             else:
-                engine = 'openpyxl'  # Default
+                engine = 'openpyxl'
             
             xls = pd.ExcelFile(file_path, engine=engine)
             
             print(f"📊 Total sheets available: {len(xls.sheet_names)}")
             print(f"📋 Sheet names: {xls.sheet_names}")
             
-            # Check if this is a Cellebrite format (has Social Media sheet) or Oxygen format (has dedicated social media sheets)
             if 'Social Media' in xls.sheet_names:
                 print("🔍 Detected Cellebrite format - parsing Social Media sheet")
                 # Parse all sheets with enhanced detection
@@ -1971,7 +1928,6 @@ class SocialMediaParser:
                 
                 if source and source.lower() == 'instagram':
                     if author and account:
-                        # Extract username from author (format: "ID Name")
                         parts = author.split()
                         user_id = parts[0] if parts else account
                         account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
@@ -2222,7 +2178,6 @@ class SocialMediaParser:
                     platform = 'tiktok'
                 
                 if platform:
-                    # Extract detailed information from entries field
                     phone_number = None
                     email = None
                     profile_picture_url = None
@@ -2458,7 +2413,6 @@ class SocialMediaParser:
                 body = self._clean(row.get('Body', ''))
                 account = self._clean(row.get('Account', ''))
                 
-                # Check for Instagram chats
                 if source and source.lower() == 'instagram':
                     if participants:
                         participant_lines = participants.split('_x000d_')
@@ -3174,7 +3128,6 @@ class SocialMediaParser:
                 if not message_text or message_text.strip() == 'nan':
                     continue
                 
-                # Ekstrak informasi pengirim dari kolom From (Unnamed: 25)
                 sender_info = str(row.get('Unnamed: 25', ''))
                 sender_name = ""
                 sender_id = ""
@@ -3460,14 +3413,12 @@ class SocialMediaParser:
                 group_chat_name = self._clean(row.get('Group Chat Name', ''))
                 chat_id = self._clean(row.get('Chat ID', ''))
                 
-                # Extract phone number from chat ID if it's WhatsApp format
                 phone_number = None
                 if chat_id and '@s.whatsapp.net' in chat_id:
                     phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', chat_id)
                     if phone_match:
                         phone_number = phone_match.group(1)
                 
-                # Use individual chat name or group chat name as account name
                 account_name = individual_chat_name or group_chat_name
                 
                 if account_name and phone_number:
@@ -3508,7 +3459,6 @@ class SocialMediaParser:
                 contact_id = self._clean(row.get('ID', ''))
                 name = self._clean(row.get('Name', ''))
                 
-                # Extract phone number from WhatsApp ID format
                 phone_number = None
                 if contact_id and '@s.whatsapp.net' in contact_id:
                     phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', contact_id)
@@ -3554,7 +3504,6 @@ class SocialMediaParser:
                 
                 sender = self._clean(row.get('Sender', ''))
                 
-                # Extract phone number from WhatsApp sender format
                 phone_number = None
                 if sender and '@s.whatsapp.net' in sender:
                     phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', sender)

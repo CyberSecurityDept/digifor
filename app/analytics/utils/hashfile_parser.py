@@ -364,7 +364,7 @@ class HashFileParser:
             elif file_extension in ['.xls', '.xlsx']:
                 if file_extension == '.xls':
                     engine = "xlrd"
-                        else:
+                else:
                     engine = "openpyxl"
 
                 xls = pd.ExcelFile(file_path, engine=engine)

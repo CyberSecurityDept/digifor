@@ -236,8 +236,6 @@ async def get_upload_progress(upload_id: str):
         if prog and not prog.get("_started") and prog.get("_ctx"):
             ctx = prog["_ctx"]
             prog["_started"] = True
-            # jalankan tanpa menunggu (tidak blok)
-            import asyncio
             asyncio.create_task(
                 run_real_upload_and_finalize(
                     upload_id,
@@ -277,7 +275,6 @@ async def get_upload_progress(upload_id: str):
                     "data": data_block,
                 }
             else:
-                # tampilkan progress uploaded/total
                 size_out = (svc_data.get("progress_size") or "0 MB") + "/" + (total_size_fmt or "0 MB")
                 return {
                     "status": "Progress",

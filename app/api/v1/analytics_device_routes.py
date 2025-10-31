@@ -32,7 +32,6 @@ async def add_device(
     db: Session = Depends(get_db)
 ):
     try:
-        # Automatically get the latest analytic (from workflow: create analytic then add device)
         latest_analytic = db.query(Analytic).order_by(Analytic.created_at.desc()).first()
         
         if not latest_analytic:
@@ -52,7 +51,6 @@ async def add_device(
                 status_code=404
             )
         
-        # Validate method match (file method must match analytic method)
         if file_record.method != analytic.method:
             return JSONResponse(
                 {
@@ -63,44 +61,50 @@ async def add_device(
                 status_code=400
             )
         
-        # Check if device already exists for this file
-        existing_device = db.query(Device).filter(Device.file_id == file_id).first()
+        existing_links = db.query(AnalyticDevice).filter(AnalyticDevice.analytic_id == analytic_id).all()
+        linked_device_ids_check = []
+        for l in existing_links:
+            linked_device_ids_check.extend(l.device_ids or [])
+        if linked_device_ids_check:
+            conflict_device = db.query(Device).filter(Device.id.in_(linked_device_ids_check), Device.file_id == file_id).first()
+            if conflict_device:
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "This file is already used by another device in this analytic",
+                        "data": {
+                            "device_id": conflict_device.id,
+                            "owner_name": conflict_device.owner_name,
+                            "phone_number": conflict_device.phone_number
+                        }
+                    },
+                    status_code=400
+                )
+
+        new_device = Device(
+            file_id=file_id,
+            owner_name=name,
+            phone_number=phone_number,
+            device_name=f"{name} Device",
+            created_at=get_indonesia_time()
+        )
+        db.add(new_device)
+        db.commit()
+        db.refresh(new_device)
+        device = new_device
         
-        if existing_device:
-            existing_device.owner_name = name
-            existing_device.phone_number = phone_number
-            existing_device.device_name = f"{name} Device"
-            existing_device.updated_at = get_indonesia_time()
-            
-            db.commit()
-            db.refresh(existing_device)
-            device = existing_device
-        else:
-            new_device = Device(
-                file_id=file_id,
-                owner_name=name,
-                phone_number=phone_number,
-                device_name=f"{name} Device",
-                created_at=get_indonesia_time()
-            )
-            
-            db.add(new_device)
-            db.commit()
-            db.refresh(new_device)
-            device = new_device
-        
-        # Link device to analytic (required for workflow)
         existing_link = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).first()
-        
+
         if existing_link:
-            # Add device_id to array if not already present
-            if device.id not in existing_link.device_ids:
-                existing_link.device_ids.append(device.id)
+            current_ids = list(existing_link.device_ids or [])
+            if device.id not in current_ids:
+                current_ids.append(device.id)
+                existing_link.device_ids = current_ids
                 existing_link.updated_at = get_indonesia_time()
+                db.add(existing_link)
         else:
-            # Create new AnalyticDevice link
             new_link = AnalyticDevice(
                 analytic_id=analytic_id,
                 device_ids=[device.id]
@@ -109,29 +113,58 @@ async def add_device(
         
         db.commit()
         
+        device_links = db.query(AnalyticDevice).filter(AnalyticDevice.analytic_id == analytic_id).all()
+        linked_device_ids = []
+        for link in device_links:
+            linked_device_ids.extend(link.device_ids or [])
+        linked_device_ids = list(dict.fromkeys(linked_device_ids))
+
+        # Only return the newly added device with its computed label
+        device_item = None
+        if linked_device_ids:
+            devices_q = db.query(Device).filter(Device.id.in_(linked_device_ids)).order_by(Device.id).all()
+            labels = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
+            # find index of current device in ordered list
+            idx = next((i for i, d in enumerate(devices_q) if d.id == device.id), None)
+            if idx is not None:
+                if idx < len(labels):
+                    label = labels[idx]
+                else:
+                    first_char = chr(65 + (idx - 26) // 26)
+                    second_char = chr(65 + (idx - 26) % 26)
+                    label = f"{first_char}{second_char}"
+                device_item = {
+                    "device_label": label,
+                    "device_id": device.id,
+                    "owner_name": device.owner_name,
+                    "phone_number": device.phone_number,
+                }
+
+        analytics_payload = [{
+            "analytic_id": analytic.id,
+            "analytic_name": analytic.analytic_name,
+            "method": analytic.method,
+            "summary": getattr(analytic, 'summary', None),
+            "date": analytic.created_at.strftime("%d/%m/%Y") if getattr(analytic, 'created_at', None) else None,
+            "device": [device_item] if device_item else [],
+            "file_info": {
+                "file_id": file_record.id,
+                "file_name": file_record.file_name,
+                "file_type": file_record.type,
+                "notes": file_record.notes,
+                "tools": file_record.tools,
+                "method": file_record.method,
+                "total_size": file_record.total_size,
+                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None
+            }
+        }]
+
         return JSONResponse(
             {
                 "status": 200,
                 "message": "Device added successfully",
                 "data": {
-                    "device_id": device.id,
-                    "file_id": device.file_id,
-                    "owner_name": device.owner_name,
-                    "phone_number": device.phone_number,
-                    "device_name": device.device_name,
-                    "name": device.owner_name,
-                    "file_name": file_record.file_name,
-                    "analytic_id": analytic_id,
-                    "created_at": str(device.created_at),
-                    "file_info": {
-                        "file_name": file_record.file_name,
-                        "file_type": file_record.type,
-                        "notes": file_record.notes,
-                        "tools": file_record.tools,
-                        "method": file_record.method,
-                        "total_size": file_record.total_size,
-                        "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None
-                    }
+                    "analytics": analytics_payload
                 }
             },
             status_code=200
@@ -268,15 +301,12 @@ def get_devices_by_analytic_id(
                 device_label = f"Device {first_char}{second_char}"
             
             device_card = {
-                "device_id": device.id,
-                "device_label": device_label,
+                "label": device_label,
+                "device_id": str(device.id) if device.id else "",
                 "name": device.owner_name or "",
                 "phone_number": device.phone_number or "",
                 "file_name": file_record.file_name if file_record else "Unknown",
-                "file_size": format_file_size(file_record.total_size) if file_record and file_record.total_size else "0 B",
-                "file_id": file_record.id if file_record else None,
-                "id": str(device.id) if device.id else "",
-                "created_at": str(device.created_at) if device.created_at else ""
+                "file_size": format_file_size(file_record.total_size) if file_record and file_record.total_size else "0 B"
             }
             
             device_cards.append(device_card)
@@ -284,7 +314,7 @@ def get_devices_by_analytic_id(
         return JSONResponse(
             {
                 "status": 200,
-                "message": f"Retrieved {len(device_cards)} devices for analytic",
+                "message": f"Retrieved {len(device_cards)} devices for {analytic.method}" if len(device_cards) != 1 else f"Retrieved {len(device_cards)} device for {analytic.method}",
                 "data": {
                     "analytic": {
                         "id": analytic.id,
