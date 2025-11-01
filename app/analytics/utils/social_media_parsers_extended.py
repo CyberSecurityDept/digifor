@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import SocialMedia, ChatMessage
+from sqlalchemy import or_
 
 class SocialMediaParsersExtended:
     
@@ -23,10 +24,8 @@ class SocialMediaParsersExtended:
         if not file_id:
             return False
         
-        # Build query filter berdasarkan platform IDs yang ada
         query = self.db.query(SocialMedia).filter(SocialMedia.file_id == file_id)
         
-        # Cek berdasarkan platform ID yang ada
         filters = []
         
         if acc.get("instagram_id"):
@@ -42,29 +41,23 @@ class SocialMediaParsersExtended:
         if acc.get("tiktok_id"):
             filters.append(SocialMedia.tiktok_id == acc["tiktok_id"])
         
-        # Jika ada account_name, juga cek berdasarkan account_name
         if acc.get("account_name"):
             filters.append(SocialMedia.account_name == acc["account_name"])
         
-        # Jika tidak ada filter, return False (tidak bisa check duplicate)
         if not filters:
             return False
         
-        # Combine filters dengan OR - jika ada salah satu yang match, berarti duplicate
-        from sqlalchemy import or_
         existing = query.filter(or_(*filters)).first()
         
         return existing is not None
     
     def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        # Hanya menggunakan struktur baru
         return self._validate_social_media_data_new(acc)
     
     def _validate_social_media_data_new(self, acc: Dict[str, Any]) -> tuple[bool, str]:
         if not acc.get("file_id"):
             return False, "Missing file_id"
         
-        # Cek apakah ada minimal satu platform ID atau account_name
         has_identifier = (
             acc.get("instagram_id") or
             acc.get("facebook_id") or
@@ -80,10 +73,44 @@ class SocialMediaParsersExtended:
         
         return True, ""
     
-    # Function deprecated - semua parser sekarang langsung menggunakan struktur baru
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
-        # Sudah tidak digunakan - semua parser sekarang langsung menggunakan struktur baru
-        return acc
+        if "platform" not in acc:
+            # Sudah struktur baru
+            return acc
+        
+        new_acc = {
+            "file_id": acc.get("file_id"),
+            "source": acc.get("source") or acc.get("source_tool"),
+            "phone_number": acc.get("phone_number"),
+            "full_name": acc.get("full_name"),
+            "account_name": acc.get("account_name"),
+            "whatsapp_id": None,
+            "telegram_id": None,
+            "instagram_id": None,
+            "X_id": None,
+            "facebook_id": None,
+            "tiktok_id": None,
+            "sheet_name": acc.get("sheet_name"),
+        }
+        
+        # Map platform dan account_id ke field yang sesuai
+        platform = acc.get("platform", "").lower()
+        account_id = acc.get("account_id") or acc.get("user_id")
+        
+        if platform == "instagram":
+            new_acc["instagram_id"] = account_id
+        elif platform == "facebook":
+            new_acc["facebook_id"] = account_id
+        elif platform == "whatsapp":
+            new_acc["whatsapp_id"] = account_id
+        elif platform in ["x", "twitter"]:
+            new_acc["X_id"] = account_id
+        elif platform == "telegram":
+            new_acc["telegram_id"] = account_id
+        elif platform == "tiktok":
+            new_acc["tiktok_id"] = account_id
+        
+        return new_acc
 
     def _extract_email(self, phones_emails_field: Optional[str]) -> Optional[str]:
         if not phones_emails_field:
@@ -336,6 +363,10 @@ class SocialMediaParsersExtended:
                 
                 try:
                     for acc in batch:
+                        # Convert struktur lama ke struktur baru jika perlu
+                        if "platform" in acc:
+                            acc = self._convert_old_to_new_structure(acc)
+                        
                         # Validasi data sebelum insert
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
@@ -449,7 +480,6 @@ class SocialMediaParsersExtended:
             return total_count
             
         except Exception as e:
-            # Silently return 0 for non-Excel files or parsing errors
             return 0
     
     def parse_cellebrite_social_media(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
@@ -468,14 +498,12 @@ class SocialMediaParsersExtended:
             print(f"📊 Total sheets available: {len(xls.sheet_names)}")
             print(f"📋 Sheet names: {xls.sheet_names}")
             
-            # Prioritas: Jika ada sheet "Contacts", hanya parse Contacts saja dan skip sheet lain
             if 'Contacts' in xls.sheet_names:
                 print("🔍 Detected Contacts sheet - parsing Contacts only (skipping other sheets)")
                 results.extend(self._parse_cellebrite_contacts_sheet(file_path, 'Contacts', file_id))
             
             elif 'Social Media' in xls.sheet_names:
                 print("🔍 Detected Cellebrite format - parsing Social Media sheet")
-                # Parse all sheets with enhanced detection
                 for sheet_name in xls.sheet_names:
                     print(f"Processing sheet: {sheet_name}")
                     
@@ -486,7 +514,6 @@ class SocialMediaParsersExtended:
                     elif sheet_name == 'Chats':
                         results.extend(self._parse_cellebrite_chats_sheet(file_path, sheet_name, file_id))
                     else:
-                        # Check other sheets for social media data
                         results.extend(self._parse_cellebrite_generic_sheet(file_path, sheet_name, file_id))
             
             elif any(keyword in ' '.join(xls.sheet_names).lower() for keyword in ['instagram', 'facebook', 'twitter', 'whatsapp', 'telegram', 'tiktok']):
@@ -495,18 +522,15 @@ class SocialMediaParsersExtended:
                 results.extend(self.parse_oxygen_social_media(file_path, file_id))
             
             else:
-                print("🔍 Unknown format - attempting generic parsing")
-                # Try generic parsing for unknown formats
+                print("Unknown format - attempting generic parsing")
                 for sheet_name in xls.sheet_names:
                     print(f"Processing sheet: {sheet_name}")
                     results.extend(self._parse_cellebrite_generic_sheet(file_path, sheet_name, file_id))
             
-            # Remove duplicates before saving
             unique_results = []
             seen_accounts = set()
             
             for acc in results:
-                # Generate unique key menggunakan struktur baru (platform IDs)
                 platform_ids = []
                 if acc.get('instagram_id'):
                     platform_ids.append(f"ig:{acc['instagram_id']}")
@@ -542,12 +566,12 @@ class SocialMediaParsersExtended:
                 
                 try:
                     for acc in batch:
-                        # Validasi data sebelum insert
+                        
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
                             invalid_count += 1
-                            if invalid_count <= 10:  # Log first 10 invalid records
-                                # Log untuk debugging
+                            if invalid_count <= 10:
+                                
                                 platform_info = []
                                 if acc.get('instagram_id'):
                                     platform_info.append(f"IG:{acc['instagram_id']}")
@@ -565,12 +589,10 @@ class SocialMediaParsersExtended:
                                 print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
                         
-                        # Check duplicate menggunakan struktur baru
                         if self._check_existing_social_media(acc):
                             skipped_count += 1
                             continue
                         
-                        # Simpan ke DB
                         self.db.add(SocialMedia(**acc))
                         batch_saved += 1
                     

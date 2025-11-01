@@ -912,13 +912,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
         return None
     
     def _extract_phone_number_from_text(self, text: str) -> Optional[str]:
-        """Extract phone number dari text, format: Phone number: +13605295588, Phone number: 6281356150918, atau Home: 0812 18973570"""
         if not text:
             return None
         
         text_str = str(text)
         
-        # Cari "Phone number: 6281356150918" atau "Phone number: +13605295588"
         match = re.search(r"Phone\s+number[:\s]+([\+\d\s\-\(\)@\.]+)", text_str, re.IGNORECASE)
         if match:
             phone = match.group(1).strip()
@@ -982,14 +980,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
             return None
         
         text_str = str(text)
-        # Cari "WhatsApp ID: 84927223310@s.whatsapp.net" atau format serupa
         match = re.search(r'WhatsApp\s+ID[:\s]+([^\n\r]+)', text_str, re.IGNORECASE)
         if match:
             whatsapp_id_raw = match.group(1).strip()
             
-            # Jika ada @s.whatsapp.net, extract nomor dan simpan format lengkap
             if '@s.whatsapp.net' in whatsapp_id_raw:
-                # Extract nomor sebelum @s.whatsapp.net
                 number_part = whatsapp_id_raw.split('@s.whatsapp.net')[0].strip()
                 # Clean dari karakter non-digit di awal/akhir
                 number_part = re.sub(r'^[^\d]+', '', number_part)
@@ -998,12 +993,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 if number_part and number_part.isdigit() and len(number_part) >= 11 and number_part.startswith('8'):
                     number_part = number_part[1:]  # Hapus digit pertama "8"
                 
-                # Pastikan minimal 8 digit setelah cleaning
                 if number_part and number_part.isdigit() and len(number_part) >= 8:
                     # Return dengan format @s.whatsapp.net
                     return f"{number_part}@s.whatsapp.net"
             else:
-                # Jika tidak ada @s.whatsapp.net, extract nomor saja (backward compatibility)
                 whatsapp_id = whatsapp_id_raw
                 whatsapp_id = re.sub(r'^[^\d]+', '', whatsapp_id)
                 whatsapp_id = re.sub(r'[^\d]+$', '', whatsapp_id)
@@ -1122,14 +1115,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
             if account_name and account_name.isdigit() and len(account_name) >= 8:  # Minimal 8 digit
                 return account_name
         
-        # Jika format "Nickname: username" atau multi-line
         if '\n' in contact_str or 'nickname:' in contact_str.lower():
-            # Extract nickname seperti biasa
             nickname = self._extract_nickname(contact_str)
             if nickname:
-                # Clean @s.whatsapp.net jika ada
                 nickname = self._clean_whatsapp_suffix(nickname)
-                # Jika nickname adalah angka panjang (>=8 digit), gunakan sebagai account_name
                 if nickname and nickname.isdigit() and len(nickname) >= 8:
                     return nickname
                 # Jika bukan angka atau angka pendek, tetap return jika valid
@@ -2074,35 +2063,86 @@ class SocialMediaParser(SocialMediaParsersExtended):
         # Build query filter berdasarkan platform IDs yang ada
         query = self.db.query(SocialMedia).filter(SocialMedia.file_id == file_id)
         
-        # Cek berdasarkan platform ID yang ada
-        filters = []
+        # Strategy: Cek duplicate berdasarkan platform_id spesifik jika ada
+        # Jika ada platform_id (instagram_id, facebook_id, dll), cek duplicate hanya berdasarkan platform_id tersebut
+        # Jika tidak ada platform_id tapi ada account_name, cek berdasarkan account_name
         
-        if acc.get("instagram_id"):
-            filters.append(SocialMedia.instagram_id == acc["instagram_id"])
-        if acc.get("facebook_id"):
-            filters.append(SocialMedia.facebook_id == acc["facebook_id"])
-        if acc.get("whatsapp_id"):
-            filters.append(SocialMedia.whatsapp_id == acc["whatsapp_id"])
-        if acc.get("telegram_id"):
-            filters.append(SocialMedia.telegram_id == acc["telegram_id"])
-        if acc.get("X_id"):
-            filters.append(SocialMedia.X_id == acc["X_id"])
-        if acc.get("tiktok_id"):
-            filters.append(SocialMedia.tiktok_id == acc["tiktok_id"])
+        platform_ids = {
+            'instagram_id': acc.get("instagram_id"),
+            'facebook_id': acc.get("facebook_id"),
+            'whatsapp_id': acc.get("whatsapp_id"),
+            'telegram_id': acc.get("telegram_id"),
+            'X_id': acc.get("X_id"),
+            'tiktok_id': acc.get("tiktok_id"),
+        }
         
-        # Jika ada account_name, juga cek berdasarkan account_name
-        if acc.get("account_name"):
-            filters.append(SocialMedia.account_name == acc["account_name"])
+        # Cek apakah ada platform_id yang valid
+        has_platform_id = any(v for v in platform_ids.values() if v)
         
-        # Jika tidak ada filter, return False (tidak bisa check duplicate)
-        if not filters:
-            return False
+        if has_platform_id:
+            # Jika ada platform_id, cek duplicate berdasarkan platform_id spesifik
+            # Platform ID adalah unique identifier, jadi cek apakah platform_id yang sama sudah ada
+            from sqlalchemy import or_
+            platform_filters = []
+            platform_info = []
+            
+            if platform_ids['instagram_id']:
+                platform_filters.append(SocialMedia.instagram_id == platform_ids['instagram_id'])
+                platform_info.append(f"IG:{platform_ids['instagram_id']}")
+            if platform_ids['facebook_id']:
+                platform_filters.append(SocialMedia.facebook_id == platform_ids['facebook_id'])
+                platform_info.append(f"FB:{platform_ids['facebook_id']}")
+            if platform_ids['whatsapp_id']:
+                platform_filters.append(SocialMedia.whatsapp_id == platform_ids['whatsapp_id'])
+                platform_info.append(f"WA:{platform_ids['whatsapp_id']}")
+            if platform_ids['telegram_id']:
+                platform_filters.append(SocialMedia.telegram_id == platform_ids['telegram_id'])
+                platform_info.append(f"TG:{platform_ids['telegram_id']}")
+            if platform_ids['X_id']:
+                platform_filters.append(SocialMedia.X_id == platform_ids['X_id'])
+                platform_info.append(f"X:{platform_ids['X_id']}")
+            if platform_ids['tiktok_id']:
+                platform_filters.append(SocialMedia.tiktok_id == platform_ids['tiktok_id'])
+                platform_info.append(f"TT:{platform_ids['tiktok_id']}")
+            
+            if platform_filters:
+                existing = query.filter(or_(*platform_filters)).first()
+                if existing:
+                    # Log untuk debugging (hanya log beberapa pertama)
+                    import sys
+                    if not hasattr(self, '_dup_log_count'):
+                        self._dup_log_count = 0
+                    if self._dup_log_count < 5:
+                        existing_info = []
+                        if existing.telegram_id:
+                            existing_info.append(f"TG:{existing.telegram_id}")
+                        if existing.instagram_id:
+                            existing_info.append(f"IG:{existing.instagram_id}")
+                        if existing.whatsapp_id:
+                            existing_info.append(f"WA:{existing.whatsapp_id}")
+                        if existing.X_id:
+                            existing_info.append(f"X:{existing.X_id}")
+                        if existing.tiktok_id:
+                            existing_info.append(f"TT:{existing.tiktok_id}")
+                        existing_str = ', '.join(existing_info) if existing_info else 'N/A'
+                        print(f"⚠️  Duplicate detected: Platform IDs: {', '.join(platform_info)}, Account: {acc.get('account_name', 'N/A')}")
+                        print(f"    → Already exists in DB: {existing_str}, Account: {existing.account_name or 'N/A'}, Sheet: {existing.sheet_name or 'N/A'}")
+                        self._dup_log_count += 1
+                return existing is not None
+        elif acc.get("account_name"):
+            # Jika tidak ada platform_id tapi ada account_name, cek berdasarkan account_name
+            existing = query.filter(SocialMedia.account_name == acc["account_name"]).first()
+            if existing:
+                import sys
+                if not hasattr(self, '_dup_log_count'):
+                    self._dup_log_count = 0
+                if self._dup_log_count < 5:
+                    print(f"⚠️  Duplicate detected: Account name: {acc['account_name']} (no platform ID)")
+                    self._dup_log_count += 1
+            return existing is not None
         
-        # Combine filters dengan OR - jika ada salah satu yang match, berarti duplicate
-        from sqlalchemy import or_
-        existing = query.filter(or_(*filters)).first()
-        
-        return existing is not None
+        # Jika tidak ada identifier sama sekali, tidak bisa check duplicate
+        return False
     
     def _validate_social_media_data_new(self, acc: Dict[str, Any]) -> tuple[bool, str]:
         # file_id wajib ada
@@ -2131,8 +2171,29 @@ class SocialMediaParser(SocialMediaParsersExtended):
             account_name_str = str(acc["account_name"]).strip()
             if account_name_str.lower() in invalid_values:
                 return False, "account_name is invalid"
-            if self._is_header_or_metadata(account_name_str):
-                return False, f"account_name appears to be header/metadata: '{account_name_str}'"
+            
+            # Untuk TikTok dan Telegram: jika ada platform_id yang valid, account_name dengan emoji/unicode dianggap valid
+            # TikTok dan Telegram sering menggunakan emoji/unicode characters yang tidak mengandung a-zA-Z0-9
+            is_tiktok_with_id = (
+                acc.get("tiktok_id") and 
+                (
+                    (acc.get("source") and "tiktok" in str(acc.get("source", "")).lower()) or
+                    (acc.get("sheet_name") and "tiktok" in str(acc.get("sheet_name", "")).lower())
+                )
+            )
+            
+            is_telegram_with_id = (
+                acc.get("telegram_id") and 
+                (
+                    (acc.get("source") and "telegram" in str(acc.get("source", "")).lower()) or
+                    (acc.get("sheet_name") and "telegram" in str(acc.get("sheet_name", "")).lower())
+                )
+            )
+            
+            if not is_tiktok_with_id and not is_telegram_with_id:
+                # Validasi header/metadata hanya untuk non-TikTok/Telegram atau tanpa ID
+                if self._is_header_or_metadata(account_name_str):
+                    return False, f"account_name appears to be header/metadata: '{account_name_str}'"
         
         
         return True, ""
