@@ -931,7 +931,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 phone = '+' + re.sub(r'[^\d]', '', phone[1:])
             else:
                 phone = re.sub(r'[^\d]', '', phone)
-            if phone and len(phone) >= 8:
+            # Skip phone_number yang hanya "0" atau terlalu pendek
+            if phone and len(phone) >= 8 and phone not in ['0', '+0']:
                 return phone
         
         
@@ -947,7 +948,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 phone = '+' + re.sub(r'[^\d]', '', phone[1:])
             else:
                 phone = re.sub(r'[^\d]', '', phone)
-            if phone and len(phone) >= 8:
+            # Skip phone_number yang hanya "0" atau terlalu pendek
+            if phone and len(phone) >= 8 and phone not in ['0', '+0']:
                 return phone
         
         return None
@@ -1261,6 +1263,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     elif type_field and 'group' in type_field.lower() and contact_str.isdigit():
                         instagram_id = contact_str
                         print(f"  Found Group ID from Contact field (Type=Group): {instagram_id}")
+                    # Atau jika Type=Contact dan Contact field numeric >=10 digits (mungkin Instagram user ID)
+                    elif type_field and 'contact' in type_field.lower() and contact_str.isdigit() and len(contact_str) >= 10:
+                        instagram_id = contact_str
+                        print(f"  Found Instagram ID from Contact field (Type=Contact, numeric >=10 digits): {instagram_id}")
                 
                 # Extract phone_number dari Internet field jika ada (optional)
                 phone_number = None
@@ -1496,7 +1502,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if not whatsapp_id and phone_number:
                         # Clean phone_number dari karakter non-digit
                         phone_clean = re.sub(r'[^\d]', '', str(phone_number))
-                        if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 8:
+                        # Skip phone_number yang hanya "0" atau terlalu pendek
+                        if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 8 and phone_clean != '0':
                             whatsapp_id = phone_clean
                             print(f"  ✓ Using phone_number as whatsapp_id: {whatsapp_id}")
                     
@@ -1702,11 +1709,15 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged) atau Group
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    is_group_type = type_lower in ["group", "group(merged)", "group (merged)", "groups"]
                     
-                    if not (is_account_type or is_contact_type):
+                    # Process Group type rows for Telegram as they often contain valid account information
+                    if not (is_account_type or is_contact_type or is_group_type):
+                        if len(telegram_results) < 5:  # Log first 5 skipped by type
+                            print(f"⚠️  Skipping Telegram row {row.name}: Type='{type_field}' (not Account/Contact/Group)")
                         continue
                     
                     contact_field = self._clean(row.get("Contact"))
@@ -1718,16 +1729,74 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     account_name = self._extract_nickname(contact_field)
                     
                     # Jika account_name tidak ditemukan, coba dari Contact field langsung
+                    # Untuk Group type, prioritaskan Contact field sebagai account_name
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
-                        if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
-                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
-                            not contact_str.isdigit() and '@' not in contact_str and 
-                            '/' not in contact_str and '\\' not in contact_str):
-                            account_name = contact_str
+                        # Jika multiline, ambil baris pertama saja (sebelum \n)
+                        if '\n' in contact_str:
+                            contact_str = contact_str.split('\n')[0].strip()
+                        # Hapus prefix "Contact:" jika ada
+                        if contact_str.lower().startswith('contact:'):
+                            contact_str = contact_str.split(':', 1)[1].strip()
+                        
+                        # Untuk Group type, lebih longgar validasinya (boleh karakter unicode/emoji)
+                        if is_group_type:
+                            if (contact_str and len(contact_str) > 1 and len(contact_str) < 200 and
+                                'nickname:' not in contact_str.lower() and
+                                '@' not in contact_str and 
+                                '/' not in contact_str and '\\' not in contact_str and
+                                not contact_str.lower() in ["nan", "none", "null", "", "n/a", "undefined"]):
+                                account_name = contact_str
+                        else:
+                            if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
+                                'nickname:' not in contact_str.lower() and
+                                not contact_str.isdigit() and '@' not in contact_str and 
+                                '/' not in contact_str and '\\' not in contact_str):
+                                account_name = contact_str
                     
                     # Extract Telegram ID dari Internet field
                     telegram_id = self._extract_telegram_id_from_text(internet_field) if internet_field else None
+                    
+                    # Untuk Group type, coba extract Group ID dari Internet field jika telegram_id belum ada
+                    if is_group_type and not telegram_id and internet_field:
+                        group_id_match = re.search(r'Group\s+ID[:\s]+(\d+)', str(internet_field), re.IGNORECASE)
+                        if group_id_match:
+                            telegram_id = group_id_match.group(1).strip()
+                            print(f"  Found Group ID as telegram_id: {telegram_id}")
+                    
+                    # Jika account_name tidak valid tapi ada telegram_id, gunakan telegram_id sebagai account_name
+                    if account_name:
+                        # Cek apakah account_name valid
+                        if (self._is_header_or_metadata(account_name) or 
+                            len(account_name) <= 1 or
+                            account_name.lower() in ["nan", "none", "null", "", "n/a", "undefined"]):
+                            # Account name tidak valid, gunakan telegram_id jika ada
+                            if telegram_id:
+                                account_name = f"Telegram_{telegram_id}"
+                            else:
+                                account_name = None
+                    
+                    # Jika Group type dan ada telegram_id tapi tidak ada account_name, gunakan Contact field atau telegram_id
+                    if is_group_type and telegram_id and not account_name:
+                        # Coba gunakan Contact field sebagai account_name jika valid
+                        # Untuk Group, lebih longgar validasinya karena bisa berisi unicode/emoji
+                        if contact_field:
+                            contact_str = str(contact_field).strip()
+                            # Untuk Group, hanya skip jika benar-benar invalid (header keywords, terlalu pendek, atau null)
+                            is_valid_contact = (
+                                contact_str and 
+                                len(contact_str) > 1 and 
+                                len(contact_str) < 200 and
+                                contact_str.lower() not in ["nan", "none", "null", "", "n/a", "undefined"] and
+                                # Skip hanya jika benar-benar header keyword (bukan unicode/emoji yang valid)
+                                not (len(contact_str) <= 3 and contact_str.lower() in ["source", "type", "contact", "account", "group"])
+                            )
+                            if is_valid_contact:
+                                account_name = contact_str
+                            else:
+                                account_name = f"Telegram_{telegram_id}"
+                        else:
+                            account_name = f"Telegram_{telegram_id}"
                     
                     # Extract location
                     location = self._extract_location(addresses_field)
@@ -1755,6 +1824,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             telegram_results.append(acc)
                         else:
                             print(f"⚠️  Skipping invalid Telegram record: {error_msg}")
+                            print(f"   Details: Type={type_field}, account_name={account_name}, telegram_id={telegram_id}, Contact={contact_field[:80] if contact_field else 'None'}")
+                    else:
+                        # Log rows yang tidak punya account_name maupun telegram_id
+                        print(f"⚠️  Skipping Telegram row: No account_name and no telegram_id")
+                        print(f"   Details: Type={type_field}, Source={source_field}, Contact={contact_field[:80] if contact_field else 'None'}, Internet={internet_field[:80] if internet_field else 'None'}")
             
             # Save Telegram records
             if telegram_results:
@@ -1796,16 +1870,19 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
+                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged) atau Group
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
+                    is_group_type = type_lower in ["group", "group(merged)", "group (merged)", "groups"]
                     
-                    if not (is_account_type or is_contact_type):
+                    # Process Group type rows for Twitter/X as they often contain valid account information (Nickname field)
+                    if not (is_account_type or is_contact_type or is_group_type):
                         continue
                     
                     contact_field = self._clean(row.get("Contact"))
                     internet_field = self._clean(row.get("Internet"))
                     addresses_field = self._clean(row.get("Addresses"))
+                    phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
                     # Extract data
                     full_name = self._extract_full_name_from_contact(contact_field)
@@ -1814,14 +1891,32 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     # Jika account_name tidak ditemukan, coba dari Contact field langsung
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
+                        # Jika multiline, ambil baris pertama saja (sebelum \n)
+                        if '\n' in contact_str:
+                            contact_str = contact_str.split('\n')[0].strip()
+                        # Hapus prefix "Contact:" jika ada
+                        if contact_str.lower().startswith('contact:'):
+                            contact_str = contact_str.split(':', 1)[1].strip()
+                        # Hapus "@" di awal jika ada
+                        if contact_str.startswith('@'):
+                            contact_str = contact_str[1:].strip()
+                        
                         if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
-                            '\n' not in contact_str and 'nickname:' not in contact_str.lower() and
+                            'nickname:' not in contact_str.lower() and
                             not contact_str.isdigit() and '@' not in contact_str and 
                             '/' not in contact_str and '\\' not in contact_str):
                             account_name = contact_str
                     
                     # Extract X (Twitter) ID dari Internet field
                     x_id = self._extract_x_id_from_text(internet_field) if internet_field else None
+                    
+                    # Jika x_id tidak ditemukan di Internet, coba dari Phones & Emails field
+                    if not x_id and phones_emails_field:
+                        x_id = self._extract_x_id_from_text(phones_emails_field)
+                    
+                    # Jika Group type dan ada x_id tapi tidak ada account_name, gunakan x_id sebagai account_name
+                    if is_group_type and x_id and not account_name:
+                        account_name = f"X_{x_id}"
                     
                     # Extract location
                     location = self._extract_location(addresses_field)
