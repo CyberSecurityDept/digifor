@@ -65,8 +65,28 @@ def social_media_correlation(
     }
     selected_platform = platform_map.get(platform_lower, "instagram")
     
-    # Execute SQL query to get connected accounts data
-    sql_query = text("""
+    # Map platform to column names in new structure
+    platform_column_map = {
+        "instagram": {"id_col": "instagram_id", "platform_name": "instagram"},
+        "whatsapp": {"id_col": "whatsapp_id", "platform_name": "whatsapp"},
+        "telegram": {"id_col": "telegram_id", "platform_name": "telegram"},
+        "x": {"id_col": "X_id", "platform_name": "x"},
+        "facebook": {"id_col": "facebook_id", "platform_name": "facebook"},
+        "tiktok": {"id_col": "tiktok_id", "platform_name": "tiktok"}
+    }
+    
+    platform_info = platform_column_map.get(selected_platform, platform_column_map["instagram"])
+    id_column = platform_info["id_col"]
+    platform_display = platform_info["platform_name"]
+    
+    # Validate id_column to prevent SQL injection (only allow known columns)
+    allowed_columns = ["instagram_id", "whatsapp_id", "telegram_id", "X_id", "facebook_id", "tiktok_id"]
+    if id_column not in allowed_columns:
+        id_column = "instagram_id"
+        platform_display = "instagram"
+    
+    # Build SQL query dynamically based on platform
+    sql_query = text(f"""
         WITH 
         device_file_ids AS (
             SELECT DISTINCT 
@@ -87,9 +107,11 @@ def social_media_correlation(
         ),
         social_accounts AS (
             SELECT 
-                LOWER(TRIM(COALESCE(sm.account_id, sm.account_name, ''))) AS account_identifier,
-                COALESCE(sm.account_name, sm.account_id, '') AS display_name,
-                LOWER(TRIM(sm.platform)) AS platform,
+                -- account_identifier: gunakan platform_id jika ada, fallback ke account_name
+                LOWER(TRIM(COALESCE(sm.{id_column}::TEXT, sm.account_name, ''))) AS account_identifier,
+                -- display_name: gunakan account_name, fallback ke platform_id
+                COALESCE(sm.account_name, sm.{id_column}::TEXT, '') AS display_name,
+                '{platform_display}' AS platform,
                 dfi.device_id,
                 dfi.device_label,
                 dfi.owner_name AS device_owner,
@@ -98,9 +120,12 @@ def social_media_correlation(
                 sm.file_id
             FROM social_media sm
             INNER JOIN device_file_ids dfi ON sm.file_id = dfi.file_id
-            WHERE LOWER(TRIM(sm.platform)) = :selected_platform
-              AND TRIM(COALESCE(sm.account_id, sm.account_name, '')) != ''
-              AND LOWER(TRIM(COALESCE(sm.account_id, sm.account_name, ''))) NOT IN ('nan', 'none', 'null', '')
+            WHERE 
+                sm.{id_column} IS NOT NULL
+                AND (
+                    sm.account_name IS NOT NULL AND TRIM(sm.account_name) != '' AND LOWER(TRIM(sm.account_name)) NOT IN ('nan', 'none', 'null')
+                    OR sm.{id_column} IS NOT NULL
+                )
         ),
         account_device_counts AS (
             SELECT 

@@ -2076,12 +2076,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
             'tiktok_id': acc.get("tiktok_id"),
         }
         
-        # Cek apakah ada platform_id yang valid
         has_platform_id = any(v for v in platform_ids.values() if v)
         
         if has_platform_id:
-            # Jika ada platform_id, cek duplicate berdasarkan platform_id spesifik
-            # Platform ID adalah unique identifier, jadi cek apakah platform_id yang sama sudah ada
             from sqlalchemy import or_
             platform_filters = []
             platform_info = []
@@ -2108,7 +2105,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             if platform_filters:
                 existing = query.filter(or_(*platform_filters)).first()
                 if existing:
-                    # Log untuk debugging (hanya log beberapa pertama)
                     import sys
                     if not hasattr(self, '_dup_log_count'):
                         self._dup_log_count = 0
@@ -2141,15 +2137,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     self._dup_log_count += 1
             return existing is not None
         
-        # Jika tidak ada identifier sama sekali, tidak bisa check duplicate
         return False
     
     def _validate_social_media_data_new(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        # file_id wajib ada
         if not acc.get("file_id"):
             return False, "file_id is required"
         
-        # Minimal harus ada account_name atau salah satu platform ID
         has_data = (
             acc.get("account_name") or
             acc.get("instagram_id") or
@@ -2172,8 +2165,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             if account_name_str.lower() in invalid_values:
                 return False, "account_name is invalid"
             
-            # Untuk TikTok dan Telegram: jika ada platform_id yang valid, account_name dengan emoji/unicode dianggap valid
-            # TikTok dan Telegram sering menggunakan emoji/unicode characters yang tidak mengandung a-zA-Z0-9
             is_tiktok_with_id = (
                 acc.get("tiktok_id") and 
                 (
@@ -2191,7 +2182,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             )
             
             if not is_tiktok_with_id and not is_telegram_with_id:
-                # Validasi header/metadata hanya untuk non-TikTok/Telegram atau tanpa ID
                 if self._is_header_or_metadata(account_name_str):
                     return False, f"account_name appears to be header/metadata: '{account_name_str}'"
         
@@ -2259,8 +2249,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     print("  Instagram sheet too short, skipping")
                     return results
                 
-                # Parse account owner (row 4, index 4)
-                # Format: Col[4]=Full name, Col[5]=User name, Col[9]=Followers
                 if len(df) > 4:
                     owner_row = df.iloc[4]
                     owner_full_name = self._clean(owner_row.iloc[4]) if len(owner_row) > 4 else None
@@ -2268,14 +2256,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     owner_followers = self._clean(owner_row.iloc[9]) if len(owner_row) > 9 else None
                     
                     if owner_user_name and owner_user_name.lower() not in ['nan', 'accounts', 'source', 'categories']:
-                        # Try to extract user_id from other columns
                         owner_user_id = None
-                        # Check all columns for user ID (Instagram IDs are usually 9-15 digits)
                         for col_idx in range(len(owner_row)):
                             val = self._clean(owner_row.iloc[col_idx])
-                            if val and val.isdigit() and 8 <= len(val) <= 15:  # Instagram IDs are usually 9-15 digits
-                                # Additional check: skip very small numbers that might be flags/counts
-                                if int(val) > 1000000:  # Skip numbers that are too small
+                            if val and val.isdigit() and 8 <= len(val) <= 15:
+                                if int(val) > 1000000:
                                     owner_user_id = val
                                     break
                         
@@ -2309,26 +2294,20 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         user_name = self._clean(row.iloc[5]) if len(row) > 5 else None
                         source_path = self._clean(row.iloc[2]) if len(row) > 2 else None
                         
-                        # Skip header rows or invalid rows
                         if not user_name or user_name.lower() in ['nan', 'user name', 'accounts', 'source', 'categories', 'deleted', '']:
                             continue
                         
-                        # Skip if source_path contains path-like structure (metadata)
                         if source_path and ('\\' in str(source_path) or '/' in str(source_path)):
-                            # This might be a path, but continue if user_name is valid
                             pass
                         
-                        # Extract user_id if available (check all columns for Instagram ID)
                         user_id = None
                         for col_idx in range(len(row)):
                             val = self._clean(row.iloc[col_idx])
-                            if val and val.isdigit() and 8 <= len(val) <= 15:  # Instagram IDs are usually 9-15 digits
-                                # Additional check: skip very small numbers that might be flags/counts
-                                if int(val) > 1000000:  # Skip numbers that are too small
+                            if val and val.isdigit() and 8 <= len(val) <= 15:
+                                if int(val) > 1000000:
                                     user_id = val
                                     break
                         
-                        # If no user_id found, skip this row
                         if not user_id:
                             continue
                         
@@ -2367,15 +2346,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 print("Parsing WhatsApp Messenger dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='WhatsApp Messenger ', engine=engine, dtype=str)
                 
-                # Cari header row yang berisi "Full name", "User name", "User picture URL", "User ID", "Phone number"
                 header_row_idx = None
                 for idx in range(min(10, len(df))):  # Check first 10 rows
                     row_text = ' '.join([str(df.iloc[idx, col_idx]) if col_idx < len(df.columns) else '' 
                                         for col_idx in range(min(10, len(df.columns)))])
                     row_text_lower = row_text.lower()
                     
-                    # Cari row yang berisi kolom header untuk account data
-                    # Minimal harus ada "User name" atau "User ID" dan salah satu: "Full name", "Phone number", atau "User picture"
                     if ('user name' in row_text_lower or 'user id' in row_text_lower) and \
                        ('full name' in row_text_lower or 'phone number' in row_text_lower or 'phone' in row_text_lower or 'user picture' in row_text_lower):
                         header_row_idx = idx
@@ -2390,7 +2366,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 df = df.drop(df.index[0:header_row_idx+1])
                 df = df.reset_index(drop=True)
                 
-                # Cari kolom yang tepat
                 col_mapping = {}
                 for col in df.columns:
                     col_lower = str(col).lower()
@@ -2405,7 +2380,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     elif 'phone number' in col_lower or 'phone' in col_lower:
                         col_mapping['phone_number'] = col
                 
-                # Skip keywords yang menandakan row bukan account data
                 skip_keywords = [
                     'source', 'status', 'received', 'delivered', 'seen', 'categories',
                     'direction', 'time stamp', 'timestamp', 'deleted', 'chats\\', 'calls\\',
@@ -2414,21 +2388,17 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 ]
                 
                 for _, row in df.iterrows():
-                    # Skip jika row kosong atau hanya whitespace
                     row_values = [str(row.get(col, '')).strip() for col in df.columns]
                     if not any(val and val.lower() not in ['nan', 'none', ''] for val in row_values):
                         continue
                     
-                    # Skip jika row berisi skip keywords (header/metadata chat/call)
                     row_text = ' '.join(row_values).lower()
                     if any(keyword in row_text for keyword in skip_keywords):
                         continue
                     
-                    # Skip jika row berisi path chat (misal: "Riko Suloyo\Chats\Private\...")
                     if '\\chats\\' in row_text or '\\calls\\' in row_text:
                         continue
                     
-                    # Ambil data dari kolom yang tepat
                     full_name = None
                     user_name = None
                     profile_picture_url = None
@@ -2446,8 +2416,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if 'phone_number' in col_mapping:
                         phone_number = self._clean(row.get(col_mapping['phone_number']))
                     
-                    # Jika kolom tidak ditemukan, coba ambil dari index (fallback)
-                    # Order: Full name (1), User name (2), Phone number (3), User picture URL (4), User ID (5)
                     if not full_name and len(row) > 1:
                         full_name = self._clean(row.iloc[1] if isinstance(row, pd.Series) else row.get(1))
                     if not user_name and len(row) > 2:
@@ -2459,16 +2427,13 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if not user_id and len(row) > 5:
                         user_id = self._clean(row.iloc[5] if isinstance(row, pd.Series) else row.get(5))
                     
-                    # Validasi: harus ada user_id yang valid (numeric atau phone number format)
                     if not user_id:
                         continue
                     
-                    # Validasi user_id bukan keyword invalid
                     user_id_str = str(user_id).strip().lower()
                     if user_id_str in skip_keywords or len(user_id_str) < 3:
                         continue
                     
-                    # Prioritaskan phone_number dari kolom jika ada, jika tidak gunakan user_id
                     phone_to_use = phone_number if phone_number else user_id
                     
                     if not phone_to_use:
