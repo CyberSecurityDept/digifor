@@ -54,7 +54,7 @@ def remove_deep_communication_table():
                 db.execute(text(f"ALTER TABLE deep_communication DROP CONSTRAINT {constraint};"))
                 print(f"   ✅ Dropped constraint: {constraint}")
             except Exception as e:
-                print(f"   ⚠️  Could not drop constraint {constraint}: {e}")
+                print(f"   Could not drop constraint {constraint}: {e}")
         
         # Drop indexes
         print("📇 Dropping indexes...")
@@ -62,7 +62,7 @@ def remove_deep_communication_table():
             db.execute(text("DROP INDEX IF EXISTS ix_deep_communication_id;"))
             print("   ✅ Dropped index: ix_deep_communication_id")
         except Exception as e:
-            print(f"   ⚠️  Could not drop index: {e}")
+            print(f"   Could not drop index: {e}")
         
         # Drop the table
         print("🗑️  Dropping deep_communication table...")

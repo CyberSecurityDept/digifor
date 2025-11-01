@@ -4,9 +4,7 @@ import re
 import warnings
 from typing import Optional, List, Dict, Any, Tuple
 from enum import Enum
-# Contact parser will be imported when needed
 
-# Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 class ExtractionTool(Enum):
@@ -75,7 +73,6 @@ class ToolsParser:
         return result
     
     def _parse_oxygen(self, file_path: Path) -> Dict[str, Any]:
-        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
         contacts = []
         normalized_contacts = []
         
@@ -87,7 +84,6 @@ class ToolsParser:
             "metadata": {}
         }
         
-        # Parse other data types using existing logic
         xls = pd.ExcelFile(file_path)
         sheet_mappings = {
             "messages": ["messages", "text messages", "im"],
@@ -102,7 +98,6 @@ class ToolsParser:
         return result
     
     def _parse_magnet_axiom(self, file_path: Path) -> Dict[str, Any]:
-        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
         contacts = []
         normalized_contacts = []
         
@@ -114,7 +109,6 @@ class ToolsParser:
             "metadata": {}
         }
         
-        # Parse other data types using existing logic - only for Excel files
         file_extension = file_path.suffix.lower()
         if file_extension in ['.xlsx', '.xls']:
             try:
@@ -129,13 +123,11 @@ class ToolsParser:
                     if sheet_data:
                         result[data_type] = self._normalize_magnet_axiom_data(sheet_data, data_type)
             except Exception as e:
-                # Skip Excel parsing for non-Excel files
                 pass
         
         return result
     
     def _parse_automatic(self, file_path: Path) -> Dict[str, Any]:
-        # Contact parsing is now handled by method-based parsing in upload_pipeline.py
         contacts = []
         normalized_contacts = []
         
@@ -147,15 +139,11 @@ class ToolsParser:
             "metadata": {}
         }
         
-        # Parse other data types using existing logic
-        # Check file extension to determine parsing method
         file_extension = file_path.suffix.lower()
         
         if file_extension == '.csv':
-            # Handle CSV files
             try:
                 df = pd.read_csv(file_path, dtype=str)
-                # Try to identify data types based on column names
                 if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
                     result["messages"] = df.to_dict('records')
                 elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
@@ -163,35 +151,62 @@ class ToolsParser:
             except Exception as e:
                 print(f"Error parsing CSV file: {e}")
         elif file_extension == '.txt':
-            # Handle TXT files - try to parse as CSV first, then as delimited text
             try:
-                # First try to parse as CSV
-                df = pd.read_csv(file_path, dtype=str, sep=',')
+                # Detect encoding first
+                encoding = 'utf-8'
+                try:
+                    with open(file_path, 'rb') as f:
+                        raw_data = f.read(10000)
+                        if raw_data[:2] == b'\xff\xfe':
+                            encoding = 'utf-16-le'
+                        elif raw_data[:2] == b'\xfe\xff':
+                            encoding = 'utf-16-be'
+                        elif raw_data[:3] == b'\xef\xbb\xbf':
+                            encoding = 'utf-8-sig'
+                        else:
+                            for enc in ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']:
+                                try:
+                                    raw_data.decode(enc)
+                                    encoding = enc
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                except Exception:
+                    encoding = 'utf-8'
+                # Peek first line to detect EnCase hashfile (tab-delimited Name/MD5/SHA1)
+                try:
+                    with open(file_path, 'r', encoding=encoding, errors='ignore') as tf:
+                        head = tf.readline().lower()
+                    if ('\t' in head and 'md5' in head and 'sha1' in head) or head.count('\t') >= 2:
+                        # It's likely a hashfile; skip generic TXT parsing
+                        return result
+                except Exception:
+                    return result
+
+                df = pd.read_csv(file_path, dtype=str, sep=',', encoding=encoding)
                 if len(df.columns) > 1:  # If it has multiple columns, treat as CSV
                     if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
                         result["messages"] = df.to_dict('records')
                     elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
                         result["calls"] = df.to_dict('records')
-                else:
-                    # If single column, try tab-separated
-                    df = pd.read_csv(file_path, dtype=str, sep='\t')
-                    if len(df.columns) > 1:
-                        if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
-                            result["messages"] = df.to_dict('records')
-                        elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
-                            result["calls"] = df.to_dict('records')
                     else:
-                        # If still single column, try space-separated
-                        df = pd.read_csv(file_path, dtype=str, sep=' ')
+                        df = pd.read_csv(file_path, dtype=str, sep='\t', encoding=encoding)
                         if len(df.columns) > 1:
                             if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
                                 result["messages"] = df.to_dict('records')
                             elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
                                 result["calls"] = df.to_dict('records')
-            except Exception as e:
-                print(f"Error parsing TXT file: {e}")
+                        else:
+                            df = pd.read_csv(file_path, dtype=str, sep=' ', encoding=encoding)
+                        if len(df.columns) > 1:
+                            if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
+                                result["messages"] = df.to_dict('records')
+                            elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
+                                result["calls"] = df.to_dict('records')
+            except Exception:
+                # Suppress noisy errors for non-standard TXT formats
+                pass
         else:
-            # Handle Excel files
             try:
                 xls = pd.ExcelFile(file_path)
                 sheet_mappings = {

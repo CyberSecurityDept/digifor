@@ -109,7 +109,7 @@ def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
     for pattern in file_patterns:
         matched_files = glob.glob(pattern)
         if not matched_files:
-            print(f"⚠️  No files found matching: {pattern}")
+            print(f"No files found matching: {pattern}")
             continue
             
         for file_path in matched_files:
@@ -141,7 +141,7 @@ def decrypt_multiple_files(private_key_path, sdp_patterns, output_dir='.'):
     for pattern in sdp_patterns:
         matched_files = glob.glob(pattern)
         if not matched_files:
-            print(f"⚠️  No files found matching: {pattern}")
+            print(f"No files found matching: {pattern}")
             continue
             
         for file_path in matched_files:

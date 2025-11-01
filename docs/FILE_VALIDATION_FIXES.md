@@ -106,7 +106,7 @@ Output akan menampilkan:
 📁 File size: 164,550 bytes
  Number of sheets: 5
 ✅ Contacts sheet found: 'Contacts'
-⚠️  WARNINGS:
+WARNINGS:
    • File size (164,550 bytes) is not a multiple of sector size (512 bytes)
 💡 RECOMMENDATIONS:
    • File may have OLE2 inconsistency. This is common with forensic tools and usually safe to ignore.

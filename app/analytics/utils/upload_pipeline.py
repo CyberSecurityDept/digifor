@@ -230,6 +230,11 @@ class UploadService:
 
             parsed_data = tools_parser.parse_file(Path(original_path_abs), tools)
             
+            self._progress[upload_id].update({
+                "message": "Parsing completed. Starting data insertion...",
+                "percent": 97
+            })
+            
             hashfiles_data = []
             hashfiles_count = 0
             
@@ -271,14 +276,20 @@ class UploadService:
             social_media_count = 0
             if is_social_media:
                 try:
+                    # Only count social media for Excel files (Axiom/Cellebrite use Excel format)
+                    file_ext = Path(original_path_abs).suffix.lower()
                     if tools.lower() in ['axiom', 'magnet axiom']:
-                        social_media_count = sm_parser.count_axiom_social_media(original_path_abs)
+                        if file_ext in ['.xlsx', '.xls']:
+                            social_media_count = sm_parser.count_axiom_social_media(original_path_abs)
                     elif tools.lower() == 'cellebrite':
-                        social_media_count = sm_parser.count_cellebrite_social_media(original_path_abs)
+                        if file_ext in ['.xlsx', '.xls']:
+                            social_media_count = sm_parser.count_cellebrite_social_media(original_path_abs)
                     else:
-                        social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, 1, 1)
-                        social_media_count = len(social_media_result) if social_media_result else 0
+                        if file_ext in ['.xls', '.xlsx']:
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, 1, 1)
+                            social_media_count = len(social_media_result) if social_media_result else 0
                 except Exception as e:
+                    # Silently skip counting for non-standard files
                     pass
 
             rel_path = os.path.relpath(original_path_abs, BASE_DIR)
@@ -322,6 +333,10 @@ class UploadService:
             
             if method == "Social Media Correlation":
                 try:
+                    self._progress[upload_id].update({
+                        "message": "Parsing social media data...",
+                        "percent": 97.5
+                    })
                     if tools == "Magnet Axiom":
                         social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
                     elif tools == "Cellebrite":
@@ -348,12 +363,20 @@ class UploadService:
                     
                     if social_media_result:
                         parsing_result["social_media_count"] = len(social_media_result)
+                    self._progress[upload_id].update({
+                        "message": "Inserting social media data to database...",
+                        "percent": 98.5
+                    })
                 except Exception as e:
                     print(f"Error parsing social media: {e}")
                     parsing_result["social_media_error"] = str(e)
             
             elif method == "Deep communication analytics":
                 try:
+                    self._progress[upload_id].update({
+                        "message": "Parsing chat messages data...",
+                        "percent": 97.5
+                    })
                     if tools == "Magnet Axiom":
                         chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
                     elif tools == "Cellebrite":
@@ -365,12 +388,20 @@ class UploadService:
                     
                     if chat_messages_result:
                         parsing_result["chat_messages_count"] = len(chat_messages_result)
+                    self._progress[upload_id].update({
+                        "message": "Inserting chat messages data to database...",
+                        "percent": 98.5
+                    })
                 except Exception as e:
                     print(f"Error parsing chat messages: {e}")
                     parsing_result["chat_messages_error"] = str(e)
             
             elif method == "Contact Correlation":
                 try:
+                    self._progress[upload_id].update({
+                        "message": "Parsing contacts and calls data...",
+                        "percent": 97.5
+                    })
                     contact_parser = ContactParser(db=sm_db)
                     
                     if tools == "Magnet Axiom":
@@ -390,13 +421,22 @@ class UploadService:
                         parsing_result["contacts_count"] = len(contacts_result)
                     if calls_result:
                         parsing_result["calls_count"] = len(calls_result)
+                    self._progress[upload_id].update({
+                        "message": "Inserting contacts and calls data to database...",
+                        "percent": 98.5
+                    })
                 except Exception as e:
                     print(f"Error parsing contacts/calls: {e}")
                     parsing_result["contacts_calls_error"] = str(e)
             
             elif method == "Hashfile Analytics":
                 try:
-                    hashfile_parser_instance = HashFileParser(db=sm_db)
+                    self._progress[upload_id].update({
+                        "message": "Parsing hashfile data...",
+                        "percent": 97.5
+                    })
+                    # Use the same db session as the rest of the upload process
+                    hashfile_parser_instance = HashFileParser(db=db)
                     
                     is_sample_file = any(pattern in original_filename.lower() for pattern in [
                         'oxygen', 'cellebrite', 'magnet axiom', 'encase', 'hashfile'
@@ -409,8 +449,18 @@ class UploadService:
                     
                     hashfiles_result = hashfile_parser_instance.parse_hashfile(original_path_abs, file_record.id, tools, original_file_path)
                     
+                    # hashfiles_result can be either a count (int) or a list
                     if hashfiles_result:
-                        parsing_result["hashfiles_count"] = len(hashfiles_result)
+                        if isinstance(hashfiles_result, int):
+                            parsing_result["hashfiles_count"] = hashfiles_result
+                        else:
+                            parsing_result["hashfiles_count"] = len(hashfiles_result)
+                    else:
+                        parsing_result["hashfiles_count"] = 0
+                    self._progress[upload_id].update({
+                        "message": "Inserting hashfile data to database...",
+                        "percent": 98.5
+                    })
                 except Exception as e:
                     print(f"Error parsing hashfiles: {e}")
                     parsing_result["hashfiles_error"] = str(e)
@@ -436,6 +486,11 @@ class UploadService:
                     except Exception as e:
                         print(f"Error parsing social media/chat: {e}")
                         parsing_result["social_media_error"] = str(e)
+            
+            self._progress[upload_id].update({
+                "message": "Finalizing database records...",
+                "percent": 99
+            })
             
             actual_social_media_count = db.query(SocialMedia).filter(SocialMedia.file_id == file_record.id).count()
             actual_contacts_count = db.query(Contact).filter(Contact.file_id == file_record.id).count()
@@ -502,10 +557,11 @@ class UploadService:
             
             parsing_result = cleaned_parsing_result
 
+            # Mark as done only after all processes complete
             self._progress[upload_id].update({
                 "percent": 100,
                 "progress_size": format_bytes(total_size),
-                "message": "Upload, encryption & parsing complete",
+                "message": "Upload, parsing & database insertion complete",
                 "done": True,
                 "file_id": file_record.id,
             })

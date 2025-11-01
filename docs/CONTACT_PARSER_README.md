@@ -99,7 +99,7 @@ for contact in normalized_contacts:
 ```
 ✅ Total kontak ditemukan: 57
 ✅ Setelah normalisasi: 47
-📱 Kontak dengan nomor telepon: 17
+Kontak dengan nomor telepon: 17
 ⏰ Kontak dengan info last contacted: 13
 
  Kontak berdasarkan tipe:
@@ -115,7 +115,7 @@ for contact in normalized_contacts:
 ```
 ✅ Total kontak ditemukan: 455
 ✅ Setelah normalisasi: 455
-📱 Kontak dengan nomor telepon: 321
+Kontak dengan nomor telepon: 321
 ⏰ Kontak dengan info last contacted: 0
 ```
 
@@ -123,7 +123,7 @@ for contact in normalized_contacts:
 ```
 ✅ Total kontak ditemukan: 36
 ✅ Setelah normalisasi: 36
-📱 Kontak dengan nomor telepon: 15
+Kontak dengan nomor telepon: 15
 ⏰ Kontak dengan info last contacted: 0
 ```
 

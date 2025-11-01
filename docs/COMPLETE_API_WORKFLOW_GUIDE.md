@@ -9,7 +9,7 @@ Panduan lengkap untuk menggunakan API Forenlytic dari upload file hingga mendapa
 
 1. **📤 Upload File** - Upload forensic reports
 2. **🔍 View Files** - Lihat semua file yang sudah di-upload
-3. **📱 Add Device** - Buat device dengan single file (1 device = 1 file)
+3. **Add Device** - Buat device dengan single file (1 device = 1 file)
 4. ** Create Analytic** - Buat analytic dengan linked devices
 5. **🔗 Contact Correlation** - Jalankan analisis korelasi kontak
 6. **Export PDF** - Export hasil ke PDF
@@ -122,7 +122,7 @@ curl -s "http://localhost:8000/api/v1/analytics/files/all"
 
 ---
 
-## 📱 **STEP 3: ADD DEVICE (1 DEVICE = 1 FILE)**
+## **STEP 3: ADD DEVICE (1 DEVICE = 1 FILE)**
 
 ### **Endpoint:**
 ```
@@ -532,7 +532,7 @@ curl -o "contact_correlation_report.pdf" \
 
 ## 🎯 **KEY FEATURES**
 
-### **📱 Multi-Device Support:**
+### **Multi-Device Support:**
 - Satu analytic bisa menganalisis multiple devices
 - Setiap device bisa punya multiple files
 - Tools selection per file untuk fleksibilitas

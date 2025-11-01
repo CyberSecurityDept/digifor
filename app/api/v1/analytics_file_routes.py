@@ -27,6 +27,7 @@ def format_file_size(size_bytes: int) -> str:
 
 async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, notes: str, type: str, tools: str, file_bytes: bytes, method: str, total_size: int):
     try:
+        # Keep checking progress until done=True
         resp = await upload_service.start_file_upload(
             upload_id=upload_id,
             file=file,
@@ -37,6 +38,18 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             file_bytes=file_bytes,
             method=method,
         )
+
+        # Wait until upload_service marks it as done
+        max_wait = 300  # 5 minutes max wait
+        wait_count = 0
+        while wait_count < max_wait:
+            svc_resp, code = upload_service.get_progress(upload_id)
+            if code == 200:
+                svc_data = svc_resp.get("data", {})
+                if svc_data.get("done"):
+                    break
+            await asyncio.sleep(1)
+            wait_count += 1
 
         if isinstance(resp, dict) and resp.get("status") in (200, "200"):
             data = resp.get("data", {})
@@ -192,7 +205,6 @@ async def upload_data(
             "status": 200,
             "message": "File uploaded, encrypted & parsed successfully",
             "data": {
-                "file_id": None,
                 "upload_id": upload_id,
                 "status_upload": "Pending",
                 "parsing_result": {

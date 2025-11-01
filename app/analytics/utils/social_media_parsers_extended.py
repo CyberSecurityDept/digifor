@@ -6,13 +6,11 @@ from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 
 class SocialMediaParsersExtended:
-    """Extended parsers untuk Axiom dan Cellebrite social media data"""
     
     def __init__(self, db: Session):
         self.db = db
     
     def _clean(self, text: Any) -> Optional[str]:
-        """Clean dan normalize text value"""
         if text is None or pd.isna(text):
             return None
         text = str(text).strip()
@@ -21,7 +19,6 @@ class SocialMediaParsersExtended:
         return text
     
     def _check_existing_social_media(self, acc: Dict[str, Any]) -> bool:
-        """Check apakah social media record sudah ada berdasarkan struktur baru"""
         file_id = acc.get("file_id")
         if not file_id:
             return False
@@ -60,16 +57,10 @@ class SocialMediaParsersExtended:
         return existing is not None
     
     def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        """Validasi data social media sebelum insert. Returns (is_valid, error_message)"""
-        # Cek apakah menggunakan struktur lama, convert ke baru
-        if "platform" in acc:
-            acc = self._convert_old_to_new_structure(acc)
-        
-        # Gunakan validasi struktur baru
+        # Hanya menggunakan struktur baru
         return self._validate_social_media_data_new(acc)
     
     def _validate_social_media_data_new(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        """Validasi data social media dengan struktur baru"""
         if not acc.get("file_id"):
             return False, "Missing file_id"
         
@@ -89,47 +80,10 @@ class SocialMediaParsersExtended:
         
         return True, ""
     
+    # Function deprecated - semua parser sekarang langsung menggunakan struktur baru
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert struktur lama ke struktur baru"""
-        if "platform" not in acc:
-            # Sudah struktur baru
-            return acc
-        
-        new_acc = {
-            "file_id": acc.get("file_id"),
-            "type": acc.get("type"),
-            "source": acc.get("source") or acc.get("source_tool"),
-            "phone_number": acc.get("phone_number"),
-            "full_name": acc.get("full_name"),
-            "account_name": acc.get("account_name"),
-            "whatsapp_id": None,
-            "telegram_id": None,
-            "instagram_id": None,
-            "X_id": None,
-            "facebook_id": None,
-            "tiktok_id": None,
-            "location": acc.get("location"),
-            "sheet_name": acc.get("sheet_name"),
-        }
-        
-        # Map platform dan account_id ke field yang sesuai
-        platform = acc.get("platform", "").lower()
-        account_id = acc.get("account_id") or acc.get("user_id")
-        
-        if platform == "instagram":
-            new_acc["instagram_id"] = account_id
-        elif platform == "facebook":
-            new_acc["facebook_id"] = account_id
-        elif platform == "whatsapp":
-            new_acc["whatsapp_id"] = account_id
-        elif platform in ["x", "twitter"]:
-            new_acc["X_id"] = account_id
-        elif platform == "telegram":
-            new_acc["telegram_id"] = account_id
-        elif platform == "tiktok":
-            new_acc["tiktok_id"] = account_id
-        
-        return new_acc
+        # Sudah tidak digunakan - semua parser sekarang langsung menggunakan struktur baru
+        return acc
 
     def _extract_email(self, phones_emails_field: Optional[str]) -> Optional[str]:
         if not phones_emails_field:
@@ -348,25 +302,21 @@ class SocialMediaParsersExtended:
             seen_accounts = set()
             
             for acc in results:
-                # Generate unique key berdasarkan struktur (lama atau baru)
-                if "platform" in acc:
-                    account_key = f"{acc.get('platform', '')}_{acc.get('account_id', '')}_{acc.get('account_name', '')}"
-                else:
-                    # Struktur baru - gunakan platform IDs
-                    platform_ids = []
-                    if acc.get('instagram_id'):
-                        platform_ids.append(f"ig:{acc['instagram_id']}")
-                    if acc.get('facebook_id'):
-                        platform_ids.append(f"fb:{acc['facebook_id']}")
-                    if acc.get('whatsapp_id'):
-                        platform_ids.append(f"wa:{acc['whatsapp_id']}")
-                    if acc.get('telegram_id'):
-                        platform_ids.append(f"tg:{acc['telegram_id']}")
-                    if acc.get('X_id'):
-                        platform_ids.append(f"x:{acc['X_id']}")
-                    if acc.get('tiktok_id'):
-                        platform_ids.append(f"tt:{acc['tiktok_id']}")
-                    account_key = f"{acc.get('account_name', '')}_{'_'.join(platform_ids)}"
+                # Generate unique key menggunakan struktur baru (platform IDs)
+                platform_ids = []
+                if acc.get('instagram_id'):
+                    platform_ids.append(f"ig:{acc['instagram_id']}")
+                if acc.get('facebook_id'):
+                    platform_ids.append(f"fb:{acc['facebook_id']}")
+                if acc.get('whatsapp_id'):
+                    platform_ids.append(f"wa:{acc['whatsapp_id']}")
+                if acc.get('telegram_id'):
+                    platform_ids.append(f"tg:{acc['telegram_id']}")
+                if acc.get('X_id'):
+                    platform_ids.append(f"x:{acc['X_id']}")
+                if acc.get('tiktok_id'):
+                    platform_ids.append(f"tt:{acc['tiktok_id']}")
+                account_key = f"{acc.get('account_name', '')}_{'_'.join(platform_ids)}"
                 
                 if account_key not in seen_accounts:
                     seen_accounts.add(account_key)
@@ -390,32 +340,32 @@ class SocialMediaParsersExtended:
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
                             invalid_count += 1
-                            if invalid_count <= 5:  # Log first 5 invalid records
-                                # Convert untuk logging
-                                log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
+                            if invalid_count <= 10:  # Log first 10 invalid records
+                                # Log untuk debugging
                                 platform_info = []
-                                if log_acc.get('instagram_id'):
-                                    platform_info.append(f"IG:{log_acc['instagram_id']}")
-                                if log_acc.get('facebook_id'):
-                                    platform_info.append(f"FB:{log_acc['facebook_id']}")
-                                if log_acc.get('whatsapp_id'):
-                                    platform_info.append(f"WA:{log_acc['whatsapp_id']}")
-                                if log_acc.get('X_id'):
-                                    platform_info.append(f"X:{log_acc['X_id']}")
+                                if acc.get('instagram_id'):
+                                    platform_info.append(f"IG:{acc['instagram_id']}")
+                                if acc.get('facebook_id'):
+                                    platform_info.append(f"FB:{acc['facebook_id']}")
+                                if acc.get('whatsapp_id'):
+                                    platform_info.append(f"WA:{acc['whatsapp_id']}")
+                                if acc.get('telegram_id'):
+                                    platform_info.append(f"TG:{acc['telegram_id']}")
+                                if acc.get('X_id'):
+                                    platform_info.append(f"X:{acc['X_id']}")
+                                if acc.get('tiktok_id'):
+                                    platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
-                        
-                        # Convert ke struktur baru jika perlu
-                        if "platform" in acc:
-                            acc = self._convert_old_to_new_structure(acc)
                         
                         # Check duplicate menggunakan struktur baru
                         if self._check_existing_social_media(acc):
                             skipped_count += 1
                             continue
                         
-                            self.db.add(SocialMedia(**acc))
+                        # Simpan ke DB
+                        self.db.add(SocialMedia(**acc))
                         batch_saved += 1
                     
                     self.db.commit()
@@ -518,7 +468,12 @@ class SocialMediaParsersExtended:
             print(f"📊 Total sheets available: {len(xls.sheet_names)}")
             print(f"📋 Sheet names: {xls.sheet_names}")
             
-            if 'Social Media' in xls.sheet_names:
+            # Prioritas: Jika ada sheet "Contacts", hanya parse Contacts saja dan skip sheet lain
+            if 'Contacts' in xls.sheet_names:
+                print("🔍 Detected Contacts sheet - parsing Contacts only (skipping other sheets)")
+                results.extend(self._parse_cellebrite_contacts_sheet(file_path, 'Contacts', file_id))
+            
+            elif 'Social Media' in xls.sheet_names:
                 print("🔍 Detected Cellebrite format - parsing Social Media sheet")
                 # Parse all sheets with enhanced detection
                 for sheet_name in xls.sheet_names:
@@ -528,8 +483,6 @@ class SocialMediaParsersExtended:
                         results.extend(self._parse_cellebrite_social_media_sheet(file_path, sheet_name, file_id))
                     elif sheet_name == 'User Accounts':
                         results.extend(self._parse_cellebrite_user_accounts_sheet(file_path, sheet_name, file_id))
-                    elif sheet_name == 'Contacts':
-                        results.extend(self._parse_cellebrite_contacts_sheet(file_path, sheet_name, file_id))
                     elif sheet_name == 'Chats':
                         results.extend(self._parse_cellebrite_chats_sheet(file_path, sheet_name, file_id))
                     else:
@@ -553,7 +506,23 @@ class SocialMediaParsersExtended:
             seen_accounts = set()
             
             for acc in results:
-                account_key = f"{acc['platform']}_{acc['account_id']}_{acc['account_name']}_{acc['file_id']}"
+                # Generate unique key menggunakan struktur baru (platform IDs)
+                platform_ids = []
+                if acc.get('instagram_id'):
+                    platform_ids.append(f"ig:{acc['instagram_id']}")
+                if acc.get('facebook_id'):
+                    platform_ids.append(f"fb:{acc['facebook_id']}")
+                if acc.get('whatsapp_id'):
+                    platform_ids.append(f"wa:{acc['whatsapp_id']}")
+                if acc.get('telegram_id'):
+                    platform_ids.append(f"tg:{acc['telegram_id']}")
+                if acc.get('X_id'):
+                    platform_ids.append(f"x:{acc['X_id']}")
+                if acc.get('tiktok_id'):
+                    platform_ids.append(f"tt:{acc['tiktok_id']}")
+                platform_str = '_'.join(platform_ids) if platform_ids else 'unknown'
+                account_key = f"{platform_str}_{acc.get('account_name', '')}_{acc.get('file_id', '')}"
+                
                 if account_key not in seen_accounts:
                     seen_accounts.add(account_key)
                     unique_results.append(acc)
@@ -577,32 +546,32 @@ class SocialMediaParsersExtended:
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
                             invalid_count += 1
-                            if invalid_count <= 5:  # Log first 5 invalid records
-                                # Convert untuk logging
-                                log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
+                            if invalid_count <= 10:  # Log first 10 invalid records
+                                # Log untuk debugging
                                 platform_info = []
-                                if log_acc.get('instagram_id'):
-                                    platform_info.append(f"IG:{log_acc['instagram_id']}")
-                                if log_acc.get('facebook_id'):
-                                    platform_info.append(f"FB:{log_acc['facebook_id']}")
-                                if log_acc.get('whatsapp_id'):
-                                    platform_info.append(f"WA:{log_acc['whatsapp_id']}")
-                                if log_acc.get('X_id'):
-                                    platform_info.append(f"X:{log_acc['X_id']}")
+                                if acc.get('instagram_id'):
+                                    platform_info.append(f"IG:{acc['instagram_id']}")
+                                if acc.get('facebook_id'):
+                                    platform_info.append(f"FB:{acc['facebook_id']}")
+                                if acc.get('whatsapp_id'):
+                                    platform_info.append(f"WA:{acc['whatsapp_id']}")
+                                if acc.get('telegram_id'):
+                                    platform_info.append(f"TG:{acc['telegram_id']}")
+                                if acc.get('X_id'):
+                                    platform_info.append(f"X:{acc['X_id']}")
+                                if acc.get('tiktok_id'):
+                                    platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
-                        
-                        # Convert ke struktur baru jika perlu
-                        if "platform" in acc:
-                            acc = self._convert_old_to_new_structure(acc)
                         
                         # Check duplicate menggunakan struktur baru
                         if self._check_existing_social_media(acc):
                             skipped_count += 1
                             continue
                         
-                            self.db.add(SocialMedia(**acc))
+                        # Simpan ke DB
+                        self.db.add(SocialMedia(**acc))
                         batch_saved += 1
                     
                     self.db.commit()
@@ -621,6 +590,9 @@ class SocialMediaParsersExtended:
                 print(f"  ({skipped_count} records skipped - already exist)")
             if invalid_count > 0:
                 print(f"  ({invalid_count} records skipped - invalid data)")
+            
+            # Ensure commit is completed
+            self.db.commit()
             
         except Exception as e:
             print(f"Error parsing Cellebrite social media: {e}")
@@ -658,14 +630,17 @@ class SocialMediaParsersExtended:
                         account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
                         
                         acc = {
-                            "platform": "instagram",
+                            "file_id": file_id,
+                            "source": source,
                             "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
                             "full_name": account_name,
-                            "source_tool": "Cellebrite",
+                            "instagram_id": user_id,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "X_id": None,
+                            "facebook_id": None,
+                            "tiktok_id": None,
                             "sheet_name": sheet_name,
-                            "file_id": file_id
                         }
                         results.append(acc)
                 
@@ -676,14 +651,17 @@ class SocialMediaParsersExtended:
                         account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
                         
                         acc = {
-                            "platform": "facebook",
+                            "file_id": file_id,
+                            "source": source,
                             "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
                             "full_name": account_name,
-                            "source_tool": "Cellebrite",
+                            "facebook_id": user_id,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "instagram_id": None,
+                            "X_id": None,
+                            "tiktok_id": None,
                             "sheet_name": sheet_name,
-                            "file_id": file_id
                         }
                         results.append(acc)
                 
@@ -694,14 +672,17 @@ class SocialMediaParsersExtended:
                         account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
                         
                         acc = {
-                            "platform": "x",
+                            "file_id": file_id,
+                            "source": source,
                             "account_name": account_name,
-                            "account_id": user_id,
-                            "user_id": user_id,
                             "full_name": account_name,
-                            "source_tool": "Cellebrite",
+                            "X_id": user_id,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "instagram_id": None,
+                            "facebook_id": None,
+                            "tiktok_id": None,
                             "sheet_name": sheet_name,
-                            "file_id": file_id
                         }
                         results.append(acc)
             
@@ -740,14 +721,17 @@ class SocialMediaParsersExtended:
                         if tiktok_match:
                             username = tiktok_match.group(1)
                             acc = {
-                                "platform": "tiktok",
+                                "file_id": file_id,
+                                "source": "TikTok",
                                 "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
                                 "full_name": username,
-                                "source_tool": "Cellebrite",
+                                "tiktok_id": username,
+                                "whatsapp_id": None,
+                                "telegram_id": None,
+                                "instagram_id": None,
+                                "X_id": None,
+                                "facebook_id": None,
                                 "sheet_name": sheet_name,
-                                "file_id": file_id
                             }
                             results.append(acc)
                     
@@ -758,36 +742,44 @@ class SocialMediaParsersExtended:
                         if instagram_match:
                             username = instagram_match.group(1)
                             acc = {
-                                "platform": "instagram",
+                                "file_id": file_id,
+                                "source": "Instagram",
                                 "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
                                 "full_name": username,
-                                "source_tool": "Cellebrite",
+                                "instagram_id": username,
+                                "whatsapp_id": None,
+                                "telegram_id": None,
+                                "X_id": None,
+                                "facebook_id": None,
+                                "tiktok_id": None,
                                 "sheet_name": sheet_name,
-                                "file_id": file_id
                             }
                             results.append(acc)
                     
                     # Check for WhatsApp mentions
                     elif 'whatsapp' in col_value_lower:
                         # Extract WhatsApp number
+                        phone_number = None
                         if '@s.whatsapp.net' in col_value:
                             whatsapp_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', col_value)
                             if whatsapp_match:
                                 phone_number = whatsapp_match.group(1)
-                                col_value = col_value.replace('@s.whatsapp.net', '')
-                        acc = {
-                            "platform": "whatsapp",
-                            "account_name": phone_number,
-                            "account_id": phone_number,
-                            "user_id": phone_number,
-                            "full_name": phone_number,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
-                            "file_id": file_id
-                        }
-                        results.append(acc)
+                        if phone_number:
+                            acc = {
+                                "file_id": file_id,
+                                "source": "WhatsApp",
+                                "account_name": phone_number,
+                                "full_name": phone_number,
+                                "whatsapp_id": phone_number,
+                                "phone_number": phone_number,
+                                "telegram_id": None,
+                                "instagram_id": None,
+                                "X_id": None,
+                                "facebook_id": None,
+                                "tiktok_id": None,
+                                "sheet_name": sheet_name,
+                            }
+                            results.append(acc)
                     
                     # Check for Telegram mentions
                     elif 'telegram' in col_value_lower:
@@ -796,14 +788,17 @@ class SocialMediaParsersExtended:
                         if telegram_match:
                             username = telegram_match.group(1)
                             acc = {
-                                "platform": "telegram",
+                                "file_id": file_id,
+                                "source": "Telegram",
                                 "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
                                 "full_name": username,
-                                "source_tool": "Cellebrite",
+                                "telegram_id": username,
+                                "whatsapp_id": None,
+                                "instagram_id": None,
+                                "X_id": None,
+                                "facebook_id": None,
+                                "tiktok_id": None,
                                 "sheet_name": sheet_name,
-                                "file_id": file_id
                             }
                             results.append(acc)
                     
@@ -814,14 +809,17 @@ class SocialMediaParsersExtended:
                         if twitter_match:
                             username = twitter_match.group(1)
                             acc = {
-                                "platform": "x",
+                                "file_id": file_id,
+                                "source": "X (Twitter)",
                                 "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
                                 "full_name": username,
-                                "source_tool": "Cellebrite",
+                                "X_id": username,
+                                "whatsapp_id": None,
+                                "telegram_id": None,
+                                "instagram_id": None,
+                                "facebook_id": None,
+                                "tiktok_id": None,
                                 "sheet_name": sheet_name,
-                                "file_id": file_id
                             }
                             results.append(acc)
                     
@@ -832,14 +830,17 @@ class SocialMediaParsersExtended:
                         if facebook_match:
                             username = facebook_match.group(1)
                             acc = {
-                                "platform": "facebook",
+                                "file_id": file_id,
+                                "source": "Facebook",
                                 "account_name": username,
-                                "account_id": username,
-                                "user_id": username,
                                 "full_name": username,
-                                "source_tool": "Cellebrite",
+                                "facebook_id": username,
+                                "whatsapp_id": None,
+                                "telegram_id": None,
+                                "instagram_id": None,
+                                "X_id": None,
+                                "tiktok_id": None,
                                 "sheet_name": sheet_name,
-                                "file_id": file_id
                             }
                             results.append(acc)
             
@@ -879,17 +880,20 @@ class SocialMediaParsersExtended:
                 
                 # Determine platform based on service type and source
                 platform = None
-                if 'instagram' in service_type.lower() or 'instagram' in source.lower():
+                service_type_lower = (service_type or '').lower()
+                source_lower = (source or '').lower()
+                
+                if 'instagram' in service_type_lower or 'instagram' in source_lower:
                     platform = 'instagram'
-                elif 'twitter' in service_type.lower() or 'twitter' in source.lower():
+                elif 'twitter' in service_type_lower or 'twitter' in source_lower or 'x' in service_type_lower or 'x' in source_lower:
                     platform = 'x'
-                elif 'telegram' in service_type.lower() or 'telegram' in source.lower():
+                elif 'telegram' in service_type_lower or 'telegram' in source_lower:
                     platform = 'telegram'
-                elif 'whatsapp' in service_type.lower() or 'whatsapp' in source.lower():
+                elif 'whatsapp' in service_type_lower or 'whatsapp' in source_lower:
                     platform = 'whatsapp'
-                elif 'facebook' in service_type.lower() or 'facebook' in source.lower():
+                elif 'facebook' in service_type_lower or 'facebook' in source_lower:
                     platform = 'facebook'
-                elif 'tiktok' in service_type.lower() or 'tiktok' in source.lower():
+                elif 'tiktok' in service_type_lower or 'tiktok' in source_lower:
                     platform = 'tiktok'
                 
                 if platform:
@@ -950,19 +954,37 @@ class SocialMediaParsersExtended:
                                 user_id = match.group(1).strip()
                                 break
                     
+                    # Build account record dengan struktur baru (tanpa platform key)
                     acc = {
-                        'platform': platform,
-                        'account_name': username,
-                        'account_id': user_id or username,
-                        'user_id': user_id or username,
-                        'full_name': account_name if account_name and account_name.lower() != 'n/a' else username,
-                        'phone_number': phone_number,
-                        'email': email,
-                        'profile_picture_url': profile_picture_url,
-                        'source_tool': 'Cellebrite',
-                        'sheet_name': sheet_name,
-                        'file_id': file_id,
+                        "file_id": file_id,
+                        "source": source or service_type,
+                        "account_name": username,
+                        "full_name": account_name if account_name and account_name.lower() != 'n/a' else username,
+                        "phone_number": phone_number,
+                        "sheet_name": sheet_name,
+                        # Set platform_id sesuai dengan platform yang terdeteksi
+                        "whatsapp_id": None,
+                        "telegram_id": None,
+                        "instagram_id": None,
+                        "X_id": None,
+                        "facebook_id": None,
+                        "tiktok_id": None,
                     }
+                    
+                    # Set platform_id yang sesuai
+                    if platform == 'instagram':
+                        acc['instagram_id'] = user_id or username
+                    elif platform == 'facebook':
+                        acc['facebook_id'] = user_id or username
+                    elif platform == 'whatsapp':
+                        acc['whatsapp_id'] = user_id or username
+                    elif platform == 'x':
+                        acc['X_id'] = user_id or username
+                    elif platform == 'telegram':
+                        acc['telegram_id'] = user_id or username
+                    elif platform == 'tiktok':
+                        acc['tiktok_id'] = user_id or username
+                    
                     results.append(acc)
             
             print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
@@ -984,125 +1006,187 @@ class SocialMediaParsersExtended:
                 df = df.drop(df.index[0])
                 df = df.reset_index(drop=True)
             
+            # Validasi kolom yang diperlukan
+            required_columns = ['Source', 'Entries']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                print(f"  Missing required columns in Contacts sheet: {missing_columns}")
+                return results
+            
+            # Filter rows dengan Source yang relevan
+            social_media_keywords = ['Instagram', 'WhatsApp', 'Twitter', 'Facebook', 'Telegram', 'Tiktok', 'X']
+            
             for _, row in df.iterrows():
                 if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
                 
-                name = self._clean(row.get('Name', ''))
-                entries = self._clean(row.get('Entries', ''))
                 source = self._clean(row.get('Source', ''))
+                name = self._clean(row.get('Name', ''))  # Kolom Name untuk full_name
+                entries = self._clean(row.get('Entries', ''))
                 
-                if not name or name.lower() == 'n/a':
+                if not source:
                     continue
                 
-                # Check for WhatsApp contacts
-                if '@s.whatsapp.net' in entries:
-                    whatsapp_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', entries)
-                    if whatsapp_match:
-                        phone_number = whatsapp_match.group(1)
-                        entries = entries.replace('@s.whatsapp.net', '')
-                        acc = {
-                            'platform': 'whatsapp',
-                            'account_name': phone_number,
-                            'account_id': phone_number,
-                            'user_id': phone_number,
-                            'full_name': name,
-                            'phone_number': phone_number,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                source_lower = (source or '').lower()
+                platform = None
+                platform_id_field = None
                 
-                # Check for Instagram contacts
-                elif 'instagram' in entries.lower() or source.lower() == 'instagram':
-                    instagram_match = re.search(r'instagram\.com/([a-zA-Z0-9_.]+)', entries)
-                    if instagram_match:
-                        username = instagram_match.group(1)
-                        acc = {
-                            'platform': 'instagram',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                if 'instagram' in source_lower:
+                    platform = 'instagram'
+                    platform_id_field = 'instagram_id'
+                elif 'whatsapp' in source_lower:
+                    platform = 'whatsapp'
+                    platform_id_field = 'whatsapp_id'
+                elif 'twitter' in source_lower or 'x' in source_lower:
+                    platform = 'x'
+                    platform_id_field = 'X_id'
+                elif 'facebook' in source_lower:
+                    platform = 'facebook'
+                    platform_id_field = 'facebook_id'
+                elif 'telegram' in source_lower:
+                    platform = 'telegram'
+                    platform_id_field = 'telegram_id'
+                elif 'tiktok' in source_lower:
+                    platform = 'tiktok'
+                    platform_id_field = 'tiktok_id'
                 
-                # Check for Facebook contacts
-                elif 'facebook' in entries.lower() or source.lower() == 'facebook':
-                    facebook_match = re.search(r'Facebook Id: ([0-9]+)', entries)
-                    if facebook_match:
-                        facebook_id = facebook_match.group(1)
-                        acc = {
-                            'platform': 'facebook',
-                            'account_name': facebook_id,
-                            'account_id': facebook_id,
-                            'user_id': facebook_id,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                if not platform:
+                    continue
                 
-                # Check for Twitter contacts
-                elif 'twitter' in entries.lower() or source.lower() == 'twitter':
-                    twitter_match = re.search(r'twitter\.com/([a-zA-Z0-9_]+)', entries)
-                    if twitter_match:
-                        username = twitter_match.group(1)
-                        acc = {
-                            'platform': 'x',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                account_name = None
+                platform_id = None
+                phone_number = None
                 
-                # Check for TikTok contacts
-                elif 'tiktok' in entries.lower():
-                    tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', entries)
-                    if tiktok_match:
-                        username = tiktok_match.group(1)
-                        acc = {
-                            'platform': 'tiktok',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                if entries:
+                    username_match = re.search(r'User\s+ID-Username[:\s]+([^\s\n\r]+)', entries, re.IGNORECASE)
+                    if username_match:
+                        account_name = username_match.group(1).strip()
+                        print(f"  Found account_name from Entries: {account_name}")
+                    
+                    # Handling khusus untuk WhatsApp
+                    if platform == 'whatsapp':
+                        whatsapp_user_id_match = re.search(r'User\s+ID-WhatsApp\s+User\s+Id[:\s]+([^\s\n\r]+)', entries, re.IGNORECASE)
+                        if whatsapp_user_id_match:
+                            whatsapp_user_id_full = whatsapp_user_id_match.group(1).strip()
+                            
+                            # Skip WhatsApp Group ID (format: 628176601011-1596964424@g.us)
+                            # Group ID memiliki tanda minus dan akhiran @g.us
+                            if '@g.us' in whatsapp_user_id_full or '-' in whatsapp_user_id_full.replace('@s.whatsapp.net', ''):
+                                print(f"  Skipping WhatsApp Group ID: {whatsapp_user_id_full} (not individual user)")
+                                platform_id = None
+                            else:
+                                whatsapp_id_clean = whatsapp_user_id_full.replace('@s.whatsapp.net', '').strip()
+                                platform_id = whatsapp_id_clean
+                                print(f"  Found WhatsApp User Id from Entries: {platform_id}")
+                        
+                        phone_patterns = [
+                            r'Phone-Mobile[:\s]+([^\s\n\r]+)',
+                            r'Phone[:\s]+([^\s\n\r]+)',
+                            r'Mobile[:\s]+([^\s\n\r]+)',
+                            r'Phone\s+Number[:\s]+([^\s\n\r]+)',
+                        ]
+                        for phone_pattern in phone_patterns:
+                            phone_match = re.search(phone_pattern, entries, re.IGNORECASE)
+                            if phone_match:
+                                phone_number = phone_match.group(1).strip()
+                                print(f"  Found phone_number from Entries: {phone_number}")
+                                break
+                        
+                        if not phone_number and platform_id:
+                            phone_number = platform_id
+                            print(f"  Using WhatsApp User Id as phone_number: {phone_number}")
+                    
+                    elif platform == 'facebook':
+                        # Pattern Facebook: "User ID-Facebook Id: 100089320515687" → facebook_id = "100089320515687"
+                        facebook_id_match = re.search(r'User\s+ID-Facebook\s+Id[:\s]+([^\s\n\r]+)', entries, re.IGNORECASE)
+                        if facebook_id_match:
+                            platform_id = facebook_id_match.group(1).strip()
+                            print(f"  Found Facebook Id from Entries: {platform_id}")
+                    
+                    else:
+                        user_id_match = re.search(r'User\s+ID-User\s+ID[:\s]+([^\s\n\r]+)', entries, re.IGNORECASE)
+                        if not user_id_match:
+                            user_id_match = re.search(r'User\s+ID-(?!Username|WhatsApp|Facebook)[:\s]+(\d+)', entries, re.IGNORECASE)
+                        
+                        if user_id_match:
+                            platform_id = user_id_match.group(1).strip()
+                            print(f"  Found platform_id from Entries: {platform_id} (platform: {platform})")
+                            if not account_name:
+                                print(f"  Note: account_name will be null (only User ID found, no User ID-Username)")
                 
-                # Check for Telegram contacts
-                elif 'telegram' in entries.lower() or source.lower() == 'telegram':
-                    telegram_match = re.search(r'@([a-zA-Z0-9_]+)', entries)
-                    if telegram_match:
-                        username = telegram_match.group(1)
-                        acc = {
-                            'platform': 'telegram',
-                            'account_name': username,
-                            'account_id': username,
-                            'user_id': username,
-                            'full_name': name,
-                            'source_tool': 'Cellebrite',
-                            'sheet_name': sheet_name,
-                            'file_id': file_id,
-                        }
-                        results.append(acc)
+                full_name = name if name and name.lower() not in ['nan', 'none', 'null', ''] else None
+                
+                if platform == 'whatsapp':
+                    phone_number_valid = False
+                    if phone_number:
+                        # Clean phone number untuk validasi (hapus +, spasi, dll)
+                        phone_clean = phone_number.replace('+', '').replace('-', '').replace(' ', '').replace('(', '').replace(')', '').strip()
+                        # Skip jika phone_number adalah "0" atau terlalu pendek (< 10 digit)
+                        if phone_clean and phone_clean != '0' and len(phone_clean) >= 10:
+                            phone_number_valid = True
+                    
+                    # Kondisi SKIP:
+                    # 1. phone_number tidak ada atau tidak valid ATAU
+                    # 2. whatsapp_id tidak ada
+                    if not phone_number_valid or not platform_id:
+                        missing_fields = []
+                        if not phone_number_valid:
+                            if phone_number:
+                                missing_fields.append(f"phone_number (invalid: '{phone_number}' - too short or '0')")
+                            else:
+                                missing_fields.append("phone_number")
+                        if not platform_id:
+                            missing_fields.append("whatsapp_id")
+                        print(f"  Skipping WhatsApp row: Missing required fields: {', '.join(missing_fields)}")
+                        continue
+                    
+                    # Jika sampai sini, berarti phone_number valid DAN whatsapp_id ada
+                    # Name tidak wajib, boleh None (akan tetap INSERT)
+                
+                # Skip jika tidak ada account_name dan platform_id (untuk platform selain WhatsApp)
+                # Minimal harus ada salah satu (account_name atau platform_id)
+                # Jika hanya ada platform_id tanpa account_name, tetap insert dengan account_name = null
+                if platform != 'whatsapp' and not account_name and not platform_id:
+                    print(f"  Skipping row: No account_name and no platform_id found in Entries")
+                    continue
+                
+                # Jika full_name kosong tapi ada account_name, tetap insert dengan account_name
+                # (account_name sudah di-extract dari Entries pattern "User ID-Username: Bandung_ybr")
+                
+                # Build account record dengan struktur baru (bukan platform-based)
+                # account_name bisa null jika hanya ada User ID-User ID tanpa User ID-Username
+                acc = {
+                    "file_id": file_id,
+                    "source": source,  # Source dari kolom Source
+                    "full_name": full_name,  # Dari kolom Name
+                    "account_name": account_name,  # Dari pattern "User ID-Username: <username>" di Entries, atau None jika hanya ada User ID-User ID
+                    "phone_number": phone_number,  # Dari pattern "Phone-Mobile: <number>" atau dari WhatsApp User Id jika WhatsApp
+                    "sheet_name": sheet_name,
+                    # Set platform_id sesuai dengan platform yang terdeteksi
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
+                }
+                
+                # Set platform_id yang sesuai (misal: telegram_id = "5728485731" jika Source=Telegram dan ada User ID-User ID: 5728485731)
+                if platform_id:
+                    acc[platform_id_field] = platform_id
+                    print(f"  Inserting record: account_name={account_name}, {platform_id_field}={platform_id}, phone_number={phone_number}")
+                else:
+                    print(f"  Inserting record: account_name={account_name}, phone_number={phone_number}")
+                
+                results.append(acc)
             
-            print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
+            if results:
+                print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
             
         except Exception as e:
             print(f"Error parsing {sheet_name} sheet: {e}")
+            import traceback
+            traceback.print_exc()
         
         return results
     
@@ -1141,14 +1225,17 @@ class SocialMediaParsersExtended:
                                     username = ' '.join(parts[1:]).replace('(owner)', '').strip()
                                     
                                     acc = {
-                                        "platform": "instagram",
-                                        "account_name": username,
-                                        "account_id": user_id,
-                                        "user_id": user_id,
-                                        "full_name": username,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
                                         "file_id": file_id,
+                                        "source": source,
+                                        "account_name": username,
+                                        "full_name": username,
+                                        "instagram_id": user_id,
+                                        "whatsapp_id": None,
+                                        "telegram_id": None,
+                                        "X_id": None,
+                                        "facebook_id": None,
+                                        "tiktok_id": None,
+                                        "sheet_name": sheet_name,
                                     }
                                     results.append(acc)
                 
@@ -1164,14 +1251,18 @@ class SocialMediaParsersExtended:
                                     phone_number = whatsapp_match.group(1)
                                     line = line.replace('@s.whatsapp.net', '')
                                     acc = {
-                                        "platform": "whatsapp",
-                                        "account_name": phone_number,
-                                        "account_id": phone_number,
-                                        "user_id": phone_number,
-                                        "full_name": phone_number,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
                                         "file_id": file_id,
+                                        "source": source,
+                                        "account_name": phone_number,
+                                        "full_name": phone_number,
+                                        "whatsapp_id": phone_number,
+                                        "phone_number": phone_number,
+                                        "telegram_id": None,
+                                        "instagram_id": None,
+                                        "X_id": None,
+                                        "facebook_id": None,
+                                        "tiktok_id": None,
+                                        "sheet_name": sheet_name,
                                     }
                                     results.append(acc)
                 
@@ -1188,14 +1279,17 @@ class SocialMediaParsersExtended:
                                     username = ' '.join(parts[1:]).replace('(owner)', '').strip()
                                     
                                     acc = {
-                                        "platform": "telegram",
-                                        "account_name": username,
-                                        "account_id": user_id,
-                                        "user_id": user_id,
-                                        "full_name": username,
-                                        "source_tool": "Cellebrite",
-                                        "sheet_name": sheet_name,
                                         "file_id": file_id,
+                                        "source": source,
+                                        "account_name": username,
+                                        "full_name": username,
+                                        "telegram_id": user_id,
+                                        "whatsapp_id": None,
+                                        "instagram_id": None,
+                                        "X_id": None,
+                                        "facebook_id": None,
+                                        "tiktok_id": None,
+                                        "sheet_name": sheet_name,
                                     }
                                     results.append(acc)
                 
@@ -1205,14 +1299,17 @@ class SocialMediaParsersExtended:
                     if tiktok_match:
                         username = tiktok_match.group(1)
                         acc = {
-                            "platform": "tiktok",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
                             "file_id": file_id,
+                            "source": "TikTok",
+                            "account_name": username,
+                            "full_name": username,
+                            "tiktok_id": username,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "instagram_id": None,
+                            "X_id": None,
+                            "facebook_id": None,
+                            "sheet_name": sheet_name,
                         }
                         results.append(acc)
                 
@@ -1222,14 +1319,17 @@ class SocialMediaParsersExtended:
                     if facebook_match:
                         username = facebook_match.group(1)
                         acc = {
-                            "platform": "facebook",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
                             "file_id": file_id,
+                            "source": "Facebook",
+                            "account_name": username,
+                            "full_name": username,
+                            "facebook_id": username,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "instagram_id": None,
+                            "X_id": None,
+                            "tiktok_id": None,
+                            "sheet_name": sheet_name,
                         }
                         results.append(acc)
                 
@@ -1239,14 +1339,17 @@ class SocialMediaParsersExtended:
                     if twitter_match:
                         username = twitter_match.group(1)
                         acc = {
-                            "platform": "x",
-                            "account_name": username,
-                            "account_id": username,
-                            "user_id": username,
-                            "full_name": username,
-                            "source_tool": "Cellebrite",
-                            "sheet_name": sheet_name,
                             "file_id": file_id,
+                            "source": "X (Twitter)",
+                            "account_name": username,
+                            "full_name": username,
+                            "X_id": username,
+                            "whatsapp_id": None,
+                            "telegram_id": None,
+                            "instagram_id": None,
+                            "facebook_id": None,
+                            "tiktok_id": None,
+                            "sheet_name": sheet_name,
                         }
                         results.append(acc)
             
@@ -1314,17 +1417,18 @@ class SocialMediaParsersExtended:
                 account_id_value = user_id_value if user_id_value else user_name_value
                 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username yang bisa berubah
-                    "account_id": account_id_value,  # User ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
-                    "full_name": self._clean(row.get('Name')),
-                    "following": following_count,
-                    "followers": followers_count,
-                    "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Instagram Profiles",
                     "file_id": file_id,
+                    "source": "Instagram",
+                    "account_name": user_name_value,  # Username yang bisa berubah
+                    "full_name": self._clean(row.get('Name')),
+                    "phone_number": self._clean(row.get('Phone Number')),
+                    "sheet_name": "Instagram Profiles",
+                    "instagram_id": account_id_value,  # User ID (numeric) sebagai identifier unik
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1354,17 +1458,17 @@ class SocialMediaParsersExtended:
                 account_id_value = user_id_value if user_id_value else user_name_value
                 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username
-                    "account_id": account_id_value,  # ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # ID (numeric)
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": following_count,
-                    "followers": None,
-                    "phone_number": None,
-                    "source_tool": "Axiom",
-                    "sheet_name": "Android Instagram Following",
                     "file_id": file_id,
+                    "source": "Instagram",
+                    "account_name": user_name_value,  # Username
+                    "full_name": self._clean(row.get('Full Name')),
+                    "sheet_name": "Android Instagram Following",
+                    "instagram_id": account_id_value,  # ID (numeric) sebagai identifier unik
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1390,17 +1494,17 @@ class SocialMediaParsersExtended:
                 account_id_value = user_id_value if user_id_value else user_name_value
                 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username
-                    "account_id": account_id_value,  # ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # ID (numeric)
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": None,
-                    "followers": None,
-                    "phone_number": None,
-                    "source_tool": "Axiom",
-                    "sheet_name": "Android Instagram Users",
                     "file_id": file_id,
+                    "source": "Instagram",
+                    "account_name": user_name_value,  # Username
+                    "full_name": self._clean(row.get('Full Name')),
+                    "sheet_name": "Android Instagram Users",
+                    "instagram_id": account_id_value,  # ID (numeric) sebagai identifier unik
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1428,17 +1532,18 @@ class SocialMediaParsersExtended:
                     continue
                 
                 acc = {
-                    "platform": "telegram",
-                    "account_name": user_name or user_id,
-                    "account_id": user_id or user_name,
-                    "user_id": user_id,
-                    "full_name": user_name,
-                    "following": None,
-                    "followers": None,
-                    "phone_number": self._clean(row.get('Phone Number(s)')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "User Accounts",
                     "file_id": file_id,
+                    "source": "Telegram",
+                    "account_name": user_name or user_id,
+                    "full_name": user_name,
+                    "phone_number": self._clean(row.get('Phone Number(s)')),
+                    "sheet_name": "User Accounts",
+                    "telegram_id": user_id or user_name,
+                    "whatsapp_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1461,17 +1566,18 @@ class SocialMediaParsersExtended:
                     continue
                 
                 acc = {
-                    "platform": "whatsapp",
-                    "account_name": whatsapp_name or phone_number,
-                    "account_id": phone_number or whatsapp_name,
-                    "user_id": phone_number,
-                    "full_name": whatsapp_name,
-                    "following": None,
-                    "followers": None,
-                    "phone_number": phone_number,
-                    "source_tool": "Axiom",
-                    "sheet_name": "WhatsApp Accounts Information",
                     "file_id": file_id,
+                    "source": "WhatsApp",
+                    "account_name": whatsapp_name or phone_number,
+                    "full_name": whatsapp_name,
+                    "phone_number": phone_number,
+                    "sheet_name": "WhatsApp Accounts Information",
+                    "whatsapp_id": phone_number or whatsapp_name,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1499,16 +1605,17 @@ class SocialMediaParsersExtended:
                 account_id_value = user_id_value if user_id_value else user_name_value
                     
                 acc = {
-                    "platform": "x",
-                    "account_name": user_name_value or screen_name_value,  # Username/Screen Name
-                    "account_id": account_id_value,  # User ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
-                    "full_name": self._clean(row.get('Full Name')),
-                    "following": self._safe_int(row.get('Following')),
-                    "followers": self._safe_int(row.get('Followers')),
-                    "source_tool": "Axiom",
-                    "sheet_name": "Twitter Users",
                     "file_id": file_id,
+                    "source": "X (Twitter)",
+                    "account_name": user_name_value or screen_name_value,  # Username/Screen Name
+                    "full_name": self._clean(row.get('Full Name')),
+                    "sheet_name": "Twitter Users",
+                    "X_id": account_id_value,  # User ID (numeric) sebagai identifier unik
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1541,15 +1648,18 @@ class SocialMediaParsersExtended:
                 account_id_final = account_id_value if account_id_value else user_id_value
                 
                 acc = {
-                    "platform": "telegram",
+                    "file_id": file_id,
+                    "source": "Telegram",
                     "account_name": account_name_value,
-                    "account_id": account_id_final,  # Account ID atau User ID sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
                     "full_name": full_name,
                     "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",
                     "sheet_name": "Telegram Accounts",
-                    "file_id": file_id,
+                    "telegram_id": account_id_final,  # Account ID atau User ID sebagai identifier unik
+                    "whatsapp_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1575,16 +1685,17 @@ class SocialMediaParsersExtended:
                 account_name = nickname or user_name
                 
                 acc = {
-                    "platform": "tiktok",
-                    "account_name": account_name,
-                    "account_id": self._clean(row.get("ID")),
-                    "user_id": self._clean(row.get("ID")),
-                    "full_name": nickname or user_name,
-                    "following": None,
-                    "followers": None,
-                    "source_tool": "Axiom",
-                    "sheet_name": "TikTok Contacts",
                     "file_id": file_id,
+                    "source": "TikTok",
+                    "account_name": account_name,
+                    "full_name": nickname or user_name,
+                    "sheet_name": "TikTok Contacts",
+                    "tiktok_id": self._clean(row.get("ID")),
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
                 }
                 
                 results.append(acc)
@@ -1605,14 +1716,18 @@ class SocialMediaParsersExtended:
                     continue
                     
                 acc = {
-                    "platform": "facebook",
+                    "file_id": file_id,
+                    "source": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
-                    "account_id": self._clean(row.get('Profile ID')),
-                    "user_id": self._clean(row.get('Profile ID')),
                     "full_name": f"{self._clean(row.get('First Name'))} {self._clean(row.get('Last Name'))}".strip(),
                     "phone_number": self._clean(row.get('Phone Numbers')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
+                    "sheet_name": sheet_name,
+                    "facebook_id": self._clean(row.get('Profile ID')),
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1632,14 +1747,18 @@ class SocialMediaParsersExtended:
                     continue
                     
                 acc = {
-                    "platform": "facebook",
+                    "file_id": file_id,
+                    "source": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
-                    "account_id": self._clean(row.get('User ID')),
-                    "user_id": self._clean(row.get('User ID')),
                     "full_name": f"{self._clean(row.get('First Name'))} {self._clean(row.get('Last Name'))}".strip(),
                     "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
+                    "sheet_name": sheet_name,
+                    "facebook_id": self._clean(row.get('User ID')),
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1659,14 +1778,18 @@ class SocialMediaParsersExtended:
                     continue
                     
                 acc = {
-                    "platform": "whatsapp",
+                    "file_id": file_id,
+                    "source": "WhatsApp",
                     "account_name": self._clean(row.get('WhatsApp Name')),
-                    "account_id": self._clean(row.get('ID')),
-                    "user_id": self._clean(row.get('ID')),
                     "full_name": f"{self._clean(row.get('Given Name'))} {self._clean(row.get('Family Name'))}".strip(),
                     "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
+                    "sheet_name": sheet_name,
+                    "whatsapp_id": self._clean(row.get('ID')),
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 
@@ -1686,14 +1809,18 @@ class SocialMediaParsersExtended:
                     continue
                     
                 acc = {
-                    "platform": "whatsapp",
+                    "file_id": file_id,
+                    "source": "WhatsApp",
                     "account_name": self._clean(row.get('WhatsApp Name')),
-                    "account_id": self._clean(row.get('Phone Number')),
-                    "user_id": self._clean(row.get('Phone Number')),
                     "full_name": self._clean(row.get('WhatsApp Name')),
                     "phone_number": self._clean(row.get('Phone Number')),
-                    "source_tool": "Axiom",                    
-                    "file_id": file_id,
+                    "sheet_name": sheet_name,
+                    "whatsapp_id": self._clean(row.get('Phone Number')),
+                    "telegram_id": None,
+                    "instagram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                 }
                 results.append(acc)
                 

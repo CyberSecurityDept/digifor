@@ -20,7 +20,7 @@ Sistem Forenlytic Analytics adalah platform analisis forensik digital yang memun
 - **[scripts/run_analytics_workflow.py](../scripts/run_analytics_workflow.py)** - Script Python untuk workflow analytics
 - **[scripts/run_analytics_workflow.sh](../scripts/run_analytics_workflow.sh)** - Script bash untuk workflow analytics
 
-### **📱 Postman Collections**
+### **Postman Collections**
 - **[Forenlytic_Analytics_API.postman_collection.json](Forenlytic_Analytics_API.postman_collection.json)** - Collection Postman untuk Analytics API
 - **[Forenlytic_Analytics_Environment.postman_environment.json](Forenlytic_Analytics_Environment.postman_environment.json)** - Environment Postman
 
@@ -71,7 +71,7 @@ python scripts/run_complete_analysis.py
 ### **Step-by-Step Process:**
 
 1. **📤 Upload File** - Upload forensic reports (Excel/CSV)
-2. **📱 Add Device** - Buat device dengan single file (1 device = 1 file)
+2. **Add Device** - Buat device dengan single file (1 device = 1 file)
 3. ** Create Analytic** - Buat analytic dengan linked devices
 4. **🔗 Contact Correlation** - Jalankan analisis korelasi kontak
 5. **Export PDF** - Export hasil ke PDF
@@ -136,7 +136,7 @@ python -c "from app.database import engine; print('Database connected')"
 
 ---
 
-## 📱 **POSTMAN TESTING**
+## **POSTMAN TESTING**
 
 ### **Import Collections:**
 1. Import `Forenlytic_Analytics_API.postman_collection.json`

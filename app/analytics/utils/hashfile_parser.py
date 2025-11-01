@@ -1,13 +1,103 @@
 import pandas as pd
 import warnings
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import HashFile
 import os
 from datetime import datetime
 
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+
+def detect_encoding(file_path: str) -> str:
+    try:
+        with open(file_path, 'rb') as f:
+            raw_data = f.read(10000)  # Read first 10KB
+            
+            # Check for UTF-16 BOM
+            if raw_data[:2] == b'\xff\xfe':
+                return 'utf-16-le'
+            elif raw_data[:2] == b'\xfe\xff':
+                return 'utf-16-be'
+            elif raw_data[:3] == b'\xef\xbb\xbf':
+                return 'utf-8-sig'
+            
+            # Try to decode with common encodings
+            encodings_to_try = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+            for enc in encodings_to_try:
+                try:
+                    raw_data.decode(enc)
+                    return enc
+                except UnicodeDecodeError:
+                    continue
+            
+            # Default fallback
+            return 'utf-8'
+    except Exception:
+        return 'utf-8'
+
+def clean_string(value: str) -> str:
+    if not value:
+        return ''
+    cleaned = value.replace('\x00', '').replace('\r', '').strip()
+    cleaned = ''.join(char for char in cleaned if ord(char) >= 32 or char in ['\n', '\t'])
+    return cleaned
+
+def safe_int(value) -> int | None:
+    if pd.isna(value) or value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip().lower()
+        if value in ['', 'nan', 'none', 'null', '-']:
+            return None
+    try:
+        return int(float(str(value)))
+    except (ValueError, TypeError):
+        return None
+
+def safe_str(value) -> str | None:
+    if pd.isna(value) or value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if value.lower() in ['nan', 'none', 'null', '']:
+            return None
+    return str(value)
+
+def safe_datetime(value) -> Optional[datetime]:
+    """Safely convert value to datetime, supporting multiple date formats"""
+    if pd.isna(value) or value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    
+    # Convert to string if not already
+    date_str = str(value).strip()
+    if date_str.lower() in ['nan', 'none', 'null', '']:
+        return None
+    
+    # Try parsing with common formats
+    formats_to_try = [
+        '%d/%m/%Y %H:%M:%S',  # DD/MM/YYYY HH:MM:SS (common in CSV exports)
+        '%d/%m/%Y',            # DD/MM/YYYY
+        '%m/%d/%Y %H:%M:%S',  # MM/DD/YYYY HH:MM:SS
+        '%m/%d/%Y',            # MM/DD/YYYY
+        '%Y-%m-%d %H:%M:%S',  # YYYY-MM-DD HH:MM:SS
+        '%Y-%m-%d',            # YYYY-MM-DD
+        '%Y/%m/%d %H:%M:%S',  # YYYY/MM/DD HH:MM:SS
+        '%Y/%m/%d',            # YYYY/MM/DD
+        '%d-%m-%Y %H:%M:%S',  # DD-MM-YYYY HH:MM:SS
+        '%d-%m-%Y',            # DD-MM-YYYY
+    ]
+    
+    for fmt in formats_to_try:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    
+    # If none of the formats work, return None
+    return None
 
 class HashFileParser:
     
@@ -98,23 +188,26 @@ class HashFileParser:
                 df = pd.read_csv(file_path, dtype=str)
                 
                 for _, row in df.iterrows():
+                    file_name_val = safe_str(row.get('Name', ''))
+                    if not file_name_val:
+                        continue
+                    
                     hashfile_data = {
                         "file_id": file_id,
-                        "name": str(row.get('Name', '')),
-                        "file_name": str(row.get('Name', '')),
+                        "name": file_name_val,
+                        "file_name": file_name_val,
                         "kind": "Unknown",
-                        "path_original": str(row.get('Full path', '')),
-                        "size_bytes": str(row.get('Size (bytes)', '0')),
-                        "created_at_original": str(row.get('Created', '')),
-                        "modified_at_original": str(row.get('Modified', '')),
+                        "path_original": safe_str(row.get('Full path', '')) or None,
+                        "size_bytes": safe_int(row.get('Size (bytes)', '0')),
+                        "created_at_original": safe_datetime(row.get('Created', '')),
+                        "modified_at_original": safe_datetime(row.get('Modified', '')),
                         "file_type": "CSV File",
-                        "md5_hash": str(row.get('MD5 hash', '')),
-                        "sha1_hash": str(row.get('SHA1 hash', '')),
+                        "md5_hash": safe_str(row.get('MD5 hash', '')),
+                        "sha1_hash": safe_str(row.get('SHA1 hash', '')),
                         "source_tool": "magnet_axiom"
                     }
                     
-                    if hashfile_data["file_name"] and hashfile_data["file_name"] != 'nan':
-                        results.append(hashfile_data)
+                    results.append(hashfile_data)
             else:
                 xls = pd.ExcelFile(file_path, engine='openpyxl')
                 
@@ -131,46 +224,87 @@ class HashFileParser:
                     df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
                     
                     for _, row in df.iterrows():
+                        file_name_val = safe_str(row.get('Name', ''))
+                        if not file_name_val:
+                            continue
+                        
                         hashfile_data = {
                             "file_id": file_id,
-                            "name": str(row.get('Name', '')),
-                            "file_name": str(row.get('Name', '')),
+                            "name": file_name_val,
+                            "file_name": file_name_val,
                             "kind": "Unknown",
-                            "path_original": str(row.get('Path', '')),
-                            "size_bytes": str(row.get('Size', '0')),
-                            "created_at_original": str(row.get('Created', '')),
-                            "modified_at_original": str(row.get('Modified', '')),
+                            "path_original": safe_str(row.get('Path', '')) or None,
+                            "size_bytes": safe_int(row.get('Size', '0')),
+                            "created_at_original": safe_datetime(row.get('Created', '')),
+                            "modified_at_original": safe_datetime(row.get('Modified', '')),
                             "file_type": sheet_name.strip(),
-                            "md5_hash": str(row.get('MD5', '')),
-                            "sha1_hash": str(row.get('SHA1', '')),
+                            "md5_hash": safe_str(row.get('MD5', '')),
+                            "sha1_hash": safe_str(row.get('SHA1', '')),
                             "source_tool": "magnet_axiom"
                         }
                         
-                        if hashfile_data["file_name"] and hashfile_data["file_name"] != 'nan':
-                            results.append(hashfile_data)
+                        results.append(hashfile_data)
             
-            for hashfile in results:
-                existing = (
-                    self.db.query(HashFile)
-                    .filter(
-                        HashFile.file_name == hashfile["file_name"],
-                        HashFile.file_id == file_id,
-                        HashFile.md5_hash == hashfile["md5_hash"]
+            # Batch insert for better performance
+            batch_size = 1000
+            inserted_count = 0
+            
+            for i in range(0, len(results), batch_size):
+                batch = results[i:i + batch_size]
+                hashfiles_to_insert = []
+                
+                for hashfile in batch:
+                    # Check if hashfile already exists
+                    existing = (
+                        self.db.query(HashFile)
+                        .filter(
+                            HashFile.file_name == hashfile["file_name"],
+                            HashFile.file_id == file_id,
+                            HashFile.md5_hash == hashfile["md5_hash"]
+                        )
+                        .first()
                     )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(HashFile(**hashfile))
+                    if not existing:
+                        hashfiles_to_insert.append(HashFile(**hashfile))
+                
+                if hashfiles_to_insert:
+                    try:
+                        self.db.bulk_save_objects(hashfiles_to_insert)
+                        self.db.commit()
+                        inserted_count += len(hashfiles_to_insert)
+                    except Exception as e:
+                        self.db.rollback()
+                        print(f"Error inserting batch {i//batch_size + 1}: {e}")
+                        # Try inserting one by one to identify problematic records
+                        for hf_data in batch:
+                            try:
+                                existing = (
+                                    self.db.query(HashFile)
+                                    .filter(
+                                        HashFile.file_name == hf_data["file_name"],
+                                        HashFile.file_id == file_id,
+                                        HashFile.md5_hash == hf_data["md5_hash"]
+                                    )
+                                    .first()
+                                )
+                                if not existing:
+                                    self.db.add(HashFile(**hf_data))
+                                    self.db.commit()
+                                    inserted_count += 1
+                            except Exception as single_err:
+                                self.db.rollback()
+                                print(f"Error inserting hashfile {hf_data.get('file_name', 'unknown')}: {single_err}")
+                                continue
             
-            self.db.commit()
-            print(f"Successfully saved {len(results)} Axiom hashfiles to database")
+            print(f"Successfully saved {inserted_count} Axiom hashfiles to database")
+            
+            # Return only successfully inserted hashfiles count
+            return inserted_count
             
         except Exception as e:
             print(f"Error parsing Axiom hashfile: {e}")
             self.db.rollback()
             raise e
-        
-        return results
     
     def parse_cellebrite_hashfile(self, file_path: str, file_id: int, original_file_path: str = None) -> List[Dict[str, Any]]:
         results = []
@@ -316,50 +450,59 @@ class HashFileParser:
             file_extension = file_path_obj.suffix.lower()
 
             if file_extension == '.txt':
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
+                encoding = detect_encoding(file_path)
+                try:
+                    with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
+                        lines = f.readlines()
+                except Exception:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
 
-                for line in lines:
-                    if '\t' in line:
-                        parts = line.strip().split('\t')
-                        if len(parts) >= 3:
-                            hashfile_data = {
-                                "file_id": file_id,
-                                "name": parts[0].strip(),
-                                "file_name": parts[0].strip(),
-                                "kind": "Unknown",
-                                "path_original": "",
-                                "size_bytes": 0,
-                                "created_at_original": None,
-                                "modified_at_original": None,
-                                "file_type": "TXT File",
-                                "md5_hash": parts[1].strip() if len(parts) > 1 else '',
-                                "sha1_hash": parts[2].strip() if len(parts) > 2 else '',
-                                "source_tool": "encase"
-                            }
-                            
-                            if hashfile_data["file_name"] and hashfile_data["file_name"] != 'nan':
-                                results.append(hashfile_data)
+                for raw_line in lines:
+                    line = clean_string(raw_line.replace('\ufeff', ''))
+                    if not line:
+                        continue
+
+                    # Split by tabs (EnCase TXT is tab-delimited)
+                    parts = [clean_string(p.strip().strip('"')) for p in line.split('\t') if p is not None]
+                    if len(parts) < 3:
+                        continue
+
+                    # Skip header row (e.g., ..., Name, MD5, SHA1)
+                    lower_parts = [p.lower() for p in parts]
+                    if 'name' in lower_parts and 'md5' in lower_parts and 'sha1' in lower_parts:
+                        continue
+
+                    # Handle optional index in first column
+                    if parts[0].isdigit() and len(parts) >= 4:
+                        name_val = parts[1]
+                        md5_val = parts[2]
+                        sha1_val = parts[3]
                     else:
-                        parts = line.strip().split()
-                        if len(parts) >= 2:
-                            hashfile_data = {
-                                "file_id": file_id,
-                                "name": parts[-1] if len(parts) > 1 else '',
-                                "file_name": parts[-1] if len(parts) > 1 else '',
-                                "kind": "Unknown",
-                                "path_original": "",
-                                "size_bytes": 0,
-                                "created_at_original": None,
-                                "modified_at_original": None,
-                                "file_type": "TXT File",
-                                "md5_hash": parts[0] if len(parts) > 0 else '',
-                                "sha1_hash": parts[1] if len(parts) > 1 else '',
-                                "source_tool": "encase"
-                            }
+                        # No index column
+                        name_val = parts[0]
+                        md5_val = parts[1] if len(parts) > 1 else ''
+                        sha1_val = parts[2] if len(parts) > 2 else ''
 
-                            if hashfile_data["md5_hash"] and hashfile_data["file_name"]:
-                                results.append(hashfile_data)
+                    if not name_val or name_val.lower() == 'nan':
+                        continue
+
+                    hashfile_data = {
+                        "file_id": file_id,
+                        "name": name_val,
+                        "file_name": name_val,
+                        "kind": "Unknown",
+                        "path_original": "",
+                        "size_bytes": 0,
+                        "created_at_original": None,
+                        "modified_at_original": None,
+                        "file_type": "TXT File",
+                        "md5_hash": md5_val,
+                        "sha1_hash": sha1_val,
+                        "source_tool": "encase"
+                    }
+
+                    results.append(hashfile_data)
 
             elif file_extension in ['.xls', '.xlsx']:
                 if file_extension == '.xls':
@@ -375,20 +518,21 @@ class HashFileParser:
                     for _, row in df.iterrows():
                         hashfile_data = {
                             "file_id": file_id,
-                            "file_name": str(row.get('Name', '')).strip(),
-                            "file_path": str(row.get('Path', '')).strip(),
-                            "file_type": str(row.get('Type', '')).strip(),
-                            "file_size": str(row.get('Size', '')).strip(),
-                            "md5_hash": str(row.get('MD5', '')).strip(),
-                            "sha1_hash": str(row.get('SHA1', '')).strip(),
-                            "created_at": str(row.get('Created', '')).strip(),
-                            "modified_at": str(row.get('Modified', '')).strip(),
+                            "file_name": clean_string(str(row.get('Name', ''))),
+                            "file_path": clean_string(str(row.get('Path', ''))),
+                            "file_type": clean_string(str(row.get('Type', ''))),
+                            "file_size": clean_string(str(row.get('Size', ''))),
+                            "md5_hash": clean_string(str(row.get('MD5', ''))),
+                            "sha1_hash": clean_string(str(row.get('SHA1', ''))),
+                            "created_at": clean_string(str(row.get('Created', ''))),
+                            "modified_at": clean_string(str(row.get('Modified', ''))),
                             "source_tool": "encase"
                         }
 
                         if hashfile_data["file_name"] and hashfile_data["file_name"].lower() != 'nan':
                             results.append(hashfile_data)
 
+            # Save all results to database
             for hashfile in results:
                 existing = (
                     self.db.query(HashFile)
@@ -404,7 +548,7 @@ class HashFileParser:
 
             self.db.commit()
             print(f"✅ Successfully saved {len(results)} EnCase hashfiles to database")
-                
+
         except Exception as e:
             print(f"❌ Error parsing EnCase hashfile: {e}")
             self.db.rollback()
