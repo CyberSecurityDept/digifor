@@ -382,12 +382,18 @@ class UploadService:
                     elif tools == "Cellebrite":
                         chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
                     elif tools == "Oxygen":
-                        chat_messages_result = []
+                        print(f"Calling parse_oxygen_chat_messages for file_id={file_record.id}")
+                        chat_messages_result = sm_parser.parse_oxygen_chat_messages(original_path_abs, file_record.id)
+                        print(f"parse_oxygen_chat_messages returned {len(chat_messages_result) if chat_messages_result else 0} messages")
                     else:
                         chat_messages_result = []
                     
                     if chat_messages_result:
                         parsing_result["chat_messages_count"] = len(chat_messages_result)
+                        print(f"Set chat_messages_count to {len(chat_messages_result)}")
+                    else:
+                        parsing_result["chat_messages_count"] = 0
+                        print(f"No chat messages found, setting chat_messages_count to 0")
                     self._progress[upload_id].update({
                         "message": "Inserting chat messages data to database...",
                         "percent": 98.5

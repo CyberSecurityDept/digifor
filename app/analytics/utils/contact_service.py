@@ -67,13 +67,11 @@ class ContactService:
                     display_name = contact_data.get('display_name')
                     contact_type = contact_data.get('type', 'Contact')
                     
-                    # Skip if no phone number
                     if not phone_number:
                         logger.warning(f"Skipping contact '{display_name}' - no phone number")
                         skipped_count += 1
                         continue
                     
-                    # Check if contact with same phone_number and file_id already exists
                     existing_contact = db.query(Contact).filter(
                         Contact.file_id == device.file_id,
                         Contact.phone_number == phone_number

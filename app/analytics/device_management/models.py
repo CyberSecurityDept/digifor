@@ -202,6 +202,7 @@ class ChatMessage(Base):
     message_type = Column(String, nullable=True) 
     direction = Column(String, nullable=True)
     source_tool = Column(String, nullable=True)
+    sheet_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 

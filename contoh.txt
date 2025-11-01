@@ -1,0 +1,16 @@
+🗓️ Laporan Pekerjaan – Sabtu, 1 November 2025
+
+ 1.⁠ ⁠Parsing Contact Correlation (untuk semua tools)
+ 2.⁠ ⁠Analisis Contact Correlation
+ 3.⁠ ⁠Export PDF Contact Correlation
+ 4.⁠ ⁠Optimasi penyimpanan data hashfile analytics (untuk semua tools)
+ 5.⁠ ⁠Penanganan duplikasi data dan validasi parsing data Social Media untuk Oxygen, termasuk fungsi insert data Social Media
+ 6.⁠ ⁠Penanganan duplikasi data dan validasi parsing data Social Media untuk Cellebrite, termasuk fungsi insert data Social Media
+ 7.⁠ ⁠Penanganan duplikasi data dan validasi parsing data Social Media untuk Magnet Axiom, termasuk fungsi insert data Social Media
+ 8.⁠ ⁠Pembuatan endpoint Get Detail Contact Correlation Analytics
+ 9.⁠ ⁠Pembuatan endpoint Get Detail Social Media Correlation Analytics dengan fitur filter dropdown Social Media
+10.⁠ ⁠testing & debug endpoint analytics contact correlation
+11.⁠ ⁠testing & debug endpoint analytics hashfile analytics
+12.⁠ ⁠testing & debug endpoint analytics social media correlation
+13. Fix Endpoint Hashfile Analytics 
+14. ⁠Export PDF Hashfile Analytics

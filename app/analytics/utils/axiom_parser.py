@@ -6,19 +6,19 @@ from sqlalchemy.orm import Session  # type: ignore
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
-
+import logging
 import warnings
 from pathlib import Path
 import re
 
+logger = logging.getLogger(__name__)
+
 class AxiomParser:
-    """Parser untuk Magnet Axiom social media data"""
     
     def __init__(self, db: Session):
         self.db = db
     
     def _clean(self, text: Any) -> Optional[str]:
-        """Clean dan normalize text value"""
         if text is None:
             return None
         if isinstance(text, float) and pd.isna(text):
@@ -29,7 +29,6 @@ class AxiomParser:
         return text_str
     
     def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        """Validasi data social media sebelum insert"""
         # Minimal harus ada file_id dan salah satu identifier
         if not acc.get("file_id"):
             return False, "Missing file_id"
@@ -51,7 +50,6 @@ class AxiomParser:
         return True, ""
     
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert struktur lama ke struktur baru"""
         if "platform" not in acc:
             # Sudah struktur baru
             return acc
@@ -759,25 +757,62 @@ class AxiomParser:
         results = []
 
         try:
+            logger.info(f"[CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
+            logger.info(f"[CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
+            logger.info(f"[CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")  # Log first 10 sheets
 
             # Parse Telegram Messages
             if 'Telegram Messages - iOS' in xls.sheet_names:
-                results.extend(self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id))
+                logger.info(f"[CHAT PARSER] Found Telegram Messages sheet, parsing...")
+                telegram_results = self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id)
+                results.extend(telegram_results)
+                logger.info(f"[CHAT PARSER] Telegram: Parsed {len(telegram_results)} messages")
+            else:
+                logger.warning(f"[CHAT PARSER] Telegram Messages - iOS sheet not found")
 
             # Parse Instagram Direct Messages
             if 'Instagram Direct Messages' in xls.sheet_names:
-                results.extend(self._parse_instagram_messages(file_path, 'Instagram Direct Messages', file_id))
+                logger.info(f"[CHAT PARSER] Found Instagram Direct Messages sheet, parsing...")
+                instagram_results = self._parse_instagram_messages(file_path, 'Instagram Direct Messages', file_id)
+                results.extend(instagram_results)
+                logger.info(f"[CHAT PARSER] Instagram: Parsed {len(instagram_results)} messages")
+            else:
+                logger.warning(f"[CHAT PARSER] Instagram Direct Messages sheet not found")
 
             # Parse TikTok Messages
             if 'TikTok Messages' in xls.sheet_names:
-                results.extend(self._parse_tiktok_messages(file_path, 'TikTok Messages', file_id))
+                logger.info(f"[CHAT PARSER] Found TikTok Messages sheet, parsing...")
+                tiktok_results = self._parse_tiktok_messages(file_path, 'TikTok Messages', file_id)
+                results.extend(tiktok_results)
+                logger.info(f"[CHAT PARSER] TikTok: Parsed {len(tiktok_results)} messages")
+            else:
+                logger.warning(f"[CHAT PARSER] TikTok Messages sheet not found")
 
             # Parse Twitter Direct Messages
             if 'Twitter Direct Messages' in xls.sheet_names:
-                results.extend(self._parse_twitter_messages(file_path, 'Twitter Direct Messages', file_id))
+                logger.info(f"[CHAT PARSER] Found Twitter Direct Messages sheet, parsing...")
+                twitter_results = self._parse_twitter_messages(file_path, 'Twitter Direct Messages', file_id)
+                results.extend(twitter_results)
+                logger.info(f"[CHAT PARSER] Twitter/X: Parsed {len(twitter_results)} messages")
+            else:
+                logger.warning(f"[CHAT PARSER] Twitter Direct Messages sheet not found")
+
+            logger.info(f"[CHAT PARSER] Total parsed messages: {len(results)}")
+            
+            # Log sample data for debugging
+            if results:
+                sample_msg = results[0]
+                logger.debug(f"[CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
+                           f"sheet_name={sample_msg.get('sheet_name')}, "
+                           f"message_id={sample_msg.get('message_id')}, "
+                           f"sender={sample_msg.get('sender_name')}, "
+                           f"receiver={sample_msg.get('receiver_name')}, "
+                           f"timestamp={sample_msg.get('timestamp')}")
 
             # Save to database
+            saved_count = 0
+            skipped_count = 0
             for msg in results:
                 existing = (
                     self.db.query(ChatMessage)
@@ -789,11 +824,16 @@ class AxiomParser:
                 )
                 if not existing:
                     self.db.add(ChatMessage(**msg))
+                    saved_count += 1
+                else:
+                    skipped_count += 1
 
             self.db.commit()
-            print(f"Successfully saved {len(results)} chat messages to database")
+            logger.info(f"[CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
+            print(f"Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
 
         except Exception as e:
+            logger.error(f"[CHAT PARSER] Error parsing Axiom chat messages: {e}", exc_info=True)
             print(f"Error parsing Axiom chat messages: {e}")
             self.db.rollback()
             raise e
@@ -805,10 +845,16 @@ class AxiomParser:
         results = []
 
         try:
+            logger.debug(f"[TELEGRAM PARSER] Reading sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
+            logger.debug(f"[TELEGRAM PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:10]}")
+            
+            processed_count = 0
+            skipped_count = 0
 
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                    skipped_count += 1
                     continue
 
                 message_data = {                    "file_id": file_id,
@@ -824,12 +870,23 @@ class AxiomParser:
                     "message_id": str(row.get('Message ID', '')),
                     "message_type": str(row.get('Type', 'text')),
                     "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
+                    "source_tool": "axiom",
+                    "sheet_name": sheet_name
                 }
 
+                # Log first message for debugging
+                if processed_count == 0:
+                    logger.debug(f"[TELEGRAM PARSER] First message sample: message_id={message_data['message_id']}, "
+                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}, "
+                               f"text_preview={str(message_data['message_text'])[:50]}...")
+
                 results.append(message_data)
+                processed_count += 1
+
+            logger.info(f"[TELEGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
 
         except Exception as e:
+            logger.error(f"[TELEGRAM PARSER] Error parsing Telegram messages from {sheet_name}: {e}", exc_info=True)
             print(f"Error parsing Telegram messages: {e}")
 
         return results
@@ -839,10 +896,16 @@ class AxiomParser:
         results = []
 
         try:
+            logger.debug(f"[INSTAGRAM PARSER] Reading sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
+            logger.debug(f"[INSTAGRAM PARSER] Sheet loaded: {len(df)} rows")
+            
+            processed_count = 0
+            skipped_count = 0
 
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                    skipped_count += 1
                     continue
 
                 message_data = {
@@ -859,12 +922,21 @@ class AxiomParser:
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": str(row.get('Type', 'text')),
                     "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
+                    "source_tool": "axiom",
+                    "sheet_name": sheet_name
                 }
 
+                if processed_count == 0:
+                    logger.debug(f"[INSTAGRAM PARSER] First message sample: message_id={message_data['message_id']}, "
+                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
+
                 results.append(message_data)
+                processed_count += 1
+
+            logger.info(f"[INSTAGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
 
         except Exception as e:
+            logger.error(f"[INSTAGRAM PARSER] Error parsing Instagram messages from {sheet_name}: {e}", exc_info=True)
             print(f"Error parsing Instagram messages: {e}")
 
         return results
@@ -874,10 +946,16 @@ class AxiomParser:
         results = []
 
         try:
+            logger.debug(f"[TIKTOK PARSER] Reading sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
+            logger.debug(f"[TIKTOK PARSER] Sheet loaded: {len(df)} rows")
+            
+            processed_count = 0
+            skipped_count = 0
 
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                    skipped_count += 1
                     continue
 
                 message_data = {                    "file_id": file_id,
@@ -893,12 +971,21 @@ class AxiomParser:
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": str(row.get('Message Type', 'text')),
                     "direction": "",
-                    "source_tool": "axiom"
+                    "source_tool": "axiom",
+                    "sheet_name": sheet_name
                 }
 
+                if processed_count == 0:
+                    logger.debug(f"[TIKTOK PARSER] First message sample: message_id={message_data['message_id']}, "
+                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
+
                 results.append(message_data)
+                processed_count += 1
+
+            logger.info(f"[TIKTOK PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
 
         except Exception as e:
+            logger.error(f"[TIKTOK PARSER] Error parsing TikTok messages from {sheet_name}: {e}", exc_info=True)
             print(f"Error parsing TikTok messages: {e}")
 
         return results
@@ -908,10 +995,16 @@ class AxiomParser:
         results = []
 
         try:
+            logger.debug(f"[TWITTER/X PARSER] Reading sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
+            logger.debug(f"[TWITTER/X PARSER] Sheet loaded: {len(df)} rows")
+            
+            processed_count = 0
+            skipped_count = 0
 
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 if pd.isna(row.get('Text')) or not str(row.get('Text')).strip():
+                    skipped_count += 1
                     continue
 
                 message_data = {                    "file_id": file_id,
@@ -927,12 +1020,21 @@ class AxiomParser:
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": "text",
                     "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom"
+                    "source_tool": "axiom",
+                    "sheet_name": sheet_name
                 }
 
+                if processed_count == 0:
+                    logger.debug(f"[TWITTER/X PARSER] First message sample: message_id={message_data['message_id']}, "
+                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
+
                 results.append(message_data)
+                processed_count += 1
+
+            logger.info(f"[TWITTER/X PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
 
         except Exception as e:
+            logger.error(f"[TWITTER/X PARSER] Error parsing Twitter messages from {sheet_name}: {e}", exc_info=True)
             print(f"Error parsing Twitter messages: {e}")
 
         return results
