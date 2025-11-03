@@ -8,6 +8,7 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
+import re
 
 router = APIRouter()
 
@@ -39,6 +40,71 @@ def normalize_platform_name(platform: str) -> str:
     return platform_lower
 
 
+def clean_message_text(text: str) -> str:
+    """
+    Clean message text by removing newlines and excessive whitespace.
+    Converts all newlines to spaces for clean single-line text.
+    """
+    if not text:
+        return ""
+    
+    import re
+    
+    # Remove zero-width spaces and other invisible characters
+    cleaned = re.sub(r'[\u200B-\u200D\uFEFF\u00A0\u2060\u200E\u200F]', '', text)
+ 
+    # Convert literal escape sequences to actual characters
+    cleaned = cleaned.replace('\\\\\\\\', '\\\\') 
+    cleaned = cleaned.replace('\\\\n', '\n')
+    cleaned = cleaned.replace('\\\\r', '\r')
+    cleaned = cleaned.replace('\\\\t', ' ')
+    
+    cleaned = cleaned.replace('\\n', '\n') 
+    cleaned = cleaned.replace('\\r', '\r')
+    cleaned = cleaned.replace('\\t', ' ')
+    
+    # Normalize all line breaks to single newline first
+    cleaned = cleaned.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # Replace all newlines with spaces
+    cleaned = cleaned.replace('\n', ' ')
+    
+    cleaned = re.sub(r' {2,}', ' ', cleaned)
+    
+    cleaned = cleaned.strip()
+    
+    result = re.sub(r'\\(?![\'"nrtbfvxuU0-7\\])', '', cleaned)
+    
+    if result.endswith('\\') and (len(result) < 2 or result[-2] != '\\'):
+        result = result[:-1]
+    
+    return result
+
+
+def is_valid_person_name(name: str) -> bool:
+    if not name:
+        return False
+    
+    stripped = re.sub(r'[\u200B-\u200D\uFEFF\u00A0\u2060\u200E\u200F\u3164]', '', name).strip()
+    if not stripped:
+        return False
+    
+    if len(stripped) == 1:
+        return False
+    
+    if re.search(r'[a-zA-Z0-9]', stripped):
+        return True
+    
+    meaningful_chars = re.sub(r'[\s\W_]', '', stripped)
+    if not meaningful_chars:
+        return False
+    
+    if len(stripped) < 2:
+        return False
+    
+    return True
+
+
 def get_chat_messages_for_analytic(
     db: Session,
     analytic_id: int,
@@ -67,22 +133,9 @@ def get_chat_messages_for_analytic(
 def get_deep_communication_analytics(
     analytic_id: int,
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
-    platform: Optional[str] = Query(None, description="Filter by platform (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     db: Session = Depends(get_db)
 ):
     try:
-        if platform:
-            normalized = normalize_platform_name(platform)
-            valid_platforms = ['instagram', 'telegram', 'whatsapp', 'facebook', 'x', 'tiktok']
-            if normalized not in valid_platforms:
-                return JSONResponse(
-                    content={
-                        "status": 400,
-                        "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
-                    },
-                    status_code=400
-                )
-        
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -108,8 +161,12 @@ def get_deep_communication_analytics(
                     "status": 200,
                     "message": "No devices linked to this analytic",
                     "data": {
-                        "device_tabs": [],
-                        "platform_analysis": {}
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic.analytic_name or "Unknown"
+                        },
+                        "devices": [],
+                        "summary": None
                     }
                 },
                 status_code=200
@@ -128,16 +185,6 @@ def get_deep_communication_analytics(
         
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
         
-        # Build device tabs
-        device_tabs = []
-        for device in devices:
-            device_tabs.append({
-                "device_id": device.id,
-                "device_name": device.owner_name or "Unknown",
-                "phone_number": device.phone_number or ""
-            })
-        
-        # Get all messages for all devices (no platform filter for initial view)
         all_file_ids = [d.file_id for d in devices]
         all_messages = get_chat_messages_for_analytic(db, analytic_id, None, None, all_file_ids)
         
@@ -151,7 +198,6 @@ def get_deep_communication_analytics(
             {'key': 'tiktok', 'display': 'TikTok'}
         ]
         
-        # Build devices with platform cards
         devices_with_platforms = []
         
         for device in devices:
@@ -165,7 +211,6 @@ def get_deep_communication_analytics(
                 platform_key = platform_info['key']
                 platform_display = platform_info['display']
                 
-                # Count messages for this platform and device
                 platform_messages = [
                     msg for msg in device_messages 
                     if normalize_platform_name(msg.platform or '') == platform_key
@@ -174,55 +219,16 @@ def get_deep_communication_analytics(
                 message_count = len(platform_messages)
                 has_data = message_count > 0
                 
-                platform_cards.append({
-                    "platform": platform_display,
-                    "platform_key": platform_key,
-                    "has_data": has_data,
-                    "message_count": message_count
-                })
-            
-            devices_with_platforms.append({
-                "device_id": device.id,
-                "device_name": device.owner_name or "Unknown",
-                "phone_number": device.phone_number or "",
-                "platform_cards": platform_cards
-            })
-        
-        # If device_id specified, return only that device
-        if device_id:
-            devices_with_platforms = [
-                d for d in devices_with_platforms if d["device_id"] == device_id
-            ]
-        
-        # Build platform analysis if platform filter is specified
-        platform_analysis = {}
-        if platform:
-            normalized_platform = normalize_platform_name(platform)
-            file_ids = [d.file_id for d in devices]
-            messages = get_chat_messages_for_analytic(db, analytic_id, device_id, platform, file_ids)
-            
-            platform_messages = [
-                msg for msg in messages 
-                if normalize_platform_name(msg.platform or '') == normalized_platform
-            ]
-            
-            if platform_messages:
                 person_intensity = defaultdict(int)
                 person_info = {}
+                
+                device_owner_name = (device.owner_name or "").strip().lower()
                 
                 for msg in platform_messages:
                     sender_name = msg.from_name or ""
                     sender_id = msg.sender_number or ""
                     recipient_name = msg.to_name or ""
                     recipient_id = msg.recipient_number or ""
-                    
-                    device_owner_name = None
-                    device_owner_id = None
-                    for d in devices:
-                        if d.file_id == msg.file_id:
-                            device_owner_name = (d.owner_name or "").strip().lower()
-                            device_owner_id = (d.phone_number or "").strip()
-                            break
                     
                     person_name = None
                     person_id = None
@@ -260,17 +266,47 @@ def get_deep_communication_analytics(
                                 "name": person_name,
                                 "id": person_id
                             }
-
-                platform_data = []
-                for person_key, intensity in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
-                    platform_data.append({
-                        "person": person_info.get(person_key, {}).get("name", person_key),
-                        "person_id": person_info.get(person_key, {}).get("id", ""),
-                        "intensity": intensity
-                    })
                 
-                if platform_data:
-                    platform_analysis[normalized_platform] = platform_data
+                top_person = None
+                top_intensity = 0
+                if person_intensity:
+                    sorted_persons = sorted(person_intensity.items(), key=lambda x: x[1], reverse=True)
+                    top_person_key, top_intensity = sorted_persons[0]
+                    top_person_data = person_info.get(top_person_key, {})
+                    top_person_name = top_person_data.get("name", top_person_key)
+                    top_person_id = top_person_data.get("id", "")
+                    
+                    # Only use person_id if person_name is completely empty or None
+                    # Otherwise, keep the original person_name (even if it contains special chars)
+                    if (not top_person_name or top_person_name.strip() == "") and top_person_id:
+                        top_person_name = top_person_id
+                    
+                    top_person = {
+                        "person": top_person_name,
+                        "person_id": top_person_id,
+                        "intensity": top_intensity
+                    }
+                
+                platform_cards.append({
+                    "platform": platform_display,
+                    "platform_key": platform_key,
+                    "has_data": has_data,
+                    "message_count": message_count,
+                    "person": top_person["person"] if top_person else None,
+                    "intensity": top_person["intensity"] if top_person else 0
+                })
+            
+            devices_with_platforms.append({
+                "device_id": device.id,
+                "device_name": device.owner_name or "Unknown",
+                "phone_number": device.phone_number or "",
+                "platform_cards": platform_cards
+            })
+        
+        if device_id:
+            devices_with_platforms = [
+                d for d in devices_with_platforms if d["device_id"] == device_id
+            ]
         
         return JSONResponse(
             content={
@@ -281,14 +317,8 @@ def get_deep_communication_analytics(
                         "analytic_id": analytic_id,
                         "analytic_name": analytic.analytic_name or "Unknown"
                     },
-                    "device_tabs": device_tabs,
                     "devices": devices_with_platforms,
-                    "platform_analysis": platform_analysis,
-                    "summary": {
-                        "total_devices": len(devices),
-                        "total_messages": len(all_messages),
-                        "platforms_analyzed": list(platform_analysis.keys())
-                    }
+                    "summary": None
                 }
             },
             status_code=200
@@ -309,8 +339,8 @@ def get_deep_communication_analytics(
         )
 
 
-@router.get("/analytic/{analytic_id}/interaction-intensity")
-def get_interaction_intensity(
+@router.get("/analytic/{analytic_id}/platform-cards/intensity")
+def get_platform_cards_intensity(
     analytic_id: int,
     platform: str = Query(..., description="Platform name (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
@@ -346,7 +376,7 @@ def get_interaction_intensity(
                 },
                 status_code=404
             )
-    
+        
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).order_by(AnalyticDevice.id).all()
@@ -362,8 +392,14 @@ def get_interaction_intensity(
                     "status": 200,
                     "message": "No devices linked",
                     "data": {
+                        "analytic_id": analytic_id,
                         "platform": platform,
-                        "intensity_list": []
+                        "device_id": device_id,
+                        "intensity_list": [],
+                        "summary": {
+                            "total_persons": 0,
+                            "total_messages": 0
+                        }
                     }
                 },
                 status_code=200
@@ -384,17 +420,17 @@ def get_interaction_intensity(
         file_ids = [d.file_id for d in devices]
         
         messages = get_chat_messages_for_analytic(db, analytic_id, device_id, platform, file_ids)
-
+        
+        normalized_platform = normalize_platform_name(platform)
+        platform_messages = [
+            msg for msg in messages 
+            if normalize_platform_name(msg.platform or '') == normalized_platform
+        ]
+        
         person_intensity = defaultdict(int)
         person_info = {}
         
-        normalized_platform = normalize_platform_name(platform)
-        
-        for msg in messages:
-            msg_platform_normalized = normalize_platform_name(msg.platform or '')
-            if msg_platform_normalized != normalized_platform:
-                continue
-            
+        for msg in platform_messages:
             sender_name = msg.from_name or ""
             sender_id = msg.sender_number or ""
             recipient_name = msg.to_name or ""
@@ -428,13 +464,18 @@ def get_interaction_intensity(
                 person_id = recipient_id
             
             if not person_name:
-                person_name = recipient_name or sender_name
-                person_id = recipient_id or sender_id
+                if recipient_name:
+                    person_name = recipient_name
+                    person_id = recipient_id
+                elif sender_name:
+                    person_name = sender_name
+                    person_id = sender_id
             
             if person_name:
                 person_key = person_name.strip()
                 person_intensity[person_key] += 1
                 
+                # Store person info
                 if person_key not in person_info:
                     person_info[person_key] = {
                         "name": person_name,
@@ -443,22 +484,34 @@ def get_interaction_intensity(
         
         intensity_list = []
         for person_key, intensity in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
+            person_data = person_info.get(person_key, {})
+            person_name = person_data.get("name", person_key)
+            person_id_value = person_data.get("id", "")
+            
+            # Only use person_id if person_name is completely empty or None
+            # Otherwise, keep the original person_name (even if it contains special chars)
+            if (not person_name or person_name.strip() == "") and person_id_value:
+                person_name = person_id_value
+            
             intensity_list.append({
-                "person": person_info.get(person_key, {}).get("name", person_key),
-                "person_id": person_info.get(person_key, {}).get("id", ""),
+                "person": person_name,
+                "person_id": person_id_value,
                 "intensity": intensity
             })
         
         return JSONResponse(
             content={
                 "status": 200,
-                "message": "Interaction intensity retrieved successfully",
+                "message": "Platform cards intensity retrieved successfully",
                 "data": {
+                    "analytic_id": analytic_id,
                     "platform": platform,
+                    "device_id": device_id,
                     "intensity_list": intensity_list,
                     "summary": {
                         "total_persons": len(intensity_list),
-                        "total_messages": len(messages)
+                        "total_messages": len(platform_messages),
+                        "devices_involved": [d.id for d in devices]
                     }
                 }
             },
@@ -472,7 +525,7 @@ def get_interaction_intensity(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": "Internal server error: Failed to retrieve interaction intensity",
+                "message": "Internal server error: Failed to retrieve platform cards intensity",
                 "error": str(e),
                 "data": None
             },
@@ -490,7 +543,6 @@ def get_chat_detail(
     db: Session = Depends(get_db)
 ):
     try:
-        # Validate: either person_name or search must be provided
         if not person_name and not search:
             return JSONResponse(
                 content={
@@ -500,7 +552,6 @@ def get_chat_detail(
                 status_code=400
             )
         
-        # Validate platform if provided
         if platform:
             if not platform.strip():
                 return JSONResponse(
@@ -531,7 +582,7 @@ def get_chat_detail(
                 },
                 status_code=404
             )
-    
+        
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).order_by(AnalyticDevice.id).all()
@@ -577,7 +628,6 @@ def get_chat_detail(
         search_lower = search.lower() if search else None
         
         for msg in messages:
-            # Filter by platform if provided
             if normalized_platform:
                 msg_platform_normalized = normalize_platform_name(msg.platform or '')
                 if msg_platform_normalized != normalized_platform:
@@ -594,13 +644,11 @@ def get_chat_detail(
                 if not sender_match and not recipient_match:
                     continue
             
-            # Filter by search query if provided
             if search_lower:
                 message_text = (msg.message_text or "").lower()
                 if search_lower not in message_text:
                     continue
             
-            # Determine direction
             direction = None
             device_owner_name = None
             for d in devices:
@@ -625,9 +673,12 @@ def get_chat_detail(
                     else:
                         direction = "Incoming"
             
-            # Use existing direction if available
             if msg.direction:
                 direction = msg.direction
+            
+            # Clean message text
+            raw_message_text = msg.message_text or ""
+            cleaned_message_text = clean_message_text(raw_message_text)
             
             chat_messages.append({
                 "message_id": msg.id,
@@ -637,14 +688,13 @@ def get_chat_detail(
                 "recipient": msg.to_name or msg.recipient_number or "Unknown",
                 "sender_id": msg.sender_number or "",
                 "recipient_id": msg.recipient_number or "",
-                "message_text": msg.message_text or "",
+                "message_text": cleaned_message_text,
                 "message_type": msg.message_type or "text",
                 "platform": msg.platform,
                 "thread_id": msg.thread_id or "",
                 "chat_id": msg.chat_id or ""
             })
         
-        # Sort by timestamp (oldest first for chat, newest first for search-only)
         if person_name:
             chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=False)
         else:
@@ -652,7 +702,6 @@ def get_chat_detail(
         
         intensity = len(chat_messages)
         
-        # Extract person_id if person_name provided
         person_id = ""
         if person_name_normalized:
             for msg in chat_messages:

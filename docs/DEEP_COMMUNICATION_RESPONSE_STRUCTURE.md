@@ -44,30 +44,38 @@ Dokumentasi lengkap struktur response untuk Deep Communication Analytics endpoin
         "device_name": "Rio",
         "phone_number": "08131323421",
         "platform_cards": [
-          {
-            "platform": "Instagram",
-            "platform_key": "instagram",
-            "has_data": true,
-            "message_count": 12
-          },
-          {
-            "platform": "Telegram",
-            "platform_key": "telegram",
-            "has_data": true,
-            "message_count": 740
-          },
-          {
-            "platform": "WhatsApp",
-            "platform_key": "whatsapp",
-            "has_data": true,
-            "message_count": 4599
-          },
-          {
-            "platform": "Facebook",
-            "platform_key": "facebook",
-            "has_data": false,
-            "message_count": 0
-          },
+            {
+              "platform": "Instagram",
+              "platform_key": "instagram",
+              "has_data": true,
+              "message_count": 12,
+              "person": "John Doe",
+              "intensity": 8
+            },
+            {
+              "platform": "Telegram",
+              "platform_key": "telegram",
+              "has_data": true,
+              "message_count": 740,
+              "person": "cuan cepat",
+              "intensity": 197
+            },
+            {
+              "platform": "WhatsApp",
+              "platform_key": "whatsapp",
+              "has_data": true,
+              "message_count": 4599,
+              "person": "Briani Akbar",
+              "intensity": 810
+            },
+            {
+              "platform": "Facebook",
+              "platform_key": "facebook",
+              "has_data": false,
+              "message_count": 0,
+              "person": null,
+              "intensity": 0
+            },
           {
             "platform": "X",
             "platform_key": "x",
@@ -128,6 +136,8 @@ Array of devices dengan platform cards untuk setiap device.
 - `platform_key`: Key untuk API calls (instagram, telegram, whatsapp, facebook, x, tiktok)
 - `has_data`: Boolean, apakah platform ini punya data (true) atau tidak (false)
 - `message_count`: Jumlah messages untuk platform ini
+- `person`: Nama person dengan intensity tertinggi untuk platform ini (null jika tidak ada data)
+- `intensity`: Intensity score (jumlah messages) dari person dengan intensity tertinggi (0 jika tidak ada data)
 
 **Notes:**
 - Platform cards **selalu mengembalikan 6 platform** (semua platform yang didukung)
