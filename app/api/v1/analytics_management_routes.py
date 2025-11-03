@@ -12,6 +12,11 @@ from pydantic import BaseModel
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
 from datetime import datetime
+from datetime import datetime 
+import os
+
+class SummaryRequest(BaseModel):
+    summary: str
 
 def format_file_size(size_bytes):
     if size_bytes is None:
@@ -54,7 +59,7 @@ def create_analytic_with_devices(
             )
 
         valid_methods = [
-            "Deep communication analytics",
+            "Deep Communication Analytics",
             "Social Media Correlation",
             "Contact Correlation",
             "APK Analytics",
@@ -103,217 +108,214 @@ def create_analytic_with_devices(
             "message": f"Gagal membuat analytic: {str(e)}",
             "data": []
         }
-
-@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
+    
+@hashfile_router.get("/analytic/{analytsic_id}/hashfile-analytics")
 def get_hashfile_analytics(
     analytic_id: int,
     db: Session = Depends(get_db)
 ):
     try:
         min_devices = 2
-        
+
+        # ==============================================
+        # 1️⃣ Validasi Analytic
+        # ==============================================
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
-                content={"status": 404, "message": "Analytic not found", "data": None},
+                {"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
             )
-        
         if analytic.method != "Hashfile Analytics":
             return JSONResponse(
-                content={
-                    "status": 400, 
-                    "message": f"This endpoint is only for Hashfile Analytics. Current analytic method is '{analytic.method}'", 
-                    "data": None
+                {
+                    "status": 400,
+                    "message": f"This endpoint is only for Hashfile Analytics. Current method: '{analytic.method}'",
+                    "data": None,
                 },
                 status_code=400,
             )
 
+        # ==============================================
+        # 2️⃣ Ambil semua device terkait analytic
+        # ==============================================
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
-        device_ids = []
-        for link in device_links:
-            device_ids.extend(link.device_ids)
-        device_ids = list(set(device_ids))
-        
+
+        device_ids = list({d for link in device_links for d in link.device_ids})
         if not device_ids:
             return JSONResponse(
-                content={"status": 400, "message": "No devices linked to this analytic", "data": None},
+                {"status": 400, "message": "No devices linked to this analytic", "data": None},
                 status_code=400,
             )
 
         devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-        device_info = {
-            d.id: {
-                "id": d.id,
-                "owner_name": d.owner_name,
-                "phone_number": d.phone_number,
-                "device_name": getattr(d, 'device_name', d.owner_name)
-            }
-            for d in devices
-        }
-        
-        file_ids = [d.file_id for d in devices]
-        
+        if not devices:
+            return JSONResponse(
+                {"status": 404, "message": "No valid devices found", "data": None},
+                status_code=404,
+            )
+
+        # Buat label (Device A, B, C, ...)
         device_labels = []
-        for i, device in enumerate(devices):
+        for i in range(len(devices)):
             if i < 26:
-                device_label = f"Device {chr(65 + i)}"
+                device_labels.append(f"Device {chr(65 + i)}")
             else:
-                first_char = chr(65 + (i - 26) // 26)
-                second_char = chr(65 + (i - 26) % 26)
-                device_label = f"Device {first_char}{second_char}"
-            device_labels.append(device_label)
+                first = chr(65 + (i // 26) - 1)
+                second = chr(65 + (i % 26))
+                device_labels.append(f"Device {first}{second}")
 
-        hashfiles = db.query(HashFile).filter(
-            HashFile.file_id.in_(file_ids)
-        ).all()
+        file_ids = [d.file_id for d in devices]
+        file_to_device = {d.file_id: d.id for d in devices}
 
-        hashfile_groups = {}
-        for hashfile in hashfiles:
-            hash_value = hashfile.md5_hash or hashfile.sha1_hash
-            if hash_value:
-                if hash_value not in hashfile_groups:
-                    hashfile_groups[hash_value] = {
-                        "hash_value": hash_value,
-                        "md5_hash": hashfile.md5_hash or "",
-                        "sha1_hash": hashfile.sha1_hash or "",
-                        "file_path": hashfile.path_original,
-                        "file_kind": hashfile.kind or "Unknown",
-                        "file_size_bytes": hashfile.size_bytes or 0,
-                        "file_type": hashfile.file_type,
-                        "file_extension": hashfile.file_extension,
-                        "is_suspicious": hashfile.is_suspicious == "True" if hashfile.is_suspicious else False,
-                        "risk_level": hashfile.risk_level or "Low",
-                        "source_type": hashfile.source_type,
-                        "source_tool": hashfile.source_tool,
-                        "devices": set(),
-                        "hashfile_records": []
-                    }
+        # ==============================================
+        # 3️⃣ Ambil HashFile dari semua file_id
+        # ==============================================
+        hashfiles = (
+            db.query(
+                HashFile.file_id,
+                HashFile.name,
+                HashFile.md5_hash,
+                HashFile.sha1_hash,
+                HashFile.path_original,
+                HashFile.kind,
+                HashFile.size_bytes,
+                HashFile.file_type,
+                HashFile.file_extension,
+                HashFile.is_suspicious,
+                HashFile.risk_level,
+                HashFile.source_tool,
+                HashFile.created_at_original,
+                HashFile.modified_at_original,
+            )
+            .filter(HashFile.file_id.in_(file_ids))
+            .filter(or_(HashFile.md5_hash != None, HashFile.sha1_hash != None))
+            .all()
+        )
 
-                hashfile_device_id = None
-                for d in devices:
-                    if d.file_id == hashfile.file_id:
-                        hashfile_device_id = d.id
-                        break
-                if hashfile_device_id:
-                    hashfile_groups[hash_value]["devices"].add(hashfile_device_id)
-                hashfile_groups[hash_value]["hashfile_records"].append(hashfile)
+        if not hashfiles:
+            return JSONResponse(
+                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "hashfiles": []}},
+                status_code=200,
+            )
 
-        common_hashfiles = {
-            hash_value: info for hash_value, info in hashfile_groups.items() 
-            if len(info["devices"]) >= min_devices
+        # ==============================================
+        # 4️⃣ Bangun correlation: berdasarkan hash + name
+        # ==============================================
+        from collections import defaultdict
+
+        correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
+
+        for hf in hashfiles:
+            hash_value = hf.md5_hash or hf.sha1_hash
+            if not hash_value or not hf.name:
+                continue
+
+            key = f"{hash_value}::{hf.name.strip().lower()}"  # unik per kombinasi hash+name
+            device_id = file_to_device.get(hf.file_id)
+            if not device_id:
+                continue
+
+            correlation_map[key]["records"].append(hf)
+            correlation_map[key]["devices"].add(device_id)
+
+        # ==============================================
+        # 5️⃣ Filter: hanya muncul di >= min_devices
+        # ==============================================
+        correlated = {
+            key: data for key, data in correlation_map.items()
+            if len(data["devices"]) >= min_devices
         }
 
+        # ==============================================
+        # 6️⃣ Format hasil untuk frontend
+        # ==============================================
         hashfile_list = []
-        for hash_value, info in common_hashfiles.items():
-            hashfile_records = info["hashfile_records"]
-            device_hashfiles = {}
-            
-            for record in hashfile_records:
-                hashfile_device_id = None
-                for d in devices:
-                    if d.file_id == record.file_id:
-                        hashfile_device_id = d.id
-                        break
-                if hashfile_device_id:
-                    device_hashfiles[hashfile_device_id] = record
-            
-            first_record = hashfile_records[0] if hashfile_records else None
-            if not first_record:
-                continue
-                
-            file_size_bytes = first_record.size_bytes or 0
-            if file_size_bytes > 0:
-                formatted_size = f"{file_size_bytes:,}".replace(",", ".")
-                if file_size_bytes >= 1024 * 1024 * 1024:
-                    size_display = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
-                elif file_size_bytes >= 1024 * 1024:
-                    size_mb = file_size_bytes / (1000 * 1000)
-                    size_display = f"{size_mb:.1f} MB"
-                elif file_size_bytes >= 1024:
-                    size_display = f"{file_size_bytes / 1024:.1f} KB"
-                else:
-                    size_display = f"{file_size_bytes} bytes"
-                file_size_display = f"{formatted_size} ({size_display} on disk)"
-            else:
-                file_size_display = "Unknown size"
+        for key, info in correlated.items():
+            first = info["records"][0]
+            device_ids_found = info["devices"]
 
-            if first_record.created_at:
-                created_at = first_record.created_at.strftime("%Y-%m-%dT%H:%M:%S")
+            file_size_bytes = first.size_bytes or 0
+            if file_size_bytes >= 1024**3:
+                size_display = f"{file_size_bytes / (1024**3):.1f} GB"
+            elif file_size_bytes >= 1024**2:
+                size_display = f"{file_size_bytes / (1024**2):.1f} MB"
+            elif file_size_bytes >= 1024:
+                size_display = f"{file_size_bytes / 1024:.1f} KB"
             else:
-                created_at = "Unknown"
+                size_display = f"{file_size_bytes} bytes"
 
-            if first_record.updated_at:
-                modified_at = first_record.updated_at.strftime("%Y-%m-%dT%H:%M:%S")
-            else:
-                modified_at = "Unknown"
+            file_path = first.path_original or "Unknown"
+            file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.name or "Unknown")
+            file_type = first.file_type or "Unknown"
+            if first.file_extension:
+                file_type = f"{file_type} ({first.file_extension.upper()})"
 
-            device_labels_for_hashfile = []
-            for i, device in enumerate(devices):
-                if device.id in info["devices"]:
-                    device_labels_for_hashfile.append(device_labels[i])
-            
-            file_path = first_record.path_original or "Unknown"
-            file_name = file_path.split('/')[-1] if '/' in file_path else file_path.split('\\')[-1] if '\\' in file_path else file_path
-            
-            file_type = first_record.file_type or "Unknown"
-            if first_record.file_extension:
-                file_type = f"{file_type} ({first_record.file_extension.upper()})"
-            
-            general_info = {
-                "kind": first_record.kind or "Unknown",
-                "size": file_size_display,
-                "where": file_path,
-                "created": created_at.replace('T', ' ').replace('-', ' '),
-                "modified": modified_at.replace('T', ' ').replace('-', ' '),
-                "stationery_pad": False,
-                "locked": first_record.is_suspicious == "True" if first_record.is_suspicious else False
-            }
-            
-            hashfile_data = {
+            device_labels_found = [
+                device_labels[i]
+                for i, d in enumerate(devices)
+                if d.id in device_ids_found
+            ]
+
+            hash_value = first.md5_hash or first.sha1_hash
+            hashfile_list.append({
                 "hash_value": hash_value,
-                "file_name": file_name,
+                "file_name": first.name or file_name,
                 "file_type": file_type,
-                "file_size": size_display if file_size_bytes > 0 else "Unknown",
-                "file_path": file_path,
-                "created_at": created_at,
-                "modified_at": modified_at,
-                "devices": device_labels_for_hashfile,
-                "general_info": general_info
-            }
-            
-            hashfile_list.append(hashfile_data)
-
-        hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
-
-        devices_list = []
-        for i, device in enumerate(devices):
-            devices_list.append({
-                "device_label": device_labels[i],
-                "owner_name": device.owner_name,
-                "phone_number": device.phone_number
+                # "file_size": size_display,
+                # "file_path": file_path,
+                # "created_at": (
+                #     first.created_at_original.strftime("%Y-%m-%d %H:%M:%S")
+                #     if first.created_at_original else "Unknown"
+                # ),
+                # "modified_at": (
+                #     first.modified_at_original.strftime("%Y-%m-%d %H:%M:%S")
+                #     if first.modified_at_original else "Unknown"
+                # ),
+                "devices": device_labels_found,
             })
 
-        summary = analytic.summary if analytic.summary else None
+        # Urutkan berdasarkan jumlah devices yang terlibat
+        hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
 
+        # ==============================================
+        # 7️⃣ Build device list
+        # ==============================================
+        devices_list = [
+            {
+                "device_label": device_labels[i],
+                "owner_name": d.owner_name,
+                "phone_number": d.phone_number,
+            }
+            for i, d in enumerate(devices)
+        ]
+
+        # ==============================================
+        # 8️⃣ Response
+        # ==============================================
+        summary = analytic.summary if analytic.summary else None
         return JSONResponse(
-            content={
+            {
                 "status": 200,
-                "message": "Hashfile correlation analysis completed successfully",
+                "message": "Hashfile correlation (by hash + name) completed successfully",
                 "data": {
                     "devices": devices_list,
-                    "hashfiles": hashfile_list,
-                    "summary": summary
-                }
+                    "correlations": hashfile_list,
+                    "summary": summary,
+                },
             },
             status_code=200,
         )
 
     except Exception as e:
         return JSONResponse(
-            content={"status": 500, "message": f"Failed to get hashfile analytics: {str(e)}", "data": None},
+            {
+                "status": 500,
+                "message": f"Failed to get hashfile analytics: {str(e)}",
+                "data": None,
+            },
             status_code=500,
         )
 
@@ -385,7 +387,7 @@ def start_data_extraction(
                 },
                 status_code=200
             )
-        elif method == "Deep communication analytics":
+        elif method == "Deep Communication Analytics":
             return JSONResponse(
                 {
                     "status": 200,
@@ -411,20 +413,6 @@ def start_data_extraction(
                         "device_count": len(device_ids),
                         "status": "completed",
                         "next_step": f"GET /api/v1/analytic/{analytic_id}/social-media-correlation"
-                    }
-                },
-                status_code=200
-            )
-        else:
-            return JSONResponse(
-                {
-                    "status": 200,
-                    "message": f"Data extraction completed for method: {method}",
-                    "data": {
-                        "analytic_id": analytic.id,
-                        "method": method,
-                        "device_count": len(device_ids),
-                        "status": "completed"
                     }
                 },
                 status_code=200
@@ -536,6 +524,7 @@ def get_all_analytic(
             },
             status_code=500
         )
+
 
 __all__ = ["router", "hashfile_router"]
 

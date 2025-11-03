@@ -16,6 +16,7 @@ from app.core.health import router as health_router
 from app.middleware.cors import add_cors_middleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
+from app.middleware.auth_middleware import AuthMiddleware
 from app.api.v1 import (
     dashboard_routes,
     analytics_file_routes,
@@ -26,8 +27,10 @@ from app.api.v1 import (
     analytics_contact_routes,
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
-    analytics_social_media_routes
+    analytics_social_media_routes,
+    auth_routes
 )
+from fastapi.openapi.utils import get_openapi
 from app.db.init_db import init_db
 
 logger = setup_logging()
@@ -64,9 +67,66 @@ add_cors_middleware(app)
 
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
+app.add_middleware(AuthMiddleware)
+
+# ===========================================================
+# 🧩 Tambahkan BearerAuth ke dokumentasi Swagger
+# ===========================================================
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    # 🧠 Tambahkan definisi BearerAuth
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Masukkan token JWT kamu di sini. Contoh: `Bearer eyJhbGciOiJIUzI1Ni...`"
+        }
+    }
+
+    # 🧠 Set default semua endpoint pakai BearerAuth
+    openapi_schema["security"] = [{"BearerAuth": []}]
+
+    # 🚫 Buat 3 endpoint public (tanpa gembok)
+    public_paths = [
+        "/api/v1/auth/login",
+        "/api/v1/auth/refresh",
+        "/api/v1/dashboard/landing",
+        "/api/v1/file-encryptor/convert-to-sdp",
+        "/api/v1/file-encryptor/list-sdp",
+        "/api/v1/file-encryptor/download-sdp",
+        "/api/v1/file-encryptor/progress/{upload_id}",
+        '/health/health',
+        '/health/health/ready',
+        '/health/health/live',
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/favicon.ico",
+    ]
+
+    for path, path_item in openapi_schema["paths"].items():
+        if any(path.startswith(pub) for pub in public_paths):
+            for method in path_item.values():
+                method["security"] = []  # hapus security dari endpoint public
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
-
+app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
+app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
 # app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 # app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
 # app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
@@ -77,7 +137,6 @@ app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
 # ANALYTICS MANAGEMENTS
 app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])
-app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["SDP Converter"])
 app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tags=["File Management"])
 app.include_router(analytics_management_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Management"])
 app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, tags=["Device Management"])

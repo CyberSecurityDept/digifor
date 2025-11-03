@@ -368,7 +368,7 @@ class UploadService:
                     print(f"Error parsing social media: {e}")
                     parsing_result["social_media_error"] = str(e)
             
-            elif method == "Deep communication analytics":
+            elif method == "Deep Communication Analytics":
                 try:
                     self._progress[upload_id].update({
                         "message": "Parsing chat messages data...",
@@ -543,7 +543,7 @@ class UploadService:
                 }
                 if "hashfiles_error" in parsing_result:
                     cleaned_parsing_result["parsing_error"] = parsing_result["hashfiles_error"]
-            elif method == "Deep communication analytics":
+            elif method == "Deep Communication Analytics":
                 cleaned_parsing_result = {
                     "tool_used": parsing_result.get("tool_used"),
                     "chat_messages_count": actual_chat_messages_count,
@@ -742,69 +742,67 @@ class UploadService:
         except Exception as e:
             return {"status": 500, "message": f"Processing error: {str(e)}", "data": None}
 
-    async def start_app_upload(
-        self,
-        upload_id: str,
-        file: UploadFile,
-        file_name: str,
-        notes: str,
-        type:str,
-        tools: str,
-        file_bytes: bytes,
-        method: str = None,
-    ):
-        APK_DIR = os.path.join(APK_DIR_BASE, "apk")
-        os.makedirs(APK_DIR, exist_ok=True)
-
-        if upload_id in self._progress and not self._progress[upload_id].get("done"):
-            return {"status": 400, "message": "Upload ID sedang berjalan", "data": None}
-
-        self._init_state(upload_id)
-
+    async def start_app_upload(self, upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes):
+        """
+        Upload dan simpan file APK/IPA ke direktori + database, dengan progress tracking.
+        Logging full via print biar kelihatan prosesnya di terminal.
+        """
         try:
+            APK_DIR = os.path.join(APK_DIR_BASE, "apk")
+            os.makedirs(APK_DIR, exist_ok=True)
+            print(f"📂 [DEBUG] APK_DIR ready: {APK_DIR}")
+
             safe_filename = Path(file.filename).name
             target_path = os.path.join(APK_DIR, safe_filename)
             total_size = len(file_bytes)
+            print(f"📦 [DEBUG] Start writing file: {target_path} ({format_bytes(total_size)})")
 
-            self._progress[upload_id].update(
-                {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
-            )
+            self._init_state(upload_id)
 
+            # === Write chunked ===
             chunk_size = 1024 * 512
             written = 0
             with open(target_path, "wb") as f:
                 for i in range(0, total_size, chunk_size):
-                    if self._is_canceled(upload_id):
-                        self._mark_done(upload_id, "Upload canceled")
-                        return {"status": 200, "message": "Upload canceled", "data": {"done": True}}
-
                     chunk = file_bytes[i:i + chunk_size]
                     f.write(chunk)
                     written += len(chunk)
-
                     percent = (written / total_size) * 100
-                    progress_bytes = int((percent / 100) * total_size)
                     self._progress[upload_id].update({
                         "percent": round(percent, 2),
-                        "progress_size": format_bytes(progress_bytes),
+                        "progress_size": format_bytes(written),
                         "message": f"Uploading app... ({percent:.2f}%)",
                     })
                     await asyncio.sleep(0.02)
+            print(f"✅ [DEBUG] File write completed ({written} bytes)")
 
+            # === Simpan ke database ===
             rel_path = os.path.relpath(target_path, BASE_DIR)
-            db = next(get_db())
-            file_record = File(
-                file_name=file_name,   
-                file_path=rel_path,
-                notes=notes,
-                type=type,
-                tools=tools,
-                method=method,
-            )
-            db.add(file_record)
-            db.commit()
-            db.refresh(file_record)
+            print(f"🗂️ [DEBUG] Relative path for DB: {rel_path}")
 
+            db = next(get_db())
+            print("🧩 [DEBUG] Database session started")
+
+            file_record = File(
+                file_name=file_name,
+                file_path=rel_path,
+                notes=None,
+                type="Handphone",
+                tools=None,
+                total_size=total_size,
+                method="APK Analytics",
+            )
+
+            db.add(file_record)
+            print("📝 [DEBUG] File record added to DB session")
+
+            db.commit()
+            print("💾 [DEBUG] DB commit successful")
+
+            db.refresh(file_record)
+            print(f"✅ [DEBUG] File record refreshed (ID: {file_record.id})")
+
+            # === Update progress ===
             self._progress[upload_id].update({
                 "percent": 100,
                 "progress_size": format_bytes(total_size),
@@ -812,6 +810,8 @@ class UploadService:
                 "done": True,
                 "file_id": file_record.id,
             })
+
+            print(f"🎉 [DEBUG] Upload process complete for {file_name} (upload_id={upload_id})")
 
             return {
                 "status": 200,
@@ -827,6 +827,10 @@ class UploadService:
             }
 
         except Exception as e:
+            print(f"❌ [ERROR] start_app_upload error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self._mark_done(upload_id, f"App upload error: {str(e)}")
             return {"status": 500, "message": f"Unexpected app upload error: {str(e)}", "data": None}
+
 upload_service = UploadService()

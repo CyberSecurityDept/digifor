@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean, BigInteger, Index
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.utils.timezone import get_indonesia_time
@@ -11,7 +11,7 @@ class File(Base):
     file_path = Column(String, nullable=False)
     notes = Column(String, nullable=True)
     type = Column(String, nullable=False)
-    tools = Column(String, nullable=False)
+    tools = Column(String, nullable=True)
     method = Column(String, nullable=True)
     total_size = Column(Integer, nullable=True)
     amount_of_data = Column(Integer, nullable=True)
@@ -87,13 +87,13 @@ class Device(Base):
 class HashFile(Base):
     __tablename__ = "hash_files"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     name = Column(String, nullable=True)
     
     file_name = Column(String, nullable=True)
     kind = Column(String, nullable=True)
-    size_bytes = Column(Integer, nullable=True)
+    size_bytes = Column(BigInteger, nullable=True)
     path_original = Column(String, nullable=True)
     created_at_original = Column(DateTime, nullable=True)
     modified_at_original = Column(DateTime, nullable=True)
@@ -117,6 +117,11 @@ class HashFile(Base):
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
     file = relationship("File", back_populates="hash_files")
+    __table_args__ = (
+        Index("idx_hash_fileid_md5", "file_id", "md5_hash"),
+        Index("idx_hash_fileid_sha1", "file_id", "sha1_hash"),
+        Index("idx_hash_tool", "source_tool"),
+    )
 
 class Contact(Base):
     __tablename__ = "contacts"

@@ -174,73 +174,73 @@ async def add_device(
             status_code=500
         )
 
-@router.get("/analytics/latest/files")
-def get_files_by_latest_analytic_method(
-    search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
-    dropdown: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
-    db: Session = Depends(get_db)
-):
-    try:
-        allowed_methods = {"Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"}
+# @router.get("/analytics/latest/files")
+# def get_files_by_latest_analytic_method(
+#     search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
+#     dropdown: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         allowed_methods = {"Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"}
 
-        query = db.query(File)
+#         query = db.query(File)
 
-        if dropdown and dropdown in allowed_methods and dropdown != "All":
-            query = query.filter(File.method == dropdown)
+#         if dropdown and dropdown in allowed_methods and dropdown != "All":
+#             query = query.filter(File.method == dropdown)
 
-        if search:
-            term = f"%{search.strip()}%"
-            query = query.filter(
-                or_(
-                    File.file_name.ilike(term),
-                    File.notes.ilike(term),
-                    File.tools.ilike(term),
-                    File.method.ilike(term),
-                )
-            )
+#         if search:
+#             term = f"%{search.strip()}%"
+#             query = query.filter(
+#                 or_(
+#                     File.file_name.ilike(term),
+#                     File.notes.ilike(term),
+#                     File.tools.ilike(term),
+#                     File.method.ilike(term),
+#                 )
+#             )
 
-        files = query.order_by(File.created_at.desc()).all()
+#         files = query.order_by(File.created_at.desc()).all()
 
-        files_data = []
-        for file_record in files:
-            files_data.append({
-                "id": file_record.id,
-                "file_name": file_record.file_name,
-                "notes": file_record.notes,
-                "type": file_record.type,
-                "tools": file_record.tools,
-                "method": file_record.method,
-                "total_size": file_record.total_size,
-                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None,
-                "amount_of_data": file_record.amount_of_data,
-                "created_at": str(file_record.created_at),
-                "date": file_record.created_at.strftime("%d/%m/%Y") if file_record.created_at else None
-            })
+#         files_data = []
+#         for file_record in files:
+#             files_data.append({
+#                 "id": file_record.id,
+#                 "file_name": file_record.file_name,
+#                 "notes": file_record.notes,
+#                 "type": file_record.type,
+#                 "tools": file_record.tools,
+#                 "method": file_record.method,
+#                 "total_size": file_record.total_size,
+#                 "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None,
+#                 "amount_of_data": file_record.amount_of_data,
+#                 "created_at": str(file_record.created_at),
+#                 "date": file_record.created_at.strftime("%d/%m/%Y") if file_record.created_at else None
+#             })
 
-        return JSONResponse(
-            {
-                "status": 200,
-                "message": f"Retrieved {len(files_data)} files",
-                "data": {
-                    "filters": {
-                        "search": search,
-                        "dropdown": dropdown if dropdown in allowed_methods else None
-                    },
-                    "files": files_data
-                }
-            },
-            status_code=200
-        )
+#         return JSONResponse(
+#             {
+#                 "status": 200,
+#                 "message": f"Retrieved {len(files_data)} files",
+#                 "data": {
+#                     "filters": {
+#                         "search": search,
+#                         "dropdown": dropdown if dropdown in allowed_methods else None
+#                     },
+#                     "files": files_data
+#                 }
+#             },
+#             status_code=200
+#         )
 
-    except Exception as e:
-        return JSONResponse(
-            {
-                "status": 500,
-                "message": f"Failed to get files: {str(e)}",
-                "data": []
-            },
-            status_code=500
-        )
+#     except Exception as e:
+#         return JSONResponse(
+#             {
+#                 "status": 500,
+#                 "message": f"Failed to get files: {str(e)}",
+#                 "data": []
+#             },
+#             status_code=500
+#         )
 
 @router.get("/analytics/{analytic_id}/get-devices")
 def get_devices_by_analytic_id(

@@ -1,10 +1,10 @@
 {
   "status": 200,
-  "message": "Deep communication analytics retrieved successfully",
+  "message": "Deep Communication Analytics retrieved successfully",
   "data": {
     "analytic_info": {
       "analytic_id": 1,
-      "analytic_name": "Analytics untuk Deep communication analytics"
+      "analytic_name": "Analytics untuk Deep Communication Analytics"
     },
     "device_tabs": [
       {

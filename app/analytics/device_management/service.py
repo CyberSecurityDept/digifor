@@ -24,9 +24,24 @@ def create_file_record(file_name: str, file_path: str, notes: str, type: str, to
     finally:
         db.close()
 
-def get_all_files(db: Session):
+def get_all_files(db: Session, search: str = None, method: str = None):
     try:
-        files = db.query(File).order_by(File.id.desc()).all()
+        query = db.query(File)
+
+        if method:
+            query = query.filter(File.method.ilike(f"%{method.lower()}%"))
+
+        if search:
+            pattern = f"%{search.lower()}%"
+            query = query.filter(
+                (File.file_name.ilike(pattern)) |
+                (File.type.ilike(pattern)) |
+                (File.tools.ilike(pattern)) |
+                (File.notes.ilike(pattern)) |
+                (File.method.ilike(pattern))
+            )
+
+        files = query.order_by(File.id.desc()).all()
 
         result = [
             {
@@ -36,6 +51,7 @@ def get_all_files(db: Session):
                 "notes": f.notes,
                 "type": f.type,
                 "tools": f.tools,
+                "method": f.method,
                 "total_size": f.total_size,
                 "total_size_formatted": format_file_size(f.total_size) if f.total_size else None,
                 "amount_of_data": f.amount_of_data,
@@ -46,7 +62,7 @@ def get_all_files(db: Session):
 
         return {
             "status": 200,
-            "message": "File uploaded successfully.",
+            "message": f"Retrieved {len(result)} files successfully",
             "data": result
         }
 
@@ -56,6 +72,7 @@ def get_all_files(db: Session):
             "message": f"Gagal mengambil data file: {str(e)}",
             "data": []
         }
+
 
 def format_file_size(size_bytes):
     if size_bytes is None:

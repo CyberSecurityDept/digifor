@@ -20,6 +20,12 @@ class Analytic(Base):
         cascade="all, delete-orphan"
     )
 
+    apk_analytics = relationship(
+        "ApkAnalytic",
+        back_populates="analytic",
+        cascade="all, delete-orphan"
+    )
+
 
 class AnalyticDevice(Base):
     __tablename__ = "analytic_device"
@@ -45,3 +51,5 @@ class ApkAnalytic(Base):
 
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     analytic_id = Column(Integer, ForeignKey("analytics_history.id"), nullable=False)
+    
+    analytic = relationship("Analytic", back_populates="apk_analytics")

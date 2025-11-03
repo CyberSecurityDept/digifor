@@ -4,7 +4,7 @@ from app.analytics.device_management.models import Device, File
 from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List
 from app.utils.timezone import get_indonesia_time
-from app.analytics.utils.scan_apk import classify_app, safe_get, load_suspicious_indicators
+from app.analytics.utils.scan_apk import load_suspicious_indicators
 import os
 import json
 import hashlib
@@ -69,27 +69,150 @@ def get_analytic_devices(db: Session, analytic_id: int):
     devices = db.query(Device).filter(Device.analytic_id == analytic_id).all()
     return devices
 
-MOBSF_URL = "http://localhost:8000"
+MOBSF_URL="http://localhost:5001"
+# =====================================================
+# 🔹 Permission Classifier
+# =====================================================
+def classify_permissions(permissions, suspicious_set=None):
+    if not permissions:
+        print("[!] No permissions found in report.")
+        return 100, "Safe", "No permissions requested.", [], 0
+
+    perm_list = list(permissions.keys()) if isinstance(permissions, dict) else []
+    total_perms = len(perm_list)
+    if total_perms == 0:
+        print("[!] Permission list is empty.")
+        return 100, "Safe", "No permissions requested.", [], 0
+
+    dangerous_count = 0
+    normal_count = 0
+    info_count = 0
+    dangerous_found = []
+
+    for perm_name, perm_info in permissions.items():
+        status = None
+        if isinstance(perm_info, dict):
+            status = perm_info.get('status')
+        elif isinstance(perm_info, str):
+            status = perm_info
+        if not status and suspicious_set and perm_name in suspicious_set:
+            status = 'dangerous'
+
+        if status:
+            status = str(status).lower()
+            if status == 'dangerous':
+                dangerous_count += 1
+                dangerous_found.append(perm_name)
+            elif status == 'normal':
+                normal_count += 1
+            else:
+                info_count += 1
+        else:
+            info_count += 1
+
+    risk_weight = (dangerous_count * 3) + (normal_count * 1) + (info_count * 0.5)
+    max_possible_risk = total_perms * 3
+    safety_score = int((1 - (risk_weight / max_possible_risk)) * 100)
+    safety_score = max(0, min(100, safety_score))
+
+    print(f"[*] Total permissions: {total_perms}")
+    print(f"    - Dangerous: {dangerous_count}")
+    print(f"    - Normal: {normal_count}")
+    print(f"    - Info/Other: {info_count}")
+    print(f"    → Computed Safety Score: {safety_score}")
+
+    if any(p in ("android.permission.REQUEST_INSTALL_PACKAGES", "REQUEST_INSTALL_PACKAGES") for p in perm_list):
+        print("[⚠️] Critical permission REQUEST_INSTALL_PACKAGES detected.")
+        return (
+            min(40, safety_score),
+            "Dangerous",
+            "REQUEST_INSTALL_PACKAGES permission detected (critical risk indicator).",
+            dangerous_found,
+            risk_weight,
+        )
+
+    if safety_score > 70 and dangerous_count == 0:
+        return (safety_score, "Safe", "Application has low risk permissions.", dangerous_found, risk_weight)
+    if safety_score > 40 or (safety_score > 30 and dangerous_count <= 2):
+        return (safety_score, "Malicious", f"High risk: {dangerous_count} dangerous permissions found.", dangerous_found, risk_weight)
+    return (safety_score, "Dangerous", f"Critical risk: {dangerous_count} dangerous permissions detected.", dangerous_found, risk_weight)
+
+
+# =====================================================
+# 🔹 Helpers
+# =====================================================
+def normalize_permission_entry(entry):
+    if isinstance(entry, dict):
+        return entry.get("status", ""), entry.get("description", "")
+    elif isinstance(entry, str):
+        return entry, ""
+    elif entry is None:
+        return "", ""
+    else:
+        return str(entry), ""
+
+
 def get_mobsf_api_key():
     secret_path = os.path.expanduser("~/.MobSF/secret")
     if not os.path.exists(secret_path):
         raise FileNotFoundError("❌ File ~/.MobSF/secret tidak ditemukan.")
     with open(secret_path, "r") as f:
         secret = f.read().strip()
+    print("[*] MobSF secret loaded successfully.")
     return hashlib.sha256(secret.encode()).hexdigest()
 
+
+def load_suspicious_indicators(script_dir):
+    indicators_file = os.path.join(script_dir, 'suspicious_indicators.json')
+    if not os.path.exists(indicators_file):
+        print("[!] suspicious_indicators.json tidak ditemukan, skip.")
+        return set()
+    try:
+        with open(indicators_file, 'r') as f:
+            data = json.load(f)
+        suspicious = {
+            item['name']
+            for item in data
+            if item.get('platform') == 'android' and item.get('type') == 'permission'
+        }
+        print(f"[*] Loaded {len(suspicious)} suspicious indicators.")
+        return suspicious
+    except Exception as e:
+        print(f"[!] Gagal load suspicious_indicators.json: {e}")
+        return set()
+
+
+def log_response(prefix: str, resp):
+    """Pretty print MobSF API responses safely"""
+    print(f"    → {prefix} response: {resp.status_code}")
+    try:
+        data = resp.json()
+        dump = json.dumps(data, indent=2)[:500]  # truncate for readability
+        print(f"       Response JSON (truncated):\n{dump}")
+    except Exception:
+        print(f"       Response text (truncated): {resp.text[:500]}")
+
+
+# =====================================================
+# 🔹 Main Analysis Function
+# =====================================================
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
+    print(f"\n==== 🚀 Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
+
     file_obj = db.query(File).filter(File.id == file_id).first()
     if not file_obj:
-        raise ValueError(f"File dengan id={file_id} tidak ditemukan")
+        raise ValueError(f"❌ File dengan id={file_id} tidak ditemukan")
 
     file_path = getattr(file_obj, "file_path", None) or getattr(file_obj, "path", None)
     if not file_path:
-        raise ValueError("File path tidak ditemukan di DB")
+        raise ValueError("❌ File path tidak ditemukan di DB")
+
     if not os.path.isabs(file_path):
         file_path = os.path.join(os.getcwd(), file_path)
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File tidak ditemukan: {file_path}")
+        raise FileNotFoundError(f"❌ File tidak ditemukan: {file_path}")
+
+    print(f"[*] File found: {file_path}")
 
     ext = os.path.splitext(file_path)[1].lower()
     scan_type = "apk" if ext == ".apk" else "ipa" if ext == ".ipa" else "app"
@@ -97,165 +220,101 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     api_key = get_mobsf_api_key()
     headers = {"Authorization": api_key}
 
+    # === Upload ke MobSF ===
+    print("[*] Uploading to MobSF...")
     with open(file_path, "rb") as f:
         filename = os.path.basename(file_path)
         files = {"file": (filename, f, "application/octet-stream")}
         resp = requests.post(f"{MOBSF_URL}/api/v1/upload", files=files, headers=headers)
+    log_response("Upload", resp)
     if resp.status_code != 200:
         raise RuntimeError(f"Upload gagal: {resp.text}")
-
-    upload_data = resp.json()
-    file_hash = upload_data.get("hash")
+    file_hash = resp.json().get("hash")
     if not file_hash:
-        raise RuntimeError(f"Upload gagal: {resp.text}")
+        raise RuntimeError("❌ Tidak dapat membaca hash dari response upload")
 
+    # === Jalankan scan ===
+    print("[*] Starting MobSF scan...")
     scan_resp = requests.post(f"{MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
+    log_response("Scan", scan_resp)
     if scan_resp.status_code != 200:
         raise RuntimeError(f"Scan gagal: {scan_resp.text}")
 
+    # === Ambil JSON report ===
+    print("[*] Fetching MobSF JSON report...")
     json_resp = requests.post(f"{MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
+    log_response("Report JSON", json_resp)
     if json_resp.status_code != 200:
-        raise RuntimeError(f"Gagal ambil JSON report: {json_resp.text}")
+        raise RuntimeError(f"Gagal ambil report JSON: {json_resp.text}")
     report_json = json_resp.json()
 
-    output_dir = os.path.join(os.getcwd(), "mobsf_output")
-    os.makedirs(output_dir, exist_ok=True)
-    report_base = os.path.splitext(os.path.basename(file_path))[0]
-    json_path = os.path.join(output_dir, f"report_{report_base}.json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(report_json, f, indent=2)
+    # === Simpan report JSON ke file ===
+    # output_dir = os.path.join(os.getcwd(), "mobsf_output")
+    # os.makedirs(output_dir, exist_ok=True)
+    # base_name = os.path.splitext(os.path.basename(file_path))[0]
+    # json_path = os.path.join(output_dir, f"report_{base_name}.json")
+    # with open(json_path, "w", encoding="utf-8") as f:
+    #     json.dump(report_json, f, indent=2)
+    # print(f"[*] Report JSON saved: {json_path}")
 
-    pdf_path = os.path.join(output_dir, f"report_{report_base}.pdf")
-    pdf_resp = requests.post(
-        f"{MOBSF_URL}/api/v1/download_pdf",
-        data={"hash": file_hash, "scan_type": scan_type},
-        headers=headers
+    # === Simpan permission-only PDF ===
+    # pdf_path = os.path.join(output_dir, f"permission_report_{base_name}.pdf")
+    # print("[*] Requesting permission-only PDF from MobSF...")
+    # pdf_resp = requests.post(
+    #     f"{MOBSF_URL}/api/v1/permissions_pdf",
+    #     data={"hash": file_hash, "scan_type": scan_type},
+    #     headers=headers
+    # )
+    # log_response("Permissions PDF", pdf_resp)
+    # if pdf_resp.status_code == 200:
+    #     with open(pdf_path, "wb") as f:
+    #         f.write(pdf_resp.content)
+    #     print(f"[+] Permission PDF saved to: {pdf_path}")
+    
+    permissions = report_json.get('permissions', {})
+    print(f"[*] Extracted {len(permissions)} permissions from report.")
+
+    suspicious_set = load_suspicious_indicators(os.path.dirname(os.path.realpath(__file__)))
+    safety_score, classification, reason, dangerous_list, risk_weight = classify_permissions(
+        permissions, suspicious_set
     )
-    if pdf_resp.status_code == 200:
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_resp.content)
+    security_score = report_json.get("appsec",{}).get("security_score")
 
-    suspicious_perms_db = load_suspicious_indicators(os.path.dirname(os.path.realpath(__file__)))
-
-    permissions = []
-    if "permissions" in report_json and isinstance(report_json["permissions"], dict):
-        for key, value in report_json["permissions"].items():
-            if isinstance(value, dict):
-                permissions.append({
-                    "item": key,
-                    "info": value.get("info", ""),
-                    "status": value.get("status", ""),
-                    "description": value.get("description", "")
-                })
-            else:
-                permissions.append({
-                    "item": key,
-                    "info": "",
-                    "status": "",
-                    "description": ""
-                })
-
-    security_score = report_json.get("security_score")
-    if security_score is None:
-        raw_str = json.dumps(report_json)
-        match = re.search(r'"security_score"\s*:\s*([0-9]+(?:\.[0-9]+)?)', raw_str)
-        if match:
-            val = match.group(1)
-            security_score = float(val) if '.' in val else int(val)
-        else:
-            security_score = 0
-
-    if 'high_count' in report_json:
-        scoring = {
-            'security_score': security_score,
-            'high_risk': report_json.get('high_count', 0),
-            'medium_risk': report_json.get('medium_count', 0),
-            'low_risk': report_json.get('low_count', 0),
-            'total_issues': report_json.get('high_count', 0)
-                             + report_json.get('medium_count', 0)
-                             + report_json.get('low_count', 0)
-        }
-    elif 'manifest_analysis' in report_json and 'manifest_summary' in report_json['manifest_analysis']:
-        ms = report_json['manifest_analysis']['manifest_summary']
-        scoring = {
-            'security_score': security_score,
-            'high_risk': safe_get(ms, 'high'),
-            'medium_risk': safe_get(ms, 'warning'),
-            'low_risk': safe_get(ms, 'info'),
-            'total_issues': safe_get(ms, 'high') + safe_get(ms, 'warning') + safe_get(ms, 'info')
-        }
-    elif 'binary_analysis' in report_json and isinstance(report_json['binary_analysis'], dict) and 'summary' in report_json['binary_analysis']:
-        bs = report_json['binary_analysis']['summary']
-        scoring = {
-            'security_score': security_score,
-            'high_risk': safe_get(bs, 'high'),
-            'medium_risk': safe_get(bs, 'warning'),
-            'low_risk': safe_get(bs, 'info'),
-            'total_issues': safe_get(bs, 'high') + safe_get(bs, 'warning') + safe_get(bs, 'info')
-        }
-    else:
-        scoring = {
-            'security_score': security_score,
-            'high_risk': 0,
-            'medium_risk': 0,
-            'low_risk': 0,
-            'total_issues': 0
-        }
-
-    apkid = report_json.get('apkid', {})
-    malware_indicators = {
-        'has_anti_debug': False,
-        'has_anti_vm': False,
-        'security_score_low': (security_score or 0) < 50
-    }
-    if apkid:
-        for _, v in apkid.items():
-            if isinstance(v, dict):
-                if 'anti_debug' in v and len(v['anti_debug']) > 0:
-                    malware_indicators['has_anti_debug'] = True
-                if 'anti_vm' in v and len(v['anti_vm']) > 0:
-                    malware_indicators['has_anti_vm'] = True
-
-    classification, reason, risk_weight = classify_app(
-        security_score=scoring.get('security_score'),
-        high_risk=scoring.get('high_risk', 0),
-        medium_risk=scoring.get('medium_risk', 0),
-        low_risk=scoring.get('low_risk', 0),
-        has_anti_debug=malware_indicators.get('has_anti_debug', False),
-        has_anti_vm=malware_indicators.get('has_anti_vm', False),
-        suspicious_perm_count=0,
-        total_perms=len(permissions),
-        suspicious_perms_found=[]
-    )
-
-    filtered_output = {
+    result = {
         "file": os.path.basename(file_path),
-        "package": report_json.get("package_name", report_json.get("bundle_id", "N/A")),
+        "package": report_json.get("package_name", "N/A"),
         "permissions": permissions,
-        "malware_indicators": malware_indicators,
-        "scoring": scoring,
-        "classification": classification,
-        "risk_details": {
-            "total_risk_weight": risk_weight,
-            "suspicious_permission_count": 0,
+        "permission_analysis": {
+            "security_score": security_score,
+            "safety_score": safety_score,
+            "classification": classification,
+            "reason": reason,
+            "dangerous_permissions": dangerous_list,
+            "risk_weight": risk_weight,
             "total_permissions": len(permissions),
-            "suspicious_permissions_matched": [],
-            "reason": reason
+            "dangerous_count": len(dangerous_list),
         }
     }
 
-    db.add_all([
-        ApkAnalytic(
-            item=p["item"],
-            description=p["description"],
-            status=p["status"],
-            malware_scoring=scoring["security_score"],
-            file_id=file_id,
-            analytic_id=analytic_id,
-            created_at=datetime.utcnow()
+    # === Simpan hasil ke DB ===
+    print("[*] Saving analysis results to database...")
+    for perm, value in permissions.items():
+        status, desc = normalize_permission_entry(value)
+        print(f"    • {perm} → status={status}")
+        db.add(
+            ApkAnalytic(
+                item=perm,
+                status=status,
+                description=desc,
+                malware_scoring=security_score,
+                file_id=file_id,
+                analytic_id=analytic_id,
+                created_at=datetime.utcnow(),
+            )
         )
-        for p in permissions
-    ])
     db.commit()
 
-    return filtered_output
+    print(f"[+] Analysis completed and saved for file: {file_path}")
+    print(f"    → Classification: {classification} | Score: {safety_score}")
+
+    return result

@@ -15,7 +15,7 @@ Dokumentasi lengkap struktur response untuk Deep Communication Analytics endpoin
 ```json
 {
   "status": 200,
-  "message": "Deep communication analytics retrieved successfully",
+  "message": "Deep Communication Analytics retrieved successfully",
   "data": {
     "analytic_info": {
       "analytic_id": 1,

@@ -4,6 +4,7 @@ amqp==5.3.1
 annotated-doc==0.0.3
 annotated-types==0.7.0
 anyio==4.11.0
+bcrypt==4.1.2
 billiard==4.2.2
 celery==5.5.3
 certifi==2025.10.5
@@ -17,6 +18,8 @@ cryptography==46.0.3
 ecdsa==0.19.1
 et_xmlfile==2.0.0
 fastapi==0.120.4
+fastapi-cors==0.0.6
+flake8==6.1.0
 h11==0.16.0
 idna==3.11
 kombu==5.5.4
@@ -28,6 +31,10 @@ packaging==25.0
 pandas==2.3.3
 pillow==12.0.0
 prometheus_client==0.23.1
+passlib[bcrypt]==1.7.4
+pathspec==0.12.1
+platformdirs==4.5.0
+pluggy==1.6.0
 prompt_toolkit==3.0.52
 psycopg2-binary==2.9.11
 pyasn1==0.6.1

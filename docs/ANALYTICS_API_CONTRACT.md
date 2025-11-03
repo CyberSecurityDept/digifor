@@ -8,8 +8,121 @@ This document describes the Analytics API endpoints for the Forenlytic system, i
 /api/v1
 ```
 
-## Authentication
+## 0. Authentication
 All endpoints require authentication (implementation depends on your auth system).
+
+### 0.1 Login 
+**Endpoint**: `POST /api/v1/auth/login`
+
+**Request Body**
+```json
+{
+  "email": "admin@gmail.com",
+  "password": "password"
+}
+```
+
+**Response 200**
+```json
+{
+  "status": 200,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": 1,
+      "email": "admin@gmail.com",
+      "fullname": "Admin Forensic",
+      "tag": "Admin",
+      "role": "admin"
+    },
+    "tokens": {
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzYxNjM0MjE4LCJleHAiOjE3NjE2MzYwMTgsInR5cGUiOiJhY2Nlc3MifQ.lJqwyyXYKM32VvM9VYWhRQl_14OYvJrjIjvKFJVepqo",
+      "refresh_token": "ekBwqeBq8HhPbgUQYV02-VFyRLAzHqr6vbfNowZ-nq9mxs6gexIkhwwDesAEIQ0v"
+    }
+  }
+}
+```
+
+
+**Notes** 
+When a user logs in, the system issues two tokens:
+- access_token — used to access protected resources or endpoints.
+- refresh_token — used to request a new access_token without having to log in again.
+When the access_token expires, send the refresh_token to the /refresh endpoint to obtain a new one.
+
+
+### 0.2 Refresh Token 
+**Endpoint**: `POST /api/v1/auth/refresh`
+
+**Request Body**
+```json
+{
+  "refresh_token": "ekBwqeBq8HhPbgUQYV02-VFyRLAzHqr6vbfNowZ-nq9mxs6gexIkhwwDesAEIQ0v"
+}
+```
+
+**Response 200**
+```json
+{
+  "status": 200,
+  "message": "Token refreshed successfully",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzYxNjM0NDY4LCJleHAiOjE3NjE2MzYyNjgsInR5cGUiOiJhY2Nlc3MifQ.hWUhf5vXhJUuCjXnzGc-sppqBhlklFTkVnkoTzfHk0I",
+    "refresh_token": "vifCle8QxzFVGPj0SyHGwiAjzE5_7xuaH8ley-36EH2ZeFXvXoxhpUrqHTY9KcyS",
+    "token_type": "bearer"
+  }
+}
+```
+### 0.3 Logout 
+**Endpoint**: `POST /api/v1/auth/logout`
+
+**Headers**: `Authorization : Bearer {{token}}`
+
+**Response 200**
+```json
+{
+    "status": 200,
+    "message": "Logout successful. All refresh tokens revoked.",
+    "data": null
+}
+```
+
+**ERROR RESPONSE AUTH**
+**Response 401**
+```json
+{
+  "status": 401,
+  "message": "Invalid or expired refresh token"
+}
+```
+
+```json
+{
+  "status": 401,
+  "message": "Invalid credentials",
+}
+```
+
+```json
+{
+  "status": 401,
+  "message": "Invalid token type",
+}
+```
+
+```json
+{
+  "status": 401,
+  "message": "Expired token",
+}
+```
+
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+}
+```
 
 ---
 
@@ -26,17 +139,31 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "Files retrieved successfully",
+  "message": "File uploaded successfully.",
   "data": [
     {
+      "id": 2,
+      "file_name": "TESTING CELLEBRITE",
+      "file_path": "data/uploads/data/iPhone 7_2025-10-22_Report.xlsx",
+      "notes": "TESTING",
+      "type": "Handphone",
+      "tools": "cellebrite",
+      "total_size": 105118,
+      "total_size_formatted": "102.65 KB",
+      "amount_of_data": 0,
+      "created_at": "2025-10-27T15:48:44.034286"
+    },
+    {
       "id": 1,
-      "file_name": "device_data.xlsx",
-      "original_name": "device_data.xlsx",
-      "file_path": "/uploads/data/device_data_123456.xlsx",
-      "file_size": 1024000,
-      "file_type": "xlsx",
-      "notes": "Device data from iPhone",
-      "created_at": "2025-10-22T15:08:14"
+      "file_name": "TESTING CELLEBRITE",
+      "file_path": "data/uploads/data/iPhone 7_2025-10-22_Report.xlsx",
+      "notes": "TESTING",
+      "type": "Handphone",
+      "tools": "cellebrite",
+      "total_size": 105118,
+      "total_size_formatted": "102.65 KB",
+      "amount_of_data": 0,
+      "created_at": "2025-10-27T15:43:56.571714"
     }
   ]
 }
@@ -91,7 +218,27 @@ All endpoints require authentication (implementation depends on your auth system
 {
   "status": 400,
   "message": "Invalid file extension for type 'Handphone'. Allowed: ['xlsx', 'xls', 'csv', 'apk', 'ipa']",
-  "data": null
+}
+```
+**Response 400**:
+```json
+{
+  "status": 400,
+  "message": "Invalid type. Must be one of: ['Handphone', 'SSD', 'Harddisk', 'PC', 'Laptop', 'DVR']"
+}
+```
+**Response 400**:
+```json
+{
+  "status": 400,
+  "message": "File name is required"
+}
+```
+**Response 400**:
+```json
+{
+  "status": 400,
+  "message": "File size exceeds 100MB limit"
 }
 ```
 
@@ -143,62 +290,6 @@ All endpoints require authentication (implementation depends on your auth system
 }
 ```
 
-### 2.2 Get All Devices
-**Endpoint**: `GET /api/v1/analytics/device/get-all-devices`
-
-**Description**: Retrieves all devices in the system.
-
-**Parameters**: None
-
-**Response 200**:
-```json
-{
-  "status": 200,
-  "message": "Devices retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "owner_name": "John Doe",
-      "phone_number": "+6281234567890",
-      "device_name": "John Doe Device",
-      "created_at": "2025-10-22T15:08:14"
-    }
-  ]
-}
-```
-
-### 2.3 Get Device by ID
-**Endpoint**: `GET /api/v1/analytics/device/{device_id}`
-
-**Description**: Retrieves specific device information.
-
-**Parameters**:
-- `device_id` (path): Device ID (required)
-
-**Response 200**:
-```json
-{
-  "status": 200,
-  "message": "Device retrieved successfully",
-  "data": {
-    "id": 1,
-    "owner_name": "John Doe",
-    "phone_number": "+6281234567890",
-    "device_name": "John Doe Device",
-    "created_at": "2025-10-22T15:08:14"
-  }
-}
-```
-
-**Response 404**:
-```json
-{
-  "status": 404,
-  "message": "Device not found",
-  "data": null
-}
-```
-
 ---
 
 ## 3. Analytics Management
@@ -214,7 +305,7 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "Retrieved 5 analytics successfully",
+  "message": "Retrieved 1 analytics successfully",
   "data": [
     {
       "id": 1,
@@ -233,17 +324,6 @@ All endpoints require authentication (implementation depends on your auth system
 **Description**: Creates analytics for any supported method with device linking.
 
 **Request Body**:
-
-**For Hashfile Analytics**:
-```json
-{
-  "analytic_name": "Malware Analysis 2024",
-  "method": "Hashfile Analytics",
-  "device_ids": [1, 2, 3]
-}
-```
-
-**For Other Analytics**:
 ```json
 {
   "analytic_name": "Contact Analysis 2024",
@@ -378,38 +458,48 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "Contact correlation retrieved successfully",
+  "message": "Contact correlation analysis completed",
   "data": {
-    "analytic_id": 1,
-    "analytic_name": "Contact Analysis 2024",
     "devices": [
       {
-        "id": 1,
-        "owner_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_name": "iPhone 13"
-      }
-    ],
-    "contacts": [
+        "device_label": "Device A",
+        "owner_name": "testing 1",
+        "phone_number": "085827384234"
+      },
       {
-        "contact_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_count": 3,
-        "devices": {
-          "1": {
-            "device_id": 1,
-            "device_name": "iPhone 13",
-            "is_present": true,
-            "contact_name": "John Doe"
-          }
-        }
+        "device_label": "Device B",
+        "owner_name": "testing 2",
+        "phone_number": "085827384234"
       }
     ],
-    "statistics": {
-      "total_devices": 3,
-      "total_contacts": 150,
-      "cross_device_contacts": 25
-    }
+    "correlations": [
+      {
+        "contact_number": "628123456789",
+        "devices_found_in": [
+          {
+            "device_label": "Device A",
+            "contact_name": "Zagoto"
+          },
+          {
+            "device_label": "Device B",
+            "contact_name": "Bang Goto Intek"
+          }
+        ]
+      },
+      {
+        "contact_number": "628987654321",
+        "devices_found_in": [
+          {
+            "device_label": "Device A",
+            "contact_name": "Doyo"
+          },
+          {
+            "device_label": "Device B",
+            "contact_name": "Bang Purwo Intek"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -439,34 +529,121 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "Deep communication analysis retrieved successfully",
+  "message": "Retrieved deep communication data for analytic 'testing' successfully",
   "data": {
     "analytic_id": 1,
-    "analytic_name": "Communication Analysis 2024",
+    "analytic_name": "testing",
+    "total_devices": 2,
     "devices": [
       {
-        "id": 1,
-        "owner_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_name": "iPhone 13"
-      }
-    ],
-    "communications": [
-      {
-        "id": 1,
-        "sender": "John Doe",
-        "receiver": "Jane Smith",
-        "message_text": "Hello, how are you?",
-        "timestamp": "2025-10-22T15:08:14",
         "device_id": 1,
-        "thread_id": "thread_123"
+        "device_name": "testing 1 Device",
+        "owner_name": "testing 1",
+        "phone_number": "085827384234"
+      },
+      {
+        "device_id": 2,
+        "device_name": "testing 2 Device",
+        "owner_name": "testing 2",
+        "phone_number": "085827384234"
       }
     ],
-    "statistics": {
-      "total_devices": 3,
-      "total_messages": 500,
-      "unique_contacts": 25
-    }
+    "correlations": [
+      {
+        "device_id": 1,
+        "platforms": {
+          "facebook_messenger": [
+            {
+              "peer": "Ifa <100051336874335>",
+              "thread_id": "acb0b0ccb8fb9d92922e1a08143f7aee",
+              "intensity": 2,
+              "first_timestamp": "2020-05-15 08:58:47",
+              "last_timestamp": "2020-05-15 08:59:02",
+              "platform": "facebook_messenger"
+            },
+          ],
+          "telegram": [
+            {
+              "peer": "Unknown",
+              "thread_id": "1d368997e3e44ee43f4092ed76902d5d",
+              "intensity": 5,
+              "first_timestamp": "2020-10-22 11:41:58",
+              "last_timestamp": "2021-01-18 16:22:17",
+              "platform": "telegram"
+            }
+          ],
+          "whatsapp_messenger": [
+            {
+              "peer": "Fahrul Rohman <6289652052405>",
+              "thread_id": "71ad16fbfdd52f47c404e39461cf9fb9",
+              "intensity": 2135,
+              "first_timestamp": "2020-08-09 09:13:44",
+              "last_timestamp": "2021-02-04 05:51:25",
+              "platform": "whatsapp_messenger"
+            },
+          ],
+          "x_(twitter)": [
+            {
+              "peer": "myXLCare <480224156>",
+              "thread_id": "2f653f9fac77434964444ab2468af3eb",
+              "intensity": 10,
+              "first_timestamp": "2019-10-28 06:57:38",
+              "last_timestamp": "2020-05-12 05:32:48",
+              "platform": "x_(twitter)"
+            }
+          ],
+          "instagram": [],
+          "tiktok": []
+        }
+      },
+      {
+        "device_id": 2,
+        "platforms": {
+          "facebook_messenger": [
+            {
+              "peer": "Ifa <100051336874335>",
+              "thread_id": "acb0b0ccb8fb9d92922e1a08143f7aee",
+              "intensity": 2,
+              "first_timestamp": "2020-05-15 08:58:47",
+              "last_timestamp": "2020-05-15 08:59:02",
+              "platform": "facebook_messenger"
+            },
+          ],
+          "telegram": [
+            {
+              "peer": "Unknown",
+              "thread_id": "1d368997e3e44ee43f4092ed76902d5d",
+              "intensity": 5,
+              "first_timestamp": "2020-10-22 11:41:58",
+              "last_timestamp": "2021-01-18 16:22:17",
+              "platform": "telegram"
+            }
+          ],
+          "whatsapp_messenger": [
+            {
+              "peer": "Fahrul Rohman <6289652052405>",
+              "thread_id": "71ad16fbfdd52f47c404e39461cf9fb9",
+              "intensity": 2135,
+              "first_timestamp": "2020-08-09 09:13:44",
+              "last_timestamp": "2021-02-04 05:51:25",
+              "platform": "whatsapp_messenger"
+            },
+          ],
+          "x_(twitter)": [
+            {
+              "peer": "myXLCare <480224156>",
+              "thread_id": "2f653f9fac77434964444ab2468af3eb",
+              "intensity": 10,
+              "first_timestamp": "2019-10-28 06:57:38",
+              "last_timestamp": "2020-05-12 05:32:48",
+              "platform": "x_(twitter)"
+            }
+          ],
+          "instagram": [],
+          "tiktok": []
+        }
+      }
+    ]
   }
 }
 ```
@@ -484,20 +661,29 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "Thread messages retrieved successfully",
-  "data": {
-    "device_id": 1,
-    "thread_id": "thread_123",
-    "messages": [
-      {
-        "id": 1,
-        "sender": "John Doe",
-        "receiver": "Jane Smith",
-        "message_text": "Hello, how are you?",
-        "timestamp": "2025-10-22T15:08:14"
-      }
-    ]
-  }
+  "message": "Success",
+  "data": [
+    {
+      "id": 1392,
+      "timestamp": "2020-05-12 05:05:16",
+      "direction": "Outgoing",
+      "sender": "Riko Suloyo <1130597879284883457>",
+      "receiver": "myXLCare <480224156>",
+      "text": "lokasi tempat tinggal? di bandung",
+      "type": "Twitter message",
+      "source": "X (Twitter)"
+    },
+    {
+      "id": 1395,
+      "timestamp": "2020-05-12 05:32:24",
+      "direction": "Incoming",
+      "sender": "myXLCare <480224156>",
+      "receiver": "Riko Suloyo <1130597879284883457>",
+      "text": "Untuk informasinya sudah cukup jelas ya :) Thanks #M31",
+      "type": "Twitter message",
+      "source": "X (Twitter)"
+    },
+  ]
 }
 ```
 
@@ -523,47 +709,69 @@ All endpoints require authentication (implementation depends on your auth system
     "analytic_name": "Hashfile Analysis 2024",
     "devices": [
       {
-        "id": 1,
-        "owner_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_name": "iPhone 13"
+        "device_label": "Device A",
+        "owner_name": "dwi arya",
+        "phone_number": "08518731231123"
+      },
+      {
+        "device_label": "Device B",
+        "owner_name": "dwi arya 2",
+        "phone_number": "08518731231123"
+      },
+      {
+        "device_label": "Device C",
+        "owner_name": "dwi ",
+        "phone_number": "08518731231123"
       }
     ],
     "hashfiles": [
+      
       {
-        "hash_value": "d41d8cd98f00b204e9800998ecf8427e",
-        "file_name": "suspicious.exe",
-        "file_path": "/system/bin/suspicious.exe",
-        "file_size": 1024000,
-        "file_type": "Executable",
-        "file_extension": "exe",
-        "is_suspicious": true,
-        "risk_level": "High",
-        "source_type": "File System",
-        "source_tool": "Cellebrite",
-        "device_count": 2,
-        "devices": {
-          "1": {
-            "device_id": 1,
-            "device_name": "iPhone 13",
-            "is_present": true
-          }
+        "hash_value": "4352d88a78aa39750bf70cd6f27bcaa5",
+        "file_name": "Oxygen iPhone - Hashfile MD5.xls",
+        "file_type": "Other files",
+        "file_size": "167.5 KB",
+        "file_path": "/Macintosh HD/Users/macbookair/Workdir/Projects/digifor-clean/data/uploads/data/Oxygen iPhone - Hashfile MD5.xls",
+        "created_at": "2025-10-28T11:17:16",
+        "modified_at": "2025-10-28T11:17:16",
+        "devices": [
+          "Device A",
+          "Device B",
+          "Device C"
+        ],
+        "general_info": {
+          "kind": "Microsoft Excel 97-2004 Workbook (.xls)",
+          "size": "171.520 (167.5 KB on disk)",
+          "where": "/Macintosh HD/Users/macbookair/Workdir/Projects/digifor-clean/data/uploads/data/Oxygen iPhone - Hashfile MD5.xls",
+          "created": "2025 10 28 11:17:16",
+          "modified": "2025 10 28 11:17:16",
+          "stationery_pad": false,
+          "locked": false
         }
-      }
+      },
+      {
+        "hash_value": "295de6aae44d7a8c4b8e3f50c8b6941a",
+        "file_name": "Oxygen iPhone - Hashfile MD5.xls",
+        "file_type": "Images (WEBP)",
+        "file_size": "167.5 KB",
+        "file_path": "/Macintosh HD/Users/macbookair/Workdir/Projects/digifor-clean/data/uploads/data/Oxygen iPhone - Hashfile MD5.xls",
+        "created_at": "2025-10-28T11:17:16",
+        "modified_at": "2025-10-28T11:17:16",
+        "devices": [
+          "Device A",
+          "Device C"
+        ],
+        "general_info": {
+          "kind": "Microsoft Excel 97-2004 Workbook (.xls)",
+          "size": "171.520 (167.5 KB on disk)",
+          "where": "/Macintosh HD/Users/macbookair/Workdir/Projects/digifor-clean/data/uploads/data/Oxygen iPhone - Hashfile MD5.xls",
+          "created": "2025 10 28 11:17:16",
+          "modified": "2025 10 28 11:17:16",
+          "stationery_pad": false,
+          "locked": false
+        }
+      },
     ],
-    "statistics": {
-      "total_devices": 3,
-      "total_hashfiles": 1500,
-      "common_hashfiles": 25,
-      "unique_hashfiles": 1475,
-      "min_devices_threshold": 2
-    },
-    "description": {
-      "endpoints": {
-        "save_summary": "/api/v1/analytic/1/save-summary",
-        "export_pdf": "/api/v1/analytic/1/export-pdf"
-      }
-    }
   }
 }
 ```
@@ -579,13 +787,12 @@ All endpoints require authentication (implementation depends on your auth system
 
 ---
 
-## 7. APK Analysis
 
-### 7.1 Get APK Analysis
+## 7. APK Analytics
+
+### 7.1 Get APK Analytics
 **Endpoint**: `GET /api/v1/analytics/{analytic_id}/apk-analytic`
 
-**Description**: Returns APK analysis results for specific analytics.
-
 **Parameters**:
 - `analytic_id` (path): Analytics ID (required)
 
@@ -593,130 +800,67 @@ All endpoints require authentication (implementation depends on your auth system
 ```json
 {
   "status": 200,
-  "message": "APK analysis retrieved successfully",
+  "message": "Success",
   "data": {
-    "analytic_id": 1,
-    "analytic_name": "APK Analysis 2024",
-    "devices": [
+    "analytic_name": "testing 3",
+    "method": "APK Analytics",
+    "malware_scoring": "47",
+    "permissions": [
+      {
+        "id": 2,
+        "item": "android.permission.SCHEDULE_EXACT_ALARM",
+        "status": "normal",
+        "description": "Allows an app to use exact alarm scheduling APIs to perform timing sensitive background work."
+      },
       {
         "id": 1,
-        "owner_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_name": "iPhone 13"
+        "item": "easy.sudoku.puzzle.solver.free.permission.C2D_MESSAGE",
+        "status": "unknown",
+        "description": "Unknown permission from android reference"
       }
-    ],
-    "apks": [
-      {
-        "apk_name": "suspicious_app.apk",
-        "package_name": "com.suspicious.app",
-        "version": "1.0.0",
-        "risk_level": "High",
-        "is_malware": true,
-        "device_count": 2,
-        "devices": {
-          "1": {
-            "device_id": 1,
-            "device_name": "iPhone 13",
-            "is_present": true
-          }
-        }
-      }
-    ],
-    "statistics": {
-      "total_devices": 3,
-      "total_apks": 50,
-      "malicious_apks": 5,
-      "common_apks": 10
-    }
+    ]
   }
 }
 ```
 
-### 7.2 Analyze APK
+### 7.2 Analyze APK 
 **Endpoint**: `POST /api/v1/analytics/analyze-apk`
 
-**Description**: Analyzes a specific APK file.
-
-**Parameters**:
-- `file_id` (query): File ID to analyze (required)
-- `analytic_id` (query): Analytics ID (required)
-
-**Response 200**:
-```json
-{
-  "status": 200,
-  "message": "APK analysis completed successfully",
-  "data": {
-    "file_id": 1,
-    "analytic_id": 1,
-    "apk_analysis": {
-      "package_name": "com.suspicious.app",
-      "version": "1.0.0",
-      "risk_level": "High",
-      "is_malware": true,
-      "permissions": ["android.permission.INTERNET", "android.permission.CAMERA"],
-      "threats_detected": ["Keylogger", "Data Exfiltration"]
-    }
-  }
-}
-```
-
----
-
-## 8. Social Media Analytics
-
-### 8.1 Get Social Media Correlation
-**Endpoint**: `GET /api/v1/analytics/{analytic_id}/social-media-correlation`
-
-**Description**: Returns social media correlation analysis.
-
 **Parameters**:
 - `analytic_id` (path): Analytics ID (required)
+- `file_id` (path): File ID (required)
 
 **Response 200**:
 ```json
 {
   "status": 200,
-  "message": "Social media correlation retrieved successfully",
+  "message": "Success",
   "data": {
-    "analytic_id": 1,
-    "analytic_name": "Social Media Analysis 2024",
-    "devices": [
+    "analytic_name": "Analytic 1",
+    "method": "APK Analytics",
+    "malware_scoring": "47",
+    "permissions": [
       {
         "id": 1,
-        "owner_name": "John Doe",
-        "phone_number": "+6281234567890",
-        "device_name": "iPhone 13"
-      }
-    ],
-    "social_media_data": [
+        "item": "easy.sudoku.puzzle.solver.free.permission.C2D_MESSAGE",
+        "status": "unknown",
+        "description": "Unknown permission from android reference"
+      },
       {
-        "platform": "WhatsApp",
-        "account": "john.doe@example.com",
-        "device_count": 2,
-        "devices": {
-          "1": {
-            "device_id": 1,
-            "device_name": "iPhone 13",
-            "is_present": true
-          }
-        }
-      }
-    ],
-    "statistics": {
-      "total_devices": 3,
-      "total_accounts": 25,
-      "cross_device_accounts": 5
-    }
+        "id": 2,
+        "item": "android.permission.SCHEDULE_EXACT_ALARM",
+        "status": "normal",
+        "description": "Allows an app to use exact alarm scheduling APIs to perform timing sensitive background work."
+      },
+    ]
   }
 }
 ```
 
 ---
+## 8. Error Responses
 
-## 9. Error Responses
-
-### 9.1 Common Error Responses
+### 8.1 Common Error Responses
 
 **400 Bad Request**:
 ```json
@@ -747,9 +891,9 @@ All endpoints require authentication (implementation depends on your auth system
 
 ---
 
-## 10. Workflow Examples
+## 9. Workflow Examples
 
-### 10.1 Complete Analytics Workflow
+### 9.1 Complete Analytics Workflow
 
 1. **Upload Data**:
    ```bash
@@ -787,7 +931,7 @@ All endpoints require authentication (implementation depends on your auth system
 
 ---
 
-## 11. Notes
+## 10. Notes
 
 - All timestamps are in ISO 8601 format
 - Device IDs must exist in the database

@@ -15,17 +15,37 @@ from app.analytics.shared.models import File, Analytic
 from app.analytics.utils.upload_pipeline import upload_service
 from typing import Optional
 import os, time, uuid, asyncio
+from app.api.v1.analytics_apk_routes import UPLOAD_PROGRESS as APK_PROGRESS, run_real_upload_and_finalize as run_real_upload_and_finalize_apk
+from sqlalchemy import or_
+
 
 router = APIRouter()
 UPLOAD_PROGRESS = {}
 
+# ============================================================
+# 🔧 Helper
+# ============================================================
 def format_file_size(size_bytes: int) -> str:
     if not size_bytes:
         return "0 MB"
     mb = size_bytes / (1024 * 1024)
     return f"{mb:.3f} MB"
 
-async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, notes: str, type: str, tools: str, file_bytes: bytes, method: str, total_size: int):
+
+# ============================================================
+# 🚀 Fungsi upload & finalize data
+# ============================================================
+async def run_real_upload_and_finalize(
+    upload_id: str,
+    file: UploadFile,
+    file_name: str,
+    notes: str,
+    type: str,
+    tools: str,
+    file_bytes: bytes,
+    method: str,
+    total_size: int,
+):
     try:
         resp = await upload_service.start_file_upload(
             upload_id=upload_id,
@@ -153,7 +173,7 @@ async def upload_data(
             )
 
         valid_methods = [
-            "Deep communication analytics",
+            "Deep Communication Analytics",
             "Social Media Correlation",
             "Contact Correlation",
             "Hashfile Analytics",
@@ -185,7 +205,6 @@ async def upload_data(
             "uploaded": 0,
             "percentage": 0,
             "data": [],
-
             "_ctx": {
                 "file_obj": file,
                 "file_name": file_name,
@@ -205,9 +224,7 @@ async def upload_data(
             "data": {
                 "upload_id": upload_id,
                 "status_upload": "Pending",
-                "parsing_result": {
-                    "tool_used": tools
-                }
+                "upload_type": "data"
             }
         })
 
@@ -215,6 +232,9 @@ async def upload_data(
         return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
 
 
+# ============================================================
+# 🧠 Simulate Upload Progress (Dummy)
+# ============================================================
 async def simulate_upload_process(upload_id, file_name, total_size, notes, type, tools, method):
     try:
         for i in range(1, 101):
@@ -238,16 +258,25 @@ async def simulate_upload_process(upload_id, file_name, total_size, notes, type,
             "data": []
         })
 
-
 @router.get("/analytics/upload-progress")
-async def get_upload_progress(upload_id: str):
+async def get_upload_progress(upload_id: str, type: str = Query("data", description="data or apk")):
     try:
-        prog = UPLOAD_PROGRESS.get(upload_id)
+        # Pilih sumber progress
+        if type.lower() == "apk":
+            prog_dict = APK_PROGRESS
+            run_func = run_real_upload_and_finalize_apk
+        else:
+            prog_dict = UPLOAD_PROGRESS
+            run_func = run_real_upload_and_finalize
+
+        prog = prog_dict.get(upload_id)
+
+        # === Start upload kalau belum dimulai ===
         if prog and not prog.get("_started") and prog.get("_ctx"):
             ctx = prog["_ctx"]
             prog["_started"] = True
-            asyncio.create_task(
-                run_real_upload_and_finalize(
+            if type == "data":
+                asyncio.create_task(run_func(
                     upload_id,
                     ctx["file_obj"],
                     ctx["file_name"],
@@ -257,8 +286,15 @@ async def get_upload_progress(upload_id: str):
                     ctx["file_bytes"],
                     ctx["method"],
                     ctx["total_size"],
-                )
-            )
+                ))
+            else:
+                asyncio.create_task(run_func(
+                    upload_id,
+                    ctx["file_obj"],
+                    ctx["file_name"],
+                    ctx["file_bytes"],
+                    ctx["total_size"],
+                ))
             prog["_ctx"] = None
 
         svc_resp, code = upload_service.get_progress(upload_id)
@@ -268,17 +304,13 @@ async def get_upload_progress(upload_id: str):
             percent = int((svc_data.get("percent") or 0))
             total_size_fmt = svc_data.get("total_size") or format_file_size((prog or {}).get("total_size") or 0)
 
-            file_name = (prog or {}).get("file_name")
-            if not file_name:
-                file_name = None
-
             if done:
                 data_block = (prog or {}).get("data") or []
                 return {
                     "status": "Success",
                     "message": "Upload successful",
                     "upload_id": upload_id,
-                    "file_name": file_name,
+                    "file_name": (prog or {}).get("file_name"),
                     "size": total_size_fmt,
                     "percentage": 100,
                     "upload_status": "Success",
@@ -290,14 +322,15 @@ async def get_upload_progress(upload_id: str):
                     "status": "Progress",
                     "message": svc_resp.get("message", "Upload Progress"),
                     "upload_id": upload_id,
-                    "file_name": file_name,
+                    "file_name": (prog or {}).get("file_name"),
                     "size": size_out,
                     "percentage": percent,
                     "upload_status": "Progress",
                     "data": [],
                 }
 
-        if upload_id not in UPLOAD_PROGRESS:
+        # === Jika tidak ditemukan ===
+        if upload_id not in prog_dict:
             return JSONResponse(
                 {
                     "status": "Failed",
@@ -312,16 +345,20 @@ async def get_upload_progress(upload_id: str):
                 status_code=404,
             )
 
-        progress = UPLOAD_PROGRESS[upload_id]
+
+        progress = prog_dict[upload_id]
         status = progress.get("status")
 
         if status == "Success":
+            total_size_fmt = format_file_size(progress.get("total_size"))
+            uploaded_fmt = format_file_size(progress.get("uploaded", progress.get("total_size", 0)))
+            size_out = f"{uploaded_fmt}/{total_size_fmt}"
             return {
                 "status": "Success",
                 "message": progress.get("message", "Upload successful"),
                 "upload_id": upload_id,
                 "file_name": progress.get("file_name"),
-                "size": format_file_size(progress.get("total_size")),
+                "size": size_out,
                 "percentage": progress.get("percentage"),
                 "upload_status": progress.get("upload_status"),
                 "data": progress.get("data"),
@@ -347,8 +384,6 @@ async def get_upload_progress(upload_id: str):
                 "message": progress.get("message", "Upload Failed! Please try again"),
                 "upload_id": upload_id,
                 "file_name": progress.get("file_name"),
-                "size": "Upload Failed! Please try again",
-                "percentage": "Error",
                 "upload_status": "Failed",
                 "data": [],
             }
@@ -358,35 +393,51 @@ async def get_upload_progress(upload_id: str):
                 "status": "Failed",
                 "message": f"Unknown upload status: {status}",
                 "upload_id": upload_id,
-                "file_name": progress.get("file_name"),
-                "size": "Unknown state",
-                "percentage": "Error",
                 "upload_status": "Failed",
                 "data": [],
             }
 
     except Exception as e:
         return JSONResponse(
-            {
-                "status": "Failed",
-                "message": f"Internal server error: {str(e)}",
-                "upload_id": upload_id,
-                "file_name": None,
-                "size": "Upload Failed! Please try again",
-                "percentage": "Error",
-                "upload_status": "Failed",
-                "data": [],
-            },
+            {"status": "Failed", "message": f"Internal server error: {str(e)}", "upload_id": upload_id},
             status_code=500,
         )
-
-
-@router.get("/analytics/files/all")
+    
+@router.get("/analytics/get-files")
 def get_files(
+    search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
+    filter: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
     db: Session = Depends(get_db)
 ):
     try:
-        files = db.query(File).order_by(File.created_at.desc()).all()
+        allowed_methods = {
+            "Deep Communication",
+            "Social Media Correlation",
+            "Contact Correlation",
+            "Hashfile Analytics",
+            "All"
+        }
+
+        query = db.query(File)
+
+        # Apply method filter
+        if filter and filter in allowed_methods and filter != "All":
+            query = query.filter(File.method == filter)
+
+        # Apply search filter
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    File.file_name.ilike(term),
+                    File.notes.ilike(term),
+                    File.tools.ilike(term),
+                    File.method.ilike(term),
+                )
+            )
+
+        files = query.order_by(File.created_at.desc()).all()
+
         result = [
             {
                 "id": f.id,
@@ -397,7 +448,7 @@ def get_files(
                 "tools": f.tools,
                 "method": f.method,
                 "total_size": f.total_size,
-                "total_size_formatted": format_file_size(f.total_size),
+                "total_size_formatted": format_file_size(f.total_size) if f.total_size else None,
                 "amount_of_data": f.amount_of_data,
                 "created_at": str(f.created_at),
                 "date": f.created_at.strftime("%d/%m/%Y") if f.created_at else None
@@ -412,4 +463,8 @@ def get_files(
         }
 
     except Exception as e:
-        return {"status": 500, "message": f"Failed to get files: {str(e)}", "data": []}
+        return {
+            "status": 500,
+            "message": f"Failed to get files: {str(e)}",
+            "data": []
+        }

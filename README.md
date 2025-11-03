@@ -240,7 +240,7 @@ POSTGRES_DB=forenlytic
 # Security
 SECRET_KEY=your-secret-key-here-change-in-production
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
 # File Storage
 UPLOAD_DIR=./data/uploads

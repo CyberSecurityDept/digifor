@@ -328,9 +328,9 @@ run_analytics() {
     print_step "6.5" "Getting deep communication analytics..."
     response5=$(curl -s -X GET "$API_BASE/analytic/$ANALYTIC_ID/deep-communication-analytics")
     if echo "$response5" | grep -q "analytics"; then
-        print_success "Deep communication analytics completed"
+        print_success "Deep Communication Analytics completed"
     else
-        print_warning "Deep communication analytics failed or no data"
+        print_warning "Deep Communication Analytics failed or no data"
         echo "Response: $response5"
     fi
 }

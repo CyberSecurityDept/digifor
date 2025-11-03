@@ -7,7 +7,7 @@ Pemeriksaan terhadap parsing Telegram untuk file `Oxygen_Forensics_-_Android_Ima
 ## Alur Parsing
 
 ### 1. Entry Point
-- File diproses melalui `parse_oxygen_chat_messages()` saat method upload = "Deep communication analytics"
+- File diproses melalui `parse_oxygen_chat_messages()` saat method upload = "Deep Communication Analytics"
 - Method ini mencari sheet bernama "Messages" atau sheet yang mengandung kata "message"
 
 ### 2. Method yang Digunakan

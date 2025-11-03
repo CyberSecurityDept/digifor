@@ -5,6 +5,8 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
 import logging
+from datetime import datetime
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -146,258 +148,229 @@ class ChatMessagesParserExtended:
             if results:
                 sample_msg = results[0]
                 logger.debug(f"[CELLEBRITE CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
-                           f"sheet_name={sample_msg.get('sheet_name')}, "
-                           f"message_id={sample_msg.get('message_id')}, "
-                           f"from={sample_msg.get('from_name')}, "
-                           f"to={sample_msg.get('to_name')}, "
-                           f"timestamp={sample_msg.get('timestamp')}")
+                            f"direction={sample_msg.get('direction')}, "
+                            f"from={sample_msg.get('sender')}, "
+                            f"to={sample_msg.get('receiver')}, "
+                            f"timestamp={sample_msg.get('timestamp')}")
             
             saved_count = 0
             skipped_count = 0
+
             for msg in results:
+                chat_message_data = {
+                    "file_id": msg.get("file_id"),
+                    "platform": msg.get("platform", "Unknown"),
+                    "message_text": msg.get("message_text"),
+                    "from_name": msg.get("sender"),
+                    "to_name": msg.get("receiver"),
+                    "timestamp": msg.get("timestamp"),
+                    "thread_id": msg.get("thread_id"),
+                    "message_id": msg.get("thread_id"),  # re-use Identifier
+                    "message_type": msg.get("type", "Unknown"),
+                    "direction": msg.get("direction"),
+                    "source_tool": "Cellebrite",
+                    "sheet_name": "Chats",
+                }
+
+                # 🧩 Prevent duplicates
                 existing = (
                     self.db.query(ChatMessage)
                     .filter(
-                        ChatMessage.file_id == msg["file_id"],
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"]
+                        ChatMessage.file_id == chat_message_data["file_id"],
+                        ChatMessage.platform == chat_message_data["platform"],
+                        ChatMessage.message_id == chat_message_data["message_id"]
                     )
                     .first()
                 )
+
                 if not existing:
-                    self.db.add(ChatMessage(**msg))
+                    self.db.add(ChatMessage(**chat_message_data))
                     saved_count += 1
                 else:
                     skipped_count += 1
-            
+
             self.db.commit()
-            logger.info(f"[CELLEBRITE CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            print(f"Successfully saved {saved_count} Cellebrite chat messages to database (skipped {skipped_count} duplicates)")
-            
+            logger.info(f"[CELLEBRITE CHAT PARSER] ✅ Saved {saved_count} messages (skipped {skipped_count} duplicates)")
+            print(f"✅ Saved {saved_count} Cellebrite chat messages (skipped {skipped_count} duplicates)")
+
         except Exception as e:
-            logger.error(f"[CELLEBRITE CHAT PARSER] Error parsing Cellebrite chat messages: {e}", exc_info=True)
+            logger.error(f"[CELLEBRITE CHAT PARSER] ❌ Error parsing Cellebrite chat messages: {e}", exc_info=True)
             print(f"Error parsing Cellebrite chat messages: {e}")
             self.db.rollback()
             raise e
-        
-        return results
 
+        return results
 
     def _parse_cellebrite_chats_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
+        """Parse Cellebrite 'Chats' sheet ke ChatMessage-compatible format (One On One)."""
+        results: List[Dict[str, Any]] = []
+
         try:
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:15]}")
-            
+            logger.debug(f"[CELLEBRITE CHATS PARSER] === Start parsing sheet '{sheet_name}' for file_id={file_id} ===")
+            df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str, header=1)
+            df = df.fillna("")
+            logger.debug(f"[CELLEBRITE CHATS PARSER] Loaded {len(df)} rows, columns: {list(df.columns)[:15]}")
+
             processed_count = 0
             skipped_count = 0
-            platform_counts = {}
-            
             skip_reasons = {
-                'no_platform': 0,
-                'no_message': 0,
-                'header_row': 0
+                "not_one_on_one": 0,
+                "no_timestamp": 0,
+                "no_sender_or_text": 0,
+                "no_source_type": 0,
+                "header_row": 0,
             }
-            
+
             for idx, row in df.iterrows():
-                first_col = self._clean(row.get(df.columns[0], ''))
-                if first_col and first_col.lower() in ['identifier', 'record', 'name', 'platform', 'message', 'sender']:
-                    skip_reasons['header_row'] += 1
-                    continue
- 
-                platform = None
-                
-                platform_columns_to_check = [
-                    'Unnamed: 15',
-                    df.columns[14] if len(df.columns) > 14 else None,
-                    'Unnamed: 16',
-                    df.columns[15] if len(df.columns) > 15 else None,
-                    'Service',
-                    'Platform',
-                    'App'
-                ]
-                
-                for col_name in platform_columns_to_check:
-                    if not col_name:
+                try:
+                    # --- Skip header rows ---
+                    first_col = self._clean(row.get(df.columns[0], "")) or ""
+                    if first_col.lower() in ["#", "identifier", "record", "chat #", "name", "platform"]:
+                        skip_reasons["header_row"] += 1
                         continue
-                    platform_val = self._clean(row.get(col_name, ''))
-                    if platform_val:
-                        platform_lower = platform_val.lower()
-                        if 'telegram' in platform_lower:
-                            platform = "telegram"
-                            break
-                        elif 'whatsapp' in platform_lower or 'wa ' in platform_lower:
-                            platform = "whatsapp"
-                            break
-                        elif 'instagram' in platform_lower or 'ig ' in platform_lower:
-                            platform = "instagram"
-                            break
-                        elif 'tiktok' in platform_lower:
-                            platform = "tiktok"
-                            break
-                        elif 'twitter' in platform_lower or 'x ' in platform_lower:
-                            platform = "x"
-                            break
-                        elif 'facebook' in platform_lower or 'messenger' in platform_lower:
-                            platform = "facebook"
-                            break
-                
-                # Normalize platform name to capitalized format
-                if platform:
-                    platform = self._normalize_platform_name(platform)
-                
-                if not platform:
-                    skip_reasons['no_platform'] += 1
-                    if skip_reasons['no_platform'] <= 3:
-                        logger.debug(f"[CELLEBRITE CHATS PARSER] Row {idx} skipped - no platform detected. "
-                                   f"Sample values: col15={row.get('Unnamed: 15', 'N/A')[:50]}, "
-                                   f"col0={row.get(df.columns[0], 'N/A')[:50]}")
-                    skipped_count += 1
-                    continue
-                
-                platform_counts[platform] = platform_counts.get(platform, 0) + 1
-                
-                message_text = None
-                message_columns_to_check = [
-                    'Unnamed: 32',
-                    df.columns[31] if len(df.columns) > 31 else None,
-                    'Unnamed: 33',
-                    df.columns[32] if len(df.columns) > 32 else None,
-                    'Body',
-                    'Message',
-                    'Text',
-                    'Content'
-                ]
-                
-                for col_name in message_columns_to_check:
-                    if not col_name:
+
+                    # --- Hanya ambil Chat Type "One On One"
+                    chat_type = (row.get("Chat Type") or "").strip()
+                    # if chat_type and chat_type != "One On One":
+                    #     skip_reasons["not_one_on_one"] += 1
+                    #     continue
+
+                    # --- Ambil Participants ---
+                    participants_raw = str(row.get("Participants") or "")
+                    participants_raw = re.sub(r"_x0{0,2}(0d|0a)_", "\n", participants_raw, flags=re.IGNORECASE)
+                    participants_raw = participants_raw.replace("\r", "\n").replace("\xa0", " ")
+                    participants_lines = [self._clean(p) for p in participants_raw.split("\n") if p and p.strip()]
+
+                    owner_full, non_owner_full = None, None
+
+                    for p in participants_lines:
+                        if "(owner)" in (p or "").lower():
+                            owner_full = p.replace("(owner)", "").strip()
+                        else:
+                            non_owner_full = p.strip()
+
+                    # --- Fallback default jika cuma 1 peserta ---
+                    if not owner_full and participants_lines:
+                        owner_full = participants_lines[0]
+                    if not non_owner_full and len(participants_lines) > 1:
+                        non_owner_full = participants_lines[1]
+                    if not non_owner_full:
+                        non_owner_full = "Unknown"
+
+                    # --- Ambil From ---
+                    from_field = (row.get("From") or "").strip()
+                    sender = from_field or owner_full or "Unknown"
+
+                    # --- System Message special case ---
+                    if "system message" in from_field.lower():
+                        direction = "Incoming"
+                        sender = "System Message"
+                        receiver = owner_full or "Unknown"
+                    else:
+                        # --- Tentukan direction berdasarkan ownership ---
+                        direction = "Incoming"
+                        if owner_full and from_field:
+                            if owner_full.split(" ")[0] in from_field or owner_full.lower() in from_field.lower():
+                                direction = "Outgoing"
+                            else:
+                                direction = "Incoming"
+
+                    # --- Tentukan receiver full identity ---
+                    receiver = non_owner_full if direction == "Outgoing" else owner_full
+
+                    # --- Timestamp ---
+                    timestamp_clean = self._parse_timestamp(row.get("Timestamp: Time"))
+                    if not timestamp_clean:
+                        skip_reasons["no_timestamp"] += 1
+                        skipped_count += 1
                         continue
-                    msg_val = self._clean(row.get(col_name, ''))
-                    if msg_val and len(msg_val.strip()) > 0:
-                        message_text = msg_val
-                        break
-                
-                if not message_text:
-                    for col_name in df.columns:
-                        if col_name and col_name not in ['Unnamed: 15', 'Unnamed: 25', 'Unnamed: 24', 'Unnamed: 2']:
-                            val = self._clean(row.get(col_name, ''))
-                            if val and len(val.strip()) > 10:
-                                if not val.replace(':', '').replace('-', '').replace('/', '').replace(' ', '').isdigit():
-                                    message_text = val
-                                    break
-                
-                if not message_text:
-                    skip_reasons['no_message'] += 1
-                    if skip_reasons['no_message'] <= 3:
-                        logger.debug(f"[CELLEBRITE CHATS PARSER] Row {idx} skipped - no message text. "
-                                   f"Platform: {platform}, "
-                                   f"Message col 32: {str(row.get('Unnamed: 32', 'N/A'))[:50]}")
+
+                    source = self._clean(row.get("Source"))
+                    platform = self._clean(row.get("Platform"))
+                    if not source or not platform:
+                        skip_reasons["no_source_type"] += 1
+                        skipped_count += 1
+                        continue
+
+                    body = self._clean(row.get("Body"))
+                    if not sender or not body:
+                        skip_reasons["no_sender_or_text"] += 1
+                        skipped_count += 1
+                        continue
+
+                    thread_id = self._clean(row.get("Identifier"))
+
+                    entry = {
+                        "file_id": file_id,
+                        "direction": direction,
+                        "platform": source,           # e.g. WhatsApp
+                        "type": platform,             # e.g. ChatApp
+                        "timestamp": timestamp_clean,
+                        "message_text": body,
+                        "sender": sender or "Unknown",
+                        "receiver": receiver or "Unknown",
+                        "details": None,
+                        "thread_id": thread_id,
+                    }
+
+                    results.append(entry)
+                    processed_count += 1
+
+                    # --- Debug sample ---
+                    if processed_count <= 3:
+                        logger.debug(f"[ROW {idx}] ✅ {direction} | {sender} → {receiver} | {body[:60]}...")
+
+                except Exception as e:
                     skipped_count += 1
-                    continue
-                
-                sender_info = self._clean(row.get('Unnamed: 25', '')) or \
-                             self._clean(row.get('Sender', '')) or \
-                             self._clean(row.get('From', ''))
-                
-                sender_name = ""
-                sender_id = ""
-                
-                if sender_info:
-                    parts = sender_info.split()
-                    if len(parts) >= 2 and parts[0].isdigit():
-                        sender_id = parts[0]
-                        sender_name = ' '.join(parts[1:])
-                    else:
-                        sender_name = sender_info
-                        sender_id = self._clean(row.get('Unnamed: 26', '')) or \
-                                   self._clean(row.get('Sender ID', ''))
-                
-                receiver_info = self._clean(row.get('Unnamed: 27', '')) or \
-                               self._clean(row.get('Recipient', '')) or \
-                               self._clean(row.get('To', ''))
-                
-                receiver_name = ""
-                receiver_id = ""
-                
-                if receiver_info:
-                    parts = receiver_info.split()
-                    if len(parts) >= 2 and parts[0].isdigit():
-                        receiver_id = parts[0]
-                        receiver_name = ' '.join(parts[1:])
-                    else:
-                        receiver_name = receiver_info
-                
-                timestamp = self._clean(row.get('Unnamed: 41', '')) or \
-                           self._clean(row.get('Timestamp: Time', '')) or \
-                           self._clean(row.get('Timestamp', '')) or \
-                           self._clean(row.get('Date/Time', ''))
-                
-                chat_id = self._clean(row.get('Unnamed: 2', '')) or \
-                         self._clean(row.get('Identifier', '')) or \
-                         self._clean(row.get('Chat ID', ''))
-                
-                message_id = self._clean(row.get('Unnamed: 24', '')) or \
-                            self._clean(row.get('Instant Message #', '')) or \
-                            self._clean(row.get('Message ID', ''))
-                
-                if not message_id or message_id.lower() in ['nan', 'none', '']:
-                    if timestamp:
-                        message_id = f"{platform}_{file_id}_{timestamp}_{idx}"
-                    else:
-                        message_id = f"{platform}_{file_id}_{idx}"
-                
-                direction = self._clean(row.get('Direction', '')) or \
-                           self._clean(row.get('Unnamed: 28', ''))
-                
-                if not direction:
-                    direction = "Outgoing" if sender_id else "Incoming"
-                
-                message_type = self._clean(row.get('Type', '')) or \
-                              self._clean(row.get('Message Type', '')) or \
-                              'text'
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": platform,
-                    "message_text": message_text,
-                    "from_name": sender_name,
-                    "sender_number": sender_id,
-                    "to_name": receiver_name,
-                    "recipient_number": receiver_id,
-                    "timestamp": timestamp,
-                    "thread_id": chat_id,
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "message_type": message_type,
-                    "direction": direction,
-                    "source_tool": "cellebrite",
-                    "sheet_name": sheet_name
-                }
-                
-                if platform_counts[platform] == 1:
-                    logger.debug(f"[CELLEBRITE CHATS PARSER] First {platform} message sample: message_id={message_data['message_id']}, "
-                               f"from={message_data['from_name']}, to={message_data['to_name']}, "
-                               f"text_preview={str(message_data['message_text'])[:50]}...")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[CELLEBRITE CHATS PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            logger.info(f"[CELLEBRITE CHATS PARSER] Platform breakdown: {platform_counts}")
-            logger.info(f"[CELLEBRITE CHATS PARSER] Skip reasons: {skip_reasons}")
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Total rows in sheet: {len(df)}, "
-                        f"Processed: {processed_count}, Skipped: {skipped_count}, "
-                        f"Coverage: {(processed_count/len(df)*100):.1f}%")
-            
+                    logger.warning(f"[ROW {idx}] ⚠️ Error parsing row: {e}", exc_info=False)
+
+            logger.info(
+                f"[CELLEBRITE CHATS PARSER] ✅ Processed {processed_count} valid rows, "
+                f"Skipped {skipped_count}, Reasons: {skip_reasons}"
+            )
+
         except Exception as e:
-            logger.error(f"[CELLEBRITE CHATS PARSER] Error parsing Cellebrite chats messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Cellebrite chats messages: {e}")
-            import traceback
-            traceback.print_exc()
-        
+            logger.error(f"[CELLEBRITE CHATS PARSER] ❌ Error parsing Cellebrite chats ({sheet_name}): {e}", exc_info=True)
+
         return results
+
+    def _clean(self, value: Any) -> Optional[str]:
+        """Membersihkan karakter escape, newline, dan karakter kontrol Excel."""
+        if value is None or str(value).strip().lower() in ["", "nan", "none"]:
+            return None
+
+        text = str(value)
+        text = re.sub(r"_x0{0,2}(0d|0a)_", " ", text, flags=re.IGNORECASE)
+        text = re.sub(r"[\x00-\x1F]+", " ", text)
+        text = "".join(ch for ch in text if ch.isprintable())
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or None
+
+
+    def _extract_name(self, text: str) -> Optional[str]:
+        """Ambil hanya nama, hilangkan nomor dan tag (owner)."""
+        if not text or str(text).strip().lower() in ["", "nan", "none"]:
+            return None
+        cleaned = re.sub(r"\(owner\)", "", text)
+        cleaned = re.sub(r"^\+?\d+\s*", "", cleaned).strip()
+        cleaned = self._clean(cleaned)
+        return cleaned or None
+
+
+    def _parse_timestamp(self, raw: str) -> Optional[str]:
+        """Ubah '22/10/2025 11:23:37(UTC+7)' → '2025-10-22T11:23:37+07:00'"""
+        if not raw:
+            return None
+        try:
+            base = re.sub(r"\(UTC[+-]\d+\)", "", raw).strip()
+            dt = datetime.strptime(base, "%d/%m/%Y %H:%M:%S")
+            tz = pytz.timezone("Asia/Jakarta")
+            localized = tz.localize(dt)
+            return localized.isoformat()
+        except Exception:
+            return None
+
+
 
 
     def parse_oxygen_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:

@@ -17,7 +17,7 @@ Endpoint utama yang menampilkan device tabs dan platform analysis dengan intensi
 ```json
 {
   "status": 200,
-  "message": "Deep communication analytics retrieved successfully",
+  "message": "Deep Communication Analytics retrieved successfully",
   "data": {
     "analytic_info": {
       "analytic_id": 1,

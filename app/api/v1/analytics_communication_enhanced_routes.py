@@ -275,7 +275,7 @@ def get_deep_communication_analytics(
         return JSONResponse(
             content={
                 "status": 200,
-                "message": "Deep communication analytics retrieved successfully",
+                "message": "Deep Communication Analytics retrieved successfully",
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,

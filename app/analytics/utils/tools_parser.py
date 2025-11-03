@@ -38,8 +38,8 @@ class ToolsParser:
     
     def _normalize_tools_name(self, tools: str) -> ExtractionTool:
         tools_lower = tools.lower()
-        
-        if "celebrate" in tools_lower:
+
+        if "cellebrite" in tools_lower or "celebrate" in tools_lower:
             return ExtractionTool.CELEBRATE
         elif "oxygen" in tools_lower:
             return ExtractionTool.OXYGEN
