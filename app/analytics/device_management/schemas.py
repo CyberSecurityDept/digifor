@@ -22,12 +22,12 @@ class FileResponse(BaseModel):
 
 class SelectedFile(BaseModel):
     file_id: int
-    tools: List[str]  # Multiple tools support
+    tools: List[str]
 
 class AddDeviceRequest(BaseModel):
     owner_name: str
     phone_number: str
-    selected_files: List[SelectedFile]  # Multiple files with tools
+    selected_files: List[SelectedFile]
 
 class DeviceResponse(BaseModel):
     device_id: int

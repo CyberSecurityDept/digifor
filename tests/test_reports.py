@@ -6,7 +6,6 @@ import requests
 import json
 import time
 
-# API Base URL
 BASE_URL = "http://localhost:8000"
 
 def get_auth_token():
@@ -301,7 +300,6 @@ def main():
     print(" Starting Report Generation Tests...")
     print("=" * 50)
     
-    # Create test case
     case_id = create_test_case()
     if not case_id:
         print(" Cannot proceed without test case")
@@ -320,7 +318,6 @@ def main():
         test_get_report(case_id, reports[0]['filename'])
         
     
-    # Test report statistics
     test_report_stats()
     
     print("\n" + "=" * 50)

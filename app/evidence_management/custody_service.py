@@ -221,14 +221,12 @@ class CustodyService:
         if not custody_logs:
             return True
         
-        # Check for gaps in custody
         for i in range(1, len(custody_logs)):
             prev_log = custody_logs[i-1]
             curr_log = custody_logs[i]
             
-            # Check if there's a reasonable time gap
             time_diff = (curr_log.event_date - prev_log.event_date).total_seconds()
-            if time_diff > 86400:  # More than 24 hours
+            if time_diff > 86400:
                 return False
         
         return True

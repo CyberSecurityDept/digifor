@@ -15,10 +15,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         
         process_time = time.time() - start_time
         
-        # Create a more structured log message
         log_message = f"{request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)"
         
-        # Log with appropriate level based on status code
         if response.status_code >= 500:
             logger.error(log_message)
         elif response.status_code >= 400:

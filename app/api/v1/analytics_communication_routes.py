@@ -56,7 +56,6 @@ def get_deep_communication_by_analytic(
     correlations = []
     devices_list = []
 
-    # Konversi ke snake_case
     def normalize_platform_name(name: str) -> str:
         return name.lower().replace(" ", "_")
 

@@ -24,7 +24,6 @@ def test_statistics_endpoint():
             print(f"  - Closed Cases: {data['data']['closed_cases']}")
             print(f"  - Reopened Cases: {data['data']['reopened_cases']}")
             
-            # Check if all required fields are present
             required_fields = ['total_cases', 'open_cases', 'closed_cases', 'reopened_cases']
             missing_fields = [field for field in required_fields if field not in data['data']]
             

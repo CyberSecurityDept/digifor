@@ -137,16 +137,13 @@ class SocialMedia(Base):
     id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     
-    # Type and source
     type = Column(String, nullable=True)
     source = Column(String, nullable=True)
     
-    # Contact info
     phone_number = Column(String, nullable=True)
     full_name = Column(Text, nullable=True)
     account_name = Column(Text, nullable=True)
     
-    # Platform IDs
     whatsapp_id = Column(String, nullable=True)
     telegram_id = Column(String, nullable=True)
     instagram_id = Column(String, nullable=True)
@@ -154,10 +151,8 @@ class SocialMedia(Base):
     facebook_id = Column(String, nullable=True)
     tiktok_id = Column(String, nullable=True)
     
-    # Location
     location = Column(Text, nullable=True)
     
-    # Sheet info
     sheet_name = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=get_indonesia_time)
@@ -191,10 +186,10 @@ class ChatMessage(Base):
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     platform = Column(String, nullable=False)
     message_text = Column(Text, nullable=True)
-    sender_name = Column(String, nullable=True)
-    sender_id = Column(String, nullable=True)
-    receiver_name = Column(String, nullable=True)
-    receiver_id = Column(String, nullable=True)
+    from_name = Column(String, nullable=True)
+    sender_number = Column(String, nullable=True)
+    to_name = Column(String, nullable=True)
+    recipient_number = Column(String, nullable=True)
     timestamp = Column(String, nullable=True)
     thread_id = Column(String, nullable=True)
     chat_id = Column(String, nullable=True)

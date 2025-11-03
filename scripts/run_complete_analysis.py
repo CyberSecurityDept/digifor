@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-# Colors for output
 class Colors:
     RED = '\033[0;31m'
     GREEN = '\033[0;32m'
@@ -23,7 +22,7 @@ class Colors:
     PURPLE = '\033[0;35m'
     CYAN = '\033[0;36m'
     WHITE = '\033[1;37m'
-    NC = '\033[0m'  # No Color
+    NC = '\033[0m'
 
 class ForenlyticAnalyzer:
     def __init__(self, base_url: str = "http://localhost:8000"):
@@ -393,7 +392,6 @@ class ForenlyticAnalyzer:
         """Export PDF reports"""
         self.print_step(7, "Exporting reports...")
         
-        # Create reports directory
         os.makedirs("reports", exist_ok=True)
         
         report_endpoints = [
@@ -532,7 +530,6 @@ class ForenlyticAnalyzer:
         print("=" * 80)
         print()
         
-        # Check if required directories exist
         if not os.path.exists("contoh_dataset"):
             self.print_error("contoh_dataset directory not found!")
             return False
@@ -541,7 +538,6 @@ class ForenlyticAnalyzer:
             self.print_error("contoh_hashfile directory not found!")
             return False
             
-        # Run all steps
         steps = [
             self.check_server,
             self.create_analytic,

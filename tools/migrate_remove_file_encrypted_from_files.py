@@ -8,10 +8,9 @@ import sys
 import os
 from sqlalchemy import create_engine, text
 
-# Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.core.config import settings  # type: ignore
+from app.core.config import settings
 
 
 def run_migration():
@@ -20,7 +19,6 @@ def run_migration():
         try:
             print("🔄 Starting migration: Remove 'file_encrypted' from files table")
 
-            # Check table exists
             exists = conn.execute(text("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
@@ -31,7 +29,6 @@ def run_migration():
                 print("❌ Table 'files' does not exist. Skipping.")
                 return
 
-            # Check column exists
             col_exists = conn.execute(text("""
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.columns
@@ -42,7 +39,6 @@ def run_migration():
                 print("ℹ️ Column 'file_encrypted' not found. Nothing to do.")
                 return
 
-            # Drop the column
             print("📝 Dropping column 'file_encrypted' ...")
             conn.execute(text("ALTER TABLE files DROP COLUMN IF EXISTS file_encrypted;"))
             conn.commit()

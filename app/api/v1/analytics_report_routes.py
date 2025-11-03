@@ -1,20 +1,20 @@
-from fastapi import APIRouter, Depends  # type: ignore
-from fastapi.responses import JSONResponse, FileResponse  # type: ignore
-from sqlalchemy.orm import Session  # type: ignore
+from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse, FileResponse
+from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
 from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List, Optional
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel
 from collections import defaultdict
 import re
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
-from reportlab.lib.pagesizes import A4  # type: ignore
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # type: ignore
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle  # type: ignore
-from reportlab.lib import colors  # type: ignore
-from reportlab.lib.enums import TA_CENTER  # type: ignore
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 import os
 
 class SummaryRequest(BaseModel):
@@ -233,7 +233,6 @@ def _export_contact_correlation_pdf(analytic, device_ids, db):
             name = names_found[0] if names_found else phone
             name = re.sub(r"\s+", " ", name).strip()
 
-            # Find device_id from contact's file_id
             contact_device_id = None
             for d in devices:
                 if d.file_id == contact.file_id:

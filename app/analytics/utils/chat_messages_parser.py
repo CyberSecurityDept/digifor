@@ -1,41 +1,13 @@
-"""
-Chat Messages Parser untuk Deep Communication Analytics
-Mendukung parsing chat messages dari berbagai platform social media:
-- TikTok
-- Instagram
-- WhatsApp
-- Telegram
-- X (Twitter)
-- Facebook
-
-Usage Example:
-    from app.db.session import get_db
-    from app.analytics.utils.chat_messages_parser import ChatMessagesParser
-    
-    db = next(get_db())
-    parser = ChatMessagesParser(db)
-    
-    # Parse chat messages dari file Excel
-    messages = parser.parse_chat_messages(
-        file_path="path/to/file.xlsx",
-        file_id=123,
-        source_tool="axiom"  # atau "oxygen", "cellebrite"
-    )
-    
-    # Save ke database
-    saved_count = parser.save_to_database(messages)
-"""
 import re
-import pandas as pd  # type: ignore
+import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
 import warnings
 
 
 class ChatMessagesParser:
-    """Parser untuk chat messages dari berbagai platform social media"""
     
     def __init__(self, db: Session):
         self.db = db
@@ -52,8 +24,6 @@ class ChatMessagesParser:
         return text_str
     
     def _generate_message_id(self, platform: str, row: pd.Series, file_id: int, index: int) -> str:
-        """Generate unique message_id jika tidak ada di data"""
-        # Try to get existing message_id dari berbagai kolom
         message_id_fields = ['Message ID', 'Item ID', 'Record', 'message_id', 'id']
         for field in message_id_fields:
             if field in row.index and pd.notna(row.get(field)):
@@ -61,7 +31,6 @@ class ChatMessagesParser:
                 if msg_id and msg_id.lower() not in ['nan', 'none', '']:
                     return f"{platform}_{file_id}_{msg_id}"
         
-        # Fallback: generate dari timestamp dan index
         timestamp = self._clean(row.get('timestamp', '')) or self._clean(row.get('Timestamp', ''))
         if timestamp:
             return f"{platform}_{file_id}_{timestamp}_{index}"
@@ -69,9 +38,6 @@ class ChatMessagesParser:
         return f"{platform}_{file_id}_{index}"
     
     def parse_chat_messages(self, file_path: str, file_id: int, source_tool: str = "axiom") -> List[Dict[str, Any]]:
-        """
-        Main method untuk parse chat messages dari semua platform
-        """
         results = []
         
         try:
@@ -83,7 +49,6 @@ class ChatMessagesParser:
                 file_path_obj = Path(file_path)
                 file_extension = file_path_obj.suffix.lower()
                 
-                # Determine engine berdasarkan extension
                 if file_extension == '.xls':
                     engine = "xlrd"
                 else:
@@ -93,38 +58,31 @@ class ChatMessagesParser:
                 
                 print(f"Parsing chat messages from {len(xls.sheet_names)} sheets...")
                 
-                # Parse berdasarkan platform
-                # TikTok
                 tiktok_sheets = [s for s in xls.sheet_names if 'tiktok' in s.lower() and 'message' in s.lower()]
                 for sheet in tiktok_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_tiktok_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                # Instagram
                 instagram_sheets = [s for s in xls.sheet_names if 'instagram' in s.lower() and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
                 for sheet in instagram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_instagram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                # WhatsApp
                 whatsapp_sheets = [s for s in xls.sheet_names if 'whatsapp' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
                 for sheet in whatsapp_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_whatsapp_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                # Telegram
                 telegram_sheets = [s for s in xls.sheet_names if 'telegram' in s.lower() and 'message' in s.lower()]
                 for sheet in telegram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_telegram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                # X (Twitter)
                 x_sheets = [s for s in xls.sheet_names if ('twitter' in s.lower() or 'x ' in s.lower()) and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
                 for sheet in x_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_x_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                # Facebook
                 facebook_sheets = [s for s in xls.sheet_names if 'facebook' in s.lower() and ('message' in s.lower() or 'messenger' in s.lower() or 'chat' in s.lower())]
                 for sheet in facebook_sheets:
                     print(f"  Parsing {sheet}...")
@@ -140,13 +98,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse TikTok messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -160,12 +116,10 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Message', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows
                 if str(message_text).lower() in ['message', 'record', 'sender', 'nan']:
                     continue
                 
@@ -186,10 +140,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "tiktok",
                     "message_text": message_text,
-                    "sender_name": sender,
-                    "sender_id": self._clean(row.get('Sender ID', '')),
-                    "receiver_name": recipient,
-                    "receiver_id": self._clean(row.get('Recipient ID', '')),
+                    "from_name": sender,
+                    "sender_number": self._clean(row.get('Sender ID', '')),
+                    "to_name": recipient,
+                    "recipient_number": self._clean(row.get('Recipient ID', '')),
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -210,13 +164,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_instagram_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse Instagram Direct Messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -230,12 +182,10 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Message', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows
                 if str(message_text).lower() in ['message', 'record', 'sender', 'nan']:
                     continue
                 
@@ -259,10 +209,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "instagram",
                     "message_text": message_text,
-                    "sender_name": sender,
-                    "sender_id": self._clean(row.get('Sender ID', '')),
-                    "receiver_name": recipient,
-                    "receiver_id": self._clean(row.get('Recipient ID', '')),
+                    "from_name": sender,
+                    "sender_number": self._clean(row.get('Sender ID', '')),
+                    "to_name": recipient,
+                    "recipient_number": self._clean(row.get('Recipient ID', '')),
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -283,13 +233,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_whatsapp_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse WhatsApp messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -303,31 +251,27 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Message', '')) or \
                               self._clean(row.get('Text', '')) or \
                               self._clean(row.get('Content', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows dan path rows
                 msg_lower = str(message_text).lower()
                 if msg_lower in ['message', 'record', 'sender', 'nan', 'text', 'content'] or \
                    '\\chats\\' in msg_lower or '\\calls\\' in msg_lower:
                     continue
                 
-                # Extract sender dan recipient
                 sender = self._clean(row.get('Sender', '')) or \
                         self._clean(row.get('From', '')) or \
                         self._clean(row.get('Sender Name', ''))
                 
-                # Handle WhatsApp format: phone@service
                 sender_id = None
                 if sender and '@s.whatsapp.net' in sender:
                     phone_match = re.search(r'(\+?[0-9]{10,15})', sender)
                     if phone_match:
                         sender_id = phone_match.group(1)
-                        sender = sender_id  # Use phone as sender name
+                        sender = sender_id
                 
                 recipient = self._clean(row.get('Recipient', '')) or \
                            self._clean(row.get('To', '')) or \
@@ -364,10 +308,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "whatsapp",
                     "message_text": message_text,
-                    "sender_name": sender,
-                    "sender_id": sender_id or self._clean(row.get('Sender ID', '')),
-                    "receiver_name": recipient,
-                    "receiver_id": self._clean(row.get('Recipient ID', '')),
+                    "from_name": sender,
+                    "sender_number": sender_id or self._clean(row.get('Sender ID', '')),
+                    "to_name": recipient,
+                    "recipient_number": self._clean(row.get('Recipient ID', '')),
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -388,13 +332,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse Telegram messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -408,12 +350,10 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Message', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows
                 if str(message_text).lower() in ['message', 'record', 'sender', 'nan']:
                     continue
                 
@@ -444,10 +384,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "telegram",
                     "message_text": message_text,
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "receiver_name": recipient_name,
-                    "receiver_id": recipient_id,
+                    "from_name": sender_name,
+                    "sender_number": sender_id,
+                    "to_name": recipient_name,
+                    "recipient_number": recipient_id,
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -468,13 +408,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_x_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse X (Twitter) Direct Messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -488,13 +426,11 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Text', '')) or \
                               self._clean(row.get('Message', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows
                 if str(message_text).lower() in ['text', 'message', 'record', 'sender', 'nan']:
                     continue
                 
@@ -527,10 +463,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "x",
                     "message_text": message_text,
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "receiver_name": recipient_name,
-                    "receiver_id": recipient_id,
+                    "from_name": sender_name,
+                    "sender_number": sender_id,
+                    "to_name": recipient_name,
+                    "recipient_number": recipient_id,
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -551,13 +487,11 @@ class ChatMessagesParser:
         return results
     
     def _parse_facebook_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
-        """Parse Facebook/Messenger messages"""
         results = []
         
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
             
-            # Clean up header jika ada row dengan keyword
             if not df.empty:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
@@ -571,14 +505,12 @@ class ChatMessagesParser:
                     df = df.iloc[header_row + 1:].reset_index(drop=True)
             
             for idx, row in df.iterrows():
-                # Check if row has message content
                 message_text = self._clean(row.get('Message', '')) or \
                           self._clean(row.get('Content', '')) or \
                           self._clean(row.get('Text', ''))
                 if not message_text:
                     continue
                 
-                # Skip header rows
                 msg_lower = str(message_text).lower()
                 if msg_lower in ['message', 'record', 'sender', 'nan', 'content', 'text']:
                     continue
@@ -620,10 +552,10 @@ class ChatMessagesParser:
                     "file_id": file_id,
                     "platform": "facebook",
                     "message_text": message_text,
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "receiver_name": recipient_name,
-                    "receiver_id": recipient_id,
+                    "from_name": sender_name,
+                    "sender_number": sender_id,
+                    "to_name": recipient_name,
+                    "recipient_number": recipient_id,
                     "timestamp": timestamp,
                     "thread_id": thread_id,
                     "chat_id": chat_id,
@@ -644,15 +576,10 @@ class ChatMessagesParser:
         return results
     
     def save_to_database(self, messages: List[Dict[str, Any]]) -> int:
-        """
-        Save parsed messages ke database dengan duplicate checking
-        Returns: jumlah messages yang berhasil disimpan
-        """
         saved_count = 0
         
         try:
             for msg in messages:
-                # Check if message already exists
                 existing = (
                     self.db.query(ChatMessage)
                     .filter(

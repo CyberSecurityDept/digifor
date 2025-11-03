@@ -15,7 +15,6 @@ def load_suspicious_indicators(script_dir):
     try:
         with open(indicators_file, 'r') as f:
             raw_indicators = json.load(f)
-        # Filter only Android permissions for now
         suspicious_perms = set(
             item['name'] for item in raw_indicators
             if item.get('platform') == 'android' and item.get('type') == 'permission'
@@ -35,10 +34,8 @@ def classify_app(security_score, high_risk, medium_risk, low_risk, has_anti_debu
     """
     Classification logic based on various risk indicators.
     """
-    # --- Define risk weights based on indicators ---
     score_weight = 0
     if security_score is not None:
-        # Lower score means higher weight
         if security_score < 30:
             score_weight = 10
         elif security_score < 50:
@@ -55,36 +52,28 @@ def classify_app(security_score, high_risk, medium_risk, low_risk, has_anti_debu
     anti_debug_weight = 5 if has_anti_debug else 0
     anti_vm_weight = 5 if has_anti_vm else 0
 
-    # Weight for suspicious permissions
     perm_weight = suspicious_perm_count * 2
 
-    # Calculate total risk weight
     total_risk_weight = score_weight + high_risk_weight + medium_risk_weight + low_risk_weight + anti_debug_weight + anti_vm_weight + perm_weight
 
-    # --- Determine classification based on weights ---
     classification = "Unknown"
     reason_parts = []
 
-    # Strong Malware Criteria
     if (has_anti_debug and has_anti_vm and security_score is not None and security_score < 40) or \
        (high_risk > 3) or \
        ("REQUEST_INSTALL_PACKAGES" in suspicious_perms_found):
         classification = "Malware"
         reason_parts.append("Strong malware indicators found (anti-debug, anti-vm, low score, or dangerous permissions).")
-    # Strong Spyware Criteria
     elif (medium_risk > 10 and suspicious_perm_count > 5 and total_perms > 20):
         classification = "Spyware"
         reason_parts.append("Many suspicious permissions and medium risk.")
-    # High-Risk App Criteria
     elif total_risk_weight > 20:
         classification = "Risk App"
         reason_parts.append(f"High risk weight ({total_risk_weight}).")
-    # Safe Criteria
     elif security_score is not None and security_score > 70 and high_risk == 0 and not has_anti_debug:
         classification = "Safe"
         reason_parts.append("High security score and no suspicious indicators.")
     else:
-        # Default if no specific criteria are met
         if total_risk_weight > 10:
             classification = "Risk App"
             reason_parts.append(f"Moderate risk weight ({total_risk_weight}).")
@@ -100,13 +89,10 @@ def main():
         sys.exit(1)
 
     json_file = sys.argv[1]
-    script_dir = os.path.dirname(os.path.realpath(__file__)) # Get directory where this script resides
+    script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    # --- 1. Load suspicious indicators ---
     suspicious_perms_db = load_suspicious_indicators(script_dir)
-    # print(f"DEBUG: Loaded {len(suspicious_perms_db)} suspicious permissions.", file=sys.stderr) # For debugging
 
-    # --- 2. Read and parse the JSON report file ---
     try:
         with open(json_file, 'r', encoding='utf-8') as f:
             raw_content = f.read()
@@ -114,28 +100,24 @@ def main():
         print(f"Error reading file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Manually search for security_score in raw string
     match = re.search(r'"security_score"\s*:\s*([0-9]+(?:\.[0-9]+)?)', raw_content)
     if match:
         security_score_from_raw = float(match.group(1)) if '.' in match.group(1) else int(match.group(1))
     else:
         security_score_from_raw = None
 
-    # Parse JSON normally
     try:
         data = json.loads(raw_content)
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Retrieve security_score
     raw_security_score_from_json = data.get('security_score')
     if raw_security_score_from_json is None and security_score_from_raw is not None:
         security_score = security_score_from_raw
     else:
         security_score = raw_security_score_from_json
 
-    # --- 3. Extract Scoring ---
     scoring = {}
     if 'high_count' in data:
         scoring = {
@@ -172,7 +154,6 @@ def main():
             'total_issues': 0
         }
 
-    # --- 4. Extract Malware Indicators ---
     apkid = data.get('apkid', {})
     malware_indicators = {
         'has_anti_debug': False,
@@ -190,7 +171,6 @@ def main():
     if security_score is not None and security_score < 50:
         malware_indicators['security_score_low'] = True
 
-    # --- 5. Extract Permissions ---
     permissions = []
     if 'permissions' in data and isinstance(data['permissions'], dict):
         for key, value in data['permissions'].items():
@@ -209,7 +189,6 @@ def main():
                     "description": ""
                 })
 
-    # --- 6. Match Against Suspicious Permissions ---
     matched_suspicious_perms = [
         perm for perm in permissions
         if any(susp_perm in perm for susp_perm in suspicious_perms_db)
@@ -217,7 +196,6 @@ def main():
     suspicious_perm_count = len(matched_suspicious_perms)
     total_perms = len(permissions)
 
-    # --- 7. Automatic Classification ---
     classification, reason, risk_weight = classify_app(
         security_score=scoring.get('security_score'),
         high_risk=scoring.get('high_risk', 0),
@@ -227,10 +205,9 @@ def main():
         has_anti_vm=malware_indicators.get('has_anti_vm', False),
         suspicious_perm_count=suspicious_perm_count,
         total_perms=total_perms,
-        suspicious_perms_found=matched_suspicious_perms # For specific checks
+        suspicious_perms_found=matched_suspicious_perms
     )
 
-    # --- 8. Build Output ---
     output = {
         'file': data.get('file_name', 'N/A'),
         'package': data.get('package_name', data.get('bundle_id', 'N/A')),

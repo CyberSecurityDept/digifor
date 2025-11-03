@@ -1,4 +1,3 @@
-# key_utils.py
 import base64
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
@@ -25,7 +24,6 @@ def generate_keypair():
     return private_bytes, public_bytes
 
 def derive_symmetric_key(private_key, peer_public_key, salt, info=b"sdp_encryption_v1"):
-    # Convert bytes to key objects jika diperlukan
     if isinstance(private_key, bytes):
         private_key = x25519.X25519PrivateKey.from_private_bytes(private_key)
     if isinstance(peer_public_key, bytes):
@@ -35,7 +33,7 @@ def derive_symmetric_key(private_key, peer_public_key, salt, info=b"sdp_encrypti
     
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
-        length=32,  # AES-256
+        length=32,
         salt=salt,
         info=info,
         backend=default_backend()

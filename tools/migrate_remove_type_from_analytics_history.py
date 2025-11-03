@@ -7,7 +7,6 @@ import sys
 import os
 from sqlalchemy import create_engine, text
 
-# Add the backend directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.core.config import settings
@@ -15,14 +14,12 @@ from app.core.config import settings
 def run_migration():
     """Remove 'type' column from analytics_history table"""
     
-    # Create database engine
     engine = create_engine(settings.DATABASE_URL)
     
     with engine.connect() as conn:
         try:
             print("🔄 Starting migration: Remove 'type' column from analytics_history table")
             
-            # Check if analytics_history table exists
             result = conn.execute(text("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -35,7 +32,6 @@ def run_migration():
                 print("❌ Table 'analytics_history' does not exist. Skipping migration.")
                 return
             
-            # Check if 'type' column exists
             result = conn.execute(text("""
                 SELECT column_name, data_type 
                 FROM information_schema.columns 
@@ -49,7 +45,6 @@ def run_migration():
             
             print(f" Found 'type' column with type: {column_exists[1]}")
             
-            # Check if there's data in 'type' column that should be migrated to 'method'
             result = conn.execute(text("""
                 SELECT COUNT(*) 
                 FROM analytics_history 
@@ -60,7 +55,6 @@ def run_migration():
             if records_to_update > 0:
                 print(f"📝 Found {records_to_update} records with 'type' but no 'method'. Migrating data...")
                 
-                # Migrate data from 'type' to 'method' if 'method' is empty
                 conn.execute(text("""
                     UPDATE analytics_history 
                     SET method = type 
@@ -69,7 +63,6 @@ def run_migration():
                 conn.commit()
                 print(f"✓ Migrated {records_to_update} records from 'type' to 'method'")
             
-            # Drop the 'type' column
             print("📝 Dropping 'type' column...")
             conn.execute(text("""
                 ALTER TABLE analytics_history 

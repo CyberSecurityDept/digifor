@@ -9,7 +9,6 @@ from sqlalchemy.orm import sessionmaker
 
 def migrate_hashfile_file_path_to_file_id():
     
-    # Create database connection
     engine = create_engine(settings.DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -17,7 +16,6 @@ def migrate_hashfile_file_path_to_file_id():
     try:
         print("Starting migration: Replace file_path with file_id in hash_files table")
         
-        # Step 1: Add new file_id column
         print("Step 1: Adding file_id column...")
         session.execute(text("""
             ALTER TABLE hash_files 
@@ -26,7 +24,6 @@ def migrate_hashfile_file_path_to_file_id():
         session.commit()
         print("✓ Added file_id column")
         
-        # Step 2: Update file_id based on file_path
         print("Step 2: Updating file_id based on file_path...")
         session.execute(text("""
             UPDATE hash_files 
@@ -45,7 +42,6 @@ def migrate_hashfile_file_path_to_file_id():
         session.commit()
         print("✓ Updated file_id based on file_path")
         
-        # Step 3: Add foreign key constraint
         print("Step 3: Adding foreign key constraint...")
         session.execute(text("""
             ALTER TABLE hash_files 
@@ -55,7 +51,6 @@ def migrate_hashfile_file_path_to_file_id():
         session.commit()
         print("✓ Added foreign key constraint")
         
-        # Step 4: Make file_id NOT NULL
         print("Step 4: Making file_id NOT NULL...")
         session.execute(text("""
             ALTER TABLE hash_files 
@@ -64,7 +59,6 @@ def migrate_hashfile_file_path_to_file_id():
         session.commit()
         print("✓ Made file_id NOT NULL")
         
-        # Step 5: Drop file_path column
         print("Step 5: Dropping file_path column...")
         session.execute(text("""
             ALTER TABLE hash_files 

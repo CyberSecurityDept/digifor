@@ -1,4 +1,3 @@
-# sdp_crypto/core.py
 import os
 import json
 import base64
@@ -13,7 +12,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class SDPCrypto:
-    CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks
+    CHUNK_SIZE = 10 * 1024 * 1024
     HEADER_SIZE_BYTES = 4
     CHUNK_SIZE_BYTES = 4
     HASH_SIZE = 32
@@ -47,7 +46,7 @@ class SDPCrypto:
         
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
-            length=32,  # AES-256
+            length=32,
             salt=salt,
             info=info,
             backend=default_backend()
@@ -217,7 +216,7 @@ class SDPCrypto:
                     
                     if header.get('file_size', 0) > 100 * 1024 * 1024:
                         progress = (bytes_processed / header['file_size']) * 100
-                        if chunk_index % 10 == 0:  # Print every 10 chunks
+                        if chunk_index % 10 == 0:
                             print(f"Decrypted: {bytes_processed}/{header['file_size']} bytes ({progress:.1f}%)")
                 
                 print(f"Decryption complete: {chunk_index} chunks processed")

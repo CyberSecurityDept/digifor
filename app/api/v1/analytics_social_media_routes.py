@@ -52,7 +52,6 @@ def social_media_correlation(
             status_code=404
         )
 
-    # Normalize platform name
     platform_lower = (platform or "Instagram").lower().strip()
     platform_map = {
         "instagram": "instagram",
@@ -65,7 +64,6 @@ def social_media_correlation(
     }
     selected_platform = platform_map.get(platform_lower, "instagram")
     
-    # Map platform to column names in new structure
     platform_column_map = {
         "instagram": {"id_col": "instagram_id", "platform_name": "instagram"},
         "whatsapp": {"id_col": "whatsapp_id", "platform_name": "whatsapp"},
@@ -79,13 +77,11 @@ def social_media_correlation(
     id_column = platform_info["id_col"]
     platform_display = platform_info["platform_name"]
     
-    # Validate id_column to prevent SQL injection (only allow known columns)
     allowed_columns = ["instagram_id", "whatsapp_id", "telegram_id", "X_id", "facebook_id", "tiktok_id"]
     if id_column not in allowed_columns:
         id_column = "instagram_id"
         platform_display = "instagram"
     
-    # Build SQL query dynamically based on platform
     sql_query = text(f"""
         WITH 
         device_file_ids AS (
@@ -160,13 +156,11 @@ def social_media_correlation(
             sa.device_num ASC
     """)
     
-    # Execute query
     query_result = db.execute(
         sql_query, 
         {"analytic_id": analytic_id, "selected_platform": selected_platform}
     ).fetchall()
     
-    # Process query results
     device_order = sorted(devices, key=lambda d: d.id)
     device_label_map = {}
     device_labels = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
@@ -178,9 +172,8 @@ def social_media_correlation(
             second_char = chr(65 + (idx - 26) % 26)
             device_label_map[d.id] = f"{first_char}{second_char}"
     
-    # Group results by account and device
-    account_info_map = {}  # account_identifier -> {display_name, device_count, devices: [device_ids]}
-    account_device_map = {}  # account_identifier -> {device_id: {device_label, device_owner, device_phone}}
+    account_info_map = {}
+    account_device_map = {}
     
     for row in query_result:
         account_id = row.account_identifier
@@ -200,7 +193,6 @@ def social_media_correlation(
             'device_phone': row.device_phone
         }
     
-    # Build devices_data with connected accounts only
     devices_data = []
     for d in device_order:
         connected_accounts = []
@@ -231,7 +223,6 @@ def social_media_correlation(
     }
     
     if total_devices < 2:
-        # Return only selected platform (empty buckets)
         platform_display_name = platform_display_map.get(selected_platform, "Instagram")
         return JSONResponse(
             {
@@ -251,17 +242,14 @@ def social_media_correlation(
             status_code=200
         )
 
-    # Build correlation buckets: group by account, showing which devices share it
     correlations = {}
     buckets = []
     
-    # Process accounts from SQL query results, sorted by device_count
     for account_id, account_info in sorted(account_info_map.items(), key=lambda x: x[1]['device_count'], reverse=True):
         display_name = account_info['display_name']
         device_list = sorted(list(account_info['devices']))
         device_count = account_info['device_count']
         
-        # Build device details from account_device_map
         device_details = []
         for dev_id in device_list:
             if dev_id in account_device_map[account_id]:
@@ -276,9 +264,7 @@ def social_media_correlation(
         if not device_details:
             continue
         
-        # Anchor device is the first device in sorted order
         anchor_device = device_details[0]
-        # Matched devices are all other devices
         matched_devices = device_details[1:] if len(device_details) > 1 else []
         
         buckets.append({
@@ -301,9 +287,8 @@ def social_media_correlation(
             ]
         })
 
-    buckets_sorted = buckets  # Already sorted by device_count
+    buckets_sorted = buckets
     platform_display_name = platform_display_map.get(selected_platform, "Instagram")
-    # Only return selected platform (no empty buckets for other platforms)
     correlations[platform_display_name] = {"buckets": buckets_sorted}
 
     return JSONResponse(

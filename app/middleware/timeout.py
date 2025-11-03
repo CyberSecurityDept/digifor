@@ -14,7 +14,6 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         self.last_activity = {}
     
     async def dispatch(self, request: Request, call_next):
-        # Skip timeout for file upload endpoints
         if request.url.path in ["/api/v1/analytics/upload-data", "/api/v1/analytics/add-device"]:
             response = await call_next(request)
             return response

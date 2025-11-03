@@ -5,10 +5,10 @@ warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector 
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
 
-from fastapi import FastAPI, Request, HTTPException  # type: ignore
-from fastapi.responses import JSONResponse, Response  # type: ignore
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
-import uvicorn  # type: ignore
+import uvicorn
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -66,7 +66,7 @@ add_cors_middleware(app)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 
-app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
+# app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 
 # app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 # app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
@@ -75,6 +75,7 @@ app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["D
 # app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 # app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 # app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+
 
 app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])
 app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["SDP Converter"])

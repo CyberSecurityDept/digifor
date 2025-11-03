@@ -6,7 +6,6 @@ import sys
 import datetime
 from pathlib import Path
 
-# Configuration
 BASE_URL = "http://localhost:8000/api/v1"
 TIMEOUT = 30
 
@@ -16,7 +15,6 @@ class AnalyticsWorkflow:
         self.session = requests.Session()
         self.session.timeout = TIMEOUT
         
-        # Store IDs for workflow
         self.file_id = None
         self.device_id = None
         self.analytic_id = None
@@ -151,7 +149,6 @@ class AnalyticsWorkflow:
                 result = response.json()
                 self.log("Contact correlation analysis completed successfully")
                 
-                # Display results
                 devices = result['data']['devices']
                 correlations = result['data']['correlations']
                 
@@ -250,15 +247,12 @@ def main():
     print("FORENLYTIC ANALYTICS WORKFLOW")
     print("=" * 60)
     
-    # Initialize workflow
     workflow = AnalyticsWorkflow()
     
-    # Check server
     if not workflow.check_server():
         print("Please start the server first: ./scripts/start.sh")
         sys.exit(1)
     
-    # Example workflow
     print("\n1. Uploading sample file...")
     sample_file = "sample_dataset/contacts_sample.xlsx"
     if os.path.exists(sample_file):
@@ -300,7 +294,6 @@ def main():
     print("WORKFLOW COMPLETED SUCCESSFULLY!")
     print("=" * 60)
     
-    # Display summary
     print(f"File ID: {workflow.file_id}")
     print(f"Device ID: {workflow.device_id}")
     print(f"Analytic ID: {workflow.analytic_id}")

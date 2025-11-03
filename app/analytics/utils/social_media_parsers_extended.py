@@ -1,10 +1,11 @@
 import re
-import pandas as pd  # type: ignore
+import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from sqlalchemy import or_
+from app.analytics.utils.chat_messages_parser_extended import ChatMessagesParserExtended
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,7 @@ class SocialMediaParsersExtended:
     
     def __init__(self, db: Session):
         self.db = db
+        self._chat_messages_parser = ChatMessagesParserExtended(db)
     
     def _clean(self, text: Any) -> Optional[str]:
         if text is None or pd.isna(text):
@@ -21,6 +23,70 @@ class SocialMediaParsersExtended:
         if text.lower() in ["", "nan", "none", "null", "n/a", "none"]:
             return None
         return text
+    
+    def _normalize_platform_name(self, platform: str) -> str:
+        if not platform:
+            return platform
+        
+        platform_lower = platform.lower().strip()
+        platform_map = {
+            'whatsapp': 'WhatsApp',
+            'telegram': 'Telegram',
+            'instagram': 'Instagram',
+            'facebook': 'Facebook',
+            'tiktok': 'TikTok',
+            'x': 'X',
+            'twitter': 'X'  # Twitter is now X
+        }
+        
+        return platform_map.get(platform_lower, platform)
+    
+    def _is_whatsapp_system_message(self, message_text: str, sender_id: str = None, sender_name: str = None) -> bool:
+        if not message_text:
+            return False
+        
+        message_lower = message_text.lower()
+        
+        if sender_id:
+            sender_id_clean = str(sender_id).strip().lower()
+            if sender_id_clean == '0' or sender_id_clean == '0@s.whatsapp.net':
+                if message_text.strip().startswith('*') or any(keyword in message_lower for keyword in [
+                    'whatsapp can see', 'end-to-end', 'protecting your privacy', 'new:', 
+                    'add more memories', 'status photo', 'tap the sticker'
+                ]):
+                    return True
+        
+        if message_text.strip().startswith('*'):
+            promotional_keywords = [
+                'not even whatsapp can see',
+                'your personal messages',
+                'protected with end-to-end',
+                'protecting your privacy',
+                'new:',
+                'add more memories',
+                'status photo stickers',
+                'tap the sticker button',
+                'when creating a status',
+                'you never need to choose',
+                'share all your favorite photos',
+                'whatsapp update',
+                'new feature',
+                'try the new',
+                'check out our'
+            ]
+            
+            if any(keyword in message_lower for keyword in promotional_keywords):
+                return True
+        
+        if any(pattern in message_lower for pattern in [
+            'end-to-end encryption',
+            'always committed to protecting',
+            'share all your favorite photos to your status',
+            'select photo when creating a status'
+        ]):
+            return True
+        
+        return False
     
     def _check_existing_social_media(self, acc: Dict[str, Any]) -> bool:
         file_id = acc.get("file_id")
@@ -78,7 +144,6 @@ class SocialMediaParsersExtended:
     
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
         if "platform" not in acc:
-            # Sudah struktur baru
             return acc
         
         new_acc = {
@@ -96,7 +161,6 @@ class SocialMediaParsersExtended:
             "sheet_name": acc.get("sheet_name"),
         }
         
-        # Map platform dan account_id ke field yang sesuai
         platform = acc.get("platform", "").lower()
         account_id = acc.get("account_id") or acc.get("user_id")
         
@@ -743,7 +807,6 @@ class SocialMediaParsersExtended:
                             results.append(acc)
                     
                     elif 'instagram' in col_value_lower:
-                        # Extract Instagram username or ID
                         instagram_match = re.search(r'instagram\.com/([a-zA-Z0-9_.]+)', col_value)
                         if instagram_match:
                             username = instagram_match.group(1)
@@ -1408,7 +1471,7 @@ class SocialMediaParsersExtended:
                 acc = {
                     "file_id": file_id,
                     "source": "Instagram",
-                    "account_name": user_name_value,  # Username
+                    "account_name": user_name_value,
                     "full_name": self._clean(row.get('Full Name')),
                     "sheet_name": "Android Instagram Following",
                     "instagram_id": account_id_value,
@@ -1586,8 +1649,6 @@ class SocialMediaParsersExtended:
                 account_id_value = self._clean(row.get('Account ID'))
                 user_id_value = self._clean(row.get('User ID'))
                 
-                # account_id seharusnya Account ID, jika tidak ada gunakan User ID
-                # account_name bisa username atau full_name
                 account_name_value = user_name or full_name or str(user_id_value) if user_id_value else None
                 account_id_final = account_id_value if account_id_value else user_id_value
                 
@@ -1598,7 +1659,7 @@ class SocialMediaParsersExtended:
                     "full_name": full_name,
                     "phone_number": self._clean(row.get('Phone Number')),
                     "sheet_name": "Telegram Accounts",
-                    "telegram_id": account_id_final,  # Account ID atau User ID sebagai identifier unik
+                    "telegram_id": account_id_final,
                     "whatsapp_id": None,
                     "instagram_id": None,
                     "X_id": None,
@@ -1619,7 +1680,6 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
             
             for _, row in df.iterrows():
-                # Skip rows without ID
                 if pd.isna(row.get("ID")):
                     continue
                 
@@ -1809,7 +1869,6 @@ class SocialMediaParsersExtended:
                     
                 print(f"Processing tool folder: {tool_folder.name}")
                 
-                # Parse berdasarkan tool
                 if tool_folder.name.lower() == "axiom":
                     tool_results = self._parse_axiom_social_media(tool_folder, file_id)
                 elif tool_folder.name.lower() == "cellebrite":
@@ -1870,1510 +1929,13 @@ class SocialMediaParsersExtended:
         return results
 
     def parse_cellebrite_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.info(f"[CELLEBRITE CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            logger.info(f"[CELLEBRITE CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
-            logger.info(f"[CELLEBRITE CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")
-            
-            # Parse Chats sheet for messages (supports multiple platforms)
-            if 'Chats' in xls.sheet_names:
-                logger.info(f"[CELLEBRITE CHAT PARSER] Found 'Chats' sheet, parsing...")
-                chats_results = self._parse_cellebrite_chats_messages(file_path, 'Chats', file_id)
-                results.extend(chats_results)
-                logger.info(f"[CELLEBRITE CHAT PARSER] Chats sheet: Parsed {len(chats_results)} messages")
-            else:
-                logger.warning(f"[CELLEBRITE CHAT PARSER] 'Chats' sheet not found")
-            
-            logger.info(f"[CELLEBRITE CHAT PARSER] Total parsed messages: {len(results)}")
-            
-            # Log sample data for debugging
-            if results:
-                sample_msg = results[0]
-                logger.debug(f"[CELLEBRITE CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
-                           f"sheet_name={sample_msg.get('sheet_name')}, "
-                           f"message_id={sample_msg.get('message_id')}, "
-                           f"sender={sample_msg.get('sender_name')}, "
-                           f"receiver={sample_msg.get('receiver_name')}, "
-                           f"timestamp={sample_msg.get('timestamp')}")
-            
-            # Save to database
-            saved_count = 0
-            skipped_count = 0
-            for msg in results:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"],
-                                            )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(ChatMessage(**msg))
-                    saved_count += 1
-                else:
-                    skipped_count += 1
-            
-            self.db.commit()
-            logger.info(f"[CELLEBRITE CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            print(f"Successfully saved {saved_count} Cellebrite chat messages to database (skipped {skipped_count} duplicates)")
-            
-        except Exception as e:
-            logger.error(f"[CELLEBRITE CHAT PARSER] Error parsing Cellebrite chat messages: {e}", exc_info=True)
-            print(f"Error parsing Cellebrite chat messages: {e}")
-            self.db.rollback()
-            raise e
-        
-        return results
-
-    def _parse_cellebrite_chats_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:15]}")
-            
-            processed_count = 0
-            skipped_count = 0
-            platform_counts = {}
-            
-            skip_reasons = {
-                'no_platform': 0,
-                'no_message': 0,
-                'header_row': 0
-            }
-            
-            for idx, row in df.iterrows():
-                first_col = self._clean(row.get(df.columns[0], ''))
-                if first_col and first_col.lower() in ['identifier', 'record', 'name', 'platform', 'message', 'sender']:
-                    skip_reasons['header_row'] += 1
-                    continue
- 
-                platform = None
-                
-                # Check multiple possible columns for platform
-                platform_columns_to_check = [
-                    'Unnamed: 15',
-                    df.columns[14] if len(df.columns) > 14 else None,
-                    'Unnamed: 16',
-                    df.columns[15] if len(df.columns) > 15 else None,
-                    'Service',
-                    'Platform',
-                    'App'
-                ]
-                
-                for col_name in platform_columns_to_check:
-                    if not col_name:
-                        continue
-                    platform_val = self._clean(row.get(col_name, ''))
-                    if platform_val:
-                        platform_lower = platform_val.lower()
-                        if 'telegram' in platform_lower:
-                            platform = "telegram"
-                            break
-                        elif 'whatsapp' in platform_lower or 'wa ' in platform_lower:
-                            platform = "whatsapp"
-                            break
-                        elif 'instagram' in platform_lower or 'ig ' in platform_lower:
-                            platform = "instagram"
-                            break
-                        elif 'tiktok' in platform_lower:
-                            platform = "tiktok"
-                            break
-                        elif 'twitter' in platform_lower or 'x ' in platform_lower:
-                            platform = "x"
-                            break
-                        elif 'facebook' in platform_lower or 'messenger' in platform_lower:
-                            platform = "facebook"
-                            break
-                
-                if not platform:
-                    skip_reasons['no_platform'] += 1
-                    if skip_reasons['no_platform'] <= 3:
-                        logger.debug(f"[CELLEBRITE CHATS PARSER] Row {idx} skipped - no platform detected. "
-                                   f"Sample values: col15={row.get('Unnamed: 15', 'N/A')[:50]}, "
-                                   f"col0={row.get(df.columns[0], 'N/A')[:50]}")
-                    skipped_count += 1
-                    continue
-                
-                # Track platform count
-                platform_counts[platform] = platform_counts.get(platform, 0) + 1
-                
-                message_text = None
-                message_columns_to_check = [
-                    'Unnamed: 32',
-                    df.columns[31] if len(df.columns) > 31 else None,
-                    'Unnamed: 33',
-                    df.columns[32] if len(df.columns) > 32 else None,
-                    'Body',
-                    'Message',
-                    'Text',
-                    'Content'
-                ]
-                
-                for col_name in message_columns_to_check:
-                    if not col_name:
-                        continue
-                    msg_val = self._clean(row.get(col_name, ''))
-                    if msg_val and len(msg_val.strip()) > 0:
-                        message_text = msg_val
-                        break
-                
-                if not message_text:
-                    for col_name in df.columns:
-                        if col_name and col_name not in ['Unnamed: 15', 'Unnamed: 25', 'Unnamed: 24', 'Unnamed: 2']:
-                            val = self._clean(row.get(col_name, ''))
-                            if val and len(val.strip()) > 10:
-                                if not val.replace(':', '').replace('-', '').replace('/', '').replace(' ', '').isdigit():
-                                    message_text = val
-                                    break
-                
-                if not message_text:
-                    skip_reasons['no_message'] += 1
-                    if skip_reasons['no_message'] <= 3:
-                        logger.debug(f"[CELLEBRITE CHATS PARSER] Row {idx} skipped - no message text. "
-                                   f"Platform: {platform}, "
-                                   f"Message col 32: {str(row.get('Unnamed: 32', 'N/A'))[:50]}")
-                    skipped_count += 1
-                    continue
-                
-                # Extract sender info (usually Unnamed: 25)
-                sender_info = self._clean(row.get('Unnamed: 25', '')) or \
-                             self._clean(row.get('Sender', '')) or \
-                             self._clean(row.get('From', ''))
-                
-                sender_name = ""
-                sender_id = ""
-                
-                # Parse sender info (format: "ID Name" atau "Name")
-                if sender_info:
-                    parts = sender_info.split()
-                    if len(parts) >= 2 and parts[0].isdigit():
-                        sender_id = parts[0]
-                        sender_name = ' '.join(parts[1:])
-                    else:
-                        sender_name = sender_info
-                        # Try to extract ID from other columns
-                        sender_id = self._clean(row.get('Unnamed: 26', '')) or \
-                                   self._clean(row.get('Sender ID', ''))
-                
-                # Extract receiver info
-                receiver_info = self._clean(row.get('Unnamed: 27', '')) or \
-                               self._clean(row.get('Recipient', '')) or \
-                               self._clean(row.get('To', ''))
-                
-                receiver_name = ""
-                receiver_id = ""
-                
-                if receiver_info:
-                    parts = receiver_info.split()
-                    if len(parts) >= 2 and parts[0].isdigit():
-                        receiver_id = parts[0]
-                        receiver_name = ' '.join(parts[1:])
-                    else:
-                        receiver_name = receiver_info
-                
-                # Extract timestamp (usually Unnamed: 41)
-                timestamp = self._clean(row.get('Unnamed: 41', '')) or \
-                           self._clean(row.get('Timestamp: Time', '')) or \
-                           self._clean(row.get('Timestamp', '')) or \
-                           self._clean(row.get('Date/Time', ''))
-                
-                # Extract chat identifier (usually Unnamed: 2)
-                chat_id = self._clean(row.get('Unnamed: 2', '')) or \
-                         self._clean(row.get('Identifier', '')) or \
-                         self._clean(row.get('Chat ID', ''))
-                
-                # Extract message ID (usually Unnamed: 24)
-                message_id = self._clean(row.get('Unnamed: 24', '')) or \
-                            self._clean(row.get('Instant Message #', '')) or \
-                            self._clean(row.get('Message ID', ''))
-                
-                if not message_id or message_id.lower() in ['nan', 'none', '']:
-                    if timestamp:
-                        message_id = f"{platform}_{file_id}_{timestamp}_{idx}"
-                    else:
-                        message_id = f"{platform}_{file_id}_{idx}"
-                
-                direction = self._clean(row.get('Direction', '')) or \
-                           self._clean(row.get('Unnamed: 28', ''))
-                
-                if not direction:
-                    direction = "Outgoing" if sender_id else "Incoming"
-                
-                # Extract message type
-                message_type = self._clean(row.get('Type', '')) or \
-                              self._clean(row.get('Message Type', '')) or \
-                              'text'
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": platform,
-                    "message_text": message_text,
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "receiver_name": receiver_name,
-                    "receiver_id": receiver_id,
-                    "timestamp": timestamp,
-                    "thread_id": chat_id,
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "message_type": message_type,
-                    "direction": direction,
-                    "source_tool": "cellebrite",
-                    "sheet_name": sheet_name
-                }
-                
-                if platform_counts[platform] == 1:
-                    logger.debug(f"[CELLEBRITE CHATS PARSER] First {platform} message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}, "
-                               f"text_preview={str(message_data['message_text'])[:50]}...")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[CELLEBRITE CHATS PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            logger.info(f"[CELLEBRITE CHATS PARSER] Platform breakdown: {platform_counts}")
-            logger.info(f"[CELLEBRITE CHATS PARSER] Skip reasons: {skip_reasons}")
-            logger.debug(f"[CELLEBRITE CHATS PARSER] Total rows in sheet: {len(df)}, "
-                        f"Processed: {processed_count}, Skipped: {skipped_count}, "
-                        f"Coverage: {(processed_count/len(df)*100):.1f}%")
-            
-        except Exception as e:
-            logger.error(f"[CELLEBRITE CHATS PARSER] Error parsing Cellebrite chats messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Cellebrite chats messages: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        return results
+        return self._chat_messages_parser.parse_cellebrite_chat_messages(file_path, file_id)
 
     def parse_oxygen_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.info(f"[OXYGEN CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
-            print(f"[OXYGEN CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
-            
-            # Determine engine based on file extension
-            file_path_obj = Path(file_path)
-            file_extension = file_path_obj.suffix.lower()
-            if file_extension == '.xls':
-                engine = "xlrd"
-            else:
-                engine = "openpyxl"
-            
-            logger.info(f"[OXYGEN CHAT PARSER] Using engine: {engine} for file extension: {file_extension}")
-            print(f"[OXYGEN CHAT PARSER] Using engine: {engine} for file extension: {file_extension}")
-            
-            xls = pd.ExcelFile(file_path, engine=engine)
-            logger.info(f"[OXYGEN CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
-            print(f"[OXYGEN CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
-            logger.info(f"[OXYGEN CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")
-            print(f"[OXYGEN CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:15])}...")
-            
-            messages_sheet = None
-            for sheet in xls.sheet_names:
-                if sheet.lower() == 'messages' or sheet.lower() == 'message':
-                    messages_sheet = sheet
-                    break
-            
-            if messages_sheet:
-                logger.info(f"[OXYGEN CHAT PARSER] Found '{messages_sheet}' sheet - will parse all platforms from this sheet")
-                print(f"[OXYGEN CHAT PARSER] Found '{messages_sheet}' sheet - will parse all platforms from this sheet")
-                
-                messages_results = self._parse_oxygen_messages_sheet(file_path, messages_sheet, file_id, engine)
-                results.extend(messages_results)
-                logger.info(f"[OXYGEN CHAT PARSER] Messages sheet: Parsed {len(messages_results)} messages from all platforms")
-                print(f"[OXYGEN CHAT PARSER] Messages sheet: Parsed {len(messages_results)} messages from all platforms")
-            
-            whatsapp_sheets = [s for s in xls.sheet_names if 'whatsapp' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
-            if not whatsapp_sheets:
-                whatsapp_sheets = [s for s in xls.sheet_names if 'whatsapp messenger' in s.lower()]
-            
-            if 'Contacts' in xls.sheet_names or 'Contact' in xls.sheet_names:
-                contacts_sheet = 'Contacts' if 'Contacts' in xls.sheet_names else 'Contact'
-                if contacts_sheet not in whatsapp_sheets:
-                    whatsapp_sheets.append(contacts_sheet)
-                    logger.info(f"[OXYGEN CHAT PARSER] Adding Contacts sheet for WhatsApp message parsing")
-                    print(f"[OXYGEN CHAT PARSER] Adding Contacts sheet for WhatsApp message parsing")
-            
-            if messages_sheet:
-                if messages_sheet not in whatsapp_sheets:
-                    whatsapp_sheets.append(messages_sheet)
-            
-            if not whatsapp_sheets:
-                logger.warning(f"[OXYGEN CHAT PARSER] No WhatsApp sheets found!")
-                print(f"[OXYGEN CHAT PARSER] WARNING: No WhatsApp sheets found!")
-                print(f"[OXYGEN CHAT PARSER] Available sheets with 'whatsapp': {[s for s in xls.sheet_names if 'whatsapp' in s.lower()]}")
-            else:
-                print(f"[OXYGEN CHAT PARSER] Found {len(whatsapp_sheets)} WhatsApp sheet(s): {whatsapp_sheets}")
-            
-            for sheet in whatsapp_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found WhatsApp sheet: {sheet}, parsing...")
-                print(f"[OXYGEN CHAT PARSER] Found WhatsApp sheet: {sheet}, parsing...")
-                try:
-                    whatsapp_results = self._parse_oxygen_whatsapp_messages(file_path, sheet, file_id, engine)
-                    results.extend(whatsapp_results)
-                    logger.info(f"[OXYGEN CHAT PARSER] WhatsApp ({sheet}): Parsed {len(whatsapp_results)} messages")
-                    print(f"[OXYGEN CHAT PARSER] WhatsApp ({sheet}): Parsed {len(whatsapp_results)} messages")
-                except Exception as e:
-                    logger.error(f"[OXYGEN CHAT PARSER] Error parsing WhatsApp sheet {sheet}: {e}", exc_info=True)
-                    print(f"[OXYGEN CHAT PARSER] Error parsing WhatsApp sheet {sheet}: {e}")
-                    continue
-            
-            # Parse Telegram Messages
-            telegram_sheets = [s for s in xls.sheet_names if 'telegram' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
-            if not telegram_sheets:
-                telegram_sheets = [s for s in xls.sheet_names if 'telegram ' in s.lower()]
-            
-            # If Messages sheet exists, add it to telegram sheets
-            if messages_sheet and messages_sheet not in telegram_sheets:
-                telegram_sheets.append(messages_sheet)
-            
-            for sheet in telegram_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found Telegram sheet: {sheet}, parsing...")
-                telegram_results = self._parse_oxygen_telegram_messages(file_path, sheet, file_id, engine)
-                results.extend(telegram_results)
-                logger.info(f"[OXYGEN CHAT PARSER] Telegram ({sheet}): Parsed {len(telegram_results)} messages")
-            
-            # Parse Instagram Messages
-            instagram_sheets = [s for s in xls.sheet_names if 'instagram' in s.lower() and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
-            if not instagram_sheets:
-                instagram_sheets = [s for s in xls.sheet_names if 'instagram ' in s.lower()]
-            
-            if messages_sheet and messages_sheet not in instagram_sheets:
-                instagram_sheets.append(messages_sheet)
-            
-            for sheet in instagram_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found Instagram sheet: {sheet}, parsing...")
-                instagram_results = self._parse_oxygen_instagram_messages(file_path, sheet, file_id, engine)
-                results.extend(instagram_results)
-                logger.info(f"[OXYGEN CHAT PARSER] Instagram ({sheet}): Parsed {len(instagram_results)} messages")
-            
-            twitter_sheets = [s for s in xls.sheet_names if ('twitter' in s.lower() or 'x ' in s.lower()) and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
-            if not twitter_sheets:
-                twitter_sheets = [s for s in xls.sheet_names if 'x (twitter) ' in s.lower()]
-            
-            if messages_sheet and messages_sheet not in twitter_sheets:
-                twitter_sheets.append(messages_sheet)
-            
-            for sheet in twitter_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found Twitter/X sheet: {sheet}, parsing...")
-                twitter_results = self._parse_oxygen_twitter_messages(file_path, sheet, file_id, engine)
-                results.extend(twitter_results)
-                logger.info(f"[OXYGEN CHAT PARSER] Twitter/X ({sheet}): Parsed {len(twitter_results)} messages")
-            
-            tiktok_sheets = [s for s in xls.sheet_names if 'tiktok' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
-            
-            if messages_sheet and messages_sheet not in tiktok_sheets:
-                tiktok_sheets.append(messages_sheet)
-            
-            for sheet in tiktok_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found TikTok sheet: {sheet}, parsing...")
-                tiktok_results = self._parse_oxygen_tiktok_messages(file_path, sheet, file_id, engine)
-                results.extend(tiktok_results)
-                logger.info(f"[OXYGEN CHAT PARSER] TikTok ({sheet}): Parsed {len(tiktok_results)} messages")
-            
-            facebook_sheets = [s for s in xls.sheet_names if 'facebook' in s.lower() and ('message' in s.lower() or 'messenger' in s.lower() or 'chat' in s.lower())]
-            
-            # If Messages sheet exists, add it to facebook sheets
-            if messages_sheet and messages_sheet not in facebook_sheets:
-                facebook_sheets.append(messages_sheet)
-            
-            for sheet in facebook_sheets:
-                logger.info(f"[OXYGEN CHAT PARSER] Found Facebook sheet: {sheet}, parsing...")
-                facebook_results = self._parse_oxygen_facebook_messages(file_path, sheet, file_id, engine)
-                results.extend(facebook_results)
-                logger.info(f"[OXYGEN CHAT PARSER] Facebook ({sheet}): Parsed {len(facebook_results)} messages")
-            
-            logger.info(f"[OXYGEN CHAT PARSER] Total parsed messages: {len(results)}")
-            print(f"[OXYGEN CHAT PARSER] Total parsed messages: {len(results)}")
-            
-            if results:
-                sample_msg = results[0]
-                logger.info(f"[OXYGEN CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
-                           f"sheet_name={sample_msg.get('sheet_name')}, "
-                           f"message_id={sample_msg.get('message_id')}, "
-                           f"sender={sample_msg.get('sender_name')}, "
-                           f"receiver={sample_msg.get('receiver_name')}, "
-                           f"timestamp={sample_msg.get('timestamp')}")
-                print(f"[OXYGEN CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
-                      f"sheet_name={sample_msg.get('sheet_name')}, "
-                      f"message_id={sample_msg.get('message_id')}, "
-                      f"sender={sample_msg.get('sender_name')}")
-            else:
-                logger.warning(f"[OXYGEN CHAT PARSER] No messages found! Check if file contains chat messages.")
-                print(f"[OXYGEN CHAT PARSER] WARNING: No messages found! Check if file contains chat messages.")
-                print(f"[OXYGEN CHAT PARSER] All available sheets ({len(xls.sheet_names)}): {', '.join(xls.sheet_names[:20])}")
-                if len(xls.sheet_names) > 20:
-                    print(f"[OXYGEN CHAT PARSER] ... and {len(xls.sheet_names) - 20} more sheets")
-                
-                # Suggest which sheets might contain messages
-                potential_sheets = []
-                for sheet in xls.sheet_names:
-                    sheet_lower = sheet.lower()
-                    if any(kw in sheet_lower for kw in ['message', 'chat', 'im', 'whatsapp', 'telegram', 'instagram', 'contact']):
-                        potential_sheets.append(sheet)
-                
-                if potential_sheets:
-                    print(f"[OXYGEN CHAT PARSER] Potential message-containing sheets: {', '.join(potential_sheets[:10])}")
-            
-            # Save to database
-            saved_count = 0
-            skipped_count = 0
-            for msg in results:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.file_id == msg["file_id"],
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"]
-                    )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(ChatMessage(**msg))
-                    saved_count += 1
-                else:
-                    skipped_count += 1
-            
-            self.db.commit()
-            logger.info(f"[OXYGEN CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            print(f"[OXYGEN CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            
-            if saved_count == 0 and len(results) > 0:
-                logger.warning(f"[OXYGEN CHAT PARSER] All {len(results)} messages were duplicates or failed to save!")
-                print(f"[OXYGEN CHAT PARSER] WARNING: All {len(results)} messages were duplicates or failed to save!")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN CHAT PARSER] Error parsing Oxygen chat messages: {e}", exc_info=True)
-            print(f"Error parsing Oxygen chat messages: {e}")
-            self.db.rollback()
-            raise e
-        
-        return results
-
-    def _parse_oxygen_messages_sheet(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN MESSAGES PARSER] Reading sheet: {sheet_name}")
-            print(f"[OXYGEN MESSAGES PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN MESSAGES PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:15]}")
-            print(f"[OXYGEN MESSAGES PARSER] Sheet loaded: {len(df)} rows, {len(df.columns)} columns")
-            
-            processed_count = 0
-            skipped_count = 0
-            platform_counts = {}
-            
-            header_row_idx = None
-            for idx in range(min(5, len(df))):
-                first_val = str(df.iloc[idx, 0] if len(df.columns) > 0 else '').lower()
-                if first_val in ['source', 'service', 'platform', 'application', 'app']:
-                    header_row_idx = idx
-                    break
-            
-            if header_row_idx and header_row_idx > 0:
-                df.columns = df.iloc[header_row_idx]
-                df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
-                logger.debug(f"[OXYGEN MESSAGES PARSER] Found header at row {header_row_idx}")
-            
-            source_col = None
-            message_col = None
-            timestamp_col = None
-            sender_col = None
-            receiver_col = None
-            thread_id_col = None
-            
-            # Log all columns for debugging
-            logger.info(f"[OXYGEN MESSAGES PARSER] Available columns: {list(df.columns)}")
-            print(f"[OXYGEN MESSAGES PARSER] Available columns ({len(df.columns)}): {list(df.columns)}")
-            
-            for col in df.columns:
-                col_str = str(col).strip()
-                col_lower = col_str.lower()
-                
-                if col_str == 'Source' or col_lower == 'source':
-                    source_col = col
-                elif not source_col and ('source' in col_lower or 'service' in col_lower):
-                    source_col = col
-                
-                # Message column
-                if 'message' in col_lower and 'type' not in col_lower:
-                    if not message_col or col_str == 'Message' or col_lower == 'message':
-                        message_col = col
-                
-                # Timestamp column
-                if 'timestamp' in col_lower or ('time' in col_lower and 'stamp' in col_lower) or 'date/time' in col_lower:
-                    if not timestamp_col:
-                        timestamp_col = col
-                
-                # Participant/Sender columns
-                if 'participant' in col_lower:
-                    if '1' in col_lower or not sender_col:
-                        sender_col = col
-                    elif '2' in col_lower:
-                        receiver_col = col
-                elif 'sender' in col_lower or 'from' in col_lower:
-                    if not sender_col:
-                        sender_col = col
-                elif 'receiver' in col_lower or 'recipient' in col_lower or 'to' in col_lower:
-                    if not receiver_col:
-                        receiver_col = col
-                
-                # Thread ID column
-                if 'thread' in col_lower and 'id' in col_lower:
-                    thread_id_col = col
-                elif 'message id' in col_lower or 'msg id' in col_lower:
-                    thread_id_col = col
-            
-            # Fallback: if source_col not found, try first column
-            if not source_col and len(df.columns) > 0:
-                first_col = df.columns[0]
-                # Check if first column contains platform names
-                if len(df) > 0:
-                    sample_val = str(df.iloc[0][first_col]).lower() if pd.notna(df.iloc[0][first_col]) else ''
-                    if any(platform in sample_val for platform in ['whatsapp', 'telegram', 'instagram', 'twitter', 'facebook', 'tiktok', 'x']):
-                        source_col = first_col
-                        logger.info(f"[OXYGEN MESSAGES PARSER] Using first column '{first_col}' as Source/Platform column")
-                        print(f"[OXYGEN MESSAGES PARSER] Using first column '{first_col}' as Source/Platform column")
-            
-            # Fallback: if message_col not found, try common positions
-            if not message_col:
-                # Usually column 4 (index 3) or column with most text content
-                for i in [3, 4, 5]:
-                    if i < len(df.columns):
-                        col = df.columns[i]
-                        # Check if this column has message-like content
-                        if len(df) > 0:
-                            sample = str(df.iloc[0][col]) if pd.notna(df.iloc[0][col]) else ''
-                            if len(sample) > 10 and any(c.isalpha() for c in sample[:50]):
-                                message_col = col
-                                logger.info(f"[OXYGEN MESSAGES PARSER] Using column {i} '{col}' as Message column")
-                                print(f"[OXYGEN MESSAGES PARSER] Using column {i} '{col}' as Message column")
-                                break
-            
-            # Fallback: if timestamp_col not found, try column 3 (index 2)
-            if not timestamp_col and len(df.columns) > 2:
-                col = df.columns[2]
-                sample = str(df.iloc[0][col]) if len(df) > 0 and pd.notna(df.iloc[0][col]) else ''
-                if '/' in sample and ':' in sample:  # Looks like date/time format
-                    timestamp_col = col
-                    logger.info(f"[OXYGEN MESSAGES PARSER] Using column 2 '{col}' as Timestamp column")
-                    print(f"[OXYGEN MESSAGES PARSER] Using column 2 '{col}' as Timestamp column")
-            
-            logger.info(f"[OXYGEN MESSAGES PARSER] Found columns - Source: {source_col}, Message: {message_col}, Timestamp: {timestamp_col}, Sender: {sender_col}, Receiver: {receiver_col}, ThreadID: {thread_id_col}")
-            print(f"[OXYGEN MESSAGES PARSER] Found columns:")
-            print(f"  Source/Platform: {source_col}")
-            print(f"  Message: {message_col}")
-            print(f"  Timestamp: {timestamp_col}")
-            print(f"  Sender: {sender_col}")
-            print(f"  Receiver: {receiver_col}")
-            print(f"  Thread ID: {thread_id_col}")
-            
-            if not source_col:
-                logger.warning(f"[OXYGEN MESSAGES PARSER] No Source/Platform column found!")
-                print(f"[OXYGEN MESSAGES PARSER] WARNING: No Source/Platform column found!")
-            
-            if not message_col:
-                logger.warning(f"[OXYGEN MESSAGES PARSER] No Message column found!")
-                print(f"[OXYGEN MESSAGES PARSER] WARNING: No Message column found!")
-            
-            for idx, row in df.iterrows():
-                first_val = self._clean(row.get(df.columns[0], ''))
-                if first_val and first_val.lower() in ['source', 'service', 'platform', 'application', 'message', 'timestamp']:
-                    continue
-                
-                platform = None
-                if source_col:
-                    source = self._clean(row.get(source_col, ''))
-                    if source:
-                        source_lower = source.lower().strip()
-                        
-                        if 'whatsapp' in source_lower:
-                            platform = "whatsapp"
-                        # Check for Telegram
-                        elif 'telegram' in source_lower:
-                            platform = "telegram"
-                        # Check for Instagram
-                        elif 'instagram' in source_lower:
-                            platform = "instagram"
-                        elif 'twitter' in source_lower:
-                            platform = "x"
-                        elif source_lower == 'x' or source_lower.startswith('x '):
-                            platform = "x"
-                        # Check for TikTok
-                        elif 'tiktok' in source_lower:
-                            platform = "tiktok"
-                        elif 'facebook' in source_lower or 'messenger' in source_lower:
-                            platform = "facebook"
-                
-                if not platform:
-                    skipped_count += 1
-                    if skipped_count <= 10:
-                        source_val = self._clean(row.get(source_col, '')) if source_col else 'N/A'
-                        logger.debug(f"[OXYGEN MESSAGES PARSER] Row {idx} skipped - no platform detected. Source value: '{source_val}'")
-                        print(f"[OXYGEN MESSAGES PARSER] Row {idx} skipped - no platform. Source: '{source_val}'")
-                    continue
-                
-                if platform_counts.get(platform, 0) == 0:
-                    source_val = self._clean(row.get(source_col, '')) if source_col else 'N/A'
-                    logger.info(f"[OXYGEN MESSAGES PARSER] First {platform} message detected from Source: '{source_val}'")
-                    print(f"[OXYGEN MESSAGES PARSER] First {platform} message detected from Source: '{source_val}'")
-                
-                platform_counts[platform] = platform_counts.get(platform, 0) + 1
-                
-                # Extract message text
-                message_text = None
-                if message_col:
-                    message_text = self._clean(row.get(message_col))
-                else:
-                    # Scan columns for message content
-                    for col in df.columns:
-                        val = self._clean(row.get(col))
-                        if val and len(val.strip()) > 10:
-                            if not val.replace(':', '').replace('-', '').replace('/', '').replace(' ', '').isdigit():
-                                if any(c.isalpha() for c in val[:50]):
-                                    message_text = val
-                                    break
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                # Extract other fields
-                timestamp = self._clean(row.get(timestamp_col)) if timestamp_col else None
-                sender = self._clean(row.get(sender_col)) if sender_col else None
-                
-                # Extract thread/chat identifier
-                thread_id = None
-                if thread_id_col:
-                    thread_id = self._clean(row.get(thread_id_col, ''))
-                
-                if not thread_id:
-                    # Try common column names
-                    thread_id = self._clean(row.get('Thread ID', '')) or \
-                                  self._clean(row.get('Chat ID', '')) or \
-                                  self._clean(row.get('Identifier', '')) or \
-                                  self._clean(row.get('Message ID', ''))
-                
-                # Extract sender and receiver from participant columns
-                sender_name = None
-                sender_id = None
-                receiver_name = None
-                receiver_id = None
-                
-                if sender_col:
-                    sender_data = self._clean(row.get(sender_col, ''))
-                    if sender_data:
-                        # Extract name and JID from format: "Name <+6281779323003@s.whatsapp.net>"
-                        import re
-                        name_match = re.search(r'^([^<]+)', sender_data)
-                        jid_match = re.search(r'<([^>]+)>', sender_data)
-                        if name_match:
-                            sender_name = name_match.group(1).strip()
-                        if jid_match:
-                            sender_id = jid_match.group(1).strip()
-                
-                if receiver_col:
-                    receiver_data = self._clean(row.get(receiver_col, ''))
-                    if receiver_data:
-                        # Extract name and JID from format: "Name <+6281779323003@s.whatsapp.net>"
-                        import re
-                        name_match = re.search(r'^([^<]+)', receiver_data)
-                        jid_match = re.search(r'<([^>]+)>', receiver_data)
-                        if name_match:
-                            receiver_name = name_match.group(1).strip()
-                        if jid_match:
-                            receiver_id = jid_match.group(1).strip()
-                
-                # If sender/receiver not found from participant columns, try sender_col fallback
-                if not sender_name and sender_col:
-                    sender_name = self._clean(row.get(sender_col, ''))
-                if not receiver_name and receiver_col:
-                    receiver_name = self._clean(row.get(receiver_col, ''))
-                
-                message_id = self._generate_oxygen_message_id(platform, row, file_id, idx)
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": platform,
-                    "message_text": message_text,
-                    "sender_name": sender_name or sender,
-                    "sender_id": sender_id or self._clean(row.get('Sender ID', '')),
-                    "receiver_name": receiver_name or self._clean(row.get('Recipient', '')) or self._clean(row.get('Receiver', '')),
-                    "receiver_id": receiver_id or self._clean(row.get('Recipient ID', '')) or self._clean(row.get('Receiver ID', '')),
-                    "timestamp": timestamp,
-                    "thread_id": thread_id,
-                    "chat_id": thread_id,
-                    "message_id": message_id,
-                    "message_type": self._clean(row.get('Message Type', '')) or self._clean(row.get('Message Status', '')) or 'text',
-                    "direction": self._clean(row.get('Direction', '')),
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                if platform_counts[platform] == 1:
-                    logger.debug(f"[OXYGEN MESSAGES PARSER] First {platform} message: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, text_preview={str(message_data['message_text'])[:50]}...")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN MESSAGES PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            logger.info(f"[OXYGEN MESSAGES PARSER] Platform breakdown: {platform_counts}")
-            print(f"[OXYGEN MESSAGES PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            print(f"[OXYGEN MESSAGES PARSER] Platform breakdown: {platform_counts}")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN MESSAGES PARSER] Error parsing Messages sheet: {e}", exc_info=True)
-            print(f"[OXYGEN MESSAGES PARSER] Error parsing Messages sheet: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        return results
-
-    def _parse_oxygen_whatsapp_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN WHATSAPP PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN WHATSAPP PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:15]}")
-            
-            processed_count = 0
-            skipped_count = 0
-            skip_reasons = {'no_message': 0, 'header_row': 0, 'invalid_format': 0}
-            
-            if 'Contacts' in sheet_name or 'Contact' in sheet_name:
-                for idx, row in df.iterrows():
-                    source = self._clean(row.get('Source', ''))
-                    
-                    if not source or 'whatsapp' not in source.lower():
-                        continue
-                    
-                    message_text = None
-                    message_fields = ['Other', 'Internet', 'Phones & Emails']
-                    
-                    for field in message_fields:
-                        val = self._clean(row.get(field, ''))
-                        if val and len(val.strip()) > 5:
-                            if any(keyword in val.lower() for keyword in ['message:', 'text:', 'chat:']):
-                                # Extract message after keyword
-                                for keyword in ['message:', 'text:', 'chat:']:
-                                    if keyword in val.lower():
-                                        parts = val.split(':')
-                                        if len(parts) > 1:
-                                            message_text = ':'.join(parts[1:]).strip()
-                                            break
-                            elif len(val.strip()) > 20 and not val.replace(':', '').replace('-', '').replace('/', '').isdigit():
-                                message_text = val
-                    
-                    if not message_text:
-                        skip_reasons['no_message'] += 1
-                        continue
-                    
-                    contact_name = self._clean(row.get('Contact', ''))
-                    phones_emails = self._clean(row.get('Phones & Emails', ''))
-                    phone_number = None
-                    if phones_emails:
-                        import re
-                        phone_matches = re.findall(r'(\+?[0-9]{10,15})', phones_emails)
-                        if phone_matches:
-                            phone_number = max(phone_matches, key=len)
-                    
-                    timestamp = None
-                    other_field = self._clean(row.get('Other', ''))
-                    if other_field and ('/' in other_field or ':' in other_field):
-                        import re
-                        timestamp_match = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[\s:]+\d{1,2}:\d{2})', other_field)
-                        if timestamp_match:
-                            timestamp = timestamp_match.group(1)
-                    
-                    message_data = {
-                        "file_id": file_id,
-                        "platform": "whatsapp",
-                        "message_text": message_text,
-                        "sender_name": contact_name,
-                        "sender_id": phone_number,
-                        "receiver_name": None,
-                        "receiver_id": None,
-                        "timestamp": timestamp,
-                        "thread_id": phone_number or contact_name,
-                        "chat_id": phone_number or contact_name,
-                        "message_id": self._generate_oxygen_message_id("whatsapp", row, file_id, idx),
-                        "message_type": "text",
-                        "direction": None,
-                        "source_tool": "oxygen",
-                        "sheet_name": sheet_name
-                    }
-                    
-                    results.append(message_data)
-                    processed_count += 1
-                
-                logger.info(f"[OXYGEN WHATSAPP PARSER] Processed {processed_count} messages from Contacts sheet, skipped {skipped_count} rows")
-                return results
-            
-            header_row_idx = None
-            for idx in range(min(20, len(df))):
-                row_text = ' '.join([str(df.iloc[idx, col_idx]) if col_idx < len(df.columns) else '' 
-                                   for col_idx in range(min(20, len(df.columns)))]).lower()
-                
-                if any(kw in row_text for kw in ['message', 'timestamp', 'direction', 'sender', 'from', 'time stamp']):
-                    if any(kw in row_text for kw in ['time stamp', 'date/time', 'date', 'received', 'sent', 'direction']):
-                        header_row_idx = idx
-                        logger.debug(f"[OXYGEN WHATSAPP PARSER] Potential header at row {idx}: {row_text[:100]}")
-                        break
-            
-            if header_row_idx is not None:
-                try:
-                    df.columns = df.iloc[header_row_idx]
-                    df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
-                    logger.debug(f"[OXYGEN WHATSAPP PARSER] Using row {header_row_idx} as header")
-                except:
-                    logger.debug(f"[OXYGEN WHATSAPP PARSER] Could not use row {header_row_idx} as header, using original columns")
-            
-            message_col = None
-            timestamp_col = None
-            sender_col = None
-            direction_col = None
-            
-            for col in df.columns:
-                col_lower = str(col).lower().strip()
-                if 'message' in col_lower and not message_col and 'type' not in col_lower:
-                    message_col = col
-                elif ('timestamp' in col_lower or ('time' in col_lower and 'stamp' in col_lower) or 'date/time' in col_lower) and not timestamp_col:
-                    timestamp_col = col
-                elif ('sender' in col_lower or 'from' in col_lower) and not sender_col:
-                    sender_col = col
-                elif 'direction' in col_lower and not direction_col:
-                    direction_col = col
-            
-            skip_keywords = [
-                'source', 'status', 'received', 'delivered', 'seen', 'categories',
-                'direction', 'time stamp', 'timestamp', 'deleted', 'chats\\', 'calls\\',
-                'at the server', 'failed call', 'outgoing', 'incoming', 'message', 'call',
-                'user name', 'user id', 'full name', 'phone number', 'user picture'
-            ]
-            
-            for idx, row in df.iterrows():
-                first_val = self._clean(row.get(df.columns[0], ''))
-                if first_val and first_val.lower() in skip_keywords:
-                    skip_reasons['header_row'] += 1
-                    continue
-                
-                row_text_lower = ' '.join([str(row.get(col, '')).lower() for col in df.columns[:10]]).lower()
-                if '\\chats\\' in row_text_lower or '\\calls\\' in row_text_lower:
-                    skip_reasons['invalid_format'] += 1
-                    continue
-                
-                message_text = None
-                if message_col:
-                    message_text = self._clean(row.get(message_col))
-                else:
-                    for col in df.columns:
-                        val = self._clean(row.get(col))
-                        if val and len(val.strip()) > 10:
-                            if not val.replace(':', '').replace('-', '').replace('/', '').replace(' ', '').isdigit():
-                                if any(c.isalpha() for c in val[:50]):  # Has alphabetic characters
-                                    message_text = val
-                                    break
-                
-                if not message_text:
-                    skip_reasons['no_message'] += 1
-                    skipped_count += 1
-                    continue
-                
-                timestamp = self._clean(row.get(timestamp_col)) if timestamp_col else None
-                if not timestamp:
-                    for col in df.columns[:10]:
-                        val = self._clean(row.get(col))
-                        if val and ('/' in val or ':' in val) and len(val) > 8:
-                            # Might be timestamp
-                            if any(c.isdigit() for c in val):
-                                timestamp = val
-                                break
-                
-                sender = self._clean(row.get(sender_col)) if sender_col else None
-                direction = self._clean(row.get(direction_col)) if direction_col else None
-
-                thread_id = self._clean(row.get('Thread ID', '')) or \
-                          self._clean(row.get('Chat ID', '')) or \
-                          self._clean(row.get('Identifier', '')) or \
-                          self._clean(row.get('Contact', ''))
-                
-                message_id = self._generate_oxygen_message_id("whatsapp", row, file_id, idx)
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "whatsapp",
-                    "message_text": message_text,
-                    "sender_name": sender,
-                    "sender_id": None,
-                    "receiver_name": None,
-                    "receiver_id": None,
-                    "timestamp": timestamp,
-                    "thread_id": thread_id,
-                    "chat_id": thread_id,
-                    "message_id": message_id,
-                    "message_type": "text",
-                    "direction": direction,
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                if processed_count == 0:
-                    logger.debug(f"[OXYGEN WHATSAPP PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, text_preview={str(message_data['message_text'])[:50]}...")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN WHATSAPP PARSER] Processed {processed_count} messages, skipped {skipped_count} rows, reasons: {skip_reasons}")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN WHATSAPP PARSER] Error parsing WhatsApp messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Oxygen WhatsApp messages: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        return results
-
-    def _generate_oxygen_message_id(self, platform: str, row: pd.Series, file_id: int, index: int) -> str:
-        # Try to get existing message_id from various columns
-        message_id_fields = ['Message ID', 'Item ID', 'Record', 'message_id', 'id', 'Instant Message #']
-        for field in message_id_fields:
-            if hasattr(row, 'index') and field in row.index:
-                msg_id = self._clean(row.get(field))
-                if msg_id and msg_id.lower() not in ['nan', 'none', '']:
-                    return f"{platform}_{file_id}_{msg_id}"
-        
-        timestamp = self._clean(row.get('timestamp', '')) or self._clean(row.get('Timestamp', ''))
-        if timestamp:
-            clean_timestamp = str(timestamp).replace('/', '').replace(':', '').replace('-', '').replace(' ', '')[:15]
-            return f"{platform}_{file_id}_{clean_timestamp}_{index}"
-        
-        return f"{platform}_{file_id}_{index}"
-
-    def _parse_oxygen_telegram_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN TELEGRAM PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN TELEGRAM PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-
-            for idx, row in df.iterrows():
-                message_text = self._clean(row.get('Message', '')) or \
-                              self._clean(row.get('Body', '')) or \
-                              self._clean(row.get('Text', ''))
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                timestamp = self._clean(row.get('Timestamp', '')) or \
-                          self._clean(row.get('Date/Time', ''))
-                sender = self._clean(row.get('Sender', '')) or \
-                        self._clean(row.get('From', ''))
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "telegram",
-                    "message_text": message_text,
-                    "sender_name": sender,
-                    "sender_id": self._clean(row.get('Sender ID', '')),
-                    "receiver_name": None,
-                    "receiver_id": None,
-                    "timestamp": timestamp,
-                    "thread_id": self._clean(row.get('Chat ID', '')),
-                    "chat_id": self._clean(row.get('Chat ID', '')),
-                    "message_id": self._generate_oxygen_message_id("telegram", row, file_id, idx),
-                    "message_type": "text",
-                    "direction": self._clean(row.get('Direction', '')),
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN TELEGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN TELEGRAM PARSER] Error parsing Telegram messages from {sheet_name}: {e}", exc_info=True)
-        
-        return results
-
-    def _parse_oxygen_instagram_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN INSTAGRAM PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN INSTAGRAM PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                message_text = self._clean(row.get('Message', '')) or \
-                              self._clean(row.get('Body', ''))
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "instagram",
-                    "message_text": message_text,
-                    "sender_name": self._clean(row.get('Sender', '')),
-                    "sender_id": None,
-                    "receiver_name": self._clean(row.get('Recipient', '')),
-                    "receiver_id": None,
-                    "timestamp": self._clean(row.get('Timestamp', '')),
-                    "thread_id": self._clean(row.get('Thread ID', '')),
-                    "chat_id": self._clean(row.get('Chat ID', '')),
-                    "message_id": self._generate_oxygen_message_id("instagram", row, file_id, idx),
-                    "message_type": "text",
-                    "direction": self._clean(row.get('Direction', '')),
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN INSTAGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN INSTAGRAM PARSER] Error parsing Instagram messages from {sheet_name}: {e}", exc_info=True)
-        
-        return results
-
-    def _parse_oxygen_twitter_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN TWITTER PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN TWITTER PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                message_text = self._clean(row.get('Text', '')) or \
-                              self._clean(row.get('Message', ''))
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "x",
-                    "message_text": message_text,
-                    "sender_name": self._clean(row.get('Sender', '')),
-                    "sender_id": self._clean(row.get('Sender ID', '')),
-                    "receiver_name": self._clean(row.get('Recipient', '')),
-                    "receiver_id": self._clean(row.get('Recipient ID', '')),
-                    "timestamp": self._clean(row.get('Timestamp', '')),
-                    "thread_id": self._clean(row.get('Thread ID', '')),
-                    "chat_id": self._clean(row.get('Chat ID', '')),
-                    "message_id": self._generate_oxygen_message_id("x", row, file_id, idx),
-                    "message_type": "text",
-                    "direction": self._clean(row.get('Direction', '')),
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN TWITTER PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN TWITTER PARSER] Error parsing Twitter messages from {sheet_name}: {e}", exc_info=True)
-        
-        return results
-
-    def _parse_oxygen_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN TIKTOK PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN TIKTOK PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                message_text = self._clean(row.get('Message', ''))
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "tiktok",
-                    "message_text": message_text,
-                    "sender_name": self._clean(row.get('Sender', '')),
-                    "sender_id": None,
-                    "receiver_name": self._clean(row.get('Recipient', '')),
-                    "receiver_id": None,
-                    "timestamp": self._clean(row.get('Timestamp', '')),
-                    "thread_id": self._clean(row.get('Thread ID', '')),
-                    "chat_id": None,
-                    "message_id": self._generate_oxygen_message_id("tiktok", row, file_id, idx),
-                    "message_type": self._clean(row.get('Message Type', '')) or 'text',
-                    "direction": None,
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN TIKTOK PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN TIKTOK PARSER] Error parsing TikTok messages from {sheet_name}: {e}", exc_info=True)
-        
-        return results
-
-    def _parse_oxygen_facebook_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[OXYGEN FACEBOOK PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
-            logger.debug(f"[OXYGEN FACEBOOK PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                message_text = self._clean(row.get('Message', '')) or \
-                              self._clean(row.get('Content', ''))
-                
-                if not message_text:
-                    skipped_count += 1
-                    continue
-                
-                message_data = {
-                    "file_id": file_id,
-                    "platform": "facebook",
-                    "message_text": message_text,
-                    "sender_name": self._clean(row.get('Sender', '')),
-                    "sender_id": self._clean(row.get('Sender ID', '')),
-                    "receiver_name": self._clean(row.get('Recipient', '')),
-                    "receiver_id": self._clean(row.get('Recipient ID', '')),
-                    "timestamp": self._clean(row.get('Timestamp', '')),
-                    "thread_id": self._clean(row.get('Thread ID', '')),
-                    "chat_id": self._clean(row.get('Chat ID', '')),
-                    "message_id": self._generate_oxygen_message_id("facebook", row, file_id, idx),
-                    "message_type": "text",
-                    "direction": self._clean(row.get('Direction', '')),
-                    "source_tool": "oxygen",
-                    "sheet_name": sheet_name
-                }
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[OXYGEN FACEBOOK PARSER] Processed {processed_count} messages, skipped {skipped_count} rows")
-            
-        except Exception as e:
-            logger.error(f"[OXYGEN FACEBOOK PARSER] Error parsing Facebook messages from {sheet_name}: {e}", exc_info=True)
-        
-        return results
+        return self._chat_messages_parser.parse_oxygen_chat_messages(file_path, file_id)
 
     def parse_axiom_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.info(f"[CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
-            xls = pd.ExcelFile(file_path, engine='openpyxl')
-            logger.info(f"[CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
-            logger.info(f"[CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")
-            
-            if 'Telegram Messages - iOS' in xls.sheet_names:
-                logger.info(f"[CHAT PARSER] Found Telegram Messages sheet, parsing...")
-                telegram_results = self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id)
-                results.extend(telegram_results)
-                logger.info(f"[CHAT PARSER] Telegram: Parsed {len(telegram_results)} messages")
-            else:
-                logger.warning(f"[CHAT PARSER] Telegram Messages - iOS sheet not found")
-            
-            if 'Instagram Direct Messages' in xls.sheet_names:
-                logger.info(f"[CHAT PARSER] Found Instagram Direct Messages sheet, parsing...")
-                instagram_results = self._parse_instagram_messages(file_path, 'Instagram Direct Messages', file_id)
-                results.extend(instagram_results)
-                logger.info(f"[CHAT PARSER] Instagram: Parsed {len(instagram_results)} messages")
-            else:
-                logger.warning(f"[CHAT PARSER] Instagram Direct Messages sheet not found")
-            
-            if 'TikTok Messages' in xls.sheet_names:
-                logger.info(f"[CHAT PARSER] Found TikTok Messages sheet, parsing...")
-                tiktok_results = self._parse_tiktok_messages(file_path, 'TikTok Messages', file_id)
-                results.extend(tiktok_results)
-                logger.info(f"[CHAT PARSER] TikTok: Parsed {len(tiktok_results)} messages")
-            else:
-                logger.warning(f"[CHAT PARSER] TikTok Messages sheet not found")
-
-            if 'Twitter Direct Messages' in xls.sheet_names:
-                logger.info(f"[CHAT PARSER] Found Twitter Direct Messages sheet, parsing...")
-                twitter_results = self._parse_twitter_messages(file_path, 'Twitter Direct Messages', file_id)
-                results.extend(twitter_results)
-                logger.info(f"[CHAT PARSER] Twitter/X: Parsed {len(twitter_results)} messages")
-            else:
-                logger.warning(f"[CHAT PARSER] Twitter Direct Messages sheet not found")
-            
-            logger.info(f"[CHAT PARSER] Total parsed messages: {len(results)}")
-
-            if results:
-                sample_msg = results[0]
-                logger.debug(f"[CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
-                           f"sheet_name={sample_msg.get('sheet_name')}, "
-                           f"message_id={sample_msg.get('message_id')}, "
-                           f"sender={sample_msg.get('sender_name')}, "
-                           f"receiver={sample_msg.get('receiver_name')}, "
-                           f"timestamp={sample_msg.get('timestamp')}")
-            
-            saved_count = 0
-            skipped_count = 0
-            for msg in results:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"],
-                                            )
-                    .first()
-                )
-                if not existing:
-                    self.db.add(ChatMessage(**msg))
-                    saved_count += 1
-                else:
-                    skipped_count += 1
-            
-            self.db.commit()
-            logger.info(f"[CHAT PARSER] Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            print(f"Successfully saved {saved_count} chat messages to database (skipped {skipped_count} duplicates)")
-            
-        except Exception as e:
-            logger.error(f"[CHAT PARSER] Error parsing Axiom chat messages: {e}", exc_info=True)
-            print(f"Error parsing Axiom chat messages: {e}")
-            self.db.rollback()
-            raise e
-        
-        return results
-
-    def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[TELEGRAM PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[TELEGRAM PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:10]}")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    skipped_count += 1
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "telegram",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name', '')),
-                    "receiver_id": str(row.get('Recipient ID', '')),
-                    "timestamp": str(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": str(row.get('Chat ID', '')),
-                    "message_id": str(row.get('Message ID', '')),
-                    "message_type": str(row.get('Type', 'text')),
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
-                    "sheet_name": sheet_name
-                }
-                
-                if processed_count == 0:
-                    logger.debug(f"[TELEGRAM PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}, "
-                               f"text_preview={str(message_data['message_text'])[:50]}...")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[TELEGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
-        
-        except Exception as e:
-            logger.error(f"[TELEGRAM PARSER] Error parsing Telegram messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Telegram messages: {e}")
-        
-        return results
-
-    def _parse_instagram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[INSTAGRAM PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[INSTAGRAM PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    skipped_count += 1
-                    continue
-                
-                message_data = {                    
-                    "file_id": file_id,
-                    "platform": "instagram",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
-                    "timestamp": str(row.get('Message Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": str(row.get('Chat ID', '')),
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": str(row.get('Type', 'text')),
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
-                    "sheet_name": sheet_name
-                }
-                
-                if processed_count == 0:
-                    logger.debug(f"[INSTAGRAM PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[INSTAGRAM PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
-        
-        except Exception as e:
-            logger.error(f"[INSTAGRAM PARSER] Error parsing Instagram messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Instagram messages: {e}")
-        
-        return results
-
-    def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[TIKTOK PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[TIKTOK PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
-                    skipped_count += 1
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "tiktok",
-                    "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
-                    "timestamp": str(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": "",
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": str(row.get('Message Type', 'text')),
-                    "direction": "",
-                    "source_tool": "axiom",
-                    "sheet_name": sheet_name
-                }
-                
-                if processed_count == 0:
-                    logger.debug(f"[TIKTOK PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[TIKTOK PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
-        
-        except Exception as e:
-            logger.error(f"[TIKTOK PARSER] Error parsing TikTok messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing TikTok messages: {e}")
-        
-        return results
-
-    def _parse_twitter_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            logger.debug(f"[TWITTER/X PARSER] Reading sheet: {sheet_name}")
-            df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            logger.debug(f"[TWITTER/X PARSER] Sheet loaded: {len(df)} rows")
-            
-            processed_count = 0
-            skipped_count = 0
-            
-            for idx, row in df.iterrows():
-                if pd.isna(row.get('Text')) or not str(row.get('Text')).strip():
-                    skipped_count += 1
-                    continue
-                
-                message_data = {                    "file_id": file_id,
-                    "platform": "x",
-                    "message_text": str(row.get('Text', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name(s)', '')),
-                    "receiver_id": str(row.get('Recipient ID(s)', '')),
-                    "timestamp": str(row.get('Sent/Received Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
-                    "thread_id": str(row.get('_ThreadID', '')),
-                    "chat_id": "",
-                    "message_id": str(row.get('Item ID', '')),
-                    "message_type": "text",
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
-                    "sheet_name": sheet_name
-                }
-                
-                if processed_count == 0:
-                    logger.debug(f"[TWITTER/X PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}")
-                
-                results.append(message_data)
-                processed_count += 1
-            
-            logger.info(f"[TWITTER/X PARSER] Processed {processed_count} messages, skipped {skipped_count} empty rows")
-        
-        except Exception as e:
-            logger.error(f"[TWITTER/X PARSER] Error parsing Twitter messages from {sheet_name}: {e}", exc_info=True)
-            print(f"Error parsing Twitter messages: {e}")
-        
-        return results
+        return self._chat_messages_parser.parse_axiom_chat_messages(file_path, file_id)
 
     def _parse_axiom_whatsapp_accounts_info(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -3395,7 +1957,7 @@ class SocialMediaParsersExtended:
                 
                 if whatsapp_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": whatsapp_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -3442,7 +2004,7 @@ class SocialMediaParsersExtended:
                 
                 if account_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": account_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -3486,7 +2048,7 @@ class SocialMediaParsersExtended:
                 
                 if phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": name or phone_number,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -3509,7 +2071,6 @@ class SocialMediaParsersExtended:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
             
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -3533,7 +2094,7 @@ class SocialMediaParsersExtended:
                 if phone_number and phone_number not in seen_accounts:
                     seen_accounts.add(phone_number)
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": phone_number,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -3570,7 +2131,7 @@ class SocialMediaParsersExtended:
                 
                 if whatsapp_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": whatsapp_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -3608,7 +2169,7 @@ class SocialMediaParsersExtended:
                 
                 if chat_name and chat_id:
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": chat_name,
                         "account_id": chat_id,
                         "user_id": chat_id,
@@ -3649,7 +2210,7 @@ class SocialMediaParsersExtended:
                     account_name = username or full_name
                     
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": account_name,
                         "account_id": user_id,
                         "user_id": user_id,
@@ -3687,7 +2248,7 @@ class SocialMediaParsersExtended:
                 if partner and partner not in seen_accounts:
                     seen_accounts.add(partner)
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": partner,
                         "account_id": partner,
                         "user_id": partner,
@@ -3709,7 +2270,6 @@ class SocialMediaParsersExtended:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
             
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -3729,7 +2289,7 @@ class SocialMediaParsersExtended:
                     account_name = username or full_name
                     
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": account_name,
                         "account_id": user_id,
                         "user_id": user_id,
@@ -3744,3 +2304,5 @@ class SocialMediaParsersExtended:
             print(f"Error parsing {sheet_name} sheet: {e}")
         
         return results
+
+

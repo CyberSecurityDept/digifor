@@ -1,8 +1,8 @@
 import re
-import pandas as pd  # type: ignore
+import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
@@ -22,7 +22,6 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
-# Suppress stderr for OLE2 warnings from xlrd/openpyxl
 import io
 class FilteredStderr(io.TextIOWrapper):
     def write(self, s):
@@ -180,7 +179,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             skipped_count += 1
                             continue
 
-                        # Simpan ke DB
                             self.db.add(SocialMedia(**acc))
                         batch_saved += 1
                     
@@ -264,7 +262,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         contact = contact.replace('\\r\\n', '').strip()
         
         if platform == 'instagram':
-            # Look for Instagram ID pattern
             if 'Instagram ID:' in contact:
                 parts = contact.split('Instagram ID:')
                 if len(parts) > 1:
@@ -299,84 +296,65 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if not contact:
             return None
         
-        # Remove common suffixes and clean up
         contact = contact.replace('\\r\\n', '').strip()
         phones_emails = phones_emails or ''
         internet = internet or ''
         
-        # For different platforms, extract differently
         if platform == 'instagram':
-            # Look for Instagram ID pattern first
             if 'Instagram ID:' in internet:
                 parts = internet.split('Instagram ID:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Otherwise return the first line
             return contact.split('\\n')[0].strip()
         
         elif platform == 'x':
-            # Look for nickname pattern first
             if 'Nickname:' in contact:
                 parts = contact.split('Nickname:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Otherwise return the first line
             return contact.split('\\n')[0].strip()
         
         elif platform == 'telegram':
-            # Return the first line (usually the name)
             return contact.split('\\n')[0].strip()
         
-        # Default: return first line
         return contact.split('\\n')[0].strip()
     
     def _extract_account_id_enhanced(self, contact: str, platform: str, phones_emails: str, internet: str) -> str:
         if not contact:
             return None
         
-        # Remove common suffixes and clean up
         contact = contact.replace('\\r\\n', '').strip()
         phones_emails = phones_emails or ''
         internet = internet or ''
         
-        # Look for specific patterns based on platform
         if platform == 'instagram':
-            # Look for Instagram ID pattern
             if 'Instagram ID:' in internet:
                 parts = internet.split('Instagram ID:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Otherwise return the first line
             return contact.split('\\n')[0].strip()
         
         elif platform == 'x':
-            # Look for X ID pattern
             if 'X ID:' in phones_emails:
                 parts = phones_emails.split('X ID:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Look for nickname pattern
             if 'Nickname:' in contact:
                 parts = contact.split('Nickname:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Otherwise return the first line
             return contact.split('\\n')[0].strip()
         
         elif platform == 'telegram':
-            # Look for Telegram ID pattern
             if 'Telegram ID:' in internet:
                 parts = internet.split('Telegram ID:')
                 if len(parts) > 1:
                     return parts[1].strip()
-            # Otherwise return the first line
             return contact.split('\\n')[0].strip()
         
-        # Default: return first line
         return contact.split('\\n')[0].strip()
     
     def _extract_user_id_enhanced(self, contact: str, platform: str, phones_emails: str, internet: str) -> str:
-        # For most cases, user ID is same as account ID
         return self._extract_account_id_enhanced(contact, platform, phones_emails, internet)
     
     def _parse_oxygen_instagram_sheet(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
@@ -385,7 +363,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         try:
             df = pd.read_excel(file_path, sheet_name='Instagram ', dtype=str, engine='xlrd')
             
-            # Skip header rows and look for actual user data
             skip_keywords = ['identifier', 'user data', 'version', 'container type', 'container', 
                            'purchase date', 'apple id', 'genre', 'copyright', 'passwords', 'accounts', 
                            'categories', 'following', 'feed', 'stories', 'messages', 'media', 'contacts',
@@ -395,7 +372,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 instagram_col = self._clean(row.get('Instagram', ''))
                 
                 if instagram_col and instagram_col.lower() not in skip_keywords:
-                    # Check if this looks like a real username (not too long, contains alphanumeric, no backslashes)
                     if (len(instagram_col) <= 30 and 
                         any(c.isalnum() for c in instagram_col) and 
                         '\\' not in instagram_col and
@@ -422,7 +398,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         try:
             df = pd.read_excel(file_path, sheet_name='Telegram Messenger ', dtype=str, engine='xlrd')
             
-            # Skip header rows and look for actual user data
             skip_keywords = ['identifier', 'user data', 'version', 'container type', 'container', 
                            'purchase date', 'apple id', 'genre', 'copyright', 'passwords', 'accounts', 
                            'categories', 'following', 'feed', 'stories', 'messages', 'media', 'contacts',
@@ -515,12 +490,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 
                 print(f"Total sheets available: {len(xls.sheet_names)}")
                 
-                # FOKUS PARSING INSTAGRAM SAJA - Skip platform lain untuk sementara
                 print("=" * 60)
                 print("FOCUS: Parsing Instagram only (other platforms disabled)")
                 print("=" * 60)
                 
-                # Parse Instagram sheets dan Contacts sheet (Instagram only)
                 results.extend(self._parse_oxygen_instagram_sheets(file_path, xls, file_id, engine))
                 results.extend(self._parse_oxygen_contacts_sheet(file_path, xls, file_id, engine))
 
@@ -531,7 +504,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 if "platform" in acc:
                     account_key = f"{acc.get('platform', '')}_{acc.get('account_id', '')}_{acc.get('account_name', '')}"
                 else:
-                    # Struktur baru - gunakan platform IDs
                     platform_ids = []
                     if acc.get('instagram_id'):
                         platform_ids.append(f"ig:{acc['instagram_id']}")
@@ -554,7 +526,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             print(f"Removed {len(results) - len(unique_results)} duplicate records")
             print(f"Unique social media accounts: {len(unique_results)}")
             
-            # Save to database in batches
             batch_size = 50
             saved_count = 0
             skipped_count = 0
@@ -566,12 +537,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 
                 try:
                     for acc in batch:
-                        # Validasi data sebelum insert
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
                             invalid_count += 1
-                            if invalid_count <= 5:  # Log first 5 invalid records
-                                # Convert untuk logging
+                            if invalid_count <= 5:
                                 log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
                                 platform_info = []
                                 if log_acc.get('instagram_id'):
@@ -586,11 +555,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                                 print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
                             continue
                         
-                        # Convert ke struktur baru jika perlu
                         if "platform" in acc:
                             acc = self._convert_old_to_new_structure(acc)
                         
-                        # Check duplicate menggunakan struktur baru
                         if self._check_existing_social_media(acc):
                             skipped_count += 1
                             continue
@@ -631,7 +598,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         results = []
         
         try:
-            # Parse Users-Followers sheet for Twitter data
             if 'Users-Followers ' in xls.sheet_names:
                 print("Parsing X (Twitter) Users-Followers sheet...")
                 df = pd.read_excel(file_path, sheet_name='Users-Followers ', engine=engine, dtype=str)
@@ -664,7 +630,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             }
                             results.append(acc)
             
-            # Parse Tweets-Following sheet
             if 'Tweets-Following ' in xls.sheet_names:
                 print("Parsing X (Twitter) Tweets-Following sheet...")
                 df = pd.read_excel(file_path, sheet_name='Tweets-Following ', engine=engine, dtype=str)
@@ -691,7 +656,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         }
                         results.append(acc)
             
-            # Parse Tweets-Other sheet
             if 'Tweets-Other ' in xls.sheet_names:
                 print("Parsing X (Twitter) Tweets-Other sheet...")
                 df = pd.read_excel(file_path, sheet_name='Tweets-Other ', engine=engine, dtype=str)
@@ -727,7 +691,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         results = []
         
         try:
-            # Parse Telegram sheet
             if 'Telegram ' in xls.sheet_names:
                 print("Parsing Telegram sheet...")
                 df = pd.read_excel(file_path, sheet_name='Telegram ', engine=engine, dtype=str)
@@ -737,7 +700,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if user_data_count and user_data_count.isdigit():
                         print(f"Telegram user data count: {user_data_count}")
             
-            # Parse Contacts sheet for Telegram data
             if 'Contacts ' in xls.sheet_names:
                 print("Parsing Telegram data from Contacts sheet...")
                 df = pd.read_excel(file_path, sheet_name='Contacts ', engine=engine, dtype=str)
@@ -748,7 +710,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     contact_field = self._clean(row.get("Contact"))
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
-                    # Skip jika source_field adalah header
                     if source_field and self._is_header_or_metadata(source_field):
                         continue
                     
@@ -763,7 +724,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if not account_name and telegram_id:
                             account_name = telegram_id
                         
-                        # Skip jika account_name adalah header/metadata
                         if account_name and self._is_header_or_metadata(account_name):
                             continue
                         
@@ -792,22 +752,19 @@ class SocialMediaParser(SocialMediaParsersExtended):
         results = []
         
         try:
-            # Parse WhatsApp Messenger sheet
             if 'WhatsApp Messenger ' in xls.sheet_names:
                 print("Parsing WhatsApp Messenger sheet...")
                 df = pd.read_excel(file_path, sheet_name='WhatsApp Messenger ', engine=engine, dtype=str)
                 
                 if len(df) >= 2:
-                    user_data_count = self._clean(df.iloc[1, 2])  # Third column, second row
+                    user_data_count = self._clean(df.iloc[1, 2])
                     if user_data_count and user_data_count.isdigit():
                         print(f"WhatsApp user data count: {user_data_count}")
             
-            # Parse Contacts sheet for WhatsApp data
             if 'Contacts ' in xls.sheet_names:
                 print("Parsing WhatsApp data from Contacts sheet...")
                 df = pd.read_excel(file_path, sheet_name='Contacts ', engine=engine, dtype=str)
                 
-                # Skip header row jika terdeteksi
                 for _, row in df.iterrows():
                     source_field = self._clean(row.get("Source"))
                     internet_field = self._clean(row.get("Internet"))
@@ -815,7 +772,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     other_field = self._clean(row.get("Other"))
                     
-                    # Skip jika source_field adalah header
                     if source_field and self._is_header_or_metadata(source_field):
                         continue
                     
@@ -830,7 +786,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if not account_name and whatsapp_id:
                             account_name = whatsapp_id
                         
-                        # Skip jika account_name adalah header/metadata
                         if account_name and self._is_header_or_metadata(account_name):
                             continue
                         
@@ -881,7 +836,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if pattern:
             match = re.search(pattern, text_str, re.IGNORECASE)
             if match:
-                # Ambil group pertama yang tidak None
                 for group in match.groups():
                     if group:
                         return group.strip()
@@ -893,7 +847,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             return None
         
         text_str = str(text)
-        # Cari "Nickname: username"
         match = re.search(r"Nickname[:\s]+([^\n]+)", text_str, re.IGNORECASE)
         if match:
             return match.group(1).strip()
@@ -905,7 +858,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             return None
         
         text_str = str(text)
-        # Cari "Location: Bandung, Indonesia"
         match = re.search(r"Location[:\s]+([^\n]+)", text_str, re.IGNORECASE)
         if match:
             return match.group(1).strip()
@@ -920,16 +872,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         match = re.search(r"Phone\s+number[:\s]+([\+\d\s\-\(\)@\.]+)", text_str, re.IGNORECASE)
         if match:
             phone = match.group(1).strip()
-            # Clean @s.whatsapp.net jika ada
             phone = phone.replace('@s.whatsapp.net', '')
-            # Clean whitespace dan karakter non-digit (kecuali + di awal)
             phone = re.sub(r'\s+', '', phone)
-            # Hapus karakter selain digit dan + (di awal saja)
             if phone.startswith('+'):
                 phone = '+' + re.sub(r'[^\d]', '', phone[1:])
             else:
                 phone = re.sub(r'[^\d]', '', phone)
-            # Skip phone_number yang hanya "0" atau terlalu pendek
             if phone and len(phone) >= 8 and phone not in ['0', '+0']:
                 return phone
         
@@ -937,16 +885,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         phone_match = re.search(r"(?:Home|Mobile|Work|Cell|Phone|Office)[:\s]+([\+\d\s\-\(\)]+)", text_str, re.IGNORECASE)
         if phone_match:
             phone = phone_match.group(1).strip()
-            # Clean @s.whatsapp.net jika ada
             phone = phone.replace('@s.whatsapp.net', '')
-            # Clean whitespace
             phone = re.sub(r'\s+', '', phone)
-            # Hapus karakter selain digit dan + (di awal saja)
             if phone.startswith('+'):
                 phone = '+' + re.sub(r'[^\d]', '', phone[1:])
             else:
                 phone = re.sub(r'[^\d]', '', phone)
-            # Skip phone_number yang hanya "0" atau terlalu pendek
             if phone and len(phone) >= 8 and phone not in ['0', '+0']:
                 return phone
         
@@ -962,13 +906,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if not lines:
             return None
         
-        # Ambil line pertama yang tidak dimulai dengan "Nickname:"
         for line in lines:
             if not line.lower().startswith('nickname:'):
                 full_name = line.strip()
                 if '@s.whatsapp.net' in full_name:
                     full_name = full_name.replace('@s.whatsapp.net', '').strip()
-                    # Jika hanya tersisa angka, gunakan sebagai full_name
                     if full_name and full_name.isdigit():
                         return full_name
                 return full_name
@@ -986,22 +928,19 @@ class SocialMediaParser(SocialMediaParsersExtended):
             
             if '@s.whatsapp.net' in whatsapp_id_raw:
                 number_part = whatsapp_id_raw.split('@s.whatsapp.net')[0].strip()
-                # Clean dari karakter non-digit di awal/akhir
                 number_part = re.sub(r'^[^\d]+', '', number_part)
                 number_part = re.sub(r'[^\d]+$', '', number_part)
                 
                 if number_part and number_part.isdigit() and len(number_part) >= 11 and number_part.startswith('8'):
-                    number_part = number_part[1:]  # Hapus digit pertama "8"
+                    number_part = number_part[1:]
                 
                 if number_part and number_part.isdigit() and len(number_part) >= 8:
-                    # Return dengan format @s.whatsapp.net
                     return f"{number_part}@s.whatsapp.net"
             else:
                 whatsapp_id = whatsapp_id_raw
                 whatsapp_id = re.sub(r'^[^\d]+', '', whatsapp_id)
                 whatsapp_id = re.sub(r'[^\d]+$', '', whatsapp_id)
                 
-                # Jika nomor dimulai dengan "8" dan panjang >= 11 digit, hapus digit pertama "8"
                 if whatsapp_id and whatsapp_id.isdigit() and len(whatsapp_id) >= 11 and whatsapp_id.startswith('8'):
                     whatsapp_id = whatsapp_id[1:]
                 
@@ -1016,14 +955,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         text_str = str(text)
         
-        # Cari "Telegram ID: 123456789"
         match = re.search(r'Telegram\s+ID[:\s]+(\d+)', text_str, re.IGNORECASE)
         if match:
             telegram_id = match.group(1).strip()
             if telegram_id and telegram_id.isdigit():
                 return telegram_id
         
-        # Cari "Username: @username" atau "Telegram: @username"
         username_match = re.search(r'(?:Telegram|Username)[:\s]+@?([a-zA-Z0-9_]+)', text_str, re.IGNORECASE)
         if username_match:
             username = username_match.group(1).strip()
@@ -1038,14 +975,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         text_str = str(text)
         
-        # Cari "TikTok ID: 123456789" atau "TikTok: @username"
         match = re.search(r'TikTok\s+(?:ID|Username)[:\s]+@?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
         if match:
             tiktok_id = match.group(1).strip()
             if tiktok_id:
                 return tiktok_id
         
-        # Cari "TikTok: username" atau "@username"
         username_match = re.search(r'TikTok[:\s]+@?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
         if username_match:
             username = username_match.group(1).strip()
@@ -1066,7 +1001,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             if x_id and len(x_id) > 0:
                 return x_id
         
-        # Cari "Twitter: @username" atau "X: @username" (format lama untuk backward compatibility)
         username_match = re.search(r'(?:Twitter|X)[:\s]+@?([a-zA-Z0-9_]+)', text_str, re.IGNORECASE)
         if username_match:
             username = username_match.group(1).strip()
@@ -1081,14 +1015,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         text_str = str(text)
         
-        # Cari "Facebook ID: 123456789"
         match = re.search(r'Facebook\s+ID[:\s]+(\d+)', text_str, re.IGNORECASE)
         if match:
             facebook_id = match.group(1).strip()
             if facebook_id and facebook_id.isdigit():
                 return facebook_id
         
-        # Cari "Facebook: profile/username" atau "Facebook: username"
         username_match = re.search(r'Facebook[:\s]+(?:profile/)?([a-zA-Z0-9_\.]+)', text_str, re.IGNORECASE)
         if username_match:
             username = username_match.group(1).strip()
@@ -1103,16 +1035,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         contact_str = str(contact_field).strip()
         
-        # Skip jika kosong atau nan
         if contact_str.lower() in ['nan', 'none', 'null', '']:
             return None
         
         if '@s.whatsapp.net' in contact_str:
             account_name = contact_str.split('@s.whatsapp.net')[0].strip()
-            # Clean dari karakter non-digit di awal/akhir
             account_name = re.sub(r'^[^\d]+', '', account_name)
             account_name = re.sub(r'[^\d]+$', '', account_name)
-            if account_name and account_name.isdigit() and len(account_name) >= 8:  # Minimal 8 digit
+            if account_name and account_name.isdigit() and len(account_name) >= 8:
                 return account_name
         
         if '\n' in contact_str or 'nickname:' in contact_str.lower():
@@ -1121,7 +1051,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 nickname = self._clean_whatsapp_suffix(nickname)
                 if nickname and nickname.isdigit() and len(nickname) >= 8:
                     return nickname
-                # Jika bukan angka atau angka pendek, tetap return jika valid
                 if nickname and len(nickname) > 1 and not nickname.isdigit():
                     return nickname
         
@@ -1130,10 +1059,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if contact_clean.isdigit() and len(contact_clean) >= 8:
             return contact_clean
         
-        # Jika berisi format lain, coba clean dan return jika valid
         contact_clean = self._clean_whatsapp_suffix(contact_str)
         if contact_clean and len(contact_clean) > 1:
-            # Skip jika terlihat seperti header/metadata
             if not self._is_header_or_metadata(contact_clean):
                 return contact_clean
         
@@ -1169,50 +1096,42 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 if not source_field or self._is_header_or_metadata(source_field):
                     continue
                 
-                # Ambil data dari kolom yang diperlukan
                 type_field = self._clean(row.get("Type"))
                 source_clean = source_field.strip()
                 contact_field = self._clean(row.get("Contact"))
                 internet_field = self._clean(row.get("Internet"))
                 addresses_field = self._clean(row.get("Addresses"))
                 
-                # Extract data dari Contact field
                 full_name = self._extract_full_name_from_contact(contact_field)
                 account_name = self._extract_nickname(contact_field)
                 
                 if not account_name and contact_field:
                     contact_str = str(contact_field).strip()
-                    # Skip jika ini pure numeric panjang (kemungkinan Group ID, bukan username)
                     if contact_str.isdigit() and len(contact_str) > 15:
-                        # Ini mungkin Group ID, akan ditangani nanti di extract instagram_id
                         pass
                     elif ('\n' not in contact_str and 'nickname:' not in contact_str.lower() and 
-                        len(contact_str) > 1 and len(contact_str) < 50 and  # Panjang wajar untuk username
-                        not contact_str.isdigit() and  # Bukan pure number
+                        len(contact_str) > 1 and len(contact_str) < 50 and
+                        not contact_str.isdigit() and
                         '@' not in contact_str and '/' not in contact_str and '\\' not in contact_str):
-                        # Kemungkinan ini langsung username
                         account_name = contact_str
-                        full_name = None  # Jika langsung username, full_name = None
+                        full_name = None
                 
                 if not account_name:
-                    # Cek kolom dengan nama yang mungkin berisi Instagram username
                     possible_columns = ['Instagram', 'instagram', 'Account Name', 'account_name', 'Username', 'username']
                     for col_name in possible_columns:
                         if col_name in df.columns:
                             col_value = self._clean(row.get(col_name))
                             if col_value and not self._is_header_or_metadata(col_value):
-                                # Jika kolom berisi username/handle Instagram (bukan ID, bukan path, bukan email)
                                 col_str = str(col_value).strip()
                                 if (col_str.lower() not in ['nan', 'n/a', 'none', 'null', ''] and 
                                     '@' not in col_str and '/' not in col_str and 
                                     '\\' not in col_str and len(col_str) > 1 and 
-                                    not col_str.isdigit()):  # Bukan pure numeric (mungkin ID)
+                                    not col_str.isdigit()):
                                     account_name = col_str
                                     print(f"  Found account_name in column '{col_name}': {account_name}")
                                     break
                     
                     if not account_name:
-                        # Cek semua kolom (kecuali yang sudah dicek)
                         excluded_cols = ['Source', 'Type', 'Contact', 'Internet', 'Addresses', 'Photo', 'Deleted', 'Calls', 'Messages']
                         for col_name in df.columns:
                             if col_name in excluded_cols:
@@ -1220,7 +1139,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             col_value = self._clean(row.get(col_name))
                             if col_value and not self._is_header_or_metadata(col_value):
                                 col_str = str(col_value).strip()
-                                # Validasi: bukan null/nan, bukan email, bukan path, bukan pure number, minimal 2 karakter
                                 if (col_str.lower() not in ['nan', 'n/a', 'none', 'null', ''] and 
                                     '@' not in col_str and '/' not in col_str and 
                                     '\\' not in col_str and len(col_str) > 1 and 
@@ -1230,10 +1148,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                                     print(f"  Found account_name in column '{col_name}': {account_name}")
                                     break
                 
-                # Extract location dari Addresses field
                 location = self._extract_location(addresses_field)
                 
-                # Extract Instagram ID dari Internet field
                 instagram_id = self._extract_platform_id(internet_field, "instagram")
                 
                 if not instagram_id and internet_field:
@@ -1244,20 +1160,16 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 
                 if not instagram_id and contact_field:
                     contact_str = str(contact_field).strip()
-                    # Jika Contact field adalah pure numeric panjang (>15 digits), gunakan sebagai instagram_id
                     if contact_str.isdigit() and len(contact_str) > 15:
                         instagram_id = contact_str
                         print(f"  Found Group ID from Contact field (pure numeric): {instagram_id}")
-                    # Atau jika Type=Group dan Contact field numeric
                     elif type_field and 'group' in type_field.lower() and contact_str.isdigit():
                         instagram_id = contact_str
                         print(f"  Found Group ID from Contact field (Type=Group): {instagram_id}")
-                    # Atau jika Type=Contact dan Contact field numeric >=10 digits (mungkin Instagram user ID)
                     elif type_field and 'contact' in type_field.lower() and contact_str.isdigit() and len(contact_str) >= 10:
                         instagram_id = contact_str
                         print(f"  Found Instagram ID from Contact field (Type=Contact, numeric >=10 digits): {instagram_id}")
                 
-                # Extract phone_number dari Internet field jika ada (optional)
                 phone_number = None
                 phone_from_internet = self._extract_phone_number_from_text(internet_field)
                 if phone_from_internet:
@@ -1271,17 +1183,16 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     "full_name": full_name,
                     "account_name": account_name,
                     "instagram_id": instagram_id,
-                    "location": location,  # dari kolom Addresses
-                    "whatsapp_id": None,  # tidak diisi (hanya Instagram)
-                    "telegram_id": None,  # tidak diisi (hanya Instagram)
-                    "X_id": None,  # tidak diisi (hanya Instagram)
-                    "facebook_id": None,  # tidak diisi (hanya Instagram)
-                    "tiktok_id": None,  # tidak diisi (hanya Instagram)
+                    "location": location,
+                    "whatsapp_id": None,
+                    "telegram_id": None,
+                    "X_id": None,
+                    "facebook_id": None,
+                    "tiktok_id": None,
                     "sheet_name": sheet_name,
                 }
   
                 if account_name or instagram_id:
-                    # Validasi data sebelum append
                     is_valid, error_msg = self._validate_social_media_data_new(acc)
                     if is_valid:
                         results.append(acc)
@@ -1289,16 +1200,13 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"⚠️  Skipping invalid Instagram record: {error_msg}")
                         print(f"   Details: account_name={account_name}, instagram_id={instagram_id}, full_name={full_name}, type={type_field}")
                 else:
-                    # Log rows yang tidak punya account_name maupun instagram_id
                     print(f"⚠️  Skipping row: No account_name and no instagram_id")
                     print(f"   Details: Type={type_field}, Source={source_clean}, Contact={contact_field[:50] if contact_field else 'None'}, Internet={internet_field[:50] if internet_field else 'None'}")
-                    # Cek semua kolom untuk debugging
                     for col in df.columns:
                         col_val = self._clean(row.get(col))
                         if col_val and col_val.lower() not in ['nan', 'none', 'null', ''] and len(col_val) > 1:
                             print(f"   Column '{col}': {col_val[:50]}")
             
-            # Save to database
             if results:
                 print(f"  Found {len(results)} valid Instagram records from Contacts sheet")
                 batch_size = 50
@@ -1311,7 +1219,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                     try:
                         for acc in batch:
-                            # Check duplicate menggunakan struktur baru
                             if self._check_existing_social_media(acc):
                                 skipped_count += 1
                                 continue
@@ -1337,12 +1244,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
             
             print(f"  Found {len(whatsapp_rows)} rows with Source containing 'WhatsApp Messenger' or 'WhatsApp Messenger backup'")
             
-            # Show Source distribution untuk debugging
             if len(whatsapp_rows) > 0:
                 source_dist = whatsapp_rows['Source'].value_counts()
                 print(f"  WhatsApp Source distribution: {dict(source_dist)}")
                 
-                # Breakdown per Source
                 whatsapp_messenger_only = df[
                     df['Source'].str.contains('WhatsApp Messenger', case=False, na=False) &
                     ~df['Source'].str.contains('backup', case=False, na=False)
@@ -1359,17 +1264,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 
                 whatsapp_results = []
                 
-                # Count Type distribution untuk logging
                 whatsapp_type_dist = whatsapp_rows['Type'].value_counts()
                 print(f"  WhatsApp Type distribution: {dict(whatsapp_type_dist)}")
                 
-                # Count rows dengan Type=Account atau Account(merged)
                 account_whatsapp = whatsapp_rows[
                     whatsapp_rows['Type'].str.contains('Account', case=False, na=False)
                 ]
                 print(f"  WhatsApp rows with Type containing 'Account': {len(account_whatsapp)}")
                 
-                # Show sample data untuk verification
                 if len(account_whatsapp) > 0:
                     print(f"\n  Sample WhatsApp Account records (first 3):")
                     for idx, (row_idx, row) in enumerate(account_whatsapp.head(3).iterrows(), 1):
@@ -1384,16 +1286,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"      Phones & Emails: {phones}")
                         print()
                 
-                # Parse semua rows dengan Source=WhatsApp Messenger atau WhatsApp Messenger backup
                 skipped_by_type = 0
                 skipped_by_source = 0
                 
                 for row_idx, row in whatsapp_rows.iterrows():
-                    # Skip jika Source adalah header/metadata
                     source_field = self._clean(row.get("Source"))
                     if not source_field or self._is_header_or_metadata(source_field):
                         skipped_by_source += 1
-                        if skipped_by_source <= 3:  # Log first 3 skipped rows
+                        if skipped_by_source <= 3:
                             print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Source filter: '{source_field}'")
                         continue
                     
@@ -1411,7 +1311,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                     if not (is_account_type or is_contact_type):
                         skipped_by_type += 1
-                        if skipped_by_type <= 3:  # Log first 3 skipped rows
+                        if skipped_by_type <= 3:
                             print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Type filter: Type='{type_field}' (not Account/Contact)")
                         continue
 
@@ -1453,45 +1353,32 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             if phone_number:
                                 print(f"  ✓ Extracted phone_number from Phones & Emails: {phone_number}")
 
-                    # Extract whatsapp_id dari Internet field
                     whatsapp_id = self._extract_whatsapp_id_from_text(internet_field)
                     if whatsapp_id:
                         print(f"  ✓ Extracted whatsapp_id from Internet: {whatsapp_id}")
                     
-                    # Jika whatsapp_id belum ada, coba dari Contact field jika berisi @s.whatsapp.net
-                    # Contoh: "84927223310@s.whatsapp.net" -> "4927223310@s.whatsapp.net"
-                    # Contoh: "6281275907774@s.whatsapp.net" -> "6281275907774@s.whatsapp.net"
                     if not whatsapp_id and contact_field:
                         contact_str = str(contact_field).strip()
                         if '@s.whatsapp.net' in contact_str:
-                            # Extract nomor sebelum @s.whatsapp.net
                             number_part = contact_str.split('@s.whatsapp.net')[0].strip()
-                            # Clean dari karakter non-digit di awal/akhir
                             number_part = re.sub(r'^[^\d]+', '', number_part)
                             number_part = re.sub(r'[^\d]+$', '', number_part)
                             
-                            # Jika nomor dimulai dengan "8" dan panjang >= 11 digit, hapus digit pertama "8"
-                            # Contoh: "84927223310" -> "4927223310"
                             if number_part and number_part.isdigit() and len(number_part) >= 11 and number_part.startswith('8'):
-                                number_part = number_part[1:]  # Hapus digit pertama "8"
+                                number_part = number_part[1:]
                             
                             if number_part and number_part.isdigit() and len(number_part) >= 8:
-                                # Simpan dengan format @s.whatsapp.net
                                 whatsapp_id = f"{number_part}@s.whatsapp.net"
                                 print(f"  ✓ Extracted whatsapp_id from Contact field: {whatsapp_id}")
                     
-                    # Jika whatsapp_id masih belum ada, coba dari Phones & Emails field
                     if not whatsapp_id and phones_emails_field:
                         whatsapp_id_from_phones = self._extract_whatsapp_id_from_text(phones_emails_field)
                         if whatsapp_id_from_phones:
                             whatsapp_id = whatsapp_id_from_phones
                             print(f"  ✓ Extracted whatsapp_id from Phones & Emails: {whatsapp_id}")
                     
-                    # Jika whatsapp_id masih belum ada tapi phone_number ada, gunakan phone_number sebagai whatsapp_id
                     if not whatsapp_id and phone_number:
-                        # Clean phone_number dari karakter non-digit
                         phone_clean = re.sub(r'[^\d]', '', str(phone_number))
-                        # Skip phone_number yang hanya "0" atau terlalu pendek
                         if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 8 and phone_clean != '0':
                             whatsapp_id = phone_clean
                             print(f"  ✓ Using phone_number as whatsapp_id: {whatsapp_id}")
@@ -1499,23 +1386,21 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     acc = {
                         "file_id": file_id,
                         "type": type_field,
-                        "source": source_clean,  # Normalisasi menjadi "WhatsApp"
-                        "phone_number": phone_number,  # dari Internet atau Phones & Emails
-                        "full_name": full_name,  # dari Contact (bisa null)
-                        "account_name": None,  # Untuk WhatsApp, account_name tidak diisi
-                        "whatsapp_id": whatsapp_id,  # dari Internet (6281356150918 dari WhatsApp ID: 6281356150918@s.whatsapp.net)
-                        "location": location,  # dari Addresses
-                        "instagram_id": None,  # tidak diisi (hanya WhatsApp)
-                        "telegram_id": None,  # tidak diisi (hanya WhatsApp)
+                        "source": source_clean,
+                        "phone_number": phone_number,
+                        "full_name": full_name,
+                        "account_name": None,
+                        "whatsapp_id": whatsapp_id,
+                        "location": location,
+                        "instagram_id": None,
+                        "telegram_id": None,
                         "X_id": None,
-                        "facebook_id": None,  # tidak diisi (hanya WhatsApp)
-                        "tiktok_id": None,  # tidak diisi (hanya WhatsApp)
+                        "facebook_id": None,
+                        "tiktok_id": None,
                         "sheet_name": sheet_name,
                     }
                     
-                    # KONDISI: Ambil data jika ada whatsapp_id atau phone_number (account_name tidak diperlukan untuk WhatsApp)
                     if whatsapp_id or phone_number:
-                        # Validasi data sebelum append
                         is_valid, error_msg = self._validate_social_media_data_new(acc)
                         if is_valid:
                             whatsapp_results.append(acc)
@@ -1528,17 +1413,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"   Contact: {contact_field[:80] if contact_field else 'None'}")
                         print(f"   Internet: {internet_field[:80] if internet_field else 'None'}")
                         print(f"   Phones & Emails: {phones_emails_field[:80] if phones_emails_field else 'None'}")
-                        # Debug: tampilkan hasil ekstraksi
                         print(f"   Extracted - whatsapp_id: {whatsapp_id}, phone_number: {phone_number}")
                 
-                # Log summary dengan detail lengkap
                 print(f"\n  WhatsApp parsing summary:")
                 print(f"    - Total WhatsApp rows found: {len(whatsapp_rows)}")
                 print(f"    - Skipped by Source (header/metadata): {skipped_by_source}")
                 print(f"    - Skipped by Type (not Account): {skipped_by_type}")
                 print(f"    - Valid Account rows processed: {len(whatsapp_results)} records")
                 
-                # Show sample of processed records
                 if len(whatsapp_results) > 0:
                     print(f"\n  Sample WhatsApp records that will be saved (first 5):")
                     for idx, acc in enumerate(whatsapp_results[:5], 1):
@@ -1553,7 +1435,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if len(whatsapp_results) > 5:
                         print(f"    ... and {len(whatsapp_results) - 5} more records")
                 
-                # Save WhatsApp results to database
                 if whatsapp_results:
                     print(f"  Found {len(whatsapp_results)} valid WhatsApp records from Contacts sheet")
                     batch_size = 50
@@ -1566,7 +1447,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         
                         try:
                             for acc in batch:
-                                # Check duplicate menggunakan struktur baru
                                 if self._check_existing_social_media(acc):
                                     whatsapp_skipped_count += 1
                                     continue
@@ -1585,12 +1465,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             self.db.rollback()
                     
                     print(f"Successfully saved {whatsapp_saved_count} WhatsApp records from Contacts sheet")
-                    # Tambahkan WhatsApp results ke results utama
                     results.extend(whatsapp_results)
                 else:
                     print(f"  No valid WhatsApp records found to save from Contacts sheet")
             
-            # Parse TikTok data
             tiktok_rows = df[df['Source'].str.contains('TikTok', case=False, na=False)]
             print(f"  Found {len(tiktok_rows)} rows with Source containing 'TikTok'")
             
@@ -1606,7 +1484,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
                     
@@ -1617,11 +1494,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     internet_field = self._clean(row.get("Internet"))
                     addresses_field = self._clean(row.get("Addresses"))
                     
-                    # Extract data
                     full_name = self._extract_full_name_from_contact(contact_field)
                     account_name = self._extract_nickname(contact_field)
                     
-                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
                         if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
@@ -1630,10 +1505,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             '/' not in contact_str and '\\' not in contact_str):
                             account_name = contact_str
                     
-                    # Extract TikTok ID dari Internet field
                     tiktok_id = self._extract_tiktok_id_from_text(internet_field) if internet_field else None
                     
-                    # Extract location
                     location = self._extract_location(addresses_field)
                     
                     acc = {
@@ -1660,7 +1533,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         else:
                             print(f"⚠️  Skipping invalid TikTok record: {error_msg}")
             
-            # Save TikTok records
             if tiktok_results:
                 print(f"  Found {len(tiktok_results)} valid TikTok records from Contacts sheet")
                 batch_size = 50
@@ -1682,7 +1554,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 print(f"Successfully saved {tiktok_saved_count} TikTok records from Contacts sheet")
                 results.extend(tiktok_results)
             
-            # Parse Telegram data
             telegram_rows = df[df['Source'].str.contains('Telegram', case=False, na=False)]
             print(f"  Found {len(telegram_rows)} rows with Source containing 'Telegram'")
             
@@ -1698,14 +1569,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged) atau Group
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
                     is_group_type = type_lower in ["group", "group(merged)", "group (merged)", "groups"]
                     
-                    # Process Group type rows for Telegram as they often contain valid account information
                     if not (is_account_type or is_contact_type or is_group_type):
-                        if len(telegram_results) < 5:  # Log first 5 skipped by type
+                        if len(telegram_results) < 5:
                             print(f"⚠️  Skipping Telegram row {row.name}: Type='{type_field}' (not Account/Contact/Group)")
                         continue
                     
@@ -1713,22 +1582,16 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     internet_field = self._clean(row.get("Internet"))
                     addresses_field = self._clean(row.get("Addresses"))
                     
-                    # Extract data
                     full_name = self._extract_full_name_from_contact(contact_field)
                     account_name = self._extract_nickname(contact_field)
                     
-                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
-                    # Untuk Group type, prioritaskan Contact field sebagai account_name
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
-                        # Jika multiline, ambil baris pertama saja (sebelum \n)
                         if '\n' in contact_str:
                             contact_str = contact_str.split('\n')[0].strip()
-                        # Hapus prefix "Contact:" jika ada
                         if contact_str.lower().startswith('contact:'):
                             contact_str = contact_str.split(':', 1)[1].strip()
                         
-                        # Untuk Group type, lebih longgar validasinya (boleh karakter unicode/emoji)
                         if is_group_type:
                             if (contact_str and len(contact_str) > 1 and len(contact_str) < 200 and
                                 'nickname:' not in contact_str.lower() and
@@ -1743,41 +1606,31 @@ class SocialMediaParser(SocialMediaParsersExtended):
                                 '/' not in contact_str and '\\' not in contact_str):
                                 account_name = contact_str
                     
-                    # Extract Telegram ID dari Internet field
                     telegram_id = self._extract_telegram_id_from_text(internet_field) if internet_field else None
                     
-                    # Untuk Group type, coba extract Group ID dari Internet field jika telegram_id belum ada
                     if is_group_type and not telegram_id and internet_field:
                         group_id_match = re.search(r'Group\s+ID[:\s]+(\d+)', str(internet_field), re.IGNORECASE)
                         if group_id_match:
                             telegram_id = group_id_match.group(1).strip()
                             print(f"  Found Group ID as telegram_id: {telegram_id}")
                     
-                    # Jika account_name tidak valid tapi ada telegram_id, gunakan telegram_id sebagai account_name
                     if account_name:
-                        # Cek apakah account_name valid
                         if (self._is_header_or_metadata(account_name) or 
                             len(account_name) <= 1 or
                             account_name.lower() in ["nan", "none", "null", "", "n/a", "undefined"]):
-                            # Account name tidak valid, gunakan telegram_id jika ada
                             if telegram_id:
                                 account_name = f"Telegram_{telegram_id}"
                             else:
                                 account_name = None
                     
-                    # Jika Group type dan ada telegram_id tapi tidak ada account_name, gunakan Contact field atau telegram_id
                     if is_group_type and telegram_id and not account_name:
-                        # Coba gunakan Contact field sebagai account_name jika valid
-                        # Untuk Group, lebih longgar validasinya karena bisa berisi unicode/emoji
                         if contact_field:
                             contact_str = str(contact_field).strip()
-                            # Untuk Group, hanya skip jika benar-benar invalid (header keywords, terlalu pendek, atau null)
                             is_valid_contact = (
                                 contact_str and 
                                 len(contact_str) > 1 and 
                                 len(contact_str) < 200 and
                                 contact_str.lower() not in ["nan", "none", "null", "", "n/a", "undefined"] and
-                                # Skip hanya jika benar-benar header keyword (bukan unicode/emoji yang valid)
                                 not (len(contact_str) <= 3 and contact_str.lower() in ["source", "type", "contact", "account", "group"])
                             )
                             if is_valid_contact:
@@ -1787,7 +1640,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         else:
                             account_name = f"Telegram_{telegram_id}"
                     
-                    # Extract location
                     location = self._extract_location(addresses_field)
                     
                     acc = {
@@ -1815,11 +1667,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             print(f"⚠️  Skipping invalid Telegram record: {error_msg}")
                             print(f"   Details: Type={type_field}, account_name={account_name}, telegram_id={telegram_id}, Contact={contact_field[:80] if contact_field else 'None'}")
                     else:
-                        # Log rows yang tidak punya account_name maupun telegram_id
                         print(f"⚠️  Skipping Telegram row: No account_name and no telegram_id")
                         print(f"   Details: Type={type_field}, Source={source_field}, Contact={contact_field[:80] if contact_field else 'None'}, Internet={internet_field[:80] if internet_field else 'None'}")
             
-            # Save Telegram records
             if telegram_results:
                 print(f"  Found {len(telegram_results)} valid Telegram records from Contacts sheet")
                 batch_size = 50
@@ -1841,8 +1691,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 print(f"Successfully saved {telegram_saved_count} Telegram records from Contacts sheet")
                 results.extend(telegram_results)
             
-            # Parse X (Twitter) data
-            # Mencari Source yang mengandung "Twitter" atau "X" (bisa sebagai kata terpisah)
             twitter_rows = df[df['Source'].str.contains('Twitter', case=False, na=False) | 
                              df['Source'].str.contains(r'\bX\b', case=False, na=False, regex=True)]
             print(f"  Found {len(twitter_rows)} rows with Source containing 'Twitter' or 'X'")
@@ -1859,12 +1707,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged) atau Group
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
                     is_group_type = type_lower in ["group", "group(merged)", "group (merged)", "groups"]
                     
-                    # Process Group type rows for Twitter/X as they often contain valid account information (Nickname field)
                     if not (is_account_type or is_contact_type or is_group_type):
                         continue
                     
@@ -1873,20 +1719,15 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     addresses_field = self._clean(row.get("Addresses"))
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
-                    # Extract data
                     full_name = self._extract_full_name_from_contact(contact_field)
                     account_name = self._extract_nickname(contact_field)
                     
-                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
-                        # Jika multiline, ambil baris pertama saja (sebelum \n)
                         if '\n' in contact_str:
                             contact_str = contact_str.split('\n')[0].strip()
-                        # Hapus prefix "Contact:" jika ada
                         if contact_str.lower().startswith('contact:'):
                             contact_str = contact_str.split(':', 1)[1].strip()
-                        # Hapus "@" di awal jika ada
                         if contact_str.startswith('@'):
                             contact_str = contact_str[1:].strip()
                         
@@ -1896,18 +1737,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             '/' not in contact_str and '\\' not in contact_str):
                             account_name = contact_str
                     
-                    # Extract X (Twitter) ID dari Internet field
                     x_id = self._extract_x_id_from_text(internet_field) if internet_field else None
                     
-                    # Jika x_id tidak ditemukan di Internet, coba dari Phones & Emails field
                     if not x_id and phones_emails_field:
                         x_id = self._extract_x_id_from_text(phones_emails_field)
                     
-                    # Jika Group type dan ada x_id tapi tidak ada account_name, gunakan x_id sebagai account_name
                     if is_group_type and x_id and not account_name:
                         account_name = f"X_{x_id}"
                     
-                    # Extract location
                     location = self._extract_location(addresses_field)
                     
                     acc = {
@@ -1934,7 +1771,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         else:
                             print(f"⚠️  Skipping invalid X (Twitter) record: {error_msg}")
             
-            # Save X (Twitter) records
             if twitter_results:
                 print(f"  Found {len(twitter_results)} valid X (Twitter) records from Contacts sheet")
                 batch_size = 50
@@ -1956,7 +1792,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 print(f"Successfully saved {twitter_saved_count} X (Twitter) records from Contacts sheet")
                 results.extend(twitter_results)
             
-            # Parse Facebook data
             facebook_rows = df[df['Source'].str.contains('Facebook', case=False, na=False)]
             print(f"  Found {len(facebook_rows)} rows with Source containing 'Facebook'")
             
@@ -1972,7 +1807,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     type_field = self._clean(row.get("Type"))
                     type_lower = (type_field or "").lower().strip()
                     
-                    # Filter untuk Type Account atau Account(merged) atau Contact/Contact(merged)
                     is_account_type = type_lower in ["account", "account(merged)", "account (merged)", "accounts"]
                     is_contact_type = type_lower in ["contact", "contact(merged)", "contact (merged)", "contacts"]
                     
@@ -1983,11 +1817,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     internet_field = self._clean(row.get("Internet"))
                     addresses_field = self._clean(row.get("Addresses"))
                     
-                    # Extract data
                     full_name = self._extract_full_name_from_contact(contact_field)
                     account_name = self._extract_nickname(contact_field)
                     
-                    # Jika account_name tidak ditemukan, coba dari Contact field langsung
                     if not account_name and contact_field:
                         contact_str = str(contact_field).strip()
                         if (contact_str and len(contact_str) > 1 and len(contact_str) < 50 and
@@ -1996,10 +1828,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             '/' not in contact_str and '\\' not in contact_str):
                             account_name = contact_str
                     
-                    # Extract Facebook ID dari Internet field
                     facebook_id = self._extract_facebook_id_from_text(internet_field) if internet_field else None
                     
-                    # Extract location
                     location = self._extract_location(addresses_field)
                     
                     acc = {
@@ -2026,7 +1856,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         else:
                             print(f"⚠️  Skipping invalid Facebook record: {error_msg}")
             
-            # Save Facebook records
             if facebook_results:
                 print(f"  Found {len(facebook_results)} valid Facebook records from Contacts sheet")
                 batch_size = 50
@@ -2060,12 +1889,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if not file_id:
             return False
         
-        # Build query filter berdasarkan platform IDs yang ada
         query = self.db.query(SocialMedia).filter(SocialMedia.file_id == file_id)
         
-        # Strategy: Cek duplicate berdasarkan platform_id spesifik jika ada
-        # Jika ada platform_id (instagram_id, facebook_id, dll), cek duplicate hanya berdasarkan platform_id tersebut
-        # Jika tidak ada platform_id tapi ada account_name, cek berdasarkan account_name
         
         platform_ids = {
             'instagram_id': acc.get("instagram_id"),
@@ -2126,7 +1951,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         self._dup_log_count += 1
                 return existing is not None
         elif acc.get("account_name"):
-            # Jika tidak ada platform_id tapi ada account_name, cek berdasarkan account_name
             existing = query.filter(SocialMedia.account_name == acc["account_name"]).first()
             if existing:
                 import sys
@@ -2156,10 +1980,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if not has_data:
             return False, "account_name or at least one platform ID is required"
         
-        # Clean invalid values
         invalid_values = ["nan", "none", "null", "", "n/a", "undefined"]
         
-        # Validasi account_name
         if acc.get("account_name"):
             account_name_str = str(acc["account_name"]).strip()
             if account_name_str.lower() in invalid_values:
@@ -2286,7 +2108,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     for idx in range(8, len(df)):
                         row = df.iloc[idx]
                         
-                        # Skip empty rows
                         if len(row) < 6:
                             continue
                         
@@ -2347,7 +2168,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 df = pd.read_excel(file_path, sheet_name='WhatsApp Messenger ', engine=engine, dtype=str)
                 
                 header_row_idx = None
-                for idx in range(min(10, len(df))):  # Check first 10 rows
+                for idx in range(min(10, len(df))):
                     row_text = ' '.join([str(df.iloc[idx, col_idx]) if col_idx < len(df.columns) else '' 
                                         for col_idx in range(min(10, len(df.columns)))])
                     row_text_lower = row_text.lower()
@@ -2361,7 +2182,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     print("Warning: Could not find header row for WhatsApp account data")
                     return results
                 
-                # Set columns dari header row
                 df.columns = df.iloc[header_row_idx]
                 df = df.drop(df.index[0:header_row_idx+1])
                 df = df.reset_index(drop=True)
@@ -2441,41 +2261,34 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                     phone_to_use_str = str(phone_to_use).strip().lower()
                     
-                    # Validasi: harus numeric atau phone number format
                     phone_clean = phone_to_use_str.replace('+', '').replace('-', '').replace('@s.whatsapp.net', '').replace('@', '')
                     
                     if not phone_clean.isdigit():
-                        # Bisa jadi bukan account data valid
                         continue
                     
-                    # Normalize phone number untuk account_id
                     account_id = self._normalize_phone(phone_to_use)
                     
-                    # Validasi panjang phone number (minimal 10 digit)
                     account_id_clean = str(account_id).replace('+', '').replace('-', '')
                     if len(account_id_clean) < 10:
                         continue
                     
-                    # Normalize phone_number field juga
                     if phone_number:
                         phone_number = self._normalize_phone(phone_number)
                     else:
-                        # Jika tidak ada phone_number di kolom, gunakan account_id
                         phone_number = account_id
                     
-                    # Jika tidak ada user_name, gunakan full_name atau account_id
                     if not user_name:
                         user_name = full_name if full_name else account_id
                     
                     acc = {
                         "platform": "whatsapp",
                         "account_name": user_name if user_name else (full_name if full_name else phone_number),
-                        "account_id": account_id,  # Phone number sebagai identifier unik
-                        "user_id": user_id if user_id and user_id != account_id else account_id,  # User ID atau phone number
-                        "full_name": full_name,  # Required field untuk WhatsApp
-                        "following": None,  # Tidak ada di WhatsApp
-                        "followers": None,  # Tidak ada di WhatsApp
-                        "phone_number": phone_number,  # Phone number yang sudah dinormalisasi (Required untuk WhatsApp)
+                        "account_id": account_id,
+                        "user_id": user_id if user_id and user_id != account_id else account_id,
+                        "full_name": full_name,
+                        "following": None,
+                        "followers": None,
+                        "phone_number": phone_number,
                         "source_tool": "Oxygen",
                         "sheet_name": "WhatsApp Messenger",
                         "file_id": file_id,
@@ -2548,12 +2361,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 print("Parsing X (Twitter) dedicated sheet...")
                 df = pd.read_excel(file_path, sheet_name='X (Twitter) ', engine=engine, dtype=str)
                 
-                # Normalize column names
                 df.columns = [str(col).strip() for col in df.columns]
                 
-                # Handle case where first row might be headers
                 if any('Unnamed' in str(col) for col in df.columns):
-                    # Try to use first row as column names
                     potential_header_row = None
                     for idx in range(min(3, len(df))):
                         row_values = [str(val).strip().lower() for val in df.iloc[idx].values]
@@ -2567,17 +2377,14 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         df = df.reset_index(drop=True)
                         df.columns = [str(col).strip() for col in df.columns]
                 
-                # Cek apakah kolom yang diperlukan ada
                 required_columns = ['UID', 'Username', 'Full name', 'Followers', 'Following']
                 column_mapping = {}
                 
                 for req_col in required_columns:
-                    # Cari kolom yang cocok (case insensitive)
                     for col in df.columns:
                         if req_col.lower() == str(col).lower().strip():
                             column_mapping[req_col] = col
                             break
-                        # Juga cek variasi nama
                         if req_col.lower() in ['uid'] and 'uid' in str(col).lower():
                             column_mapping[req_col] = col
                             break
@@ -2594,7 +2401,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             column_mapping[req_col] = col
                             break
                 
-                # Cek kolom yang harus di-skip
                 skip_columns = ['category', 'source', 'delete']
                 skip_column_names = []
                 for skip_col in skip_columns:
@@ -2608,9 +2414,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 if skip_column_names:
                     print(f"  Skip columns detected: {skip_column_names}")
                 
-                # Parse data
                 for _, row in df.iterrows():
-                    # Skip row jika ada nilai di kolom category, source, atau delete
                     should_skip = False
                     for skip_col in skip_column_names:
                         skip_value = self._clean(row.get(skip_col, ''))
@@ -2621,7 +2425,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if should_skip:
                         continue
                     
-                    # Ambil data hanya dari kolom yang diperlukan
                     user_id_col = column_mapping.get('UID')
                     username_col = column_mapping.get('Username')
                     full_name_col = column_mapping.get('Full name')
@@ -2634,7 +2437,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     followers_count = self._clean(row.get(followers_col, '')) if followers_col else None
                     following_count = self._clean(row.get(following_col, '')) if following_col else None
                     
-                    # Clean data dari @s.whatsapp.net jika ada
                     if user_id:
                         user_id = self._clean_whatsapp_suffix(user_id)
                     if username:
@@ -2642,11 +2444,9 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if full_name:
                         full_name = self._clean_whatsapp_suffix(full_name)
                     
-                    # Hanya insert jika ada minimal UID atau Username
                     if user_id or username:
                         account_name = username or user_id
                         
-                        # Skip jika account_name adalah header/metadata
                         if account_name and self._is_header_or_metadata(account_name):
                             continue
                         
@@ -2825,7 +2625,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         value_str = str(value).strip()
         value_lower = value_str.lower()
         
-        # Header kolom yang umum ditemukan di Excel (exact match)
         exact_header_keywords = [
             "source", "file name", "file size", "source file", "source table",
             "source file size", "source table", "path", "/", 
@@ -2835,20 +2634,15 @@ class SocialMediaParser(SocialMediaParsersExtended):
         if value_lower in exact_header_keywords:
             return True
         
-        # Cek apakah value adalah ukuran file (berisi angka + KB/MB/GB)
         if re.search(r'^\d+[,\s\.]?\d*\s*(kb|mb|gb)$', value_lower):
             return True
         
-        # Cek apakah value terlalu pendek (kecuali untuk username yang sangat pendek yang valid)
         if len(value_str) <= 1:
-            # Single character bisa valid untuk beberapa platform, tapi "/" jelas tidak valid
             if value_str == "/":
                 return True
-            # Skip single character yang bukan alphanumeric
             if not value_str.isalnum():
                 return True
         
-        # Cek apakah value adalah hanya simbol tanpa karakter valid
         if not re.search(r'[a-zA-Z0-9]', value_str):
             return True
         
@@ -2861,20 +2655,15 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         value_str = str(value).strip()
         
-        # Cek apakah mengandung backslash (Windows path)
         if '\\' in value_str:
             path_parts = value_str.split('\\')
             if len(path_parts) >= 2:
                 first_part = path_parts[0].lower()
-                # Cek bagian pertama yang umum untuk system paths
                 if first_part in ["cache", "cookies", "source", "users"]:
-                    # Cek apakah bagian berikutnya juga terlihat seperti path sistem
                     if any(part.lower() in ["links", "cache", "cookies"] for part in path_parts[1:]):
                         return True
-                    # Jika account_name adalah path tapi account_id juga invalid, kemungkinan besar system path
-                    return False  # Akan dicek di validasi bersama dengan account_id
+                    return False
         
-        # Cek pattern seperti "Cache\Links" atau "Source" yang jelas bukan account
         suspicious_patterns = [
             r'^cache\\links?$',
             r'^cookies$',
@@ -2890,7 +2679,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
         """Convert struktur lama ke struktur baru"""
         if "platform" not in acc:
-            # Sudah struktur baru
             return acc
         
         new_acc = {
@@ -2910,7 +2698,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
             "sheet_name": acc.get("sheet_name"),
         }
         
-        # Map platform dan account_id ke field yang sesuai
         platform = acc.get("platform", "").lower()
         account_id = acc.get("account_id") or acc.get("user_id")
         
@@ -3064,8 +2851,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
         mobile_matches = re.findall(mobile_pattern, phones_emails_field.lower())
         for match in mobile_matches:
             phone_clean = match.replace('+', '').replace('-', '').replace(' ', '')
-            if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 3:  # Minimal 3 digit
-                phones_found.append((len(phone_clean), match))  # Simpan dengan length untuk sorting
+            if phone_clean and phone_clean.isdigit() and len(phone_clean) >= 3:
+                phones_found.append((len(phone_clean), match))
         
         if not phones_found:
             phone_number_pattern = r'phone\s+number[:\s]+(\+?\d+)'

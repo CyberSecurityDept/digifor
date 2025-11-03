@@ -15,7 +15,6 @@ def migrate_social_media_fields():
     db = next(get_db())
     
     try:
-        # List field baru yang akan ditambahkan
         new_fields = [
             ("user_id", "VARCHAR"),
             ("full_name", "TEXT"),
@@ -39,7 +38,6 @@ def migrate_social_media_fields():
         
         for field_name, field_type in new_fields:
             try:
-                # Cek apakah kolom sudah ada
                 check_query = text(f"""
                     SELECT column_name 
                     FROM information_schema.columns 
@@ -52,7 +50,6 @@ def migrate_social_media_fields():
                 if result:
                     print(f"✅ Column '{field_name}' already exists")
                 else:
-                    # Tambahkan kolom baru
                     alter_query = text(f"ALTER TABLE social_media ADD COLUMN {field_name} {field_type}")
                     db.execute(alter_query)
                     db.commit()
@@ -65,7 +62,6 @@ def migrate_social_media_fields():
         print()
         print("=== MIGRATION COMPLETED ===")
         
-        # Tampilkan struktur table setelah migration
         print("\n=== CURRENT TABLE STRUCTURE ===")
         structure_query = text("""
             SELECT column_name, data_type, is_nullable

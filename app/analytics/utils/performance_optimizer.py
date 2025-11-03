@@ -12,7 +12,6 @@ import pandas as pd
 from pathlib import Path
 import logging
 
-# Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 logger = logging.getLogger(__name__)
@@ -46,11 +45,9 @@ class PerformanceOptimizer:
         """Read Excel file in chunks to reduce memory usage"""
         try:
             chunks = []
-            # Read Excel file in chunks
             excel_file = pd.ExcelFile(file_path)
             
             for sheet_name in excel_file.sheet_names:
-                # Read sheet in chunks
                 chunk_iter = pd.read_excel(file_path, sheet_name=sheet_name, chunksize=chunk_size, engine='openpyxl')
                 for chunk in chunk_iter:
                     chunks.append(chunk)
@@ -59,7 +56,6 @@ class PerformanceOptimizer:
             return chunks
         except Exception as e:
             logger.error(f"Chunked Excel reading failed: {e}")
-            # Fallback to normal reading
             return [pd.read_excel(file_path, engine='openpyxl')]
     
     async def process_chunks_async(self, chunks: List[pd.DataFrame], processor_func) -> List[Any]:
@@ -99,8 +95,8 @@ class PerformanceOptimizer:
                 "data_available": True
             },
             "data": {
-                "file_id": None,  # Will be set by upload service
-                "device_id": None,  # Will be set by upload service
+                "file_id": None,
+                "device_id": None,
                 "parsing_complete": True
             }
         }
@@ -109,7 +105,6 @@ class PerformanceOptimizer:
         """Optimize memory usage by removing unnecessary fields"""
         optimized = []
         for item in data:
-            # Keep only essential fields
             optimized_item = {
                 "display_name": item.get("display_name"),
                 "phone_number": item.get("phone_number"),
@@ -124,5 +119,4 @@ class PerformanceOptimizer:
         if hasattr(self, 'executor'):
             self.executor.shutdown(wait=False)
 
-# Global instance
 performance_optimizer = PerformanceOptimizer()

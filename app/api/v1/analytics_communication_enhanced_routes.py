@@ -89,7 +89,6 @@ def get_deep_communication_analytics(
             is_platform_message = any(keyword in text_lower for keyword in keywords)
             
             if is_platform_message:
-                # Determine person name
                 person_name = sender if sender else receiver
                 if person_name:
                     person_intensity[person_name] += 1
@@ -224,18 +223,16 @@ def search_communication_data(
     device_ids = []
     for link in device_links:
         device_ids.extend(link.device_ids)
-    device_ids = list(set(device_ids))  # Remove duplicates
+    device_ids = list(set(device_ids))
     
     if device_id and device_id in device_ids:
         device_ids = [device_id]
 
     messages = []
 
-    # Get file_ids from devices
     devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
     file_ids = [d.file_id for d in devices]
     
-    # Query Contact via file_id (not device_id)
     contacts = (
         db.query(Contact)
         .filter(Contact.file_id.in_(file_ids))

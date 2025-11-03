@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File as FastAPIFile, Query  # type: ignore
-from fastapi.responses import JSONResponse, FileResponse  # type: ignore
+from fastapi import APIRouter, UploadFile, File as FastAPIFile, Query
+from fastapi.responses import JSONResponse, FileResponse
 import os
-from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair  # type: ignore
+from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 import re
 import io
 import zipfile
@@ -27,11 +27,9 @@ async def convert_to_sdp(
         base_dir = os.getcwd()
         tmp_dir = os.path.join(base_dir, "data", "uploads", "tmp")
         os.makedirs(tmp_dir, exist_ok=True)
-        # Simpan hasil konversi ke staging (bukan Downloads).
         converted_dir = os.path.join(base_dir, "data", "uploads", "converted")
         os.makedirs(converted_dir, exist_ok=True)
 
-        # Ensure keys
         keys_dir = os.path.join(base_dir, "keys")
         os.makedirs(keys_dir, exist_ok=True)
         pub_path = os.path.join(keys_dir, "public.key")

@@ -16,7 +16,6 @@ def migrate_messages_add_file_id():
     
     db = SessionLocal()
     try:
-        # Check if file_id column already exists
         result = db.execute(text("""
             SELECT column_name 
             FROM information_schema.columns 
@@ -29,7 +28,6 @@ def migrate_messages_add_file_id():
         
         print("📋 **STEP 1: Adding file_id column to messages table**")
         
-        # Add file_id column
         db.execute(text("""
             ALTER TABLE messages 
             ADD COLUMN file_id INTEGER;
@@ -39,7 +37,6 @@ def migrate_messages_add_file_id():
         
         print("📋 **STEP 2: Populating file_id from device relationship**")
         
-        # Update file_id based on device relationship
         db.execute(text("""
             UPDATE messages 
             SET file_id = devices.file_id 
@@ -51,7 +48,6 @@ def migrate_messages_add_file_id():
         
         print("📋 **STEP 3: Adding foreign key constraint**")
         
-        # Add foreign key constraint
         db.execute(text("""
             ALTER TABLE messages 
             ADD CONSTRAINT fk_messages_file_id 
@@ -62,7 +58,6 @@ def migrate_messages_add_file_id():
         
         print("📋 **STEP 4: Making file_id NOT NULL**")
         
-        # Make file_id NOT NULL
         db.execute(text("""
             ALTER TABLE messages 
             ALTER COLUMN file_id SET NOT NULL;
@@ -72,7 +67,6 @@ def migrate_messages_add_file_id():
         
         print("📋 **STEP 5: Adding index for performance**")
         
-        # Add index for performance
         db.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_messages_file_id 
             ON messages(file_id);
@@ -80,15 +74,12 @@ def migrate_messages_add_file_id():
         
         print("✅ Added index on file_id")
         
-        # Commit all changes
         db.commit()
         
         print("\n🎯 **MIGRATION COMPLETED SUCCESSFULLY!**")
         
-        # Verify the migration
         print("\n **VERIFICATION:**")
         
-        # Check messages with file_id
         result = db.execute(text("""
             SELECT COUNT(*) as total_messages,
                    COUNT(file_id) as messages_with_file_id
@@ -99,7 +90,6 @@ def migrate_messages_add_file_id():
         print(f"   Total messages: {row[0]}")
         print(f"   Messages with file_id: {row[1]}")
         
-        # Check sample data
         result = db.execute(text("""
             SELECT m.id, m.sender, m.receiver, m.text, f.file_name
             FROM messages m

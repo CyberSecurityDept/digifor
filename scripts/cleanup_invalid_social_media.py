@@ -22,7 +22,6 @@ def is_header_or_metadata(value: str) -> bool:
     value_str = str(value).strip()
     value_lower = value_str.lower()
     
-    # Header kolom yang umum ditemukan di Excel (exact match)
     exact_header_keywords = [
         "source", "file name", "file size", "source file", "source table",
         "source file size", "source table", "path", "/", 
@@ -32,20 +31,15 @@ def is_header_or_metadata(value: str) -> bool:
     if value_lower in exact_header_keywords:
         return True
     
-    # Cek apakah value adalah ukuran file (berisi angka + KB/MB/GB)
     if re.search(r'^\d+[,\s\.]?\d*\s*(kb|mb|gb)$', value_lower):
         return True
     
-    # Cek apakah value terlalu pendek (kecuali untuk username yang sangat pendek yang valid)
     if len(value_str) <= 1:
-        # Single character bisa valid untuk beberapa platform, tapi "/" jelas tidak valid
         if value_str == "/":
             return True
-        # Skip single character yang bukan alphanumeric
         if not value_str.isalnum():
             return True
     
-    # Cek apakah value adalah hanya simbol tanpa karakter valid
     if not re.search(r'[a-zA-Z0-9]', value_str):
         return True
     
@@ -58,18 +52,14 @@ def is_system_path(value: str) -> bool:
     
     value_str = str(value).strip()
     
-    # Cek apakah mengandung backslash (Windows path)
     if '\\' in value_str:
         path_parts = value_str.split('\\')
         if len(path_parts) >= 2:
             first_part = path_parts[0].lower()
-            # Cek bagian pertama yang umum untuk system paths
             if first_part in ["cache", "cookies", "source", "users"]:
-                # Cek apakah bagian berikutnya juga terlihat seperti path sistem
                 if any(part.lower() in ["links", "cache", "cookies"] for part in path_parts[1:]):
                     return True
     
-    # Cek pattern seperti "Cache\Links" atau "Source" yang jelas bukan account
     suspicious_patterns = [
         r'^cache\\links?$',
         r'^cookies$',
@@ -100,11 +90,9 @@ def cleanup_invalid_social_media():
         return
     
     try:
-        # 1. Identifikasi records yang perlu dihapus
         print("🔍 Mencari data invalid...", flush=True)
         print("-" * 80, flush=True)
         
-        # Query untuk menemukan records dengan data invalid
         print("  Mengambil semua records dari database...", flush=True)
         all_records = db.query(SocialMedia).all()
         print(f"  Total records ditemukan: {len(all_records)}", flush=True)
@@ -115,16 +103,13 @@ def cleanup_invalid_social_media():
         for record in all_records:
             reason = None
             
-            # Cek account_name
             if record.account_name:
                 if is_header_or_metadata(record.account_name):
                     reason = f"account_name is header/metadata: '{record.account_name}'"
                 elif is_system_path(record.account_name):
-                    # Cek apakah account_id juga invalid
                     if not record.account_id or is_header_or_metadata(str(record.account_id)):
                         reason = f"account_name is system path: '{record.account_name}'"
             
-            # Cek account_id
             if not reason and record.account_id:
                 if is_header_or_metadata(str(record.account_id)):
                     reason = f"account_id is header/metadata: '{record.account_id}'"
@@ -132,7 +117,6 @@ def cleanup_invalid_social_media():
                     if not record.account_name or is_system_path(str(record.account_name)):
                         reason = f"account_id is system path: '{record.account_id}'"
             
-            # Cek jika account_name atau account_id invalid values
             if not reason:
                 invalid_values = ["nan", "none", "null", "", "n/a", "undefined"]
                 if record.account_name and str(record.account_name).strip().lower() in invalid_values:
@@ -140,7 +124,6 @@ def cleanup_invalid_social_media():
                 elif record.account_id and str(record.account_id).strip().lower() in invalid_values:
                     reason = f"account_id has invalid value: '{record.account_id}'"
             
-            # Cek jika keduanya kosong atau tidak valid
             if not reason:
                 if not record.account_name and not record.account_id:
                     reason = "both account_name and account_id are empty"
@@ -155,7 +138,6 @@ def cleanup_invalid_social_media():
         print(f"  Ditemukan {len(invalid_ids)} records yang invalid", flush=True)
         print(flush=True)
         
-        # 2. Tampilkan sample records yang akan dihapus
         if invalid_ids:
             print("📋 SAMPLE RECORDS YANG AKAN DIHAPUS (10 pertama):")
             print("-" * 80)
@@ -168,16 +150,13 @@ def cleanup_invalid_social_media():
                 print(f"      Alasan: {invalid_reasons[record.id]}")
             print()
             
-            # 3. Konfirmasi dan hapus
             print(f"⚠️  PERINGATAN: Akan menghapus {len(invalid_ids)} records dari database!")
             print("   (Script dijalankan dalam mode otomatis)")
             print()
             
-            # Otomatis lanjut tanpa konfirmasi untuk automation
             response = "y"
             
             if response.lower() == 'y':
-                # Backup: Simpan ID yang akan dihapus ke file
                 backup_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "backup_deleted_social_media_ids.txt")
                 with open(backup_file, 'w') as f:
                     f.write(f"# Backup ID records yang dihapus pada {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -192,7 +171,6 @@ def cleanup_invalid_social_media():
                 print(f"  ✅ Backup tersimpan di: {backup_file}")
                 print()
                 
-                # Hapus records
                 deleted_count = 0
                 for record_id in invalid_ids:
                     try:
@@ -208,7 +186,6 @@ def cleanup_invalid_social_media():
                 print(f"  ✅ Berhasil menghapus {deleted_count} records invalid")
                 print()
                 
-                # 4. Statistik setelah cleanup
                 print("📊 STATISTIK SETELAH CLEANUP")
                 print("-" * 80)
                 
@@ -216,7 +193,6 @@ def cleanup_invalid_social_media():
                 print(f"  Total records tersisa: {total_after:,}")
                 print()
                 
-                # Cek apakah masih ada data invalid
                 remaining_invalid = []
                 remaining_records = db.query(SocialMedia).all()
                 

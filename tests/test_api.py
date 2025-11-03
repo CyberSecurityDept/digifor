@@ -6,7 +6,6 @@ import requests
 import json
 import time
 
-# API Base URL
 BASE_URL = "http://localhost:8000"
 
 def test_health():
@@ -26,7 +25,6 @@ def test_auth():
     """Test authentication"""
     print("\n Testing authentication...")
     
-    # Test login
     login_data = {
         "username": "admin",
         "password": "admin123"
@@ -57,7 +55,6 @@ def test_cases(token):
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Test create case
     case_data = {
         "case_number": "TEST-001",
         "title": "Test Case",
@@ -95,7 +92,6 @@ def test_case_operations(token, case_id):
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Test get case
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/{case_id}",
@@ -109,7 +105,6 @@ def test_case_operations(token, case_id):
     except Exception as e:
         print(f" Get case error: {e}")
     
-    # Test update case
     update_data = {
         "status": "in_progress",
         "notes": "Updated via API test"
@@ -129,7 +124,6 @@ def test_case_operations(token, case_id):
     except Exception as e:
         print(f" Update case error: {e}")
     
-    # Test add person
     person_data = {
         "person_type": "suspect",
         "full_name": "Test Suspect",
@@ -152,7 +146,6 @@ def test_case_operations(token, case_id):
     except Exception as e:
         print(f" Add person error: {e}")
     
-    # Test get case stats
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/{case_id}/stats",
@@ -175,7 +168,6 @@ def test_reports(token, case_id):
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Test generate comprehensive report
     try:
         response = requests.post(
             f"{BASE_URL}/api/v1/reports/cases/{case_id}/generate?report_type=comprehensive",
@@ -192,7 +184,6 @@ def test_reports(token, case_id):
     except Exception as e:
         print(f" Generate report error: {e}")
     
-    # Test list reports
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/reports/cases/{case_id}/reports",
@@ -213,25 +204,20 @@ def main():
     print(" Starting Digital Forensics Backend API Tests...")
     print("=" * 50)
     
-    # Test health
     test_health()
     
-    # Test authentication
     token = test_auth()
     if not token:
         print(" Cannot proceed without authentication token")
         return
     
-    # Test case management
     case_id = test_cases(token)
     if not case_id:
         print(" Cannot proceed without case ID")
         return
     
-    # Test case operations
     test_case_operations(token, case_id)
     
-    # Test reports
     test_reports(token, case_id)
     
     print("\n" + "=" * 50)

@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, Query  # type: ignore
-from fastapi.responses import JSONResponse  # type: ignore
-from sqlalchemy.orm import Session  # type: ignore
-from sqlalchemy import or_, and_  # type: ignore
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_
 from app.db.session import get_db
 from app.analytics.analytics_management.service import store_analytic, get_all_analytics
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
 from app.analytics.device_management.models import HashFile
 from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List, Optional
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
 from datetime import datetime
@@ -481,7 +481,6 @@ def get_all_analytic(
             
             if date_to:
                 try:
-                    # Include the entire day by adding 23:59:59
                     date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
                     date_to_obj = date_to_obj.replace(hour=23, minute=59, second=59)
                     date_conditions.append(Analytic.created_at <= date_to_obj)

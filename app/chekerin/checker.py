@@ -1,4 +1,3 @@
-# checker.py
 import os
 import json
 import struct
@@ -13,27 +12,23 @@ def is_sdp_encrypted(file_path):
             return False
             
         file_size = os.path.getsize(file_path)
-        if file_size < 40:  # Minimum SDP file size
+        if file_size < 40:
             return False
             
         with open(file_path, 'rb') as f:
-            # Read header length
             header_len_bytes = f.read(4)
             if len(header_len_bytes) != 4:
                 return False
                 
             header_len = struct.unpack('>I', header_len_bytes)[0]
             
-            # Read header JSON
             header_json = f.read(header_len)
             if len(header_json) != header_len:
                 return False
                 
-            # Try to parse JSON header
             try:
                 header = json.loads(header_json.decode('utf-8'))
                 
-                # Check for SDP signature fields
                 required_fields = ['version', 'filename', 'ephemeral_public_key', 'salt', 'algorithm']
                 if all(field in header for field in required_fields):
                     return True
@@ -61,13 +56,11 @@ def check_files_in_directory(directory='.'):
             status = "✅ ENCRYPTED" if is_encrypted else "❌ NOT ENCRYPTED"
             results.append((file, status))
     
-    # Sort results: encrypted first
     results.sort(key=lambda x: x[1], reverse=True)
     
     for filename, status in results:
         print(f"{status:20} {filename}")
     
-    # Summary
     encrypted_count = sum(1 for _, status in results if status == "✅ ENCRYPTED")
     total_count = len(results)
     
@@ -87,12 +80,10 @@ def get_sdp_file_info(file_path):
             header_json = f.read(header_len)
             header = json.loads(header_json.decode('utf-8'))
             
-            # Get file size info
             file_size = os.path.getsize(file_path)
             header_size = 4 + header_len
-            footer_size = 32  # SHA256 hash
+            footer_size = 32
             
-            # Estimate data size
             data_size = file_size - header_size - footer_size
             
             return {
@@ -108,7 +99,6 @@ def get_sdp_file_info(file_path):
     except Exception as e:
         return None
 
-# CLI Interface
 if __name__ == "__main__":
     import argparse
     
@@ -120,7 +110,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.file:
-        # Check single file
         file_path = args.file
         if os.path.exists(file_path):
             if is_sdp_encrypted(file_path):
@@ -143,5 +132,4 @@ if __name__ == "__main__":
         else:
             print(f"❌ File not found: {file_path}")
     else:
-        # Check directory
         check_files_in_directory(args.dir)

@@ -21,11 +21,9 @@ import os
 import time
 from pathlib import Path
 
-# Configuration
 BASE_URL = "http://localhost:8000"
 DATASET_PATH = "sample_dataset"
 
-# Sample data
 SAMPLE_FILES = [
     {
         "file_path": f"{DATASET_PATH}/Oxygen Forensics - iOS Image CCC.xlsx",
@@ -171,7 +169,6 @@ def main():
     print(f"Base URL: {BASE_URL}")
     print(f"Dataset Path: {DATASET_PATH}")
     
-    # Check if server is running
     try:
         response = requests.get(f"{BASE_URL}/docs")
         if response.status_code != 200:
@@ -183,7 +180,6 @@ def main():
     
     print(" Server is running")
     
-    # Step 1: Upload Files
     print_step(1, "UPLOAD FILES")
     uploaded_files = []
     
@@ -208,11 +204,9 @@ def main():
         print(" No files uploaded successfully. Exiting.")
         return
     
-    # Step 2: View All Files
     print_step(2, "VIEW ALL FILES")
     get_all_files()
     
-    # Step 3: Add Devices
     print_step(3, "ADD DEVICES")
     device_ids = []
     
@@ -245,7 +239,6 @@ def main():
         print(" No devices added successfully. Exiting.")
         return
     
-    # Step 4: Create Analytic
     print_step(4, "CREATE ANALYTIC")
     result = create_analytic(
         "Contact Correlation Analysis - Case 123",
@@ -262,11 +255,9 @@ def main():
         print(" Failed to create analytic. Exiting.")
         return
     
-    # Step 5: View All Analytics
     print_step(5, "VIEW ALL ANALYTICS")
     get_all_analytics()
     
-    # Step 6: Run Contact Correlation
     print_step(6, "CONTACT CORRELATION ANALYSIS")
     result = run_contact_correlation(analytic_id)
     
@@ -290,11 +281,9 @@ def main():
         print(" Failed to run contact correlation analysis")
         return
     
-    # Step 7: Export to PDF
     print_step(7, "EXPORT TO PDF")
     pdf_file = export_contact_correlation_pdf(analytic_id)
     
-    # Summary
     print(f"\n{'='*60}")
     print(" WORKFLOW COMPLETED SUCCESSFULLY!")
     print(f"{'='*60}")

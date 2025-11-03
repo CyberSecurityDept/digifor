@@ -1,4 +1,3 @@
-# cli.py
 import argparse
 import sys
 import os
@@ -17,27 +16,23 @@ def is_sdp_encrypted(file_path):
             return False
             
         file_size = os.path.getsize(file_path)
-        if file_size < 40:  # Minimum SDP file size
+        if file_size < 40:
             return False
             
         with open(file_path, 'rb') as f:
-            # Read header length
             header_len_bytes = f.read(4)
             if len(header_len_bytes) != 4:
                 return False
                 
             header_len = struct.unpack('>I', header_len_bytes)[0]
             
-            # Read header JSON
             header_json = f.read(header_len)
             if len(header_json) != header_len:
                 return False
                 
-            # Try to parse JSON header
             try:
                 header = json.loads(header_json.decode('utf-8'))
                 
-                # Check for SDP signature fields
                 required_fields = ['version', 'filename', 'ephemeral_public_key', 'salt', 'algorithm']
                 if all(field in header for field in required_fields):
                     return True
@@ -61,12 +56,10 @@ def get_sdp_file_info(file_path):
             header_json = f.read(header_len)
             header = json.loads(header_json.decode('utf-8'))
             
-            # Get file size info
             file_size = os.path.getsize(file_path)
             header_size = 4 + header_len
-            footer_size = 32  # SHA256 hash
+            footer_size = 32
             
-            # Estimate data size
             data_size = file_size - header_size - footer_size
             
             return {
@@ -116,7 +109,6 @@ def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
             if os.path.isfile(file_path):
                 try:
                     if output_dir:
-                        # Create output directory if it doesn't exist
                         os.makedirs(output_dir, exist_ok=True)
                         output_file = os.path.join(output_dir, os.path.basename(file_path) + '.sdp')
                     else:
@@ -161,7 +153,6 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     with open(public_key_path, 'rb') as f:
         pub_key = f.read()
     
-    # Normalize path
     folder_path = os.path.abspath(folder_path)
     
     if not os.path.exists(folder_path):
@@ -172,11 +163,9 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
         print(f"❌ Path bukan folder: {folder_path}")
         return []
     
-    # Determine output directory
     if output_dir is None:
         output_dir = folder_path + "_encrypted"
     
-    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"📁 Encrypting folder: {folder_path}")
@@ -186,7 +175,6 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     
     encrypted_files = []
     
-    # Collect all files
     if recursive:
         pattern = os.path.join(folder_path, "**", "*")
     else:
@@ -200,11 +188,9 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     for i, file_path in enumerate(all_files, 1):
         if os.path.isfile(file_path):
             try:
-                # Skip .sdp files to avoid re-encrypting
                 if file_path.endswith('.sdp'):
                     continue
                 
-                # Calculate relative path for output structure
                 if recursive:
                     relative_path = os.path.relpath(file_path, folder_path)
                     file_output_dir = os.path.join(output_dir, os.path.dirname(relative_path))
@@ -212,12 +198,10 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
                     relative_path = os.path.basename(file_path)
                     file_output_dir = output_dir
                 
-                # Create subdirectories if needed
                 os.makedirs(file_output_dir, exist_ok=True)
                 
                 output_file = os.path.join(file_output_dir, relative_path + '.sdp')
                 
-                # Encrypt file
                 encrypt_to_sdp(pub_key, file_path, output_file)
                 encrypted_files.append((file_path, output_file))
                 
@@ -234,18 +218,15 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     with open(private_key_path, 'rb') as f:
         priv_key = f.read()
     
-    # Normalize path
     folder_path = os.path.abspath(folder_path)
     
     if not os.path.exists(folder_path):
         print(f"❌ Folder tidak ditemukan: {folder_path}")
         return []
     
-    # Determine output directory
     if output_dir is None:
         output_dir = folder_path + "_decrypted"
     
-    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"📁 Decrypting folder: {folder_path}")
@@ -255,7 +236,6 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     
     decrypted_files = []
     
-    # Collect all .sdp files
     if recursive:
         pattern = os.path.join(folder_path, "**", "*.sdp")
     else:
@@ -267,21 +247,17 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     
     for i, sdp_file in enumerate(sdp_files, 1):
         try:
-            # Calculate relative path for output structure
             if recursive:
                 relative_path = os.path.relpath(sdp_file, folder_path)
-                # Remove .sdp extension and get directory
-                relative_path_no_ext = relative_path[:-4]  # Remove .sdp
+                relative_path_no_ext = relative_path[:-4]
                 file_output_dir = os.path.join(output_dir, os.path.dirname(relative_path_no_ext))
             else:
                 relative_path = os.path.basename(sdp_file)
-                relative_path_no_ext = relative_path[:-4]  # Remove .sdp
+                relative_path_no_ext = relative_path[:-4]
                 file_output_dir = output_dir
             
-            # Create subdirectories if needed
             os.makedirs(file_output_dir, exist_ok=True)
             
-            # Decrypt file
             decrypted_path = decrypt_from_sdp(priv_key, sdp_file, file_output_dir)
             decrypted_files.append((sdp_file, decrypted_path))
             
@@ -297,48 +273,40 @@ def main():
     parser = argparse.ArgumentParser(description="SDP Crypto - File Encryption Tool")
     subparsers = parser.add_subparsers(dest='command', help='Commands')
     
-    # Generate keys command
     key_parser = subparsers.add_parser('generate-keys', help='Generate key pair')
     key_parser.add_argument('--name', default='mykey', help='Key name prefix')
     
-    # Encrypt command (single file)
     encrypt_parser = subparsers.add_parser('encrypt', help='Encrypt a file')
     encrypt_parser.add_argument('file', help='File to encrypt')
     encrypt_parser.add_argument('--public-key', required=True, help='Public key file')
     encrypt_parser.add_argument('--output', help='Output .sdp file')
     
-    # Encrypt-multiple command
     encrypt_multi_parser = subparsers.add_parser('encrypt-multiple', help='Encrypt multiple files')
     encrypt_multi_parser.add_argument('files', nargs='+', help='Files to encrypt (supports wildcards)')
     encrypt_multi_parser.add_argument('--public-key', required=True, help='Public key file')
     encrypt_multi_parser.add_argument('--output-dir', help='Output directory for encrypted files')
     
-    # Decrypt command (single file)
     decrypt_parser = subparsers.add_parser('decrypt', help='Decrypt a file')
     decrypt_parser.add_argument('file', help='.sdp file to decrypt')
     decrypt_parser.add_argument('--private-key', required=True, help='Private key file')
     decrypt_parser.add_argument('--output-dir', default='.', help='Output directory')
     
-    # Decrypt-multiple command
     decrypt_multi_parser = subparsers.add_parser('decrypt-multiple', help='Decrypt multiple files')
     decrypt_multi_parser.add_argument('files', nargs='+', help='.sdp files to decrypt (supports wildcards)')
     decrypt_multi_parser.add_argument('--private-key', required=True, help='Private key file')
     decrypt_multi_parser.add_argument('--output-dir', default='.', help='Output directory')
     
-    # Checker command
     check_parser = subparsers.add_parser('check', help='Check encryption status')
     check_parser.add_argument('file', nargs='?', help='File to check (optional)')
     check_parser.add_argument('--dir', default='.', help='Directory to check')
     check_parser.add_argument('--info', action='store_true', help='Show detailed info')
 
-    # Encrypt-folder command
     encrypt_folder_parser = subparsers.add_parser('encrypt-folder', help='Encrypt all files in a folder')
     encrypt_folder_parser.add_argument('folder', help='Folder path to encrypt')
     encrypt_folder_parser.add_argument('--public-key', required=True, help='Public key file')
     encrypt_folder_parser.add_argument('--output-dir', help='Output directory for encrypted files')
     encrypt_folder_parser.add_argument('--recursive', action='store_true', help='Process subfolders recursively')
     
-    # Decrypt-folder command
     decrypt_folder_parser = subparsers.add_parser('decrypt-folder', help='Decrypt all .sdp files in a folder')
     decrypt_folder_parser.add_argument('folder', help='Folder path to decrypt')
     decrypt_folder_parser.add_argument('--private-key', required=True, help='Private key file')
@@ -348,7 +316,6 @@ def main():
     args = parser.parse_args()
     
     if args.command == 'generate-keys':
-        # Generate keys
         private_key, public_key = generate_keypair()
         
         with open(f"{args.name}_private.key", "wb") as f:
@@ -359,7 +326,6 @@ def main():
         print(f"✅ Keys generated: {args.name}_private.key, {args.name}_public.key")
         
     elif args.command == 'encrypt':
-        # Encrypt single file
         with open(args.public_key, "rb") as f:
             pub_key = f.read()
             
@@ -369,12 +335,10 @@ def main():
         print(f"✅ Encrypted: {args.file} -> {output_file}")
         
     elif args.command == 'encrypt-multiple':
-        # Encrypt multiple files
         encrypted_files = encrypt_multiple_files(args.public_key, args.files, args.output_dir)
         print(f"\n📊 Summary: {len(encrypted_files)} files encrypted successfully")
         
     elif args.command == 'decrypt':
-        # Decrypt single file
         with open(args.private_key, "rb") as f:
             priv_key = f.read()
             
@@ -382,14 +346,11 @@ def main():
         print(f"✅ Decrypted: {args.file} -> {decrypted_path}")
         
     elif args.command == 'decrypt-multiple':
-        # Decrypt multiple files
         decrypted_files = decrypt_multiple_files(args.private_key, args.files, args.output_dir)
         print(f"\n📊 Summary: {len(decrypted_files)} files decrypted successfully")
         
     elif args.command == 'check':
-        # Checker functionality (tetap sama)
         if args.file:
-            # Check single file
             file_path = args.file
             if os.path.exists(file_path):
                 if is_sdp_encrypted(file_path):
@@ -409,15 +370,12 @@ def main():
             else:
                 print(f"❌ File not found: {file_path}")
         else:
-            # Check directory
             check_files_in_directory(args.dir)
 
     elif args.command == 'encrypt-folder':
-        # Encrypt entire folder
         encrypted_files = encrypt_folder(args.public_key, args.folder, args.output_dir, args.recursive)
         
     elif args.command == 'decrypt-folder':
-        # Decrypt entire folder
         decrypted_files = decrypt_folder(args.private_key, args.folder, args.output_dir, args.recursive)
         
     else:

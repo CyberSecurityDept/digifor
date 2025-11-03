@@ -5,7 +5,6 @@ from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import Contact, Call
 
-# Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 class ContactParser:
@@ -21,7 +20,6 @@ class ContactParser:
         try:
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             
-            # Look for Contacts sheet
             contacts_sheet = None
             for sheet_name in xls.sheet_names:
                 if 'contact' in sheet_name.lower():
@@ -44,11 +42,9 @@ class ContactParser:
                     "last_time_contacted": str(row.get('Last Time Contacted Date/Time - UTC+00:00 (dd/MM/yyyy)', ''))
                 }
                 
-                # Only add if has meaningful data
                 if contact_data["display_name"] and contact_data["display_name"] != 'nan':
                     results.append(contact_data)
             
-            # Save to database
             for contact in results:
                 existing = (
                     self.db.query(Contact)
@@ -79,7 +75,6 @@ class ContactParser:
         try:
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             
-            # Look for Calls sheet
             calls_sheet = None
             for sheet_name in xls.sheet_names:
                 if 'call' in sheet_name.lower():
@@ -106,11 +101,9 @@ class ContactParser:
                     "thread_id": str(row.get('_ThreadID', ''))
                 }
                 
-                # Only add if has meaningful data
                 if call_data["caller"] and call_data["caller"] != 'nan':
                     results.append(call_data)
             
-            # Save to database
             for call in results:
                 existing = (
                     self.db.query(Call)
@@ -150,10 +143,10 @@ class ContactParser:
                 contact_data = {
                     "file_id": file_id,
                     "display_name": str(row.get('Contacts (40)', '')).strip(),
-                    "phone_number": str(row.get('Unnamed: 8', '')).strip(),   # Entries column
+                    "phone_number": str(row.get('Unnamed: 8', '')).strip(),
                     "email": "",
-                    "type": str(row.get('Unnamed: 20', '')).strip(),          # Source column
-                    "last_time_contacted": str(row.get('Unnamed: 16', '')).strip()  # Last time contacted
+                    "type": str(row.get('Unnamed: 20', '')).strip(),
+                    "last_time_contacted": str(row.get('Unnamed: 16', '')).strip()
                 }
 
                 if contact_data["display_name"] and contact_data["display_name"].lower() != 'nan':
@@ -189,7 +182,6 @@ class ContactParser:
         try:
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             
-            # Look for Calls sheet
             calls_sheet = None
             for sheet_name in xls.sheet_names:
                 if 'call' in sheet_name.lower():
@@ -216,11 +208,9 @@ class ContactParser:
                     "thread_id": str(row.get('Thread ID', ''))
                 }
                 
-                # Only add if has meaningful data
                 if call_data["caller"] and call_data["caller"] != 'nan':
                     results.append(call_data)
             
-            # Save to database
             for call in results:
                 existing = (
                     self.db.query(Call)
@@ -249,7 +239,6 @@ class ContactParser:
         results = []
         
         try:
-            # Determine engine based on file extension
             file_path_obj = Path(file_path)
             file_extension = file_path_obj.suffix.lower()
             if file_extension == '.xls':
@@ -259,7 +248,6 @@ class ContactParser:
             
             xls = pd.ExcelFile(file_path, engine=engine)
             
-            # Look for Contacts sheet
             contacts_sheet = None
             for sheet_name in xls.sheet_names:
                 if 'contact' in sheet_name.lower():
@@ -282,11 +270,9 @@ class ContactParser:
                     "last_time_contacted": str(row.get('Last Contacted', ''))
                 }
                 
-                # Only add if has meaningful data
                 if contact_data["display_name"] and contact_data["display_name"] != 'nan':
                     results.append(contact_data)
             
-            # Save to database
             for contact in results:
                 existing = (
                     self.db.query(Contact)
@@ -313,7 +299,6 @@ class ContactParser:
         results = []
         
         try:
-            # Determine engine based on file extension
             file_path_obj = Path(file_path)
             file_extension = file_path_obj.suffix.lower()
             if file_extension == '.xls':
@@ -323,7 +308,6 @@ class ContactParser:
             
             xls = pd.ExcelFile(file_path, engine=engine)
             
-            # Look for Calls sheet
             calls_sheet = None
             for sheet_name in xls.sheet_names:
                 if 'call' in sheet_name.lower():
@@ -350,11 +334,9 @@ class ContactParser:
                     "thread_id": str(row.get('Thread ID', ''))
                 }
                 
-                # Only add if has meaningful data
                 if call_data["caller"] and call_data["caller"] != 'nan':
                     results.append(call_data)
             
-            # Save to database
             for call in results:
                 existing = (
                     self.db.query(Call)

@@ -43,7 +43,6 @@ async def add_device(
         analytic_id = latest_analytic.id
         analytic = latest_analytic
         
-        # Validate file
         file_record = db.query(File).filter(File.id == file_id).first()
         if not file_record:
             return JSONResponse(
@@ -119,12 +118,10 @@ async def add_device(
             linked_device_ids.extend(link.device_ids or [])
         linked_device_ids = list(dict.fromkeys(linked_device_ids))
 
-        # Only return the newly added device with its computed label
         device_item = None
         if linked_device_ids:
             devices_q = db.query(Device).filter(Device.id.in_(linked_device_ids)).order_by(Device.id).all()
             labels = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
-            # find index of current device in ordered list
             idx = next((i for i, d in enumerate(devices_q) if d.id == device.id), None)
             if idx is not None:
                 if idx < len(labels):

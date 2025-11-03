@@ -8,15 +8,13 @@ from app.case_management.models import Case, Person
 from app.evidence_management.models import Evidence, EvidenceType
 from app.suspect_management.models import Suspect
 
-# Create engine
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
-    echo=False  # Disable SQLAlchemy logging completely
+    echo=False
 )
 
-# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -29,5 +27,4 @@ def get_db() -> Generator:
 
 
 def init_db():
-    # Create all tables
     Base.metadata.create_all(bind=engine)

@@ -19,7 +19,6 @@ def remove_deep_communication_table():
     try:
         print("🗑️  Starting removal of deep_communication table...")
         
-        # Check if table exists
         result = db.execute(text("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -36,10 +35,8 @@ def remove_deep_communication_table():
         
         print(" Found deep_communication table, proceeding with removal...")
         
-        # Drop foreign key constraints first
         print("🔗 Dropping foreign key constraints...")
         
-        # Check for foreign key constraints
         fk_result = db.execute(text("""
             SELECT constraint_name 
             FROM information_schema.table_constraints 
@@ -56,7 +53,6 @@ def remove_deep_communication_table():
             except Exception as e:
                 print(f"   Could not drop constraint {constraint}: {e}")
         
-        # Drop indexes
         print("📇 Dropping indexes...")
         try:
             db.execute(text("DROP INDEX IF EXISTS ix_deep_communication_id;"))
@@ -64,15 +60,12 @@ def remove_deep_communication_table():
         except Exception as e:
             print(f"   Could not drop index: {e}")
         
-        # Drop the table
         print("🗑️  Dropping deep_communication table...")
         db.execute(text("DROP TABLE IF EXISTS deep_communication CASCADE;"))
         
-        # Commit changes
         db.commit()
         print("✅ Successfully removed deep_communication table")
         
-        # Verify removal
         verify_result = db.execute(text("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 

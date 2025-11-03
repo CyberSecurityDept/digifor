@@ -27,7 +27,6 @@ def format_file_size(size_bytes: int) -> str:
 
 async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, notes: str, type: str, tools: str, file_bytes: bytes, method: str, total_size: int):
     try:
-        # Keep checking progress until done=True
         resp = await upload_service.start_file_upload(
             upload_id=upload_id,
             file=file,
@@ -39,8 +38,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             method=method,
         )
 
-        # Wait until upload_service marks it as done
-        max_wait = 300  # 5 minutes max wait
+        max_wait = 300
         wait_count = 0
         while wait_count < max_wait:
             svc_resp, code = upload_service.get_progress(upload_id)
@@ -173,7 +171,7 @@ async def upload_data(
 
         file_bytes = await file.read()
         total_size = len(file_bytes)
-        if total_size > 104_857_600:  # 100MB
+        if total_size > 104_857_600:
             return JSONResponse({"status": 400, "message": "File size exceeds 100MB limit"}, status_code=400)
 
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"

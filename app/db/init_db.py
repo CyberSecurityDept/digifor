@@ -15,8 +15,6 @@ def init_db():
 def create_sample_data():
     db = SessionLocal()
     try:
-        # Import sample data creation logic here
-        # This will be implemented in each module's seeder
         pass
     finally:
         db.close()

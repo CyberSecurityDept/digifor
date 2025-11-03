@@ -7,13 +7,10 @@ from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
 from app.analytics.shared.models import Device, Contact, Call
 
-# Suppress openpyxl warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-# Buat tabel kalau belum ada
 Base.metadata.create_all(bind=engine)
 
-# ---------- Parsing Helpers ----------
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(axis=1, how='all')
 
@@ -80,7 +77,6 @@ def normalize_str(val: Optional[str]) -> Optional[str]:
     return s
 
 
-# ---------- Persistence ----------
 def save_device(
     device_data: Dict[str, Any],
     contacts: List[dict],
@@ -89,7 +85,6 @@ def save_device(
 ) -> int:
     db: Session = SessionLocal()
     try:
-        # --- Buat Device ---
         device = Device(
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
@@ -98,7 +93,6 @@ def save_device(
         db.commit()
         db.refresh(device)
 
-        # --- Contacts dari sheet ---
         for c in contacts:
             db.add(Contact(
                 device_id=device.id,
@@ -108,10 +102,7 @@ def save_device(
                 last_time_contacted=None
             ))
 
-        # Note: DeepCommunication table has been removed, using ChatMessage instead
-        # Messages are now handled by the social media parser
 
-        # --- Calls ---
         for c in calls:
             db.add(Call(
                 device_id=device.id,

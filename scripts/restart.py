@@ -14,7 +14,6 @@ def main():
     
     print("Stopping server...")
     try:
-        # Stop uvicorn processes
         subprocess.run(["pkill", "-f", "uvicorn.*app.main:app"], check=False)
         print("Server stopped")
     except Exception:

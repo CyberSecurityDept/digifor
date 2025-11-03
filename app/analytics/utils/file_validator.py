@@ -1,10 +1,9 @@
-import pandas as pd  # type: ignore
+import pandas as pd
 import warnings
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-# Suppress all OLE2 warnings globally
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
@@ -32,16 +31,13 @@ class FileValidator:
         }
         
         try:
-            # Cek apakah file ada
             if not file_path.exists():
                 validation_result["errors"].append(f"File not found: {file_path}")
                 return validation_result
             
-            # Cek ukuran file
             file_size = file_path.stat().st_size
             validation_result["file_size"] = file_size
             
-            # Cek apakah file size merupakan kelipatan dari 512 (sector size)
             if file_size % 512 != 0:
                 validation_result["warnings"].append(
                     f"File size ({file_size:,} bytes) is not a multiple of sector size (512 bytes)"
@@ -50,29 +46,23 @@ class FileValidator:
                     "File may have OLE2 inconsistency. This is common with forensic tools and usually safe to ignore."
                 )
             
-            # Cek apakah file terlalu kecil
-            if file_size < 1024:  # Less than 1KB
+            if file_size < 1024:
                 validation_result["warnings"].append("File size is very small, may be corrupted")
                 validation_result["recommendations"].append("Check if file is complete and not corrupted")
             
-            # Cek apakah file terlalu besar
-            if file_size > 100 * 1024 * 1024:  # More than 100MB
+            if file_size > 100 * 1024 * 1024:
                 validation_result["warnings"].append("File size is very large, may cause performance issues")
                 validation_result["recommendations"].append("Consider splitting large files into smaller chunks")
             
-            # Cek apakah file Excel atau bukan
             file_extension = file_path.suffix.lower()
             
             if file_extension in ['.xlsx', '.xls']:
-                # Coba buka file Excel
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    # Suppress pandas warnings
                     pd.options.mode.chained_assignment = None
                     xls = pd.ExcelFile(file_path)
                     validation_result["sheets"] = xls.sheet_names
                     
-                    # Cek apakah ada sheet Contacts (hanya untuk file yang bukan hashfile)
                     file_name_lower = file_path.name.lower()
                     is_hashfile = (
                         "hashfile" in file_name_lower or 
@@ -94,7 +84,6 @@ class FileValidator:
                                 "Ensure file contains a 'Contacts' sheet or check if file is from the correct forensic tool"
                             )
                     else:
-                        # For hashfiles, check for hash-related sheets or Oxygen-style sheets
                         hash_sheets = [sheet for sheet in xls.sheet_names if 'hash' in sheet.lower() or 'md5' in sheet.lower()]
                         oxygen_sheets = [sheet for sheet in xls.sheet_names if any(keyword in sheet.lower() for keyword in ['images', 'videos', 'documents', 'plists', 'databases', 'archives', 'json files', 'other files'])]
                         
@@ -110,7 +99,6 @@ class FileValidator:
                             validation_result["warnings"].append("No hash-related sheets found")
                             validation_result["recommendations"].append("This may not be a valid hashfile")
                     
-                    # Cek apakah ada sheet yang kosong
                     empty_sheets = []
                     for sheet_name in xls.sheet_names:
                         try:
@@ -125,7 +113,6 @@ class FileValidator:
                     
                     validation_result["is_valid"] = True
             else:
-                # File non-Excel (TXT, CSV, XML, PDF)
                 validation_result["sheets"] = []
                 validation_result["is_valid"] = True
                 
@@ -147,23 +134,20 @@ class FileValidator:
         return validation_result
     
     def _find_contacts_sheet(self, sheet_names: List[str]) -> Optional[str]:
-        # Prioritas pencarian sheet Contacts
         contact_patterns = [
-            "Contacts ",  # Dengan spasi di akhir
-            "Contacts",    # Tanpa spasi
-            "Contact",     # Singular
-            "contacts",    # Lowercase
-            "contact",     # Lowercase singular
-            "CONTACTS",    # Uppercase
-            "CONTACT",     # Uppercase singular
+            "Contacts ",
+            "Contacts",
+            "Contact",
+            "contacts",
+            "contact",
+            "CONTACTS",
+            "CONTACT",
         ]
         
-        # Cari exact match terlebih dahulu
         for pattern in contact_patterns:
             if pattern in sheet_names:
                 return pattern
         
-        # Cari partial match jika tidak ada exact match
         for sheet_name in sheet_names:
             sheet_lower = sheet_name.lower().strip()
             if 'contact' in sheet_lower:
@@ -189,7 +173,6 @@ class FileValidator:
                 file_info["created_time"] = datetime.fromtimestamp(stat.st_ctime)
                 file_info["modified_time"] = datetime.fromtimestamp(stat.st_mtime)
                 
-                # Cek apakah file Excel
                 if file_path.suffix.lower() in ['.xlsx', '.xls']:
                     file_info["is_excel"] = True
                     file_info["validation_result"] = self.validate_excel_file(file_path)
@@ -200,7 +183,6 @@ class FileValidator:
         return file_info
     
     def print_validation_summary(self, validation_result: Dict[str, Any]) -> None:
-        # Only print if there are errors or important warnings
         if validation_result["errors"] or validation_result["warnings"]:
             print("\n" + "="*60)
             print("FILE VALIDATION SUMMARY")
@@ -226,5 +208,4 @@ class FileValidator:
             print("="*60)
 
 
-# Instance global untuk digunakan di seluruh aplikasi
 file_validator = FileValidator()

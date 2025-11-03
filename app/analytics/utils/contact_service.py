@@ -16,7 +16,6 @@ class ContactService:
     
     def parse_and_save_contacts(self, file_path: Path, device_id: int) -> Dict[str, Any]:
         try:
-            # Parse contacts dari file
             contacts = self.parser.parse_contacts_from_file(file_path)
             
             if not contacts:

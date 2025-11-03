@@ -1,4 +1,3 @@
-# format.py
 import json
 import struct
 import base64
@@ -56,22 +55,18 @@ class SDPFile:
         header_bytes = header_json.encode('utf-8')
         header_len = len(header_bytes)
         
-        # Write header length (4 bytes, big endian)
         f.write(header_len.to_bytes(4, 'big'))
-        # Write header JSON
         f.write(header_bytes)
     
     @staticmethod
     def read_header(f):
         """Read dan parse header dari file"""
-        # Read header length
         header_len_bytes = f.read(4)
         if len(header_len_bytes) != 4:
             raise ValueError("Invalid SDP file: missing header length")
         
         header_len = int.from_bytes(header_len_bytes, 'big')
         
-        # Read header JSON
         header_json_bytes = f.read(header_len)
         if len(header_json_bytes) != header_len:
             raise ValueError("Invalid SDP file: incomplete header")

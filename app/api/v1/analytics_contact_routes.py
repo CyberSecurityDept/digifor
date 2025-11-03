@@ -62,10 +62,8 @@ def get_contact_correlation(
 
     devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
     
-    # Get file_ids from devices
     file_ids = [d.file_id for d in devices]
     
-    # Query Contact via file_id (not device_id)
     contacts = (
         db.query(Contact)
         .filter(Contact.file_id.in_(file_ids))
@@ -142,7 +140,6 @@ def get_contact_correlation(
             if not contact_name or re.match(r'^[\+\d\s\-\(\)]+$', contact_name):
                 contact_name = "Unknown"
 
-            # Find device_id from contact's file_id
             contact_device_id = None
             for d in devices:
                 if d.file_id == contact.file_id:

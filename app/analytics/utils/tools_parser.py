@@ -152,7 +152,6 @@ class ToolsParser:
                 print(f"Error parsing CSV file: {e}")
         elif file_extension == '.txt':
             try:
-                # Detect encoding first
                 encoding = 'utf-8'
                 try:
                     with open(file_path, 'rb') as f:
@@ -173,18 +172,16 @@ class ToolsParser:
                                     continue
                 except Exception:
                     encoding = 'utf-8'
-                # Peek first line to detect EnCase hashfile (tab-delimited Name/MD5/SHA1)
                 try:
                     with open(file_path, 'r', encoding=encoding, errors='ignore') as tf:
                         head = tf.readline().lower()
                     if ('\t' in head and 'md5' in head and 'sha1' in head) or head.count('\t') >= 2:
-                        # It's likely a hashfile; skip generic TXT parsing
                         return result
                 except Exception:
                     return result
 
                 df = pd.read_csv(file_path, dtype=str, sep=',', encoding=encoding)
-                if len(df.columns) > 1:  # If it has multiple columns, treat as CSV
+                if len(df.columns) > 1:
                     if any(col.lower() in ['message', 'text', 'chat'] for col in df.columns):
                         result["messages"] = df.to_dict('records')
                     elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
@@ -204,7 +201,6 @@ class ToolsParser:
                             elif any(col.lower() in ['call', 'phone', 'dial'] for col in df.columns):
                                 result["calls"] = df.to_dict('records')
             except Exception:
-                # Suppress noisy errors for non-standard TXT formats
                 pass
         else:
             try:
@@ -317,9 +313,9 @@ class ToolsParser:
                 normalized_record.update({
                     "Direction": record.get("Direction"),
                     "Source": record.get("Source"),
-                    "Type": "Call",  # Default type
+                    "Type": "Call",
                     "Time stamp (UTC 0)": record.get("Call Date/Time - UTC+00:00 (dd/MM/yyyy)"),
-                    "Duration": None,  # Not available in this data
+                    "Duration": None,
                     "From": record.get("Local User"),
                     "To": record.get("Partner"),
                     "Details": f"Call Status: {record.get('Call Status')}, Partner Name: {record.get('Partner Name')}, Partner Location: {record.get('Partner Location')}, Country Code: {record.get('Service Provider Country Code')}"

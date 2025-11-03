@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm import Session
 from app.analytics.device_management.models import Device, File, Contact, Call, HashFile, ChatMessage
 from app.db.init_db import SessionLocal
 from app.analytics.utils.parser_xlsx import normalize_str, _to_str
@@ -111,7 +111,6 @@ def create_device(
             phone_number = c.get("phone_number")
             display_name = c.get("display_name")
             
-            # Skip if no phone number
             if not phone_number:
                 skipped_contacts += 1
                 continue

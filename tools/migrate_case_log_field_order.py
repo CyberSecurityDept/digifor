@@ -9,7 +9,6 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-# Add the parent directory to the path so we can import from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
@@ -17,7 +16,6 @@ from app.core.config import settings
 def migrate_case_log_field_order():
     """Reorder fields in case_logs table to put status after notes"""
     
-    # Create database connection
     engine = create_engine(settings.DATABASE_URL)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     
@@ -25,7 +23,6 @@ def migrate_case_log_field_order():
         with engine.connect() as connection:
             print(" Reordering case_logs table fields...")
             
-            # First, backup existing data
             print(" Backing up existing case_logs data...")
             backup_query = text("""
                 CREATE TEMP TABLE case_logs_backup AS 
@@ -35,14 +32,12 @@ def migrate_case_log_field_order():
             connection.commit()
             print(" Data backed up to temporary table")
             
-            # Drop the existing table
             print(" Dropping existing case_logs table...")
             drop_table_query = text("DROP TABLE case_logs CASCADE")
             connection.execute(drop_table_query)
             connection.commit()
             print(" Existing table dropped")
             
-            # Create the table with correct field order
             print(" Creating case_logs table with correct field order...")
             create_table_query = text("""
                 CREATE TABLE case_logs (
@@ -60,7 +55,6 @@ def migrate_case_log_field_order():
             connection.commit()
             print(" New table created with correct field order")
             
-            # Restore data from backup
             print(" Restoring data from backup...")
             restore_query = text("""
                 INSERT INTO case_logs (id, case_id, action, changed_by, change_detail, notes, status, created_at)
@@ -72,14 +66,12 @@ def migrate_case_log_field_order():
             connection.commit()
             print(" Data restored from backup")
             
-            # Drop backup table
             print(" Cleaning up backup table...")
             drop_backup_query = text("DROP TABLE case_logs_backup")
             connection.execute(drop_backup_query)
             connection.commit()
             print(" Backup table cleaned up")
             
-            # Verify the new structure
             print(" Verifying new table structure...")
             verify_query = text("""
                 SELECT column_name, ordinal_position
@@ -93,7 +85,6 @@ def migrate_case_log_field_order():
             for row in result:
                 print(f"  {row[1]}. {row[0]}")
             
-            # Check if status is in correct position (should be 7th)
             status_position = next((row[1] for row in result if row[0] == 'status'), None)
             notes_position = next((row[1] for row in result if row[0] == 'notes'), None)
             

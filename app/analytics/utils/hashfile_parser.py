@@ -12,9 +12,8 @@ warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 def detect_encoding(file_path: str) -> str:
     try:
         with open(file_path, 'rb') as f:
-            raw_data = f.read(10000)  # Read first 10KB
+            raw_data = f.read(10000)
             
-            # Check for UTF-16 BOM
             if raw_data[:2] == b'\xff\xfe':
                 return 'utf-16-le'
             elif raw_data[:2] == b'\xfe\xff':
@@ -22,7 +21,6 @@ def detect_encoding(file_path: str) -> str:
             elif raw_data[:3] == b'\xef\xbb\xbf':
                 return 'utf-8-sig'
             
-            # Try to decode with common encodings
             encodings_to_try = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
             for enc in encodings_to_try:
                 try:
@@ -31,7 +29,6 @@ def detect_encoding(file_path: str) -> str:
                 except UnicodeDecodeError:
                     continue
             
-            # Default fallback
             return 'utf-8'
     except Exception:
         return 'utf-8'
@@ -71,23 +68,21 @@ def safe_datetime(value) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value
     
-    # Convert to string if not already
     date_str = str(value).strip()
     if date_str.lower() in ['nan', 'none', 'null', '']:
         return None
     
-    # Try parsing with common formats
     formats_to_try = [
-        '%d/%m/%Y %H:%M:%S',  # DD/MM/YYYY HH:MM:SS (common in CSV exports)
-        '%d/%m/%Y',            # DD/MM/YYYY
-        '%m/%d/%Y %H:%M:%S',  # MM/DD/YYYY HH:MM:SS
-        '%m/%d/%Y',            # MM/DD/YYYY
-        '%Y-%m-%d %H:%M:%S',  # YYYY-MM-DD HH:MM:SS
-        '%Y-%m-%d',            # YYYY-MM-DD
-        '%Y/%m/%d %H:%M:%S',  # YYYY/MM/DD HH:MM:SS
-        '%Y/%m/%d',            # YYYY/MM/DD
-        '%d-%m-%Y %H:%M:%S',  # DD-MM-YYYY HH:MM:SS
-        '%d-%m-%Y',            # DD-MM-YYYY
+        '%d/%m/%Y %H:%M:%S',
+        '%d/%m/%Y',
+        '%m/%d/%Y %H:%M:%S',
+        '%m/%d/%Y',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d',
+        '%Y/%m/%d %H:%M:%S',
+        '%Y/%m/%d',
+        '%d-%m-%Y %H:%M:%S',
+        '%d-%m-%Y',
     ]
     
     for fmt in formats_to_try:
@@ -96,7 +91,6 @@ def safe_datetime(value) -> Optional[datetime]:
         except ValueError:
             continue
     
-    # If none of the formats work, return None
     return None
 
 class HashFileParser:
@@ -245,7 +239,6 @@ class HashFileParser:
                         
                         results.append(hashfile_data)
             
-            # Batch insert for better performance
             batch_size = 1000
             inserted_count = 0
             
@@ -254,7 +247,6 @@ class HashFileParser:
                 hashfiles_to_insert = []
                 
                 for hashfile in batch:
-                    # Check if hashfile already exists
                     existing = (
                         self.db.query(HashFile)
                         .filter(
@@ -275,7 +267,6 @@ class HashFileParser:
                     except Exception as e:
                         self.db.rollback()
                         print(f"Error inserting batch {i//batch_size + 1}: {e}")
-                        # Try inserting one by one to identify problematic records
                         for hf_data in batch:
                             try:
                                 existing = (
@@ -298,7 +289,6 @@ class HashFileParser:
             
             print(f"Successfully saved {inserted_count} Axiom hashfiles to database")
             
-            # Return only successfully inserted hashfiles count
             return inserted_count
             
         except Exception as e:
@@ -325,11 +315,9 @@ class HashFileParser:
                 df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
                 
                 for _, row in df.iterrows():
-                    # Handle Cellebrite format with Unnamed columns
                     file_name = str(row.get('Name', row.get('Unnamed: 0', '')))
                     hash_value = str(row.get('MD5', row.get('SHA1', row.get('Unnamed: 1', ''))))
                     
-                    # Determine hash type based on sheet name or column content
                     hash_type = 'md5' if 'md5' in sheet_name.lower() else 'sha1'
                     
                     hashfile_data = {
@@ -463,23 +451,19 @@ class HashFileParser:
                     if not line:
                         continue
 
-                    # Split by tabs (EnCase TXT is tab-delimited)
                     parts = [clean_string(p.strip().strip('"')) for p in line.split('\t') if p is not None]
                     if len(parts) < 3:
                         continue
 
-                    # Skip header row (e.g., ..., Name, MD5, SHA1)
                     lower_parts = [p.lower() for p in parts]
                     if 'name' in lower_parts and 'md5' in lower_parts and 'sha1' in lower_parts:
                         continue
 
-                    # Handle optional index in first column
                     if parts[0].isdigit() and len(parts) >= 4:
                         name_val = parts[1]
                         md5_val = parts[2]
                         sha1_val = parts[3]
                     else:
-                        # No index column
                         name_val = parts[0]
                         md5_val = parts[1] if len(parts) > 1 else ''
                         sha1_val = parts[2] if len(parts) > 2 else ''
@@ -532,7 +516,6 @@ class HashFileParser:
                         if hashfile_data["file_name"] and hashfile_data["file_name"].lower() != 'nan':
                             results.append(hashfile_data)
 
-            # Save all results to database
             for hashfile in results:
                 existing = (
                     self.db.query(HashFile)

@@ -2,7 +2,7 @@ import asyncio
 import os
 from pathlib import Path
 from typing import Any, Dict
-from fastapi import UploadFile  # type: ignore
+from fastapi import UploadFile
 from app.analytics.shared.models import File
 from app.analytics.device_management.service import create_device
 from app.analytics.utils.sdp_crypto import decrypt_from_sdp
@@ -144,7 +144,6 @@ class UploadService:
             CHUNK = 1024 * 512
             written = 0
             if file_ext == ".sdp":
-                # Simpan .sdp ke folder encrypted, lalu decrypt ke DATA_DIR
                 encrypted_path_abs = os.path.join(ENCRYPTED_DIR, original_filename)
                 with open(encrypted_path_abs, "wb") as f:
                     for i in range(0, total_size, CHUNK):
@@ -276,7 +275,6 @@ class UploadService:
             social_media_count = 0
             if is_social_media:
                 try:
-                    # Only count social media for Excel files (Axiom/Cellebrite use Excel format)
                     file_ext = Path(original_path_abs).suffix.lower()
                     if tools.lower() in ['axiom', 'magnet axiom']:
                         if file_ext in ['.xlsx', '.xls']:
@@ -289,7 +287,6 @@ class UploadService:
                             social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, 1, 1)
                             social_media_count = len(social_media_result) if social_media_result else 0
                 except Exception as e:
-                    # Silently skip counting for non-standard files
                     pass
 
             rel_path = os.path.relpath(original_path_abs, BASE_DIR)
@@ -441,7 +438,6 @@ class UploadService:
                         "message": "Parsing hashfile data...",
                         "percent": 97.5
                     })
-                    # Use the same db session as the rest of the upload process
                     hashfile_parser_instance = HashFileParser(db=db)
                     
                     is_sample_file = any(pattern in original_filename.lower() for pattern in [
@@ -455,7 +451,6 @@ class UploadService:
                     
                     hashfiles_result = hashfile_parser_instance.parse_hashfile(original_path_abs, file_record.id, tools, original_file_path)
                     
-                    # hashfiles_result can be either a count (int) or a list
                     if hashfiles_result:
                         if isinstance(hashfiles_result, int):
                             parsing_result["hashfiles_count"] = hashfiles_result
@@ -482,7 +477,7 @@ class UploadService:
                             chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
                         elif tools == "Oxygen":
                             social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
-                        else:  # Default to Encase parser
+                        else:
                             social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
                         
                         if social_media_result:
@@ -563,7 +558,6 @@ class UploadService:
             
             parsing_result = cleaned_parsing_result
 
-            # Mark as done only after all processes complete
             self._progress[upload_id].update({
                 "percent": 100,
                 "progress_size": format_bytes(total_size),

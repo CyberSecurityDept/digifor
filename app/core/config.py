@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ANALYSIS_DIR: str = "./data/analysis"
     REPORTS_DIR: str = "./data/reports"
     APK_DIR: str = "./data/apks"
-    MAX_FILE_SIZE: int = 104857600  # 100MB
+    MAX_FILE_SIZE: int = 104857600
 
     ENCRYPTION_KEY: str
     ENCRYPTION_ALGORITHM: str = "AES-256-GCM"

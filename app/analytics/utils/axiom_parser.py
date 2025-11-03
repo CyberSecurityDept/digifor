@@ -1,8 +1,8 @@
 import re
-import pandas as pd  # type: ignore
+import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
@@ -29,11 +29,9 @@ class AxiomParser:
         return text_str
     
     def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
-        # Minimal harus ada file_id dan salah satu identifier
         if not acc.get("file_id"):
             return False, "Missing file_id"
         
-        # Cek apakah ada minimal satu platform ID atau account_name
         has_identifier = (
             acc.get("instagram_id") or
             acc.get("facebook_id") or
@@ -51,7 +49,6 @@ class AxiomParser:
     
     def _convert_old_to_new_structure(self, acc: Dict[str, Any]) -> Dict[str, Any]:
         if "platform" not in acc:
-            # Sudah struktur baru
             return acc
         
         new_acc = {
@@ -71,7 +68,6 @@ class AxiomParser:
             "sheet_name": acc.get("sheet_name"),
         }
         
-        # Map platform dan account_id ke field yang sesuai
         platform = acc.get("platform", "").lower()
         account_id = acc.get("account_id") or acc.get("user_id")
         
@@ -154,11 +150,9 @@ class AxiomParser:
             seen_accounts = set()
 
             for acc in results:
-                # Generate unique key berdasarkan struktur (lama atau baru)
                 if "platform" in acc:
                     account_key = f"{acc.get('platform', '')}_{acc.get('account_id', '')}_{acc.get('account_name', '')}"
                 else:
-                    # Struktur baru - gunakan platform IDs
                     platform_ids = []
                     if acc.get('instagram_id'):
                         platform_ids.append(f"ig:{acc['instagram_id']}")
@@ -192,12 +186,10 @@ class AxiomParser:
 
                 try:
                     for acc in batch:
-                        # Validasi data sebelum insert
                         is_valid, error_msg = self._validate_social_media_data(acc)
                         if not is_valid:
                             invalid_count += 1
-                            if invalid_count <= 5:  # Log first 5 invalid records
-                                # Convert untuk logging
+                            if invalid_count <= 5:
                                 log_acc = self._convert_old_to_new_structure(acc) if "platform" in acc else acc
                                 platform_info = []
                                 if log_acc.get('instagram_id'):
@@ -212,11 +204,9 @@ class AxiomParser:
                                 print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
                             continue
 
-                        # Convert ke struktur baru jika perlu
                         if "platform" in acc:
                             acc = self._convert_old_to_new_structure(acc)
 
-                        # Check duplicate menggunakan struktur baru
                         if self._check_existing_social_media(acc):
                             skipped_count += 1
                             continue
@@ -251,12 +241,10 @@ class AxiomParser:
 
     def count_axiom_social_media(self, file_path: str) -> int:
         try:
-            # Check if file is Excel format
             file_ext = Path(file_path).suffix.lower()
             if file_ext not in ['.xlsx', '.xls']:
                 return 0
 
-            # Determine engine based on extension
             if file_ext == '.xls':
                 engine = 'xlrd'
             else:
@@ -300,13 +288,11 @@ class AxiomParser:
                         if 'Phone Number' in df.columns:
                             total_count += len(df[df['Phone Number'].notna()])
                 except Exception:
-                    # Skip sheets that can't be read
                     continue
 
             return total_count
 
         except Exception as e:
-            # Silently return 0 for non-Excel files or parsing errors
             return 0
 
 
@@ -320,26 +306,22 @@ class AxiomParser:
                 if pd.isna(row.get('User Name')):
                     continue
 
-                # Handle following/followers as Yes/No strings
                 following_value = self._clean(row.get('Following'))
                 followers_value = self._clean(row.get('Is Followed By'))
 
-                # Convert Yes/No to boolean, then to 1/0 for counting
                 following_count = 1 if following_value and following_value.lower() == 'yes' else None
                 followers_count = 1 if followers_value and followers_value.lower() == 'yes' else None
 
                 user_id_value = self._clean(row.get('User ID'))
                 user_name_value = self._clean(row.get('User Name'))
 
-                # account_id seharusnya menggunakan User ID (numeric) jika tersedia, bukan username
-                # username bisa berubah, tapi User ID tetap unik
                 account_id_value = user_id_value if user_id_value else user_name_value
 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username yang bisa berubah
-                    "account_id": account_id_value,  # User ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
+                    "platform": "Instagram",
+                    "account_name": user_name_value,
+                    "account_id": account_id_value,
+                    "user_id": user_id_value,
                     "full_name": self._clean(row.get('Name')),
                     "following": following_count,
                     "followers": followers_count,
@@ -366,21 +348,19 @@ class AxiomParser:
                 if pd.isna(row.get('User Name')):
                     continue
 
-                # Extract following status
                 following_value = self._clean(row.get('Status'))
                 following_count = 1 if following_value and following_value.lower() == 'following' else None
 
                 user_id_value = self._clean(row.get('ID'))
                 user_name_value = self._clean(row.get('User Name'))
 
-                # account_id seharusnya menggunakan ID (numeric) jika tersedia, bukan username
                 account_id_value = user_id_value if user_id_value else user_name_value
 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username
-                    "account_id": account_id_value,  # ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # ID (numeric)
+                    "platform": "Instagram",
+                    "account_name": user_name_value,
+                    "account_id": account_id_value,
+                    "user_id": user_id_value,
                     "full_name": self._clean(row.get('Full Name')),
                     "following": following_count,
                     "followers": None,
@@ -410,14 +390,13 @@ class AxiomParser:
                 user_id_value = self._clean(row.get('ID'))
                 user_name_value = self._clean(row.get('User Name'))
 
-                # account_id seharusnya menggunakan ID (numeric) jika tersedia, bukan username
                 account_id_value = user_id_value if user_id_value else user_name_value
 
                 acc = {
-                    "platform": "instagram",
-                    "account_name": user_name_value,  # Username
-                    "account_id": account_id_value,  # ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # ID (numeric)
+                    "platform": "Instagram",
+                    "account_name": user_name_value,
+                    "account_id": account_id_value,
+                    "user_id": user_id_value,
                     "full_name": self._clean(row.get('Full Name')),
                     "following": None,
                     "followers": None,
@@ -445,7 +424,6 @@ class AxiomParser:
                 user_name = self._clean(row.get('User Name', ''))
                 user_id = self._clean(row.get('User ID', ''))
 
-                # Only process Telegram-related accounts
                 if not service_name or 'telegram' not in service_name.lower():
                     continue
 
@@ -453,7 +431,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "telegram",
+                    "platform": "Telegram",
                     "account_name": user_name or user_id,
                     "account_id": user_id or user_name,
                     "user_id": user_id,
@@ -487,7 +465,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "whatsapp",
+                    "platform": "WhatsApp",
                     "account_name": whatsapp_name or phone_number,
                     "account_id": phone_number or whatsapp_name,
                     "user_id": phone_number,
@@ -521,15 +499,13 @@ class AxiomParser:
                 screen_name_value = self._clean(row.get('Screen Name'))
                 user_name_value = self._clean(row.get('User Name')) or screen_name_value
 
-                # account_id seharusnya menggunakan User ID (numeric) jika tersedia, bukan username
-                # untuk Twitter/X, Screen Name bisa berubah, tapi User ID tetap unik
                 account_id_value = user_id_value if user_id_value else user_name_value
 
                 acc = {
-                    "platform": "x",
-                    "account_name": user_name_value or screen_name_value,  # Username/Screen Name
-                    "account_id": account_id_value,  # User ID (numeric) sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
+                    "platform": "X",
+                    "account_name": user_name_value or screen_name_value,
+                    "account_id": account_id_value,
+                    "user_id": user_id_value,
                     "full_name": self._clean(row.get('Full Name')),
                     "following": self._safe_int(row.get('Following')),
                     "followers": self._safe_int(row.get('Followers')),
@@ -563,16 +539,14 @@ class AxiomParser:
                 account_id_value = self._clean(row.get('Account ID'))
                 user_id_value = self._clean(row.get('User ID'))
 
-                # account_id seharusnya Account ID, jika tidak ada gunakan User ID
-                # account_name bisa username atau full_name
                 account_name_value = user_name or full_name or str(user_id_value) if user_id_value else None
                 account_id_final = account_id_value if account_id_value else user_id_value
 
                 acc = {
-                    "platform": "telegram",
+                    "platform": "Telegram",
                     "account_name": account_name_value,
-                    "account_id": account_id_final,  # Account ID atau User ID sebagai identifier unik
-                    "user_id": user_id_value,  # User ID (numeric)
+                    "account_id": account_id_final,
+                    "user_id": user_id_value,
                     "full_name": full_name,
                     "phone_number": self._clean(row.get('Phone Number')),
                     "source_tool": "Axiom",
@@ -594,17 +568,15 @@ class AxiomParser:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
 
             for _, row in df.iterrows():
-                # Skip rows without ID
                 if pd.isna(row.get("ID")):
                     continue
 
-                # Prioritize Nickname over User Name for account_name
                 nickname = self._clean(row.get("Nickname"))
                 user_name = self._clean(row.get("User Name"))
                 account_name = nickname or user_name
 
                 acc = {
-                    "platform": "tiktok",
+                    "platform": "TikTok",
                     "account_name": account_name,
                     "account_id": self._clean(row.get("ID")),
                     "user_id": self._clean(row.get("ID")),
@@ -635,7 +607,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "facebook",
+                    "platform": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
                     "account_id": self._clean(row.get('Profile ID')),
                     "user_id": self._clean(row.get('Profile ID')),
@@ -663,7 +635,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "facebook",
+                    "platform": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
                     "account_id": self._clean(row.get('User ID')),
                     "user_id": self._clean(row.get('User ID')),
@@ -691,7 +663,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "whatsapp",
+                    "platform": "WhatsApp",
                     "account_name": self._clean(row.get('WhatsApp Name')),
                     "account_id": self._clean(row.get('ID')),
                     "user_id": self._clean(row.get('ID')),
@@ -719,7 +691,7 @@ class AxiomParser:
                     continue
 
                 acc = {
-                    "platform": "whatsapp",
+                    "platform": "WhatsApp",
                     "account_name": self._clean(row.get('WhatsApp Name')),
                     "account_id": self._clean(row.get('Phone Number')),
                     "user_id": self._clean(row.get('Phone Number')),
@@ -739,7 +711,6 @@ class AxiomParser:
     def _parse_axiom_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
-        # Cari file Excel
         excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
 
         for excel_file in excel_files:
@@ -760,9 +731,8 @@ class AxiomParser:
             logger.info(f"[CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             logger.info(f"[CHAT PARSER] Total sheets found: {len(xls.sheet_names)}")
-            logger.info(f"[CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")  # Log first 10 sheets
+            logger.info(f"[CHAT PARSER] Available sheets: {', '.join(xls.sheet_names[:10])}...")
 
-            # Parse Telegram Messages
             if 'Telegram Messages - iOS' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Telegram Messages sheet, parsing...")
                 telegram_results = self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id)
@@ -771,7 +741,6 @@ class AxiomParser:
             else:
                 logger.warning(f"[CHAT PARSER] Telegram Messages - iOS sheet not found")
 
-            # Parse Instagram Direct Messages
             if 'Instagram Direct Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Instagram Direct Messages sheet, parsing...")
                 instagram_results = self._parse_instagram_messages(file_path, 'Instagram Direct Messages', file_id)
@@ -780,7 +749,6 @@ class AxiomParser:
             else:
                 logger.warning(f"[CHAT PARSER] Instagram Direct Messages sheet not found")
 
-            # Parse TikTok Messages
             if 'TikTok Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found TikTok Messages sheet, parsing...")
                 tiktok_results = self._parse_tiktok_messages(file_path, 'TikTok Messages', file_id)
@@ -789,7 +757,6 @@ class AxiomParser:
             else:
                 logger.warning(f"[CHAT PARSER] TikTok Messages sheet not found")
 
-            # Parse Twitter Direct Messages
             if 'Twitter Direct Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Twitter Direct Messages sheet, parsing...")
                 twitter_results = self._parse_twitter_messages(file_path, 'Twitter Direct Messages', file_id)
@@ -800,26 +767,25 @@ class AxiomParser:
 
             logger.info(f"[CHAT PARSER] Total parsed messages: {len(results)}")
             
-            # Log sample data for debugging
             if results:
                 sample_msg = results[0]
                 logger.debug(f"[CHAT PARSER] Sample message data: platform={sample_msg.get('platform')}, "
                            f"sheet_name={sample_msg.get('sheet_name')}, "
                            f"message_id={sample_msg.get('message_id')}, "
-                           f"sender={sample_msg.get('sender_name')}, "
-                           f"receiver={sample_msg.get('receiver_name')}, "
+                           f"from={sample_msg.get('from_name')}, "
+                           f"to={sample_msg.get('to_name')}, "
                            f"timestamp={sample_msg.get('timestamp')}")
 
-            # Save to database
             saved_count = 0
             skipped_count = 0
             for msg in results:
                 existing = (
                     self.db.query(ChatMessage)
                     .filter(
+                        ChatMessage.file_id == msg["file_id"],
                         ChatMessage.platform == msg["platform"],
-                        ChatMessage.message_id == msg["message_id"],
-                                            )
+                        ChatMessage.message_id == msg["message_id"]
+                    )
                     .first()
                 )
                 if not existing:
@@ -857,27 +823,36 @@ class AxiomParser:
                     skipped_count += 1
                     continue
 
-                message_data = {                    "file_id": file_id,
-                    "platform": "telegram",
+                message_status = str(row.get('Message Status', '')).strip()
+                direction = ''
+                if message_status.lower() == 'received':
+                    direction = 'Incoming'
+                elif message_status.lower() == 'sent':
+                    direction = 'Outgoing'
+                else:
+                    direction = str(row.get('Direction', '')).strip()
+
+                message_data = {                    
+                    "file_id": file_id,
+                    "platform": "Telegram",
                     "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name', '')),
-                    "receiver_id": str(row.get('Recipient ID', '')),
+                    "from_name": str(row.get('Sender Name', '')),
+                    "sender_number": str(row.get('Sender ID', '')),
+                    "to_name": str(row.get('Recipient Name', '')),
+                    "recipient_number": str(row.get('Recipient ID', '')),
                     "timestamp": str(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
                     "thread_id": str(row.get('_ThreadID', '')),
                     "chat_id": str(row.get('Chat ID', '')),
                     "message_id": str(row.get('Message ID', '')),
                     "message_type": str(row.get('Type', 'text')),
-                    "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
+                    "direction": direction,
+                    "source_tool": "Magnet Axiom",
                     "sheet_name": sheet_name
                 }
 
-                # Log first message for debugging
                 if processed_count == 0:
                     logger.debug(f"[TELEGRAM PARSER] First message sample: message_id={message_data['message_id']}, "
-                               f"sender={message_data['sender_name']}, receiver={message_data['receiver_name']}, "
+                               f"from={message_data['from_name']}, to={message_data['to_name']}, "
                                f"text_preview={str(message_data['message_text'])[:50]}...")
 
                 results.append(message_data)
@@ -910,19 +885,19 @@ class AxiomParser:
 
                 message_data = {
                     "file_id": file_id,
-                    "platform": "instagram",
+                    "platform": "Instagram",
                     "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
+                    "from_name": str(row.get('Sender', '')),
+                    "sender_number": "",
+                    "to_name": str(row.get('Recipient', '')),
+                    "recipient_number": "",
                     "timestamp": str(row.get('Message Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
                     "thread_id": str(row.get('_ThreadID', '')),
                     "chat_id": str(row.get('Chat ID', '')),
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": str(row.get('Type', 'text')),
                     "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
+                    "source_tool": "Magnet Axiom",
                     "sheet_name": sheet_name
                 }
 
@@ -959,19 +934,19 @@ class AxiomParser:
                     continue
 
                 message_data = {                    "file_id": file_id,
-                    "platform": "tiktok",
+                    "platform": "TikTok",
                     "message_text": str(row.get('Message', '')),
-                    "sender_name": str(row.get('Sender', '')),
-                    "sender_id": "",
-                    "receiver_name": str(row.get('Recipient', '')),
-                    "receiver_id": "",
+                    "from_name": str(row.get('Sender', '')),
+                    "sender_number": "",
+                    "to_name": str(row.get('Recipient', '')),
+                    "recipient_number": "",
                     "timestamp": str(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
                     "thread_id": str(row.get('_ThreadID', '')),
                     "chat_id": "",
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": str(row.get('Message Type', 'text')),
                     "direction": "",
-                    "source_tool": "axiom",
+                    "source_tool": "Magnet Axiom",
                     "sheet_name": sheet_name
                 }
 
@@ -1008,19 +983,19 @@ class AxiomParser:
                     continue
 
                 message_data = {                    "file_id": file_id,
-                    "platform": "x",
+                    "platform": "X",
                     "message_text": str(row.get('Text', '')),
-                    "sender_name": str(row.get('Sender Name', '')),
-                    "sender_id": str(row.get('Sender ID', '')),
-                    "receiver_name": str(row.get('Recipient Name(s)', '')),
-                    "receiver_id": str(row.get('Recipient ID(s)', '')),
+                    "from_name": str(row.get('Sender Name', '')),
+                    "sender_number": str(row.get('Sender ID', '')),
+                    "to_name": str(row.get('Recipient Name(s)', '')),
+                    "recipient_number": str(row.get('Recipient ID(s)', '')),
                     "timestamp": str(row.get('Sent/Received Date/Time - UTC+00:00 (dd/MM/yyyy)', '')),
                     "thread_id": str(row.get('_ThreadID', '')),
                     "chat_id": "",
                     "message_id": str(row.get('Item ID', '')),
                     "message_type": "text",
                     "direction": str(row.get('Direction', '')),
-                    "source_tool": "axiom",
+                    "source_tool": "Magnet Axiom",
                     "sheet_name": sheet_name
                 }
 
@@ -1039,7 +1014,6 @@ class AxiomParser:
 
         return results
 
-    # Magnet Axiom specific parsers for sample_data format
 
     def _parse_axiom_whatsapp_accounts_info(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -1047,7 +1021,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1062,7 +1035,7 @@ class AxiomParser:
 
                 if whatsapp_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": whatsapp_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -1086,7 +1059,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1111,7 +1083,7 @@ class AxiomParser:
 
                 if account_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": account_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -1135,7 +1107,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1157,7 +1128,7 @@ class AxiomParser:
 
                 if phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": name or phone_number,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -1181,7 +1152,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1205,7 +1175,7 @@ class AxiomParser:
                 if phone_number and phone_number not in seen_accounts:
                     seen_accounts.add(phone_number)
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": phone_number,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -1229,7 +1199,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1244,7 +1213,7 @@ class AxiomParser:
 
                 if whatsapp_name and phone_number:
                     acc = {
-                        "platform": "whatsapp",
+                        "platform": "WhatsApp",
                         "account_name": whatsapp_name,
                         "account_id": phone_number,
                         "user_id": phone_number,
@@ -1268,7 +1237,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1284,7 +1252,7 @@ class AxiomParser:
 
                 if chat_name and chat_id:
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": chat_name,
                         "account_id": chat_id,
                         "user_id": chat_id,
@@ -1307,7 +1275,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1327,7 +1294,7 @@ class AxiomParser:
                     account_name = username or full_name
 
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": account_name,
                         "account_id": user_id,
                         "user_id": user_id,
@@ -1350,7 +1317,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1367,7 +1333,7 @@ class AxiomParser:
                 if partner and partner not in seen_accounts:
                     seen_accounts.add(partner)
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": partner,
                         "account_id": partner,
                         "user_id": partner,
@@ -1390,7 +1356,6 @@ class AxiomParser:
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str)
 
-            # Fix column names if they are unnamed
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -1410,7 +1375,7 @@ class AxiomParser:
                     account_name = username or full_name
 
                     acc = {
-                        "platform": "telegram",
+                        "platform": "Telegram",
                         "account_name": account_name,
                         "account_id": user_id,
                         "user_id": user_id,

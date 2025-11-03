@@ -9,7 +9,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import logging
 
-# Add the parent directory to the path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
@@ -19,7 +18,6 @@ from app.case_management.models import Case, CasePerson, Agency, WorkUnit
 from app.evidence_management.models import Evidence
 from app.suspect_management.models import Person
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -27,13 +25,12 @@ logger = logging.getLogger(__name__)
 def check_postgres_connection():
     """Check if PostgreSQL is running and accessible"""
     try:
-        # Use environment variables from settings
         conn = psycopg2.connect(
             host=settings.postgres_host,
             port=settings.postgres_port,
             user=settings.postgres_user,
             password=settings.postgres_password,
-            database='postgres'  # Connect to default postgres database first
+            database='postgres'
         )
         conn.close()
         logger.info(" PostgreSQL connection successful")
@@ -51,7 +48,6 @@ def check_postgres_connection():
 def create_database():
     """Create the Digital Forensics database if it doesn't exist"""
     try:
-        # Connect to PostgreSQL server (not to a specific database)
         conn = psycopg2.connect(
             host=settings.postgres_host,
             port=settings.postgres_port,
@@ -62,7 +58,6 @@ def create_database():
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = conn.cursor()
         
-        # Check if database exists
         cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (settings.postgres_db,))
         exists = cursor.fetchone()
         
@@ -84,7 +79,6 @@ def create_database():
 def create_tables():
     """Create all tables in PostgreSQL"""
     try:
-        # Create all tables
         Base.metadata.create_all(bind=engine)
         logger.info(" All tables created successfully")
         return True
@@ -102,15 +96,12 @@ def migrate_data_from_sqlite():
         return True
     
     try:
-        # Connect to SQLite
         sqlite_conn = sqlite3.connect(sqlite_path)
         sqlite_cursor = sqlite_conn.cursor()
         
-        # Connect to PostgreSQL
         pg_engine = create_engine(settings.database_url)
         pg_session = sessionmaker(bind=pg_engine)()
         
-        # Get list of tables from SQLite
         sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         tables = [row[0] for row in sqlite_cursor.fetchall()]
         
@@ -122,23 +113,18 @@ def migrate_data_from_sqlite():
                 
             logger.info(f"Migrating table: {table}")
             
-            # Get table data
             sqlite_cursor.execute(f"SELECT * FROM {table}")
             rows = sqlite_cursor.fetchall()
             
-            # Get column names
             column_names = [description[0] for description in sqlite_cursor.description]
             
             if rows:
-                # Insert data into PostgreSQL
                 for row in rows:
                     try:
-                        # Create insert statement with proper parameter binding
                         placeholders = ', '.join(['%s'] * len(row))
                         columns = ', '.join(column_names)
                         insert_sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
                         
-                        # Convert row to tuple for psycopg2
                         pg_session.execute(text(insert_sql), row)
                     except Exception as e:
                         logger.warning(f"  Failed to insert row in {table}: {e}")
@@ -160,14 +146,10 @@ def migrate_data_from_sqlite():
 def create_admin_user():
     """Create default admin user"""
     try:
-        # Note: User model and security utilities not yet implemented
-        # from app.models.user import User
-        # from app.utils.security import get_password_hash
         
         pg_engine = create_engine(settings.database_url)
         pg_session = sessionmaker(bind=pg_engine)()
         
-        # Note: User model not yet implemented - skipping admin user creation
         logger.info("ℹ User management not yet implemented - skipping admin user creation")
         return True
         
@@ -183,25 +165,20 @@ def main():
     """Main setup function"""
     logger.info(" Starting PostgreSQL setup for Digital Forensics...")
     
-    # Step 1: Check PostgreSQL connection
     if not check_postgres_connection():
         logger.error(" Cannot connect to PostgreSQL. Please ensure PostgreSQL is running.")
         return False
     
-    # Step 2: Create database
     if not create_database():
         logger.error(" Failed to create database")
         return False
     
-    # Step 3: Create tables
     if not create_tables():
         logger.error(" Failed to create tables")
         return False
     
-    # Step 4: Migrate data from SQLite (if exists)
     migrate_data_from_sqlite()
     
-    # Step 5: Create admin user
     if not create_admin_user():
         logger.error(" Failed to create admin user")
         return False

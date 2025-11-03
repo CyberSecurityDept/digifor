@@ -6,7 +6,6 @@ import requests
 import json
 import time
 
-# API Base URL
 BASE_URL = "http://localhost:8000"
 
 def get_auth_token():
@@ -275,7 +274,6 @@ def test_case_filters():
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Test status filter
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/?status=in_progress",
@@ -291,7 +289,6 @@ def test_case_filters():
     except Exception as e:
         print(f" Status filter error: {e}")
     
-    # Test priority filter
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/?priority=high",
@@ -314,31 +311,23 @@ def main():
     print(" Starting Case Management Tests...")
     print("=" * 50)
     
-    # Test create case
     case_id = test_create_case()
     if not case_id:
         print(" Cannot proceed without case ID")
         return
     
-    # Test get case
     test_get_case(case_id)
     
-    # Test list cases
     test_list_cases()
     
-    # Test update case
     test_update_case(case_id)
     
-    # Test add person
     person_id = test_add_person(case_id)
     
-    # Test get case persons
     test_get_case_persons(case_id)
     
-    # Test get case stats
     test_get_case_stats(case_id)
     
-    # Test case filters
     test_case_filters()
     
     print("\n" + "=" * 50)

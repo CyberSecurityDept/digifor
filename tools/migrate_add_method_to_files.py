@@ -16,7 +16,6 @@ def migrate_add_method_to_files():
     try:
         print("Adding 'method' field to files table...")
         
-        # Add method column
         db.execute(text("ALTER TABLE files ADD COLUMN method VARCHAR"))
         
         db.commit()

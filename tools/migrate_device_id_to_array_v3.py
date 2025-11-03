@@ -7,7 +7,6 @@ import sys
 import os
 from sqlalchemy import create_engine, text
 
-# Add the backend directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.core.config import settings
@@ -15,14 +14,12 @@ from app.core.config import settings
 def run_migration():
     """Migrate device_id from Integer to Array"""
     
-    # Create database engine
     engine = create_engine(settings.DATABASE_URL)
     
     with engine.connect() as conn:
         try:
             print("🔄 Starting migration: Change device_id from Integer to Array")
             
-            # Check if analytic_device table exists
             result = conn.execute(text("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -35,7 +32,6 @@ def run_migration():
                 print("❌ Table 'analytic_device' does not exist. Skipping migration.")
                 return
             
-            # Check current structure
             result = conn.execute(text("""
                 SELECT column_name, data_type 
                 FROM information_schema.columns 
@@ -49,18 +45,15 @@ def run_migration():
                 
             print(f" Current device_id type: {current_structure[1]}")
             
-            # Check if already array type
             if 'array' in current_structure[1].lower():
                 print("ℹ️ device_id is already an array type. Skipping migration.")
                 return
             
-            # Get existing data
             result = conn.execute(text("SELECT id, analytic_id, device_id FROM analytic_device;"))
             existing_data = result.fetchall()
             
             print(f" Found {len(existing_data)} existing records")
             
-            # Step 1: Create new table with array column
             print("📝 Creating new table structure...")
             conn.execute(text("""
                 CREATE TABLE analytic_device_new (
@@ -73,7 +66,6 @@ def run_migration():
                 );
             """))
             
-            # Step 2: Migrate data
             print("📝 Migrating existing data...")
             for record in existing_data:
                 conn.execute(text("""
@@ -83,19 +75,16 @@ def run_migration():
                     'id': record[0],
                     'analytic_id': record[1], 
                     'device_id': record[2],
-                    'created_at': '2025-01-01 00:00:00',  # Default timestamp
+                    'created_at': '2025-01-01 00:00:00',
                     'updated_at': '2025-01-01 00:00:00'
                 })
             
-            # Step 3: Drop old table
             print("📝 Dropping old table...")
             conn.execute(text("DROP TABLE analytic_device CASCADE;"))
             
-            # Step 4: Rename new table
             print("📝 Renaming new table...")
             conn.execute(text("ALTER TABLE analytic_device_new RENAME TO analytic_device;"))
             
-            # Step 5: Recreate indexes and constraints
             print("📝 Recreating indexes and constraints...")
             conn.execute(text("""
                 CREATE INDEX ix_analytic_device_id ON analytic_device (id);
