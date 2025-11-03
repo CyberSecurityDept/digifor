@@ -23,7 +23,6 @@ from app.api.v1 import (
     analytics_device_routes,
     analytics_management_routes,
     analytics_report_routes,
-    analytics_communication_routes,
     analytics_contact_routes,
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
@@ -76,7 +75,7 @@ app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 # app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
 # app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 
-
+# ANALYTICS MANAGEMENTS
 app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])
 app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["SDP Converter"])
 app.include_router(analytics_file_routes.router, prefix=settings.API_V1_STR, tags=["File Management"])
@@ -85,7 +84,7 @@ app.include_router(analytics_device_routes.router, prefix=settings.API_V1_STR, t
 app.include_router(analytics_contact_routes.router, prefix=settings.API_V1_STR, tags=["Contact Correlation"])
 app.include_router(analytics_management_routes.hashfile_router, prefix=settings.API_V1_STR, tags=["Hashfile Analytics"])
 app.include_router(analytics_social_media_routes.router, prefix=settings.API_V1_STR, tags=["Social Media Correlation"])
-app.include_router(analytics_communication_routes.router, prefix=settings.API_V1_STR, tags=["Deep Communication Analytics"])
+app.include_router(analytics_communication_enhanced_routes.router, prefix=settings.API_V1_STR, tags=["Deep Communication Analytics"])
 app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags=["APK Analysis"])
 
 app.include_router(health_router, prefix="/health", tags=["Health"])
