@@ -41,10 +41,6 @@ def normalize_platform_name(platform: str) -> str:
 
 
 def clean_message_text(text: str) -> str:
-    """
-    Clean message text by removing newlines and excessive whitespace.
-    Converts all newlines to spaces for clean single-line text.
-    """
     if not text:
         return ""
     
@@ -82,10 +78,6 @@ def clean_message_text(text: str) -> str:
 
 
 def extract_time_from_timestamp(timestamp: str) -> str:
-    """
-    Extract time in HH:mm format from timestamp string.
-    Supports formats like: "2023-12-12 20:43:26" or "2023-12-12 20:43"
-    """
     if not timestamp:
         return ""
     
@@ -145,10 +137,6 @@ def get_chat_messages_for_analytic(
     platform: Optional[str] = None,
     file_ids: Optional[List[int]] = None
 ) -> List[ChatMessage]:
-    """
-    Get chat messages for analytic. Filtering is done by file_id from Device table.
-    If device_id is provided, it should be used to get file_id from Device table.
-    """
     query = db.query(ChatMessage)
     
     # Filter by file_ids (from Device.file_id)
