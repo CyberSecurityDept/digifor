@@ -13,22 +13,38 @@ from fastapi.security import OAuth2PasswordBearer
 
 
 router = APIRouter(prefix="/auth")
-# --------------------------------------------------
-# Login
-# --------------------------------------------------
 @router.post("/login")
 def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = service.get_user_by_email(db, data.email)
-    if not user or not service.verify_password(data.password, user.hashed_password):
+    if not user:
+        print(f"Login failed: User with email '{data.email}' not found")
+        return JSONResponse(
+            {"status": 401, "message": "Invalid credentials", "data": None},
+            status_code=401
+        )
+    
+    if not user.is_active:
+        print(f"Login failed: User '{data.email}' is inactive")
+        return JSONResponse(
+            {"status": 401, "message": "Invalid credentials", "data": None},
+            status_code=401
+        )
+    
+    password_valid = service.verify_password(data.password, user.hashed_password)
+    if not password_valid:
+        print(f"Login failed: Invalid password for user '{data.email}'")
+        try:
+            new_hash = service.get_password_hash(data.password)
+            print(f"New hash would be: {new_hash[:50]}...")
+        except Exception as e:
+            print(f"Error generating new hash: {e}")
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
             status_code=401
         )
 
-    # 🔥 Token tanpa expired (lifetime)
     access_token = security.create_access_token(subject=str(user.id))
 
-    # ✅ Jangan pakai koma di sini
     token_data = access_token
 
     user_data = {
@@ -72,9 +88,6 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
 #         status_code=200
 #     )
 
-# --------------------------------------------------
-# Current User (protected)
-# --------------------------------------------------
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
@@ -93,9 +106,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise HTTPException(status_code=401, detail="Inactive user")
     return user
 
-# --------------------------------------------------
-# Logout (Revoke All Refresh Tokens)
-# --------------------------------------------------
 @router.post(
     "/logout",
     summary="Logout",
@@ -104,7 +114,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 def logout(current_user: User = Security(get_current_user), db: Session = Depends(get_db)):
 
     try:
-        # revoke semua refresh token milik user ini
         tokens = db.query(service.models.RefreshToken).filter(
             service.models.RefreshToken.user_id == current_user.id,
             service.models.RefreshToken.revoked == False
@@ -125,7 +134,7 @@ def logout(current_user: User = Security(get_current_user), db: Session = Depend
         )
     except Exception as e:
         db.rollback()
-        print("❌ Logout error:", e)
+        print("Logout error:", e)
         return JSONResponse(
             {
                 "status": 500,

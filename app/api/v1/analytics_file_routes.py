@@ -33,7 +33,7 @@ def format_file_size(size_bytes: int) -> str:
 
 
 # ============================================================
-# 🚀 Fungsi upload & finalize data
+# Fungsi upload & finalize data
 # ============================================================
 async def run_real_upload_and_finalize(
     upload_id: str,

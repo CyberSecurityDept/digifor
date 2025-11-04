@@ -170,13 +170,10 @@ def get_hashfile_analytics(
         file_ids = [d.file_id for d in devices]
         file_to_device = {d.file_id: d.id for d in devices}
 
-        # ==============================================
-        # 3️⃣ Ambil HashFile dari semua file_id
-        # ==============================================
         hashfiles = (
             db.query(
                 HashFile.file_id,
-                HashFile.name,
+                HashFile.file_name,
                 HashFile.md5_hash,
                 HashFile.sha1_hash,
                 HashFile.path_original,
@@ -201,19 +198,16 @@ def get_hashfile_analytics(
                 status_code=200,
             )
 
-        # ==============================================
-        # 4️⃣ Bangun correlation: berdasarkan hash + name
-        # ==============================================
         from collections import defaultdict
 
         correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
 
         for hf in hashfiles:
             hash_value = hf.md5_hash or hf.sha1_hash
-            if not hash_value or not hf.name:
+            if not hash_value or not hf.file_name:
                 continue
 
-            key = f"{hash_value}::{hf.name.strip().lower()}"  # unik per kombinasi hash+name
+            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # unik per kombinasi hash+file_name
             device_id = file_to_device.get(hf.file_id)
             if not device_id:
                 continue
@@ -221,17 +215,11 @@ def get_hashfile_analytics(
             correlation_map[key]["records"].append(hf)
             correlation_map[key]["devices"].add(device_id)
 
-        # ==============================================
-        # 5️⃣ Filter: hanya muncul di >= min_devices
-        # ==============================================
         correlated = {
             key: data for key, data in correlation_map.items()
             if len(data["devices"]) >= min_devices
         }
 
-        # ==============================================
-        # 6️⃣ Format hasil untuk frontend
-        # ==============================================
         hashfile_list = []
         for key, info in correlated.items():
             first = info["records"][0]
@@ -248,7 +236,7 @@ def get_hashfile_analytics(
                 size_display = f"{file_size_bytes} bytes"
 
             file_path = first.path_original or "Unknown"
-            file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.name or "Unknown")
+            file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.file_name or "Unknown")
             file_type = first.file_type or "Unknown"
             if first.file_extension:
                 file_type = f"{file_type} ({first.file_extension.upper()})"
@@ -262,27 +250,13 @@ def get_hashfile_analytics(
             hash_value = first.md5_hash or first.sha1_hash
             hashfile_list.append({
                 "hash_value": hash_value,
-                "file_name": first.name or file_name,
+                "file_name": first.file_name or file_name,
                 "file_type": file_type,
-                # "file_size": size_display,
-                # "file_path": file_path,
-                # "created_at": (
-                #     first.created_at_original.strftime("%Y-%m-%d %H:%M:%S")
-                #     if first.created_at_original else "Unknown"
-                # ),
-                # "modified_at": (
-                #     first.modified_at_original.strftime("%Y-%m-%d %H:%M:%S")
-                #     if first.modified_at_original else "Unknown"
-                # ),
                 "devices": device_labels_found,
             })
 
-        # Urutkan berdasarkan jumlah devices yang terlibat
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
 
-        # ==============================================
-        # 7️⃣ Build device list
-        # ==============================================
         devices_list = [
             {
                 "device_label": device_labels[i],
@@ -292,9 +266,6 @@ def get_hashfile_analytics(
             for i, d in enumerate(devices)
         ]
 
-        # ==============================================
-        # 8️⃣ Response
-        # ==============================================
         summary = analytic.summary if analytic.summary else None
         return JSONResponse(
             {
