@@ -553,15 +553,15 @@ class SocialMediaParsersExtended:
             
             xls = pd.ExcelFile(file_path, engine=engine)
             
-            print(f"📊 Total sheets available: {len(xls.sheet_names)}")
-            print(f"📋 Sheet names: {xls.sheet_names}")
+            print(f"Total sheets available: {len(xls.sheet_names)}")
+            print(f"Sheet names: {xls.sheet_names}")
             
             if 'Contacts' in xls.sheet_names:
-                print("🔍 Detected Contacts sheet - parsing Contacts only (skipping other sheets)")
+                print("Detected Contacts sheet - parsing Contacts only (skipping other sheets)")
                 results.extend(self._parse_cellebrite_contacts_sheet(file_path, 'Contacts', file_id))
             
             elif 'Social Media' in xls.sheet_names:
-                print("🔍 Detected Cellebrite format - parsing Social Media sheet")
+                print("Detected Cellebrite format - parsing Social Media sheet")
                 for sheet_name in xls.sheet_names:
                     print(f"Processing sheet: {sheet_name}")
                     

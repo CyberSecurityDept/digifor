@@ -34,7 +34,7 @@ class ContactParser:
             print(f"[SHEET NAME : {contacts_sheet}]")
                             
             if not contacts_sheet:
-                print("❌ No contacts sheet found in Axiom file")
+                print("No contacts sheet found in Axiom file")
                 return results
             
             df = pd.read_excel(file_path, sheet_name=contacts_sheet, engine='openpyxl', dtype=str)
@@ -85,7 +85,7 @@ class ContactParser:
                 if idx % 10 == 0 or idx == len(df) - 1:
                     print(f"🔹 Row {idx+1}/{len(df)} → Name='{name}', Phone='{phone_number}', Account='{acc_type}'")
 
-                # ✅ Tambahkan hanya jika nomor valid
+                # Tambahkan hanya jika nomor valid
                 if phone_number:
                     contact_data = {
                         "file_id": file_id,
@@ -97,7 +97,7 @@ class ContactParser:
                 else:
                     print(f"⚠️ Skipped row {idx+1} — no valid phone number found")
 
-            print(f"✅ Finished parsing Axiom contacts — valid unique entries: {len(results)}")
+            print(f"Finished parsing Axiom contacts — valid unique entries: {len(results)}")
 
             # ===============================
             # Save ke database
@@ -120,7 +120,7 @@ class ContactParser:
             print(f"💾 Successfully saved {len(results)} Axiom contacts (unique & valid numbers only)")
 
         except Exception as e:
-            print(f"❌ Error parsing Axiom contacts: {e}")
+            print(f"Error parsing Axiom contacts: {e}")
             self.db.rollback()
             raise e
         
@@ -188,7 +188,7 @@ class ContactParser:
     def parse_cellebrite_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         """Parse contacts from Cellebrite file — only insert if phone number valid and unique"""
         results = []
-        seen_numbers = set()  # ✅ Track nomor yang sudah pernah muncul
+        seen_numbers = set()  # Track nomor yang sudah pernah muncul
 
         try:
             print("📘 Reading Cellebrite Excel file...")
@@ -196,7 +196,7 @@ class ContactParser:
             print(f"LIST SHEET NAME: {xls.sheet_names}")
 
             if 'Contacts' not in xls.sheet_names:
-                print("❌ No Contacts sheet found in Cellebrite file")
+                print("No Contacts sheet found in Cellebrite file")
                 return results
 
             print("[SHEET NAME DETECTED: Contacts]")
@@ -275,7 +275,7 @@ class ContactParser:
                 if idx % 10 == 0 or idx == len(df) - 1:
                     print(f"🔹 Row {idx+1}/{len(df)} → Name='{display_name}', Phone='{phone_number}', Status='{status}'")
 
-                # ✅ Hanya masukkan kalau punya nomor valid DAN belum pernah ada
+                # Hanya masukkan kalau punya nomor valid DAN belum pernah ada
                 if phone_number:
                     if phone_number in seen_numbers:
                         print(f"⚠️ Duplicate number detected, skipped: {phone_number}")
@@ -292,7 +292,7 @@ class ContactParser:
                 else:
                     print(f"⚠️ Skipped row {idx+1} — no valid number found in Entries")
 
-            print(f"✅ Finished parsing Cellebrite contacts — valid unique entries: {len(results)}")
+            print(f"Finished parsing Cellebrite contacts — valid unique entries: {len(results)}")
 
             # ===============================
             # Save to database — only valid contacts
@@ -301,7 +301,7 @@ class ContactParser:
                 existing = (
                     self.db.query(Contact)
                     .filter(
-                        Contact.phone_number == contact["phone_number"],  # 🔍 Cek nomor juga
+                        Contact.phone_number == contact["phone_number"],  # Cek nomor juga
                         Contact.file_id == file_id
                     )
                     .first()
@@ -315,7 +315,7 @@ class ContactParser:
             print(f"💾 Successfully saved {len(results)} Cellebrite contacts (unique & valid numbers only)")
 
         except Exception as e:
-            print(f"❌ Error parsing Cellebrite contacts: {e}")
+            print(f"Error parsing Cellebrite contacts: {e}")
             self.db.rollback()
             raise e
 
@@ -405,7 +405,7 @@ class ContactParser:
             print(f"[SHEET NAME : {sheet_name}]")
             
             if not contacts_sheet:
-                print("❌ No contacts sheet found in Oxygen file")
+                print("No contacts sheet found in Oxygen file")
                 return results
             
             df = pd.read_excel(file_path, sheet_name=contacts_sheet, dtype=str, engine=engine)
@@ -476,7 +476,7 @@ class ContactParser:
                         f"Name='{contact_data['display_name']}', "
                         f"Phone='{contact_data['phone_number']}'")
 
-                # ✅ Hanya tambahkan kalau valid
+                # Hanya tambahkan kalau valid
                 if (
                     contact_data["display_name"]
                     and contact_data["display_name"].lower() != 'nan'
@@ -487,7 +487,7 @@ class ContactParser:
                 else:
                     print(f"⚠️ Skipped contact '{display_name}' — invalid or missing phone")
 
-            print(f"✅ Finished parsing Oxygen contacts — valid entries: {len(results)}")
+            print(f"Finished parsing Oxygen contacts — valid entries: {len(results)}")
 
             # ===============================
             # Save to database — hanya yang valid
@@ -508,7 +508,7 @@ class ContactParser:
             print(f"💾 Successfully saved {len(results)} Oxygen contacts to database (phone entries only)")
         
         except Exception as e:
-            print(f"❌ Error parsing Oxygen contacts: {e}")
+            print(f"Error parsing Oxygen contacts: {e}")
             self.db.rollback()
             raise e
         
