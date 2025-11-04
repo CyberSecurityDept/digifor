@@ -276,7 +276,8 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
                 is_suspicious=is_suspicious,
                 malware_detection=normalize_str(hf.get('malware_detection', '')),
                 risk_level=risk_level,
-                created_at=get_indonesia_time()
+                created_at=get_indonesia_time(),
+                updated_at=get_indonesia_time()
             )
 
             db.add(hashfile_record)

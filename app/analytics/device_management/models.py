@@ -89,8 +89,6 @@ class HashFile(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    name = Column(String, nullable=True)
-    
     file_name = Column(String, nullable=True)
     kind = Column(String, nullable=True)
     size_bytes = Column(BigInteger, nullable=True)
