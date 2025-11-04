@@ -428,89 +428,41 @@ def start_data_extraction(
 def get_all_analytic(
     search: Optional[str] = Query(None, description="Search by analytics name or notes (summary)"),
     method: Optional[str] = Query(None, description="Filter by method"),
-    date_from: Optional[str] = Query(None, description="Filter by date from (format: YYYY-MM-DD)"),
-    date_to: Optional[str] = Query(None, description="Filter by date to (format: YYYY-MM-DD)"),
-    skip: int = Query(0, ge=0, description="Number of records to skip for pagination"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
     db: Session = Depends(get_db)
 ):
     try:
         query = db.query(Analytic)
-        
+
         if search:
             search_pattern = f"%{search}%"
-            search_conditions = [
-                Analytic.analytic_name.ilike(search_pattern)
-            ]
-            search_conditions.append(
-                Analytic.summary.ilike(search_pattern)
+            query = query.filter(
+                or_(
+                    Analytic.analytic_name.ilike(search_pattern),
+                    Analytic.summary.ilike(search_pattern)
+                )
             )
-            query = query.filter(or_(*search_conditions))
-        
+
         if method:
             query = query.filter(Analytic.method == method)
-        
-        if date_from or date_to:
-            date_conditions = []
-            
-            if date_from:
-                try:
-                    date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
-                    date_conditions.append(Analytic.created_at >= date_from_obj)
-                except ValueError:
-                    return JSONResponse(
-                        content={
-                            "status": 400,
-                            "message": "Invalid date_from format. Use YYYY-MM-DD",
-                            "data": []
-                        },
-                        status_code=400
-                    )
-            
-            if date_to:
-                try:
-                    date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
-                    date_to_obj = date_to_obj.replace(hour=23, minute=59, second=59)
-                    date_conditions.append(Analytic.created_at <= date_to_obj)
-                except ValueError:
-                    return JSONResponse(
-                        content={
-                            "status": 400,
-                            "message": "Invalid date_to format. Use YYYY-MM-DD",
-                            "data": []
-                        },
-                        status_code=400
-                    )
-            
-            if date_conditions:
-                query = query.filter(and_(*date_conditions))
-        
-        total_count = query.count()
-        
-        analytics = query.order_by(Analytic.created_at.desc()).offset(skip).limit(limit).all()
-        
-        formatted_analytics = []
-        for analytic in analytics:
-            formatted_analytic = {
-                "id": analytic.id,
-                "analytic_name": analytic.analytic_name,
-                "method": analytic.method,
-                "summary": analytic.summary,
-                "date": analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else None
+
+        analytics = query.order_by(Analytic.created_at.desc()).all()
+
+        formatted_analytics = [
+            {
+                "id": a.id,
+                "analytic_name": a.analytic_name,
+                "method": a.method,
+                "summary": a.summary,
+                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at else None
             }
-            formatted_analytics.append(formatted_analytic)
-        
+            for a in analytics
+        ]
+
         return JSONResponse(
             content={
-            "status": 200,
+                "status": 200,
                 "message": f"Retrieved {len(formatted_analytics)} analytics successfully",
-                "data": formatted_analytics,
-                "pagination": {
-                    "total": total_count,
-                    "skip": skip,
-                    "limit": limit,
-                    "returned": len(formatted_analytics)
-        }
+                "data": formatted_analytics
             },
             status_code=200
         )
@@ -518,9 +470,9 @@ def get_all_analytic(
     except Exception as e:
         return JSONResponse(
             content={
-            "status": 500,
-            "message": f"Gagal mengambil data: {str(e)}",
-            "data": []
+                "status": 500,
+                "message": f"Gagal mengambil data: {str(e)}",
+                "data": []
             },
             status_code=500
         )

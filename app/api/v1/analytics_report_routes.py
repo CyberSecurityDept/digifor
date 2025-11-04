@@ -19,6 +19,7 @@ from reportlab.lib.units import inch
 from app.api.v1.analytics_contact_routes import get_contact_correlation
 from app.api.v1.analytics_management_routes import get_hashfile_analytics
 from app.api.v1.analytics_social_media_routes import social_media_correlation
+from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
 import os, json
 class SummaryRequest(BaseModel):
     summary: str
@@ -29,7 +30,8 @@ router = APIRouter()
 def export_analytics_pdf(
     analytic_id: int,
     db: Session = Depends(get_db),
-    thread_id: Optional[str] = Query(None, description="if method = Deep Communication Analytics"),
+    person_name: Optional[str] = Query(None, description="if method = Deep Communication Analytics"),
+    device_id: Optional[int] = Query(None, description="if method = Deep Communication Analytics"),
     source: Optional[str] = Query(None, description="if method = Social Media Correlation or Deep Communication Analytics")
 ):
     try:
@@ -39,8 +41,6 @@ def export_analytics_pdf(
                 content={"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
             )
-
-        print(f"🧩 Export PDF for Analytic ID: {analytic_id}, Thread ID: {thread_id}, Source: {source}")
 
         # INI DI KOMEN SEMENTARA BUAT TESTING EXPORT PDF 
         # device_links = db.query(AnalyticDevice).filter(
@@ -63,13 +63,13 @@ def export_analytics_pdf(
         elif "APK" in method or "apk" in method.lower():
             return _export_apk_analytics_pdf(analytic, db)
         elif "Communication" in method or "communication" in method.lower():
-            return _export_communication_analytics_pdf(analytic, db, thread_id=thread_id, source=source)
+            return _export_communication_analytics_pdf(analytic, db, source=source,person_name=person_name,device_id=device_id)
         elif "Social" in method or "social" in method.lower():
             return _export_social_media_analytics_pdf(analytic, db, source=source)
         elif "Hashfile" in method or "hashfile" in method.lower():
             return _export_hashfile_analytic_pdf(analytic, db)
         else:
-            return _export_generic_analytics_pdf(analytic, db, thread_id=thread_id, source=source)
+            return _export_generic_analytics_pdf(analytic, db)
 
     except Exception as e:
         return JSONResponse(
@@ -430,14 +430,17 @@ def _export_apk_analytics_pdf(analytic, db):
     )
 
 
-def _export_communication_analytics_pdf(analytic, db):
+def _export_communication_analytics_pdf(analytic, db,source,person_name,device_id):
     communications = []
     return _generate_pdf_report(
         analytic, db,
         report_type="Communication Analytics Report",
         filename_prefix="communication_analytics_report",
         data={"total_messages": len(communications)},
-        method="deep_communication"
+        method="deep_communication",
+        source=source,
+        person_name=person_name,
+        device_id=device_id
     )
 
 
@@ -465,9 +468,12 @@ def _export_generic_analytics_pdf(analytic, db):
 # ===============================================================
 # 🧱 ROUTER GENERATOR
 # ===============================================================
-def _generate_pdf_report(analytic, db, report_type, filename_prefix, data, method,source:Optional[str] = None):
+def _generate_pdf_report(
+        analytic, db, report_type, filename_prefix, data, method,source:Optional[str] = None,
+        person_name:Optional[str] = None, device_id:Optional[int] = None,
+    ):
     if method == "deep_communication":
-        return _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data)
+        return _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name,device_id)
     elif method == "contact_correlation":
         return _generate_contact_correlation_report(analytic, db, report_type, filename_prefix, data)
     elif method == "apk_analytics":
@@ -548,7 +554,7 @@ def _build_summary_section(usable_width, summary_text):
 # ===============================================================
 # 🧩 Deep Communication Report Example
 # ===============================================================
-def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data):
+def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -569,6 +575,26 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         bottomMargin=50,
     )
 
+    # ======================================================
+    # 🔹 Ambil data chat real dari get_chat_detail()
+    # ======================================================
+    response = get_chat_detail(
+        analytic_id=analytic.id,
+        person_name=person_name,
+        platform=source,
+        device_id=device_id,
+        search=None,
+        db=db
+    )
+
+    try:
+        response_data = json.loads(response.body.decode("utf-8"))
+        chat_data = response_data.get("data", {})
+        chat_messages = chat_data.get("chat_messages", [])
+    except Exception as e:
+        print(f"⚠️ Gagal parse chat_detail: {e}")
+        chat_messages = []
+
     # === Styles ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
@@ -579,11 +605,15 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Example Metadata Table (masih contoh, bisa ganti data real nanti) ===
+    # === Example Metadata Table ===
+    sender_name = chat_messages[0]["sender"] if chat_messages else "Unknown"
+    receiver_name = chat_messages[0]["recipient"] if chat_messages else "Unknown"
+    total_messages = len(chat_messages)
+    platform_name = chat_data.get("platform", source or "Unknown")
+
     info_data = [
-        ["Period", ": 6 Feb 2025 - 8 Feb 2025", "Sender", ": +628134567890 (Briani Akbar)"],
-        ["Source", ": WhatsApp", "Receiver", ": +628134567890 (Mira)"],
-        ["Message", ": 64 Messages", "", ""],
+        ["Source", f": {platform_name}", "Sender", f": {sender_name}"],
+        ["Receiver", f": {receiver_name}", "Messages", f": {total_messages} total"],
     ]
     info_table = Table(info_data, colWidths=[60, (usable_width / 2 - 60), 60, (usable_width / 2 - 60)])
     info_table.setStyle(TableStyle([
@@ -596,20 +626,45 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # === Chat data contoh (array) ===
-    chat_records = [
-        {"time": "2025-02-06 20:12", "chat": "Brian: Aku gak bisa tidur mikirin itu lagi"},
-        {"time": "2025-02-06 20:12", "chat": "Brian: Kemarin siang aku dari parkiran belakang masuk ke toko... sembunyiin di jok motor belakang."},
-        {"time": "2025-02-07 09:01", "chat": "Mira: Jadi udah aman semua?"},
-        {"time": "2025-02-07 09:05", "chat": "Brian: Udah, tinggal nunggu kabar dari yang kemarin."},
-    ]
+    # ======================================================
+    # 🔹 Chat data dinamis dari get_chat_detail()
+    # ======================================================
+    from datetime import datetime
+    import dateutil.parser
+
+    chat_records = []
+    for msg in chat_messages:
+        # Gunakan timestamp lengkap + format jadi YYYY-MM-DD HH:MM
+        timestamp_raw = msg.get("timestamp")
+        time_display = msg.get("times") or ""
+
+        if timestamp_raw:
+            try:
+                dt = dateutil.parser.isoparse(timestamp_raw)
+                # Format tanggal + jam lokal
+                time_val = dt.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                # fallback jika parsing gagal
+                time_val = time_display or timestamp_raw
+        else:
+            time_val = time_display
+
+        sender = msg.get("sender", "Unknown")
+        text = msg.get("message_text", "")
+        chat_records.append({
+            "time": time_val,
+            "chat": f"{sender}: {text}"
+        })
 
     # === Header dan isi tabel chat ===
-    col_time = 100
+    col_time = 140  # diperlebar sedikit biar muat tanggal
     col_chat = usable_width - col_time
-    chat_data = [["Time", "Chat"]]  # header dulu
+    chat_data = [["Time", "Chat"]]
     for row in chat_records:
-        chat_data.append([Paragraph(row["time"], wrap_style), Paragraph(row["chat"], wrap_style)])
+        chat_data.append([
+            Paragraph(row["time"], wrap_style),
+            Paragraph(row["chat"], wrap_style)
+        ])
 
     # === Buat tabel chat ===
     chat_table = Table(chat_data, colWidths=[col_time, col_chat])
@@ -657,6 +712,7 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
 
 # ===============================================================
 # 3️⃣ APK Analytics Report

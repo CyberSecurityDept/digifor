@@ -406,12 +406,12 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
 @router.get("/analytics/get-files")
 def get_files(
     search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
-    filter: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
+    filter: Optional[str] = Query("All", description='Method filter: "Deep Communication Analytics", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
     db: Session = Depends(get_db)
 ):
     try:
         allowed_methods = {
-            "Deep Communication",
+            "Deep Communication Analytics",
             "Social Media Correlation",
             "Contact Correlation",
             "Hashfile Analytics",
