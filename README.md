@@ -11,7 +11,7 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 - **Evidence**: Track digital evidence with secure chain of custody and hash verification
 - **Suspect**: Manage suspect profiles and link them to cases and evidence
 
-**📊 Analytics**
+**Analytics**
 - **Contact Correlation**: Analyze and correlate contact information across multiple sources
 - **Hashfile Analytics**: Process and analyze hash files from various forensic tools
 - **Social Media Correlation**: Extract and correlate social media data and communications
@@ -146,7 +146,7 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
 
 
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+

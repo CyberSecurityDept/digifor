@@ -4,7 +4,7 @@ amqp==5.3.1
 annotated-doc==0.0.3
 annotated-types==0.7.0
 anyio==4.11.0
-bcrypt==4.1.2
+bcrypt==3.2.2
 billiard==4.2.2
 celery==5.5.3
 certifi==2025.10.5
