@@ -16,28 +16,19 @@ import os
 from collections import defaultdict
 
 def parse_date_string(date_str: str) -> datetime:
-    """
-    Parse date string with smart format detection.
-    Tries DD/MM/YYYY first, but if invalid (e.g., day > 31), falls back to MM/DD/YYYY.
-    """
-    # Try DD/MM/YYYY first (Indonesian format)
     try:
         parsed = datetime.strptime(date_str, "%d/%m/%Y")
-        # Validate: if day > 31, it's likely MM/DD/YYYY instead
         if parsed.day > 31:
-            # Try MM/DD/YYYY
             return datetime.strptime(date_str, "%m/%d/%Y")
         return parsed
     except ValueError:
         pass
     
-    # Try MM/DD/YYYY (US format)
     try:
         return datetime.strptime(date_str, "%m/%d/%Y")
     except ValueError:
         pass
     
-    # Try ISO format
     try:
         return datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
@@ -139,7 +130,7 @@ def create_analytic_with_devices(
             "data": []
         }
     
-@hashfile_router.get("/analytic/{analytsic_id}/hashfile-analytics")
+@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
 def get_hashfile_analytics(
     analytic_id: int,
     db: Session = Depends(get_db)
@@ -200,12 +191,8 @@ def get_hashfile_analytics(
                 HashFile.md5_hash,
                 HashFile.sha1_hash,
                 HashFile.path_original,
-                HashFile.kind,
                 HashFile.size_bytes,
                 HashFile.file_type,
-                HashFile.file_extension,
-                HashFile.is_suspicious,
-                HashFile.risk_level,
                 HashFile.source_tool,
                 HashFile.created_at_original,
                 HashFile.modified_at_original,
@@ -221,15 +208,20 @@ def get_hashfile_analytics(
                 status_code=200,
             )
 
+        print(f"[DEBUG] Found {len(hashfiles)} hashfiles for file_ids: {file_ids}")
+        print(f"[DEBUG] Devices: {[{'id': d.id, 'file_id': d.file_id, 'owner': d.owner_name} for d in devices]}")
 
         correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
 
         for hf in hashfiles:
             hash_value = hf.md5_hash or hf.sha1_hash
-            if not hash_value or not hf.file_name:
+            if not hash_value:
                 continue
 
-            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # unik per kombinasi hash+file_name
+            if not hf.file_name:
+                continue
+            
+            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # kombinasi hash + file_name
             device_id = file_to_device.get(hf.file_id)
             if not device_id:
                 continue
@@ -237,10 +229,16 @@ def get_hashfile_analytics(
             correlation_map[key]["records"].append(hf)
             correlation_map[key]["devices"].add(device_id)
 
+        print(f"[DEBUG] Total correlation keys: {len(correlation_map)}")
+        for key, data in list(correlation_map.items())[:5]:  # Print first 5
+            print(f"[DEBUG] Key: {key[:50]}..., Devices: {len(data['devices'])}, Records: {len(data['records'])}")
+
         correlated = {
             key: data for key, data in correlation_map.items()
             if len(data["devices"]) >= min_devices
         }
+        
+        print(f"[DEBUG] Correlated items (>= {min_devices} devices): {len(correlated)}")
 
         hashfile_list = []
         for key, info in correlated.items():
@@ -292,7 +290,7 @@ def get_hashfile_analytics(
         return JSONResponse(
             {
                 "status": 200,
-                "message": "Hashfile correlation (by hash + name) completed successfully",
+                "message": "Hashfile correlation completed successfully",
                 "data": {
                     "devices": devices_list,
                     "correlations": hashfile_list,
@@ -354,7 +352,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/contact-correlation to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -369,7 +367,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/hashfile-analytics to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -384,7 +382,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/deep-communication-analytics to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -399,7 +397,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/social-media-correlation to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
