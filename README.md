@@ -140,7 +140,7 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
   ```
 - **Database Initialization**: Use the provided script to set up the database
   ```bash
-  python tools/init_db.py
+  python tools/setup_postgres.py
   ```
 - **Backup**: Regular backups recommended for production environments
 
@@ -183,7 +183,7 @@ cp env.example .env
 # Edit .env file with your database credentials
 
 # 8. Initialize database
-python tools/init_db.py
+python tools/setup_postgres.py
 
 # 9. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -213,7 +213,7 @@ copy env.example .env
 # Edit .env file with your database credentials
 
 # 9. Initialize database
-python tools\init_db.py
+python tools\setup_postgres.py
 
 # 10. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -251,7 +251,7 @@ cp env.example .env
 # Edit .env file with your database credentials
 
 # 8. Initialize database
-python tools/init_db.py
+python tools/setup_postgres.py
 
 # 9. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
