@@ -317,4 +317,4 @@ Once the server is running, you can access:
 
 
 
-**Built with ❤️ for Digital Forensics **
+** Digital Forensics **
