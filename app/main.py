@@ -69,9 +69,6 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 app.add_middleware(AuthMiddleware)
 
-# ===========================================================
-# 🧩 Tambahkan BearerAuth ke dokumentasi Swagger
-# ===========================================================
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -83,7 +80,6 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # 🧠 Tambahkan definisi BearerAuth
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
             "type": "http",
@@ -93,10 +89,8 @@ def custom_openapi():
         }
     }
 
-    # 🧠 Set default semua endpoint pakai BearerAuth
     openapi_schema["security"] = [{"BearerAuth": []}]
 
-    # 🚫 Buat 3 endpoint public (tanpa gembok)
     public_paths = [
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
@@ -117,7 +111,7 @@ def custom_openapi():
     for path, path_item in openapi_schema["paths"].items():
         if any(path.startswith(pub) for pub in public_paths):
             for method in path_item.values():
-                method["security"] = []  # hapus security dari endpoint public
+                method["security"] = []
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
