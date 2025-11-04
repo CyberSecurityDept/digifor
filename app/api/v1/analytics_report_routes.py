@@ -43,19 +43,19 @@ def export_analytics_pdf(
             )
 
         # INI DI KOMEN SEMENTARA BUAT TESTING EXPORT PDF 
-        # device_links = db.query(AnalyticDevice).filter(
-        #     AnalyticDevice.analytic_id == analytic_id
-        # ).order_by(AnalyticDevice.id).all()
+        device_links = db.query(AnalyticDevice).filter(
+            AnalyticDevice.analytic_id == analytic_id
+        ).order_by(AnalyticDevice.id).all()
 
-        # device_ids = []
-        # for link in device_links:
-        #     device_ids.extend(link.device_ids)
-        # device_ids = list(set(device_ids))
-        # if not device_ids:
-        #     return JSONResponse(
-        #         content={"status": 400, "message": "No devices linked to this analytic", "data": None},
-        #         status_code=400,
-        #     )
+        device_ids = []
+        for link in device_links:
+            device_ids.extend(link.device_ids)
+        device_ids = list(set(device_ids))
+        if not device_ids:
+            return JSONResponse(
+                content={"status": 400, "message": "No devices linked to this analytic", "data": None},
+                status_code=400,
+            )
 
         method = analytic.method
         if "Contact" in method or "contact" in method.lower():
@@ -1167,10 +1167,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         data = {}
 
     devices = data.get("devices", [])
-    hashfiles = data.get("hashfiles", [])
-
-    if not devices or not hashfiles:
-        raise ValueError("No data found for Hashfile Analytics")
+    hashfiles = data.get("correlations") or []
 
     # === Bagi device jadi beberapa group (misal per 4 kolom) ===
     group_size = 4
