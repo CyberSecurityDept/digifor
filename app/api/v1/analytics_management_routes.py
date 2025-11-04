@@ -11,9 +11,39 @@ from typing import List, Optional
 from pydantic import BaseModel
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
-from datetime import datetime
-from datetime import datetime 
+from datetime import datetime, date, time
 import os
+from collections import defaultdict
+
+def parse_date_string(date_str: str) -> datetime:
+    """
+    Parse date string with smart format detection.
+    Tries DD/MM/YYYY first, but if invalid (e.g., day > 31), falls back to MM/DD/YYYY.
+    """
+    # Try DD/MM/YYYY first (Indonesian format)
+    try:
+        parsed = datetime.strptime(date_str, "%d/%m/%Y")
+        # Validate: if day > 31, it's likely MM/DD/YYYY instead
+        if parsed.day > 31:
+            # Try MM/DD/YYYY
+            return datetime.strptime(date_str, "%m/%d/%Y")
+        return parsed
+    except ValueError:
+        pass
+    
+    # Try MM/DD/YYYY (US format)
+    try:
+        return datetime.strptime(date_str, "%m/%d/%Y")
+    except ValueError:
+        pass
+    
+    # Try ISO format
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        pass
+    
+    raise ValueError(f"Invalid date format: {date_str}. Supported formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD")
 
 class SummaryRequest(BaseModel):
     summary: str
@@ -117,9 +147,6 @@ def get_hashfile_analytics(
     try:
         min_devices = 2
 
-        # ==============================================
-        # 1️⃣ Validasi Analytic
-        # ==============================================
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -136,9 +163,6 @@ def get_hashfile_analytics(
                 status_code=400,
             )
 
-        # ==============================================
-        # 2️⃣ Ambil semua device terkait analytic
-        # ==============================================
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
@@ -157,7 +181,6 @@ def get_hashfile_analytics(
                 status_code=404,
             )
 
-        # Buat label (Device A, B, C, ...)
         device_labels = []
         for i in range(len(devices)):
             if i < 26:
@@ -198,7 +221,6 @@ def get_hashfile_analytics(
                 status_code=200,
             )
 
-        from collections import defaultdict
 
         correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
 
@@ -397,8 +419,10 @@ def start_data_extraction(
 
 @router.get("/analytics/get-all-analytic")
 def get_all_analytic(
-    search: Optional[str] = Query(None, description="Search by analytics name or notes (summary)"),
+    search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
     method: Optional[str] = Query(None, description="Filter by method"),
+    date_from: Optional[str] = Query(None, description="Filter from date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter to date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -409,12 +433,66 @@ def get_all_analytic(
             query = query.filter(
                 or_(
                     Analytic.analytic_name.ilike(search_pattern),
+                    Analytic.method.ilike(search_pattern),
                     Analytic.summary.ilike(search_pattern)
                 )
             )
 
         if method:
             query = query.filter(Analytic.method == method)
+
+        if date_from or date_to:
+            date_from_parsed = None
+            date_to_parsed = None
+            
+            if date_from and date_to:
+                try:
+                    date_from_parsed = datetime.strptime(date_from, "%m/%d/%Y")
+                    date_to_parsed = datetime.strptime(date_to, "%m/%d/%Y")
+                    if date_from_parsed > date_to_parsed:
+                        raise ValueError("Date range invalid")
+                except ValueError:
+                    try:
+                        date_from_parsed = datetime.strptime(date_from, "%d/%m/%Y")
+                        date_to_parsed = datetime.strptime(date_to, "%d/%m/%Y")
+                        if date_from_parsed > date_to_parsed:
+                            raise ValueError("Date range invalid")
+                    except ValueError:
+                        pass
+            
+            if date_from and not date_from_parsed:
+                try:
+                    date_from_parsed = parse_date_string(date_from)
+                except ValueError as e:
+                    return JSONResponse(
+                        content={
+                            "status": 400,
+                            "message": f"Invalid date_from: {str(e)}",
+                            "data": []
+                        },
+                        status_code=400
+                    )
+            
+            if date_to and not date_to_parsed:
+                try:
+                    date_to_parsed = parse_date_string(date_to)
+                except ValueError as e:
+                    return JSONResponse(
+                        content={
+                            "status": 400,
+                            "message": f"Invalid date_to: {str(e)}",
+                            "data": []
+                        },
+                        status_code=400
+                    )
+            
+            if date_from_parsed:
+                date_from_datetime = datetime.combine(date_from_parsed.date(), datetime.min.time())
+                query = query.filter(Analytic.created_at >= date_from_datetime)
+            
+            if date_to_parsed:
+                date_to_datetime = datetime.combine(date_to_parsed.date(), time(23, 59, 59, 999999))
+                query = query.filter(Analytic.created_at <= date_to_datetime)
 
         analytics = query.order_by(Analytic.created_at.desc()).all()
 
