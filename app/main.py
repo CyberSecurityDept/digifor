@@ -96,8 +96,9 @@ def custom_openapi():
     # 🧠 Set default semua endpoint pakai BearerAuth
     openapi_schema["security"] = [{"BearerAuth": []}]
 
-    # 🚫 Buat 3 endpoint public (tanpa gembok)
+    # 🚫 Buat endpoint public (tanpa gembok)
     public_paths = [
+        "/",
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
         "/api/v1/dashboard/landing",

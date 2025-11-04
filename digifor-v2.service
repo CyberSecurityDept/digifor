@@ -1,0 +1,29 @@
+[Unit]
+Description=Digital Forensics Analysis Platform API Service
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=digifor
+Group=digifor
+WorkingDirectory=/home/digifor/digifor-v2
+Environment="PATH=/home/digifor/digifor-v2/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/digifor/digifor-v2/.env
+ExecStart=/bin/bash /home/digifor/digifor-v2/start-service.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=digifor-v2
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits (adjust as needed)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
