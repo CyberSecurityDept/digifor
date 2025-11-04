@@ -6,7 +6,6 @@ import requests
 import json
 import time
 
-# API Base URL
 BASE_URL = "http://localhost:8000"
 
 def get_auth_token():
@@ -65,7 +64,7 @@ def create_test_case():
 
 def test_generate_comprehensive_report(case_id):
     """Test generate comprehensive report"""
-    print("📄 Testing comprehensive report generation...")
+    print(" Testing comprehensive report generation...")
     
     token = get_auth_token()
     if not token:
@@ -81,7 +80,7 @@ def test_generate_comprehensive_report(case_id):
         
         if response.status_code == 200:
             report_data = response.json()
-            print("✅ Comprehensive report generated successfully")
+            print(" Comprehensive report generated successfully")
             print(f"   Filename: {report_data['filename']}")
             print(f"   Report type: {report_data['report_type']}")
             return True
@@ -95,7 +94,7 @@ def test_generate_comprehensive_report(case_id):
 
 def test_generate_summary_report(case_id):
     """Test generate summary report"""
-    print("\n📋 Testing summary report generation...")
+    print("\n Testing summary report generation...")
     
     token = get_auth_token()
     if not token:
@@ -111,7 +110,7 @@ def test_generate_summary_report(case_id):
         
         if response.status_code == 200:
             report_data = response.json()
-            print("✅ Summary report generated successfully")
+            print(" Summary report generated successfully")
             print(f"   Filename: {report_data['filename']}")
             print(f"   Report type: {report_data['report_type']}")
             return True
@@ -124,7 +123,7 @@ def test_generate_summary_report(case_id):
 
 def test_generate_evidence_report(case_id):
     """Test generate evidence report"""
-    print("\n📁 Testing evidence report generation...")
+    print("\n Testing evidence report generation...")
     
     token = get_auth_token()
     if not token:
@@ -140,7 +139,7 @@ def test_generate_evidence_report(case_id):
         
         if response.status_code == 200:
             report_data = response.json()
-            print("✅ Evidence report generated successfully")
+            print(" Evidence report generated successfully")
             print(f"   Filename: {report_data['filename']}")
             print(f"   Report type: {report_data['report_type']}")
             return True
@@ -153,7 +152,7 @@ def test_generate_evidence_report(case_id):
 
 def test_generate_analysis_report(case_id):
     """Test generate analysis report"""
-    print("\n🔬 Testing analysis report generation...")
+    print("\n Testing analysis report generation...")
     
     token = get_auth_token()
     if not token:
@@ -169,7 +168,7 @@ def test_generate_analysis_report(case_id):
         
         if response.status_code == 200:
             report_data = response.json()
-            print("✅ Analysis report generated successfully")
+            print(" Analysis report generated successfully")
             print(f"   Filename: {report_data['filename']}")
             print(f"   Report type: {report_data['report_type']}")
             return True
@@ -182,7 +181,7 @@ def test_generate_analysis_report(case_id):
 
 def test_list_reports(case_id):
     """Test list reports for case"""
-    print(f"\n📋 Testing list reports for case {case_id}...")
+    print(f"\n Testing list reports for case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -198,7 +197,7 @@ def test_list_reports(case_id):
         
         if response.status_code == 200:
             reports = response.json()
-            print("✅ List reports successful")
+            print(" List reports successful")
             print(f"   Total reports: {reports['total_reports']}")
             
             for report in reports['reports']:
@@ -214,7 +213,7 @@ def test_list_reports(case_id):
 
 def test_get_report(case_id, filename):
     """Test get specific report"""
-    print(f"\n📖 Testing get report {filename}...")
+    print(f"\n Testing get report {filename}...")
     
     token = get_auth_token()
     if not token:
@@ -230,7 +229,7 @@ def test_get_report(case_id, filename):
         
         if response.status_code == 200:
             report_data = response.json()
-            print("✅ Get report successful")
+            print(" Get report successful")
             print(f"   Report type: {report_data.get('report_type', 'unknown')}")
             print(f"   Title: {report_data.get('title', 'No title')}")
             return True
@@ -243,7 +242,7 @@ def test_get_report(case_id, filename):
 
 def test_delete_report(case_id, filename):
     """Test delete specific report"""
-    print(f"\n🗑️ Testing delete report {filename}...")
+    print(f"\n Testing delete report {filename}...")
     
     token = get_auth_token()
     if not token:
@@ -258,7 +257,7 @@ def test_delete_report(case_id, filename):
         )
         
         if response.status_code == 200:
-            print("✅ Delete report successful")
+            print(" Delete report successful")
             return True
         else:
             print(f" Delete report failed: {response.status_code}")
@@ -268,7 +267,7 @@ def test_delete_report(case_id, filename):
         return False
 
 def test_report_stats():
-    print("\n📊 Testing report statistics...")
+    print("\n Testing report statistics...")
     
     token = get_auth_token()
     if not token:
@@ -284,7 +283,7 @@ def test_report_stats():
         
         if response.status_code == 200:
             stats = response.json()
-            print("✅ Get report stats successful")
+            print(" Get report stats successful")
             print(f"   Total reports: {stats['total_reports']}")
             print(f"   Total size: {stats['total_size']} bytes")
             print(f"   By type: {stats['by_type']}")
@@ -298,16 +297,15 @@ def test_report_stats():
 
 def main():
     """Main report generation test function"""
-    print("📄 Starting Report Generation Tests...")
+    print(" Starting Report Generation Tests...")
     print("=" * 50)
     
-    # Create test case
     case_id = create_test_case()
     if not case_id:
         print(" Cannot proceed without test case")
         return
     
-    print(f"📁 Test case ID: {case_id}")
+    print(f" Test case ID: {case_id}")
      
     test_generate_comprehensive_report(case_id)
     test_generate_summary_report(case_id)
@@ -320,12 +318,11 @@ def main():
         test_get_report(case_id, reports[0]['filename'])
         
     
-    # Test report statistics
     test_report_stats()
     
     print("\n" + "=" * 50)
-    print("🎯 Report Generation Tests completed!")
-    print(f"📁 Test case ID: {case_id}")
+    print(" Report Generation Tests completed!")
+    print(f" Test case ID: {case_id}")
 
 if __name__ == "__main__":
     main()

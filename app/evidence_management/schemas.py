@@ -158,7 +158,6 @@ class CustodyChainResponse(BaseModel):
     last_event: Optional[CustodyLog]
 
 
-# Custody Report Schemas
 
 class CustodyReportBase(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")

@@ -10,7 +10,6 @@ from app.case_management.schemas import (
 
 router = APIRouter(prefix="/case-notes", tags=["Case Note Management"])
 
-
 @router.post("/create-note", response_model=CaseNoteResponse)
 async def create_note(
     note_data: CaseNoteCreate,
@@ -28,7 +27,6 @@ async def create_note(
             status_code=500,
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.get("/case/{case_id}/notes", response_model=CaseNoteListResponse)
 async def get_case_notes(
@@ -55,7 +53,6 @@ async def get_case_notes(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.put("/update-note/{note_id}", response_model=CaseNoteResponse)
 async def update_note(
     note_id: int,
@@ -80,7 +77,6 @@ async def update_note(
                 status_code=500,
                 detail="Unexpected server error, please try again later"
             )
-
 
 @router.delete("/delete-note/{note_id}")
 async def delete_note(

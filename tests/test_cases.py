@@ -6,7 +6,6 @@ import requests
 import json
 import time
 
-# API Base URL
 BASE_URL = "http://localhost:8000"
 
 def get_auth_token():
@@ -32,7 +31,7 @@ def get_auth_token():
 
 def test_create_case():
     """Test case creation"""
-    print("📁 Testing case creation...")
+    print(" Testing case creation...")
     
     token = get_auth_token()
     if not token:
@@ -61,7 +60,7 @@ def test_create_case():
         
         if response.status_code == 200:
             case = response.json()
-            print("✅ Case created successfully")
+            print("Case created successfully")
             print(f"   Case ID: {case['id']}")
             print(f"   Case Number: {case['case_number']}")
             print(f"   Title: {case['title']}")
@@ -76,7 +75,7 @@ def test_create_case():
 
 def test_get_case(case_id):
     """Test get case by ID"""
-    print(f"\n🔍 Testing get case {case_id}...")
+    print(f"\n Testing get case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -92,7 +91,7 @@ def test_get_case(case_id):
         
         if response.status_code == 200:
             case = response.json()
-            print("✅ Get case successful")
+            print("Get case successful")
             print(f"   Case Number: {case['case_number']}")
             print(f"   Status: {case['status']}")
             return True
@@ -105,7 +104,7 @@ def test_get_case(case_id):
 
 def test_list_cases():
     """Test list cases"""
-    print("\n📋 Testing list cases...")
+    print("\n Testing list cases...")
     
     token = get_auth_token()
     if not token:
@@ -121,7 +120,7 @@ def test_list_cases():
         
         if response.status_code == 200:
             cases = response.json()
-            print("✅ List cases successful")
+            print("List cases successful")
             print(f"   Total cases: {len(cases)}")
             return True
         else:
@@ -133,7 +132,7 @@ def test_list_cases():
 
 def test_update_case(case_id):
     """Test update case"""
-    print(f"\n✏️ Testing update case {case_id}...")
+    print(f"\n Testing update case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -156,7 +155,7 @@ def test_update_case(case_id):
         
         if response.status_code == 200:
             case = response.json()
-            print("✅ Update case successful")
+            print("Update case successful")
             print(f"   New status: {case['status']}")
             print(f"   New priority: {case['priority']}")
             return True
@@ -169,7 +168,7 @@ def test_update_case(case_id):
 
 def test_add_person(case_id):
     """Test add person to case"""
-    print(f"\n👤 Testing add person to case {case_id}...")
+    print(f"\n Testing add person to case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -195,7 +194,7 @@ def test_add_person(case_id):
         
         if response.status_code == 200:
             person = response.json()
-            print("✅ Add person successful")
+            print("Add person successful")
             print(f"   Person ID: {person['id']}")
             print(f"   Name: {person['full_name']}")
             print(f"   Type: {person['person_type']}")
@@ -209,7 +208,7 @@ def test_add_person(case_id):
 
 def test_get_case_persons(case_id):
     """Test get case persons"""
-    print(f"\n👥 Testing get case persons for case {case_id}...")
+    print(f"\n Testing get case persons for case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -225,7 +224,7 @@ def test_get_case_persons(case_id):
         
         if response.status_code == 200:
             persons = response.json()
-            print("✅ Get case persons successful")
+            print("Get case persons successful")
             print(f"   Total persons: {len(persons)}")
             return True
         else:
@@ -237,7 +236,7 @@ def test_get_case_persons(case_id):
 
 def test_get_case_stats(case_id):
     """Test get case statistics"""
-    print(f"\n📊 Testing get case stats for case {case_id}...")
+    print(f"\nTesting get case stats for case {case_id}...")
     
     token = get_auth_token()
     if not token:
@@ -253,7 +252,7 @@ def test_get_case_stats(case_id):
         
         if response.status_code == 200:
             stats = response.json()
-            print("✅ Get case stats successful")
+            print("Get case stats successful")
             print(f"   Evidence count: {stats['evidence_count']}")
             print(f"   Analysis count: {stats['analysis_count']}")
             print(f"   Analysis progress: {stats['analysis_progress']}%")
@@ -267,7 +266,7 @@ def test_get_case_stats(case_id):
 
 def test_case_filters():
     """Test case filtering"""
-    print("\n🔍 Testing case filters...")
+    print("\nTesting case filters...")
     
     token = get_auth_token()
     if not token:
@@ -275,7 +274,6 @@ def test_case_filters():
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Test status filter
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/?status=in_progress",
@@ -284,14 +282,13 @@ def test_case_filters():
         
         if response.status_code == 200:
             cases = response.json()
-            print("✅ Status filter successful")
+            print("Status filter successful")
             print(f"   Cases with 'in_progress' status: {len(cases)}")
         else:
             print(f" Status filter failed: {response.status_code}")
     except Exception as e:
         print(f" Status filter error: {e}")
     
-    # Test priority filter
     try:
         response = requests.get(
             f"{BASE_URL}/api/v1/cases/?priority=high",
@@ -300,7 +297,7 @@ def test_case_filters():
         
         if response.status_code == 200:
             cases = response.json()
-            print("✅ Priority filter successful")
+            print("Priority filter successful")
             print(f"   Cases with 'high' priority: {len(cases)}")
         else:
             print(f" Priority filter failed: {response.status_code}")
@@ -311,41 +308,33 @@ def test_case_filters():
 
 def main():
     """Main case management test function"""
-    print("📁 Starting Case Management Tests...")
+    print(" Starting Case Management Tests...")
     print("=" * 50)
     
-    # Test create case
     case_id = test_create_case()
     if not case_id:
         print(" Cannot proceed without case ID")
         return
     
-    # Test get case
     test_get_case(case_id)
     
-    # Test list cases
     test_list_cases()
     
-    # Test update case
     test_update_case(case_id)
     
-    # Test add person
     person_id = test_add_person(case_id)
     
-    # Test get case persons
     test_get_case_persons(case_id)
     
-    # Test get case stats
     test_get_case_stats(case_id)
     
-    # Test case filters
     test_case_filters()
     
     print("\n" + "=" * 50)
-    print("🎯 Case Management Tests completed!")
-    print(f"📁 Test case ID: {case_id}")
+    print(" Case Management Tests completed!")
+    print(f" Test case ID: {case_id}")
     if person_id:
-        print(f"👤 Test person ID: {person_id}")
+        print(f" Test person ID: {person_id}")
 
 if __name__ == "__main__":
     main()

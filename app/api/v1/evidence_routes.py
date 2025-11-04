@@ -11,13 +11,11 @@ from app.evidence_management.schemas import (
     CustodyReportCreate, CustodyReportResponse, CustodyReportListResponse
 )
 from app.evidence_management.models import Evidence, CustodyLog
-from app.case_management.models import CaseLog
+from app.case_management.models import CaseLog, Case
 
-# WIB timezone (UTC+7)
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
 
 router = APIRouter(prefix="/evidence", tags=["Evidence Management"])
@@ -48,26 +46,21 @@ async def create_evidence(
     db: Session = Depends(get_database)
 ):
     try:
-        # For now, we'll simulate evidence creation and auto-create case log
-        # In a real implementation, you would create the Evidence record here
-        
         case_id = evidence_data.get('case_id')
-        evidence_id = evidence_data.get('evidence_id', '32342223')  # Default evidence ID
+        evidence_id = evidence_data.get('evidence_id', '32342223')
         
         if case_id:
-            # Auto-create case log for adding evidence
             try:
-                from app.case_management.models import Case
                 case = db.query(Case).filter(Case.id == case_id).first()
                 current_status = case.status if case else "Open"
                 
                 case_log = CaseLog(
                     case_id=case_id,
                     action="Edit",
-                    changed_by="Wisnu",  # Default user for now
+                    changed_by="Wisnu",
                     change_detail=f"Adding Evidence: {evidence_id}",
                     notes="",
-                    status=current_status  # Use current case status
+                    status=current_status
                 )
                 db.add(case_log)
                 db.commit()
@@ -96,7 +89,6 @@ async def get_evidence(
         "message": "Evidence retrieved successfully",
         "data": {"id": evidence_id}
     }
-
 
 @router.post("/{evidence_id}/custody-events")
 async def log_custody_event(

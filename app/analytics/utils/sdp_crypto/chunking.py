@@ -1,10 +1,17 @@
+<<<<<<< HEAD
 # chunking.py
+=======
+>>>>>>> analytics-fix
 import hashlib
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import os
 
 class ChunkProcessor:
+<<<<<<< HEAD
     def __init__(self, chunk_size=10 * 1024 * 1024):  # 10MB default
+=======
+    def __init__(self, chunk_size=10 * 1024 * 1024):
+>>>>>>> analytics-fix
         self.chunk_size = chunk_size
         self.sha256_hash = hashlib.sha256()
     
@@ -20,6 +27,7 @@ class ChunkProcessor:
                 if not chunk_data:
                     break
                 
+<<<<<<< HEAD
                 # Update hash file asli
                 self.sha256_hash.update(chunk_data)
                 
@@ -27,6 +35,12 @@ class ChunkProcessor:
                 nonce = self._generate_chunk_nonce(base_nonce, chunk_index)
                 
                 # Encrypt chunk dengan AES-GCM
+=======
+                self.sha256_hash.update(chunk_data)
+                
+                nonce = self._generate_chunk_nonce(base_nonce, chunk_index)
+                
+>>>>>>> analytics-fix
                 encrypted_chunk = aesgcm.encrypt(nonce, chunk_data, None)
                 
                 yield encrypted_chunk
@@ -35,11 +49,18 @@ class ChunkProcessor:
     def process_decrypt_chunks(self, file_path, aes_key, base_nonce, total_chunks):
         """Decrypt file per chunk dan update hash"""
         aesgcm = AESGCM(aes_key)
+<<<<<<< HEAD
         self.sha256_hash = hashlib.sha256()  # Reset untuk verification
         
         with open(file_path, 'rb') as f:
             for chunk_index in range(total_chunks):
                 # Read chunk size (4 bytes) + encrypted data
+=======
+        self.sha256_hash = hashlib.sha256()
+        
+        with open(file_path, 'rb') as f:
+            for chunk_index in range(total_chunks):
+>>>>>>> analytics-fix
                 size_bytes = f.read(4)
                 if not size_bytes or len(size_bytes) != 4:
                     raise ValueError("Invalid chunk size")
@@ -50,23 +71,35 @@ class ChunkProcessor:
                 if len(encrypted_chunk) != chunk_size:
                     raise ValueError("Incomplete chunk data")
                 
+<<<<<<< HEAD
                 # Generate unique nonce
                 nonce = self._generate_chunk_nonce(base_nonce, chunk_index)
                 
                 try:
                     # Decrypt chunk
+=======
+                nonce = self._generate_chunk_nonce(base_nonce, chunk_index)
+                
+                try:
+>>>>>>> analytics-fix
                     decrypted_chunk = aesgcm.decrypt(nonce, encrypted_chunk, None)
                 except Exception as e:
                     raise ValueError(f"Decryption failed for chunk {chunk_index}: {str(e)}")
                 
+<<<<<<< HEAD
                 # Update hash untuk integrity check
+=======
+>>>>>>> analytics-fix
                 self.sha256_hash.update(decrypted_chunk)
                 
                 yield decrypted_chunk
     
     def _generate_chunk_nonce(self, base_nonce, chunk_index):
         """Generate unique nonce untuk setiap chunk"""
+<<<<<<< HEAD
         # Nonce = base_nonce (8 bytes) + chunk_index (4 bytes)
+=======
+>>>>>>> analytics-fix
         index_bytes = chunk_index.to_bytes(4, 'big')
         return base_nonce + index_bytes
     

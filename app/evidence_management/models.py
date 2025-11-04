@@ -35,7 +35,6 @@ class Evidence(Base):
 
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     
-    # Physical properties
     weight = Column(Float)
     dimensions = Column(String(100))
     color = Column(String(50))

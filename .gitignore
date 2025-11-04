@@ -49,6 +49,7 @@ logs/
 data/uploads/*
 data/analysis/*
 data/reports/*
+data/apks/apk/*
 !data/uploads/.gitkeep
 !data/analysis/.gitkeep
 !data/reports/.gitkeep
@@ -211,9 +212,17 @@ keys/
 *.ed25519
 *.ecdsa
 
-# Application specific
 uploads/
 analysis/
 reports/
 temp/
 tmp/
+
+
+sample_dataset/
+sample_hashfile
+sample_file# Sample files (too large for GitHub)
+sample_file/
+sample_data/
+sample_social_mediaa/
+sample_file_encryptor/
