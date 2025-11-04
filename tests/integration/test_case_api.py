@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 class TestCaseAPI:
     def test_create_case(self, client: TestClient, sample_case_data: dict):
-        """Test case creation API"""
         response = client.post("/api/v1/cases/", json=sample_case_data)
         assert response.status_code == 201
         
