@@ -1,7 +1,7 @@
 import re
 import pandas as pd
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
 import logging
@@ -161,8 +161,10 @@ class ChatMessagesParserExtended:
                     "file_id": msg.get("file_id"),
                     "platform": msg.get("platform", "Unknown"),
                     "message_text": msg.get("message_text"),
-                    "from_name": msg.get("sender"),
-                    "to_name": msg.get("receiver"),
+                    "from_name": (msg.get("sender") or "").strip() or "Unknown",
+                    "sender_number": (msg.get("sender_number") or "").strip() or None,
+                    "to_name": (msg.get("receiver") or "").strip() or "Unknown",
+                    "recipient_number": (msg.get("recipient_number") or "").strip() or None,
                     "timestamp": msg.get("timestamp"),
                     "thread_id": msg.get("thread_id"),
                     "message_id": msg.get("thread_id"),  # re-use Identifier
@@ -172,7 +174,6 @@ class ChatMessagesParserExtended:
                     "sheet_name": "Chats",
                 }
 
-                # 🧩 Prevent duplicates
                 existing = (
                     self.db.query(ChatMessage)
                     .filter(
@@ -202,7 +203,6 @@ class ChatMessagesParserExtended:
         return results
 
     def _parse_cellebrite_chats_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse Cellebrite 'Chats' sheet ke ChatMessage-compatible format (One On One)."""
         results: List[Dict[str, Any]] = []
 
         try:
@@ -219,37 +219,30 @@ class ChatMessagesParserExtended:
                 "no_sender_or_text": 0,
                 "no_source_type": 0,
                 "header_row": 0,
+                "unsupported_platform": 0,
             }
+
+            allowed_platforms = ["whatsapp", "telegram", "instagram", "facebook", "tiktok", "x", "twitter", "x (twitter)"]
 
             for idx, row in df.iterrows():
                 try:
-                    # --- Skip header rows ---
                     first_col = self._clean(row.get(df.columns[0], "")) or ""
                     if first_col.lower() in ["#", "identifier", "record", "chat #", "name", "platform"]:
                         skip_reasons["header_row"] += 1
                         continue
 
-                    # --- Hanya ambil Chat Type "One On One"
-                    chat_type = (row.get("Chat Type") or "").strip()
-                    # if chat_type and chat_type != "One On One":
-                    #     skip_reasons["not_one_on_one"] += 1
-                    #     continue
-
-                    # --- Ambil Participants ---
                     participants_raw = str(row.get("Participants") or "")
                     participants_raw = re.sub(r"_x0{0,2}(0d|0a)_", "\n", participants_raw, flags=re.IGNORECASE)
                     participants_raw = participants_raw.replace("\r", "\n").replace("\xa0", " ")
                     participants_lines = [self._clean(p) for p in participants_raw.split("\n") if p and p.strip()]
 
                     owner_full, non_owner_full = None, None
-
                     for p in participants_lines:
                         if "(owner)" in (p or "").lower():
                             owner_full = p.replace("(owner)", "").strip()
                         else:
                             non_owner_full = p.strip()
 
-                    # --- Fallback default jika cuma 1 peserta ---
                     if not owner_full and participants_lines:
                         owner_full = participants_lines[0]
                     if not non_owner_full and len(participants_lines) > 1:
@@ -257,17 +250,14 @@ class ChatMessagesParserExtended:
                     if not non_owner_full:
                         non_owner_full = "Unknown"
 
-                    # --- Ambil From ---
                     from_field = (row.get("From") or "").strip()
                     sender = from_field or owner_full or "Unknown"
 
-                    # --- System Message special case ---
                     if "system message" in from_field.lower():
                         direction = "Incoming"
                         sender = "System Message"
                         receiver = owner_full or "Unknown"
                     else:
-                        # --- Tentukan direction berdasarkan ownership ---
                         direction = "Incoming"
                         if owner_full and from_field:
                             if owner_full.split(" ")[0] in from_field or owner_full.lower() in from_field.lower():
@@ -275,10 +265,15 @@ class ChatMessagesParserExtended:
                             else:
                                 direction = "Incoming"
 
-                    # --- Tentukan receiver full identity ---
                     receiver = non_owner_full if direction == "Outgoing" else owner_full
 
-                    # --- Timestamp ---
+                    # --- Pisahkan nomor & nama (NEW HANDLING)
+                    sender_number, from_name = self._split_name_number(sender)
+                    recipient_number, to_name = self._split_name_number(receiver)
+
+                    from_name = self._safe_clean_name(from_name)
+                    to_name = self._safe_clean_name(to_name)
+
                     timestamp_clean = self._parse_timestamp(row.get("Timestamp: Time"))
                     if not timestamp_clean:
                         skip_reasons["no_timestamp"] += 1
@@ -289,6 +284,12 @@ class ChatMessagesParserExtended:
                     platform = self._clean(row.get("Platform"))
                     if not source or not platform:
                         skip_reasons["no_source_type"] += 1
+                        skipped_count += 1
+                        continue
+
+                    platform_text = f"{source} {platform}".lower()
+                    if not any(p in platform_text for p in allowed_platforms):
+                        skip_reasons["unsupported_platform"] += 1
                         skipped_count += 1
                         continue
 
@@ -303,12 +304,14 @@ class ChatMessagesParserExtended:
                     entry = {
                         "file_id": file_id,
                         "direction": direction,
-                        "platform": source,           # e.g. WhatsApp
-                        "type": platform,             # e.g. ChatApp
+                        "platform": source,
+                        "type": platform,
                         "timestamp": timestamp_clean,
                         "message_text": body,
-                        "sender": sender or "Unknown",
-                        "receiver": receiver or "Unknown",
+                        "sender": from_name or "Unknown",
+                        "receiver": to_name or "Unknown",
+                        "sender_number": sender_number,
+                        "recipient_number": recipient_number,
                         "details": None,
                         "thread_id": thread_id,
                     }
@@ -316,9 +319,8 @@ class ChatMessagesParserExtended:
                     results.append(entry)
                     processed_count += 1
 
-                    # --- Debug sample ---
                     if processed_count <= 3:
-                        logger.debug(f"[ROW {idx}] ✅ {direction} | {sender} → {receiver} | {body[:60]}...")
+                        logger.debug(f"[ROW {idx}] ✅ {direction} | {from_name} ({sender_number}) → {to_name} ({recipient_number}) | {body[:60]}...")
 
                 except Exception as e:
                     skipped_count += 1
@@ -334,6 +336,52 @@ class ChatMessagesParserExtended:
 
         return results
 
+
+    def _safe_clean_name(self, text: Optional[str]) -> str:
+        """Bersihkan semua karakter whitespace aneh, kalau kosong jadikan 'Unknown'."""
+        if not text:
+            return "Unknown"
+
+        cleaned = str(text)
+        cleaned = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', cleaned)
+        cleaned = cleaned.strip()
+
+        return cleaned if cleaned else "Unknown"
+
+
+    def _split_name_number(self, raw_value: str) -> Tuple[Optional[str], str]:
+        """Pisahkan nomor dan nama dari field seperti:
+        - '6285176996014@s.whatsapp.net Hikari'
+        - 'recipient_number RikoSuloyo69 Riko Suloyo' (khusus: ambil depan saja)
+        """
+        if not raw_value or not str(raw_value).strip():
+            return None, "Unknown"
+
+        val = str(raw_value).strip()
+
+        # Hapus karakter whitespace dan domain seperti @s.whatsapp.net
+        val = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', val)
+        val = re.sub(r'@[\w\.-]+', '', val).strip()
+
+        parts = val.split(" ", 1)
+
+        # ✅ Case 1: Nomor valid di depan
+        if len(parts) == 2:
+            number_candidate, name_part = parts[0].strip(), parts[1].strip()
+
+            if re.match(r'^\+?\d+$', number_candidate):
+                return number_candidate, self._safe_clean_name(name_part)
+            else:
+                # ✅ Case 2: bukan nomor → ambil bagian depan saja
+                sub_parts = val.split(" ")
+                if len(sub_parts) >= 2:
+                    possible_username = sub_parts[0].strip()
+                    return None, self._safe_clean_name(possible_username)
+
+        # ✅ Case 3: cuma satu kata
+        return None, self._safe_clean_name(val)
+
+    
     def _clean(self, value: Any) -> Optional[str]:
         """Membersihkan karakter escape, newline, dan karakter kontrol Excel."""
         if value is None or str(value).strip().lower() in ["", "nan", "none"]:
