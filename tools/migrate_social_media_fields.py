@@ -48,15 +48,15 @@ def migrate_social_media_fields():
                 result = db.execute(check_query).fetchone()
                 
                 if result:
-                    print(f"✅ Column '{field_name}' already exists")
+                    print(f"Column '{field_name}' already exists")
                 else:
                     alter_query = text(f"ALTER TABLE social_media ADD COLUMN {field_name} {field_type}")
                     db.execute(alter_query)
                     db.commit()
-                    print(f"✅ Added column '{field_name}' ({field_type})")
+                    print(f"Added column '{field_name}' ({field_type})")
                     
             except Exception as e:
-                print(f"❌ Error adding column '{field_name}': {e}")
+                print(f"Error adding column '{field_name}': {e}")
                 db.rollback()
         
         print()
@@ -75,7 +75,7 @@ def migrate_social_media_fields():
             print(f"  {row[0]}: {row[1]} ({'NULL' if row[2] == 'YES' else 'NOT NULL'})")
             
     except Exception as e:
-        print(f"❌ Migration failed: {e}")
+        print(f"Migration failed: {e}")
         db.rollback()
     finally:
         db.close()

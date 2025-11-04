@@ -29,7 +29,7 @@ def run_migration():
             table_exists = result.scalar()
             
             if not table_exists:
-                print("❌ Table 'analytic_device' does not exist. Skipping migration.")
+                print("Table 'analytic_device' does not exist. Skipping migration.")
                 return
             
             result = conn.execute(text("""
@@ -40,7 +40,7 @@ def run_migration():
             current_structure = result.fetchone()
             
             if not current_structure:
-                print("❌ Column 'device_id' not found in 'analytic_device' table.")
+                print("Column 'device_id' not found in 'analytic_device' table.")
                 return
                 
             print(f" Current device_id type: {current_structure[1]}")
@@ -91,13 +91,13 @@ def run_migration():
                 CREATE INDEX ix_analytic_device_analytic_id ON analytic_device (analytic_id);
             """))
             
-            print("✅ Migration completed successfully!")
+            print("Migration completed successfully!")
             print("   - device_id changed from Integer to Integer[]")
             print("   - Existing data migrated to array format")
             print("   - All constraints and indexes recreated")
             
         except Exception as e:
-            print(f"❌ Migration failed: {e}")
+            print(f"Migration failed: {e}")
             raise
 
 if __name__ == "__main__":

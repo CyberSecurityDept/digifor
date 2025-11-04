@@ -29,7 +29,7 @@ def run_migration():
             table_exists = result.scalar()
             
             if not table_exists:
-                print("❌ Table 'analytics_history' does not exist. Skipping migration.")
+                print("Table 'analytics_history' does not exist. Skipping migration.")
                 return
             
             result = conn.execute(text("""
@@ -71,12 +71,12 @@ def run_migration():
             conn.commit()
             print("✓ Dropped 'type' column")
             
-            print("✅ Migration completed successfully!")
+            print("Migration completed successfully!")
             print("   - 'type' column removed from analytics_history table")
             print("   - Data migrated to 'method' column where needed")
             
         except Exception as e:
-            print(f"❌ Migration failed: {e}")
+            print(f"Migration failed: {e}")
             conn.rollback()
             raise
 

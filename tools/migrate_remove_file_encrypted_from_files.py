@@ -26,7 +26,7 @@ def run_migration():
                 );
             """)).scalar()
             if not exists:
-                print("❌ Table 'files' does not exist. Skipping.")
+                print("Table 'files' does not exist. Skipping.")
                 return
 
             col_exists = conn.execute(text("""
@@ -43,9 +43,9 @@ def run_migration():
             conn.execute(text("ALTER TABLE files DROP COLUMN IF EXISTS file_encrypted;"))
             conn.commit()
             print("✓ Column dropped")
-            print("✅ Migration completed successfully")
+            print("Migration completed successfully")
         except Exception as e:
-            print(f"❌ Migration failed: {e}")
+            print(f"Migration failed: {e}")
             conn.rollback()
             raise
 

@@ -23,19 +23,19 @@ def migrate_contacts_add_file_id():
         """))
         
         if result.fetchone():
-            print("✅ file_id column already exists in contacts table")
+            print("file_id column already exists in contacts table")
             return
         
-        print("📋 **STEP 1: Adding file_id column to contacts table**")
+        print("**STEP 1: Adding file_id column to contacts table**")
         
         db.execute(text("""
             ALTER TABLE contacts 
             ADD COLUMN file_id INTEGER;
         """))
         
-        print("✅ Added file_id column to contacts table")
+        print("Added file_id column to contacts table")
         
-        print("📋 **STEP 2: Populating file_id from device relationship**")
+        print("**STEP 2: Populating file_id from device relationship**")
         
         db.execute(text("""
             UPDATE contacts 
@@ -44,9 +44,9 @@ def migrate_contacts_add_file_id():
             WHERE contacts.device_id = devices.id;
         """))
         
-        print("✅ Populated file_id from device relationship")
+        print("Populated file_id from device relationship")
         
-        print("📋 **STEP 3: Adding foreign key constraint**")
+        print("**STEP 3: Adding foreign key constraint**")
         
         db.execute(text("""
             ALTER TABLE contacts 
@@ -54,25 +54,25 @@ def migrate_contacts_add_file_id():
             FOREIGN KEY (file_id) REFERENCES files(id);
         """))
         
-        print("✅ Added foreign key constraint")
+        print("Added foreign key constraint")
         
-        print("📋 **STEP 4: Making file_id NOT NULL**")
+        print("**STEP 4: Making file_id NOT NULL**")
         
         db.execute(text("""
             ALTER TABLE contacts 
             ALTER COLUMN file_id SET NOT NULL;
         """))
         
-        print("✅ Made file_id NOT NULL")
+        print("Made file_id NOT NULL")
         
-        print("📋 **STEP 5: Adding index for performance**")
+        print("**STEP 5: Adding index for performance**")
         
         db.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_contacts_file_id 
             ON contacts(file_id);
         """))
         
-        print("✅ Added index on file_id")
+        print("Added index on file_id")
         
         db.commit()
         
@@ -103,7 +103,7 @@ def migrate_contacts_add_file_id():
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Migration failed: {e}")
+        print(f"Migration failed: {e}")
         raise
     finally:
         db.close()

@@ -30,7 +30,7 @@ def remove_deep_communication_table():
         table_exists = result.scalar()
         
         if not table_exists:
-            print("✅ deep_communication table does not exist, nothing to remove")
+            print("deep_communication table does not exist, nothing to remove")
             return
         
         print(" Found deep_communication table, proceeding with removal...")
@@ -49,14 +49,14 @@ def remove_deep_communication_table():
         for constraint in fk_constraints:
             try:
                 db.execute(text(f"ALTER TABLE deep_communication DROP CONSTRAINT {constraint};"))
-                print(f"   ✅ Dropped constraint: {constraint}")
+                print(f"   Dropped constraint: {constraint}")
             except Exception as e:
                 print(f"   Could not drop constraint {constraint}: {e}")
         
         print("📇 Dropping indexes...")
         try:
             db.execute(text("DROP INDEX IF EXISTS ix_deep_communication_id;"))
-            print("   ✅ Dropped index: ix_deep_communication_id")
+            print("   Dropped index: ix_deep_communication_id")
         except Exception as e:
             print(f"   Could not drop index: {e}")
         
@@ -64,7 +64,7 @@ def remove_deep_communication_table():
         db.execute(text("DROP TABLE IF EXISTS deep_communication CASCADE;"))
         
         db.commit()
-        print("✅ Successfully removed deep_communication table")
+        print("Successfully removed deep_communication table")
         
         verify_result = db.execute(text("""
             SELECT EXISTS (
@@ -77,12 +77,12 @@ def remove_deep_communication_table():
         still_exists = verify_result.scalar()
         
         if not still_exists:
-            print("✅ Verification: deep_communication table successfully removed")
+            print("Verification: deep_communication table successfully removed")
         else:
-            print("❌ Verification failed: deep_communication table still exists")
+            print("Verification failed: deep_communication table still exists")
             
     except Exception as e:
-        print(f"❌ Error removing deep_communication table: {e}")
+        print(f"Error removing deep_communication table: {e}")
         db.rollback()
         raise e
     finally:
@@ -98,5 +98,5 @@ if __name__ == "__main__":
     
     print()
     print("=" * 60)
-    print("✅ Migration completed!")
+    print("Migration completed!")
     print("=" * 60)

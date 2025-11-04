@@ -67,11 +67,11 @@ def migrate_hashfile_file_path_to_file_id():
         session.commit()
         print("✓ Dropped file_path column")
         
-        print("\n🎉 Migration completed successfully!")
+        print("\nMigration completed successfully!")
         print("hash_files table now uses file_id instead of file_path")
         
     except Exception as e:
-        print(f"❌ Migration failed: {str(e)}")
+        print(f"Migration failed: {str(e)}")
         session.rollback()
         raise
     finally:

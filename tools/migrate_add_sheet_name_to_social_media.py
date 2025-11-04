@@ -19,7 +19,7 @@ def migrate_add_sheet_name_to_social_media():
         """))
         
         if result.fetchone():
-            print("✅ Column 'sheet_name' already exists in social_media table")
+            print("Column 'sheet_name' already exists in social_media table")
             return
         
         db.execute(text("""
@@ -28,11 +28,11 @@ def migrate_add_sheet_name_to_social_media():
         """))
         
         db.commit()
-        print("✅ Successfully added 'sheet_name' column to social_media table")
+        print("Successfully added 'sheet_name' column to social_media table")
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Error adding sheet_name column: {e}")
+        print(f"Error adding sheet_name column: {e}")
         raise e
     finally:
         db.close()

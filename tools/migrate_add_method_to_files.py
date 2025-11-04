@@ -19,10 +19,10 @@ def migrate_add_method_to_files():
         db.execute(text("ALTER TABLE files ADD COLUMN method VARCHAR"))
         
         db.commit()
-        print("✅ Successfully added 'method' field to files table")
+        print("Successfully added 'method' field to files table")
         
     except Exception as e:
-        print(f"❌ Error adding method field: {e}")
+        print(f"Error adding method field: {e}")
         db.rollback()
     finally:
         db.close()
