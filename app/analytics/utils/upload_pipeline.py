@@ -130,8 +130,9 @@ class UploadService:
         start_time = time.time()
         if upload_id in self._progress and not self._progress[upload_id].get("done"):
             return {"status": 400, "message": "Upload ID sedang berjalan", "data": None}
-
+            
         self._init_state(upload_id)
+        self._progress[upload_id]["_processing"] = True
 
         try:
             original_filename = file.filename
