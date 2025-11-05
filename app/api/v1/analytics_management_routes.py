@@ -11,9 +11,30 @@ from typing import List, Optional
 from pydantic import BaseModel
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
-from datetime import datetime
-from datetime import datetime 
+from datetime import datetime, date, time
 import os
+from collections import defaultdict
+
+def parse_date_string(date_str: str) -> datetime:
+    try:
+        parsed = datetime.strptime(date_str, "%d/%m/%Y")
+        if parsed.day > 31:
+            return datetime.strptime(date_str, "%m/%d/%Y")
+        return parsed
+    except ValueError:
+        pass
+    
+    try:
+        return datetime.strptime(date_str, "%m/%d/%Y")
+    except ValueError:
+        pass
+    
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        pass
+    
+    raise ValueError(f"Invalid date format: {date_str}. Supported formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD")
 
 class SummaryRequest(BaseModel):
     summary: str
@@ -109,7 +130,7 @@ def create_analytic_with_devices(
             "data": []
         }
     
-@hashfile_router.get("/analytic/{analytsic_id}/hashfile-analytics")
+@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
 def get_hashfile_analytics(
     analytic_id: int,
     db: Session = Depends(get_db)
@@ -117,9 +138,6 @@ def get_hashfile_analytics(
     try:
         min_devices = 2
 
-        # ==============================================
-        # 1️⃣ Validasi Analytic
-        # ==============================================
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -136,9 +154,6 @@ def get_hashfile_analytics(
                 status_code=400,
             )
 
-        # ==============================================
-        # 2️⃣ Ambil semua device terkait analytic
-        # ==============================================
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).all()
@@ -157,7 +172,6 @@ def get_hashfile_analytics(
                 status_code=404,
             )
 
-        # Buat label (Device A, B, C, ...)
         device_labels = []
         for i in range(len(devices)):
             if i < 26:
@@ -170,22 +184,15 @@ def get_hashfile_analytics(
         file_ids = [d.file_id for d in devices]
         file_to_device = {d.file_id: d.id for d in devices}
 
-        # ==============================================
-        # 3️⃣ Ambil HashFile dari semua file_id
-        # ==============================================
         hashfiles = (
             db.query(
                 HashFile.file_id,
-                HashFile.name,
+                HashFile.file_name,
                 HashFile.md5_hash,
                 HashFile.sha1_hash,
                 HashFile.path_original,
-                HashFile.kind,
                 HashFile.size_bytes,
                 HashFile.file_type,
-                HashFile.file_extension,
-                HashFile.is_suspicious,
-                HashFile.risk_level,
                 HashFile.source_tool,
                 HashFile.created_at_original,
                 HashFile.modified_at_original,
@@ -201,19 +208,20 @@ def get_hashfile_analytics(
                 status_code=200,
             )
 
-        # ==============================================
-        # 4️⃣ Bangun correlation: berdasarkan hash + name
-        # ==============================================
-        from collections import defaultdict
+        print(f"[DEBUG] Found {len(hashfiles)} hashfiles for file_ids: {file_ids}")
+        print(f"[DEBUG] Devices: {[{'id': d.id, 'file_id': d.file_id, 'owner': d.owner_name} for d in devices]}")
 
         correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
 
         for hf in hashfiles:
             hash_value = hf.md5_hash or hf.sha1_hash
-            if not hash_value or not hf.name:
+            if not hash_value:
                 continue
 
-            key = f"{hash_value}::{hf.name.strip().lower()}"  # unik per kombinasi hash+name
+            if not hf.file_name:
+                continue
+            
+            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # kombinasi hash + file_name
             device_id = file_to_device.get(hf.file_id)
             if not device_id:
                 continue
@@ -221,17 +229,17 @@ def get_hashfile_analytics(
             correlation_map[key]["records"].append(hf)
             correlation_map[key]["devices"].add(device_id)
 
-        # ==============================================
-        # 5️⃣ Filter: hanya muncul di >= min_devices
-        # ==============================================
+        print(f"[DEBUG] Total correlation keys: {len(correlation_map)}")
+        for key, data in list(correlation_map.items())[:5]:  # Print first 5
+            print(f"[DEBUG] Key: {key[:50]}..., Devices: {len(data['devices'])}, Records: {len(data['records'])}")
+
         correlated = {
             key: data for key, data in correlation_map.items()
             if len(data["devices"]) >= min_devices
         }
+        
+        print(f"[DEBUG] Correlated items (>= {min_devices} devices): {len(correlated)}")
 
-        # ==============================================
-        # 6️⃣ Format hasil untuk frontend
-        # ==============================================
         hashfile_list = []
         for key, info in correlated.items():
             first = info["records"][0]
@@ -248,7 +256,7 @@ def get_hashfile_analytics(
                 size_display = f"{file_size_bytes} bytes"
 
             file_path = first.path_original or "Unknown"
-            file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.name or "Unknown")
+            file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.file_name or "Unknown")
             file_type = first.file_type or "Unknown"
             if first.file_extension:
                 file_type = f"{file_type} ({first.file_extension.upper()})"
@@ -262,27 +270,13 @@ def get_hashfile_analytics(
             hash_value = first.md5_hash or first.sha1_hash
             hashfile_list.append({
                 "hash_value": hash_value,
-                "file_name": first.name or file_name,
+                "file_name": first.file_name or file_name,
                 "file_type": file_type,
-                # "file_size": size_display,
-                # "file_path": file_path,
-                # "created_at": (
-                #     first.created_at_original.strftime("%Y-%m-%d %H:%M:%S")
-                #     if first.created_at_original else "Unknown"
-                # ),
-                # "modified_at": (
-                #     first.modified_at_original.strftime("%Y-%m-%d %H:%M:%S")
-                #     if first.modified_at_original else "Unknown"
-                # ),
                 "devices": device_labels_found,
             })
 
-        # Urutkan berdasarkan jumlah devices yang terlibat
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
 
-        # ==============================================
-        # 7️⃣ Build device list
-        # ==============================================
         devices_list = [
             {
                 "device_label": device_labels[i],
@@ -292,14 +286,11 @@ def get_hashfile_analytics(
             for i, d in enumerate(devices)
         ]
 
-        # ==============================================
-        # 8️⃣ Response
-        # ==============================================
         summary = analytic.summary if analytic.summary else None
         return JSONResponse(
             {
                 "status": 200,
-                "message": "Hashfile correlation (by hash + name) completed successfully",
+                "message": "Hashfile correlation completed successfully",
                 "data": {
                     "devices": devices_list,
                     "correlations": hashfile_list,
@@ -361,7 +352,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/contact-correlation to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -376,7 +367,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/hashfile-analytics to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -391,7 +382,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/deep-communication-analytics to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -406,7 +397,7 @@ def start_data_extraction(
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": "Data extraction completed. Use GET /analytic/{analytic_id}/social-media-correlation to retrieve results",
+                    "message": f"Data extraction completed {method}",
                     "data": {
                         "analytic_id": analytic.id,
                         "method": method,
@@ -426,8 +417,10 @@ def start_data_extraction(
 
 @router.get("/analytics/get-all-analytic")
 def get_all_analytic(
-    search: Optional[str] = Query(None, description="Search by analytics name or notes (summary)"),
+    search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
     method: Optional[str] = Query(None, description="Filter by method"),
+    date_from: Optional[str] = Query(None, description="Filter from date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter to date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -438,12 +431,66 @@ def get_all_analytic(
             query = query.filter(
                 or_(
                     Analytic.analytic_name.ilike(search_pattern),
+                    Analytic.method.ilike(search_pattern),
                     Analytic.summary.ilike(search_pattern)
                 )
             )
 
         if method:
             query = query.filter(Analytic.method == method)
+
+        if date_from or date_to:
+            date_from_parsed = None
+            date_to_parsed = None
+            
+            if date_from and date_to:
+                try:
+                    date_from_parsed = datetime.strptime(date_from, "%m/%d/%Y")
+                    date_to_parsed = datetime.strptime(date_to, "%m/%d/%Y")
+                    if date_from_parsed > date_to_parsed:
+                        raise ValueError("Date range invalid")
+                except ValueError:
+                    try:
+                        date_from_parsed = datetime.strptime(date_from, "%d/%m/%Y")
+                        date_to_parsed = datetime.strptime(date_to, "%d/%m/%Y")
+                        if date_from_parsed > date_to_parsed:
+                            raise ValueError("Date range invalid")
+                    except ValueError:
+                        pass
+            
+            if date_from and not date_from_parsed:
+                try:
+                    date_from_parsed = parse_date_string(date_from)
+                except ValueError as e:
+                    return JSONResponse(
+                        content={
+                            "status": 400,
+                            "message": f"Invalid date_from: {str(e)}",
+                            "data": []
+                        },
+                        status_code=400
+                    )
+            
+            if date_to and not date_to_parsed:
+                try:
+                    date_to_parsed = parse_date_string(date_to)
+                except ValueError as e:
+                    return JSONResponse(
+                        content={
+                            "status": 400,
+                            "message": f"Invalid date_to: {str(e)}",
+                            "data": []
+                        },
+                        status_code=400
+                    )
+            
+            if date_from_parsed:
+                date_from_datetime = datetime.combine(date_from_parsed.date(), datetime.min.time())
+                query = query.filter(Analytic.created_at >= date_from_datetime)
+            
+            if date_to_parsed:
+                date_to_datetime = datetime.combine(date_to_parsed.date(), time(23, 59, 59, 999999))
+                query = query.filter(Analytic.created_at <= date_to_datetime)
 
         analytics = query.order_by(Analytic.created_at.desc()).all()
 

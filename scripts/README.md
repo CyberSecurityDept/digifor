@@ -19,7 +19,7 @@ Folder ini berisi semua script Python untuk menjalankan dan mengelola aplikasi D
 ### **Utilities**
 - **[clean.py](clean.py)** - Clean temporary files and directories
 
-## 🚀 Cara Menggunakan
+## Cara Menggunakan
 
 ### **1. Quick Start (Recommended)**
 ```bash
@@ -60,7 +60,7 @@ python scripts/run_analytics_workflow.py
 python scripts/clean.py
 ```
 
-## 📋 Deskripsi Scripts
+## Deskripsi Scripts
 
 ### **Setup & Development Scripts**
 - **`start.sh`**: Script untuk memulai server pengembangan menggunakan `uvicorn`.

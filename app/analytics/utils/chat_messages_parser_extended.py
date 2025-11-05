@@ -13,36 +13,25 @@ logger = logging.getLogger(__name__)
 class ChatMessagesParserExtended:
     
     def _normalize_direction(self, direction_raw: str) -> str:
-        """
-        Normalize direction values:
-        - "Sent" -> "Outgoing"
-        - "Received" -> "Incoming"
-        - Values containing "(not parsed)" -> "" (empty, will be skipped/handled)
-        - Other values -> keep as is or default
-        """
         if not direction_raw:
             return ''
         
         direction = str(direction_raw).strip()
         
-        # Handle "(not parsed)" cases - these are invalid, return empty
         if '(not parsed)' in direction.lower():
             return ''
         
-        # Normalize common direction values
         direction_lower = direction.lower()
         if direction_lower == 'sent':
             return 'Outgoing'
         elif direction_lower == 'received':
             return 'Incoming'
         elif direction_lower in ['outgoing', 'incoming']:
-            return direction.capitalize()  # Ensure proper case
+            return direction.capitalize()
         
-        # If direction contains only numbers or invalid format, return empty
         if direction.isdigit() or re.match(r'^\d+\s*\(', direction):
             return ''
         
-        # Return the direction as is if it's valid
         return direction
     
     def __init__(self, db: Session):
@@ -70,7 +59,7 @@ class ChatMessagesParserExtended:
             'facebook': 'Facebook',
             'tiktok': 'TikTok',
             'x': 'X',
-            'twitter': 'X'  # Twitter is now X
+            'twitter': 'X'
         }
         
         return platform_map.get(platform_lower, platform)
@@ -124,8 +113,6 @@ class ChatMessagesParserExtended:
         return False
     
 
-    # Chat messages parsing methods
-
     def parse_cellebrite_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
@@ -167,7 +154,7 @@ class ChatMessagesParserExtended:
                     "recipient_number": (msg.get("recipient_number") or "").strip() or None,
                     "timestamp": msg.get("timestamp"),
                     "thread_id": msg.get("thread_id"),
-                    "message_id": msg.get("thread_id"),  # re-use Identifier
+                    "message_id": msg.get("thread_id"),
                     "message_type": msg.get("type", "Unknown"),
                     "direction": msg.get("direction"),
                     "source_tool": "Cellebrite",
@@ -191,11 +178,11 @@ class ChatMessagesParserExtended:
                     skipped_count += 1
 
             self.db.commit()
-            logger.info(f"[CELLEBRITE CHAT PARSER] ✅ Saved {saved_count} messages (skipped {skipped_count} duplicates)")
-            print(f"✅ Saved {saved_count} Cellebrite chat messages (skipped {skipped_count} duplicates)")
+            logger.info(f"[CELLEBRITE CHAT PARSER] Saved {saved_count} messages (skipped {skipped_count} duplicates)")
+            print(f"Saved {saved_count} Cellebrite chat messages (skipped {skipped_count} duplicates)")
 
         except Exception as e:
-            logger.error(f"[CELLEBRITE CHAT PARSER] ❌ Error parsing Cellebrite chat messages: {e}", exc_info=True)
+            logger.error(f"[CELLEBRITE CHAT PARSER] Error parsing Cellebrite chat messages: {e}", exc_info=True)
             print(f"Error parsing Cellebrite chat messages: {e}")
             self.db.rollback()
             raise e
@@ -267,7 +254,6 @@ class ChatMessagesParserExtended:
 
                     receiver = non_owner_full if direction == "Outgoing" else owner_full
 
-                    # --- Pisahkan nomor & nama (NEW HANDLING)
                     sender_number, from_name = self._split_name_number(sender)
                     recipient_number, to_name = self._split_name_number(receiver)
 
@@ -320,25 +306,24 @@ class ChatMessagesParserExtended:
                     processed_count += 1
 
                     if processed_count <= 3:
-                        logger.debug(f"[ROW {idx}] ✅ {direction} | {from_name} ({sender_number}) → {to_name} ({recipient_number}) | {body[:60]}...")
+                        logger.debug(f"[ROW {idx}] {direction} | {from_name} ({sender_number}) → {to_name} ({recipient_number}) | {body[:60]}...")
 
                 except Exception as e:
                     skipped_count += 1
                     logger.warning(f"[ROW {idx}] ⚠️ Error parsing row: {e}", exc_info=False)
 
             logger.info(
-                f"[CELLEBRITE CHATS PARSER] ✅ Processed {processed_count} valid rows, "
+                f"[CELLEBRITE CHATS PARSER] Processed {processed_count} valid rows, "
                 f"Skipped {skipped_count}, Reasons: {skip_reasons}"
             )
 
         except Exception as e:
-            logger.error(f"[CELLEBRITE CHATS PARSER] ❌ Error parsing Cellebrite chats ({sheet_name}): {e}", exc_info=True)
+            logger.error(f"[CELLEBRITE CHATS PARSER] Error parsing Cellebrite chats ({sheet_name}): {e}", exc_info=True)
 
         return results
 
 
     def _safe_clean_name(self, text: Optional[str]) -> str:
-        """Bersihkan semua karakter whitespace aneh, kalau kosong jadikan 'Unknown'."""
         if not text:
             return "Unknown"
 
@@ -350,40 +335,31 @@ class ChatMessagesParserExtended:
 
 
     def _split_name_number(self, raw_value: str) -> Tuple[Optional[str], str]:
-        """Pisahkan nomor dan nama dari field seperti:
-        - '6285176996014@s.whatsapp.net Hikari'
-        - 'recipient_number RikoSuloyo69 Riko Suloyo' (khusus: ambil depan saja)
-        """
         if not raw_value or not str(raw_value).strip():
             return None, "Unknown"
 
         val = str(raw_value).strip()
 
-        # Hapus karakter whitespace dan domain seperti @s.whatsapp.net
         val = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', val)
         val = re.sub(r'@[\w\.-]+', '', val).strip()
 
         parts = val.split(" ", 1)
 
-        # ✅ Case 1: Nomor valid di depan
         if len(parts) == 2:
             number_candidate, name_part = parts[0].strip(), parts[1].strip()
 
             if re.match(r'^\+?\d+$', number_candidate):
                 return number_candidate, self._safe_clean_name(name_part)
             else:
-                # ✅ Case 2: bukan nomor → ambil bagian depan saja
                 sub_parts = val.split(" ")
                 if len(sub_parts) >= 2:
                     possible_username = sub_parts[0].strip()
                     return None, self._safe_clean_name(possible_username)
 
-        # ✅ Case 3: cuma satu kata
         return None, self._safe_clean_name(val)
 
     
     def _clean(self, value: Any) -> Optional[str]:
-        """Membersihkan karakter escape, newline, dan karakter kontrol Excel."""
         if value is None or str(value).strip().lower() in ["", "nan", "none"]:
             return None
 
@@ -396,7 +372,6 @@ class ChatMessagesParserExtended:
 
 
     def _extract_name(self, text: str) -> Optional[str]:
-        """Ambil hanya nama, hilangkan nomor dan tag (owner)."""
         if not text or str(text).strip().lower() in ["", "nan", "none"]:
             return None
         cleaned = re.sub(r"\(owner\)", "", text)
@@ -406,7 +381,6 @@ class ChatMessagesParserExtended:
 
 
     def _parse_timestamp(self, raw: str) -> Optional[str]:
-        """Ubah '22/10/2025 11:23:37(UTC+7)' → '2025-10-22T11:23:37+07:00'"""
         if not raw:
             return None
         try:

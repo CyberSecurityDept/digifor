@@ -9,16 +9,16 @@ def validate_private_key(key_path):
         with open(key_path, 'rb') as f:
             key_data = f.read()
         
-        print(f"🔍 Validating: {key_path}")
+        print(f"Validating: {key_path}")
         print(f"📏 Key size: {len(key_data)} bytes")
         
         if len(key_data) != 32:
-            print(f"❌ INVALID: Key must be 32 bytes, got {len(key_data)} bytes")
+            print(f"INVALID: Key must be 32 bytes, got {len(key_data)} bytes")
             return False
         
         try:
             private_key = x25519.X25519PrivateKey.from_private_bytes(key_data)
-            print("✅ Private key format: VALID (X25519)")
+            print("Private key format: VALID (X25519)")
             
             public_key = private_key.public_key()
             public_bytes = public_key.public_bytes(
@@ -26,18 +26,18 @@ def validate_private_key(key_path):
                 format=serialization.PublicFormat.Raw
             )
             
-            print(f"📊 Public key derived: {public_bytes.hex()[:32]}...")
+            print(f"Public key derived: {public_bytes.hex()[:32]}...")
             return True
             
         except Exception as e:
-            print(f"❌ INVALID: Not a valid X25519 private key - {e}")
+            print(f"INVALID: Not a valid X25519 private key - {e}")
             return False
             
     except FileNotFoundError:
-        print(f"❌ File not found: {key_path}")
+        print(f"File not found: {key_path}")
         return False
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return False
 
 def test_key_pair(private_path, public_path):
@@ -56,14 +56,14 @@ def test_key_pair(private_path, public_path):
         
         shared_secret1 = private_key.exchange(public_key)
         
-        print("✅ Key pair: VALID (can perform key exchange)")
+        print("Key pair: VALID (can perform key exchange)")
         print(f"📏 Shared secret: {len(shared_secret1)} bytes")
         print(f"🔐 First 16 bytes: {shared_secret1.hex()[:32]}...")
         
         return True
         
     except Exception as e:
-        print(f"❌ Key pair: INVALID - {e}")
+        print(f"Key pair: INVALID - {e}")
         return False
 
 if __name__ == "__main__":

@@ -155,7 +155,7 @@ def normalize_permission_entry(entry):
 def get_mobsf_api_key():
     secret_path = os.path.expanduser("~/.MobSF/secret")
     if not os.path.exists(secret_path):
-        raise FileNotFoundError("❌ File ~/.MobSF/secret tidak ditemukan.")
+        raise FileNotFoundError("File ~/.MobSF/secret tidak ditemukan.")
     with open(secret_path, "r") as f:
         secret = f.read().strip()
     print("[*] MobSF secret loaded successfully.")
@@ -197,20 +197,20 @@ def log_response(prefix: str, resp):
 # 🔹 Main Analysis Function
 # =====================================================
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
-    print(f"\n==== 🚀 Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
+    print(f"\n==== Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
 
     file_obj = db.query(File).filter(File.id == file_id).first()
     if not file_obj:
-        raise ValueError(f"❌ File dengan id={file_id} tidak ditemukan")
+        raise ValueError(f"File dengan id={file_id} tidak ditemukan")
 
     file_path = getattr(file_obj, "file_path", None) or getattr(file_obj, "path", None)
     if not file_path:
-        raise ValueError("❌ File path tidak ditemukan di DB")
+        raise ValueError("File path tidak ditemukan di DB")
 
     if not os.path.isabs(file_path):
         file_path = os.path.join(os.getcwd(), file_path)
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"❌ File tidak ditemukan: {file_path}")
+        raise FileNotFoundError(f"File tidak ditemukan: {file_path}")
 
     print(f"[*] File found: {file_path}")
 
@@ -231,7 +231,7 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
         raise RuntimeError(f"Upload gagal: {resp.text}")
     file_hash = resp.json().get("hash")
     if not file_hash:
-        raise RuntimeError("❌ Tidak dapat membaca hash dari response upload")
+        raise RuntimeError("Tidak dapat membaca hash dari response upload")
 
     # === Jalankan scan ===
     print("[*] Starting MobSF scan...")

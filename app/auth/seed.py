@@ -3,16 +3,13 @@ from passlib.context import CryptContext
 from app.db.session import SessionLocal
 from app.auth.models import User  # sesuaikan path model User kamu
 
-# Inisialisasi password hasher (pakai bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password: str) -> str:
-    """Hash password dengan bcrypt."""
     return pwd_context.hash(password)
 
 
 def seed_users():
-    """Seeder untuk memastikan akun admin dan user default ada di database."""
     db: Session = SessionLocal()
     try:
         users_to_seed = [
@@ -42,7 +39,11 @@ def seed_users():
         for u in users_to_seed:
             existing_user = db.query(User).filter(User.email == u["email"]).first()
             if existing_user:
-                print(f"✅ User '{u['email']}' sudah ada, skip insert.")
+                hashed_pw = get_password_hash(u["password"])
+                existing_user.hashed_password = hashed_pw
+                existing_user.is_active = True
+                db.add(existing_user)
+                print(f"User '{u['email']}' sudah ada, password di-update.")
             else:
                 hashed_pw = get_password_hash(u["password"])
                 new_user = User(
@@ -54,13 +55,13 @@ def seed_users():
                     tag=u["tag"]
                 )
                 db.add(new_user)
-                print(f"🎉 User '{u['email']}' berhasil ditambahkan ({u['role']}).")
+                print(f"User '{u['email']}' berhasil ditambahkan ({u['role']}).")
 
         db.commit()
-        print("✅ Seeder user selesai.")
+        print("Seeder user selesai.")
     except Exception as e:
         db.rollback()
-        print(f"❌ Gagal menambahkan user: {e}")
+        print(f"Gagal menambahkan user: {e}")
     finally:
         db.close()
 

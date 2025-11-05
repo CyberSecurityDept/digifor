@@ -11,7 +11,7 @@ Forenlytic is a powerful backend API designed to help law enforcement agencies, 
 - **Evidence**: Track digital evidence with secure chain of custody and hash verification
 - **Suspect**: Manage suspect profiles and link them to cases and evidence
 
-**📊 Analytics**
+**Analytics**
 - **Contact Correlation**: Analyze and correlate contact information across multiple sources
 - **Hashfile Analytics**: Process and analyze hash files from various forensic tools
 - **Social Media Correlation**: Extract and correlate social media data and communications
@@ -140,13 +140,13 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
   ```
 - **Database Initialization**: Use the provided script to set up the database
   ```bash
-  python tools/init_db.py
+  python tools/setup_postgres.py
   ```
 - **Backup**: Regular backups recommended for production environments
 
 
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+
@@ -183,7 +183,7 @@ cp env.example .env
 # Edit .env file with your database credentials
 
 # 8. Initialize database
-python tools/init_db.py
+python tools/setup_postgres.py
 
 # 9. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -213,7 +213,7 @@ copy env.example .env
 # Edit .env file with your database credentials
 
 # 9. Initialize database
-python tools\init_db.py
+python tools\setup_postgres.py
 
 # 10. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -251,7 +251,7 @@ cp env.example .env
 # Edit .env file with your database credentials
 
 # 8. Initialize database
-python tools/init_db.py
+python tools/setup_postgres.py
 
 # 9. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -295,11 +295,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 API akan tersedia di `http://localhost:8000`
-
-
-
-
-
 
 ## 📚 API Documentation
 

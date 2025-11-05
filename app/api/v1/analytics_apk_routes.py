@@ -161,14 +161,14 @@ def format_file_size(size_bytes: int) -> str:
 
 async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes, total_size: int):
     try:
-        print(f"🚀 [DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
+        print(f"[DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
         resp = await upload_service.start_app_upload(
             upload_id=upload_id,
             file=file,
             file_name=file_name,
             file_bytes=file_bytes,
         )
-        print(f"✅ [DEBUG] upload_service response: {resp}")
+        print(f"[DEBUG] upload_service response: {resp}")
 
         if isinstance(resp, dict) and resp.get("status") in (200, "200"):
             data = resp.get("data", {})
@@ -206,7 +206,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             }
 
     except Exception as e:
-        print(f"❌ [ERROR] run_real_upload_and_finalize error: {str(e)}")
+        print(f"[ERROR] run_real_upload_and_finalize error: {str(e)}")
         import traceback
         traceback.print_exc()
         UPLOAD_PROGRESS[upload_id] = {

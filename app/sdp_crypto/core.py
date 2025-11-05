@@ -124,8 +124,8 @@ class SDPCrypto:
             original_hash = sha256_hash.digest()
             outfile.write(original_hash)
             
-            print(f"✅ Encryption complete: {chunk_index} chunks processed")
-            print(f"📊 Original size: {file_size:,} bytes")
+            print(f"Encryption complete: {chunk_index} chunks processed")
+            print(f"Original size: {file_size:,} bytes")
             print(f"🔐 Encrypted size: {os.path.getsize(output_path):,} bytes")
 
     @staticmethod
@@ -230,7 +230,7 @@ class SDPCrypto:
             if decrypted_hash != original_hash:
                 if os.path.exists(output_path):
                     os.remove(output_path)
-                raise ValueError("❌ Integrity check failed: SHA256 hash mismatch")
+                raise ValueError("Integrity check failed: SHA256 hash mismatch")
             
             print("Integrity verification: SHA256 hash matches")
             

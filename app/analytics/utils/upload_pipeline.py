@@ -743,10 +743,6 @@ class UploadService:
             return {"status": 500, "message": f"Processing error: {str(e)}", "data": None}
 
     async def start_app_upload(self, upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes):
-        """
-        Upload dan simpan file APK/IPA ke direktori + database, dengan progress tracking.
-        Logging full via print biar kelihatan prosesnya di terminal.
-        """
         try:
             APK_DIR = os.path.join(APK_DIR_BASE, "apk")
             os.makedirs(APK_DIR, exist_ok=True)
@@ -759,7 +755,6 @@ class UploadService:
 
             self._init_state(upload_id)
 
-            # === Write chunked ===
             chunk_size = 1024 * 512
             written = 0
             with open(target_path, "wb") as f:
@@ -774,14 +769,14 @@ class UploadService:
                         "message": f"Uploading app... ({percent:.2f}%)",
                     })
                     await asyncio.sleep(0.02)
-            print(f"✅ [DEBUG] File write completed ({written} bytes)")
+            print(f"[DEBUG] File write completed ({written} bytes)")
 
             # === Simpan ke database ===
             rel_path = os.path.relpath(target_path, BASE_DIR)
             print(f"🗂️ [DEBUG] Relative path for DB: {rel_path}")
 
             db = next(get_db())
-            print("🧩 [DEBUG] Database session started")
+            print("[DEBUG] Database session started")
 
             file_record = File(
                 file_name=file_name,
@@ -794,13 +789,13 @@ class UploadService:
             )
 
             db.add(file_record)
-            print("📝 [DEBUG] File record added to DB session")
+            print("[DEBUG] File record added to DB session")
 
             db.commit()
-            print("💾 [DEBUG] DB commit successful")
+            print("[DEBUG] DB commit successful")
 
             db.refresh(file_record)
-            print(f"✅ [DEBUG] File record refreshed (ID: {file_record.id})")
+            print(f"[DEBUG] File record refreshed (ID: {file_record.id})")
 
             # === Update progress ===
             self._progress[upload_id].update({
@@ -811,7 +806,7 @@ class UploadService:
                 "file_id": file_record.id,
             })
 
-            print(f"🎉 [DEBUG] Upload process complete for {file_name} (upload_id={upload_id})")
+            print(f"[DEBUG] Upload process complete for {file_name} (upload_id={upload_id})")
 
             return {
                 "status": 200,
@@ -827,7 +822,7 @@ class UploadService:
             }
 
         except Exception as e:
-            print(f"❌ [ERROR] start_app_upload error: {str(e)}")
+            print(f"[ERROR] start_app_upload error: {str(e)}")
             import traceback
             traceback.print_exc()
             self._mark_done(upload_id, f"App upload error: {str(e)}")
