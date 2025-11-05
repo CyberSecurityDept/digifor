@@ -20,6 +20,8 @@ from app.api.v1.analytics_contact_routes import get_contact_correlation
 from app.api.v1.analytics_management_routes import get_hashfile_analytics
 from app.api.v1.analytics_social_media_routes import social_media_correlation
 from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
+from datetime import datetime
+import dateutil.parser
 import os, json
 class SummaryRequest(BaseModel):
     summary: str
@@ -42,7 +44,6 @@ def export_analytics_pdf(
                 status_code=404,
             )
 
-        # INI DI KOMEN SEMENTARA BUAT TESTING EXPORT PDF 
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).order_by(AnalyticDevice.id).all()
@@ -97,7 +98,7 @@ def save_analytic_summary(
                 status_code=400,
             )
 
-        analytic.summary = request.summary.strip()
+        setattr(analytic, 'summary', request.summary.strip())
         db.commit()
         db.refresh(analytic)
 
@@ -147,7 +148,7 @@ def edit_analytic_summary(
                 status_code=400,
             )
 
-        analytic.summary = str(request.summary).strip()
+        setattr(analytic, 'summary', str(request.summary).strip())
         db.commit()
         db.refresh(analytic)
 
@@ -629,9 +630,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     # ======================================================
     # 🔹 Chat data dinamis dari get_chat_detail()
     # ======================================================
-    from datetime import datetime
-    import dateutil.parser
-
     chat_records = []
     for msg in chat_messages:
         # Gunakan timestamp lengkap + format jadi YYYY-MM-DD HH:MM
@@ -873,7 +871,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     # === Ambil data langsung dari endpoint correlation ===
     response = social_media_correlation(analytic.id, source, db)
     if hasattr(response, "body"):
-        import json
         body = json.loads(response.body)
         response_data = body.get("data", {})
     else:
@@ -1027,24 +1024,29 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         bottomMargin=50,
     )
 
-    # === Ambil data dari API ===
     result = get_contact_correlation(analytic.id,db)
     if isinstance(result, JSONResponse):
         result = result.body
     if isinstance(result, (bytes, bytearray)):
         result = json.loads(result.decode("utf-8"))
+    
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except (json.JSONDecodeError, TypeError):
+            result = {}
+    elif not isinstance(result, dict):
+        result = {}
 
     api_data = result.get("data", {})
     devices = api_data.get("devices", [])
     correlations = api_data.get("correlations", [])
     summary = api_data.get("summary")
 
-    # === PDF Styles ===
     styles = getSampleStyleSheet()
     normal_center = ParagraphStyle("NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER)
     normal_left = ParagraphStyle("NormalLeft", fontSize=10, leading=13, alignment=TA_LEFT)
 
-    # === Grouping devices (4 per page) ===
     group_size = 4
     grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
     total_groups = len(grouped_devices)
@@ -1052,7 +1054,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     story = []
     group_page_map = []
 
-    # === Build per group (page) ===
     for group_index, group in enumerate(grouped_devices, start=1):
         story.extend(build_report_header(analytic, timestamp_now, usable_width))
         group_page_map.append(group_index)
@@ -1068,7 +1069,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         story.append(Table(info_data, colWidths=[100, usable_width - 100]))
         story.append(Spacer(1, 16))
 
-        # === Table Header ===
         header_row = ["Contact Number"]
         for dev in group:
             header_row.append(Paragraph(
@@ -1078,15 +1078,12 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
         table_data = [header_row]
 
-        # === Isi Data Correlation ===
         for corr in correlations:
             contact_num = corr.get("contact_number", "-")
             row = [Paragraph(contact_num, normal_left)]
 
-            # Buat dictionary mapping device_label -> contact_name
             dev_map = {d["device_label"]: d["contact_name"] for d in corr.get("devices_found_in", [])}
 
-            # isi cell per device
             for dev in group:
                 device_label = dev["device_label"]
                 cell_value = dev_map.get(device_label, "—")
@@ -1094,7 +1091,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
             table_data.append(row)
 
-        # === Buat tabel per grup ===
         col_widths = [usable_width * 0.25] + [((usable_width * 0.75) / len(group)) for _ in group]
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(TableStyle([
@@ -1111,11 +1107,9 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         if group_index < total_groups:
             story.append(PageBreak())
 
-    # === Summary Section ===
     story.append(Spacer(1, 20))
     story.append(_build_summary_section(usable_width, summary))
 
-    # === Build document ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -1127,9 +1121,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
     return FileResponse(path=file_path, filename=filename, media_type="application/pdf")
 
-# ===============================================================
-# 5️⃣ Hashfile Analytics Report
-# ===============================================================
 def _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data):
     # === Setup path dan file ===
     reports_dir = settings.REPORTS_DIR
@@ -1138,7 +1129,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === PDF layout ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -1155,9 +1145,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     normal_style = ParagraphStyle("Normal", fontSize=10, leading=13, alignment=TA_CENTER)
     header_style = ParagraphStyle("HeaderDevice", alignment=TA_CENTER, textColor=colors.white, fontName="Helvetica-Bold", fontSize=9)
 
-    # === Ambil data asli dari analytic correlation ===
     response = get_hashfile_analytics(analytic.id, db)
-    import json
     if hasattr(response, "body"):
         body = json.loads(response.body)
         data = body.get("data", {})
@@ -1169,17 +1157,14 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     devices = data.get("devices", [])
     hashfiles = data.get("correlations") or []
 
-    # === Bagi device jadi beberapa group (misal per 4 kolom) ===
     group_size = 4
     grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
     total_groups = len(grouped_devices)
 
     story = []
     for group_index, group in enumerate(grouped_devices, start=1):
-        # Header tiap halaman
         story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-        # === Info summary tiap halaman ===
         start_device = (group_index - 1) * group_size + 1
         end_device = start_device + len(group) - 1
         info_data = [
@@ -1190,7 +1175,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         story.append(Table(info_data, colWidths=[120, usable_width - 120]))
         story.append(Spacer(1, 16))
 
-        # === Header tabel ===
         header_row = ["Filename"]
         for dev in group:
             device_label = dev.get("device_label", "Unknown")
@@ -1200,7 +1184,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         table_data = [header_row]
 
-        # === Buat baris hashfile ===
         for h in hashfiles:
             file_name = h.get("file_name", "Unknown")
             row = [Paragraph(file_name, normal_style)]
@@ -1209,7 +1192,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
                 row.append(Paragraph(symbol, normal_style))
             table_data.append(row)
 
-        # === Build tabel PDF ===
         table = Table(
             table_data,
             colWidths=[usable_width * 0.25] +
@@ -1226,15 +1208,12 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         ]))
         story.append(table)
 
-        # === Page break jika masih ada group berikutnya ===
         if group_index < total_groups:
             story.append(PageBreak())
 
-    # === Summary Section ===
     story.append(Spacer(1, 20))
     story.append(_build_summary_section(usable_width, analytic.summary))
 
-    # === Build dokumen ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(

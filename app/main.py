@@ -30,7 +30,14 @@ from app.api.v1 import (
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
     analytics_social_media_routes,
-    auth_routes
+    auth_routes,
+    case_routes,
+    case_log_routes,
+    case_note_routes,
+    person_routes,
+    evidence_routes,
+    suspect_routes,
+    report_routes
 )
 from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db

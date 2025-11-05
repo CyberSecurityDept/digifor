@@ -19,6 +19,8 @@ from app.analytics.device_management.models import SocialMedia, Contact, Call, H
 from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.contact_parser import ContactParser
 from app.analytics.utils.hashfile_parser import HashFileParser
+import pandas as pd
+import traceback
 
 sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
@@ -347,7 +349,6 @@ class UploadService:
                         social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_id)
                     elif tools == "Oxygen":
                         try:
-                            import pandas as pd
                             xls = pd.ExcelFile(original_path_abs, engine='xlrd')
                             
                             social_media_sheets = ['Instagram ', 'Telegram ', 'WhatsApp Messenger ', 'X (Twitter) ', 'Users-Following ', 'Users-Followers ']
@@ -490,7 +491,6 @@ class UploadService:
                     })
                 except Exception as e:
                     print(f"Error parsing hashfiles: {e}")
-                    import traceback
                     traceback.print_exc()
                     parsing_result["hashfiles_error"] = str(e)
             
@@ -855,7 +855,6 @@ class UploadService:
 
         except Exception as e:
             print(f"[ERROR] start_app_upload error: {str(e)}")
-            import traceback
             traceback.print_exc()
             self._mark_done(upload_id, f"App upload error: {str(e)}")
             return {"status": 500, "message": f"Unexpected app upload error: {str(e)}", "data": None}

@@ -18,8 +18,10 @@ Dokumentasi ini menjelaskan cara menginstall dan menggunakan systemd service unt
 Jalankan script instalasi dengan hak akses root:
 
 ```bash
-sudo ./install-systemd-service.sh
+sudo ./scripts/install-systemd-service.sh
 ```
+
+**Catatan:** Script `install-systemd-service.sh` sekarang berada di folder `scripts/`.
 
 Script ini akan:
 - Menyalin file service ke `/etc/systemd/system/`
@@ -76,9 +78,6 @@ sudo systemctl restart digifor-v2
 # Reload daemon (WAJIB setelah edit service file)
 sudo systemctl daemon-reload
 
-# Restart service setelah edit config
-sudo systemctl restart digifor-v2
-
 # Cek status
 sudo systemctl status digifor-v2
 
@@ -87,12 +86,6 @@ sudo systemctl enable digifor-v2
 
 # Disable auto-start on boot
 sudo systemctl disable digifor-v2
-
-# Edit service file (manual)
-sudo nano /etc/systemd/system/digifor-v2.service
-# Setelah edit, reload daemon dan restart service
-sudo systemctl daemon-reload
-sudo systemctl restart digifor-v2
 ```
 
 ### Melihat Logs
@@ -110,57 +103,6 @@ sudo journalctl -u digifor-v2 --since today
 # Lihat logs dengan filter level
 sudo journalctl -u digifor-v2 -p err
 ```
-
-### Troubleshooting
-
-Jika service tidak berjalan:
-
-1. **Cek status service:**
-   ```bash
-   sudo systemctl status digifor-v2
-   ```
-
-2. **Cek logs untuk error:**
-   ```bash
-   sudo journalctl -u digifor-v2 -n 100
-   ```
-
-3. **Pastikan virtual environment ada:**
-   ```bash
-   ls -la /home/digifor/digifor-v2/venv/bin/uvicorn
-   ```
-
-4. **Pastikan file .env ada:**
-   ```bash
-   ls -la /home/digifor/digifor-v2/.env
-   ```
-
-5. **Test manual menjalankan aplikasi:**
-   ```bash
-   cd /home/digifor/digifor-v2
-   source venv/bin/activate
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
-
-6. **Cek apakah port sudah digunakan:**
-   ```bash
-   sudo netstat -tlnp | grep 8000
-   # atau
-   sudo ss -tlnp | grep 8000
-   ```
-
-7. **Cek apakah database PostgreSQL berjalan:**
-   ```bash
-   sudo systemctl status postgresql
-   # atau
-   sudo service postgresql status
-   ```
-
-8. **Cek permission file dan direktori:**
-   ```bash
-   ls -la /home/digifor/digifor-v2
-   # Pastikan user digifor memiliki akses read dan execute
-   ```
 
 ## Konfigurasi Service
 
@@ -205,7 +147,7 @@ Service akan menjalankan beberapa langkah sebelum aplikasi dimulai (dalam urutan
    - User akan di-update jika sudah ada
 
 5. **Start Application** (`ExecStart`)
-   - Menjalankan: `start-service.sh`
+   - Menjalankan: `scripts/start-service.sh`
    - Menjalankan aplikasi FastAPI dengan uvicorn
 
 ### Konfigurasi Keamanan
@@ -214,14 +156,19 @@ Service akan menjalankan beberapa langkah sebelum aplikasi dimulai (dalam urutan
 - **PrivateTmp:** true (isolasi temporary files)
 - **LimitNOFILE:** 65536 (batas file descriptor)
 
-### Scripts Database yang Digunakan
+### Scripts yang Digunakan
 
-Service menggunakan beberapa script Python untuk manajemen database:
+Service menggunakan beberapa script untuk manajemen database dan service:
 
+#### Scripts Database
 - **`scripts/check-db-connection.py`** - Test koneksi database sebelum service start
 - **`scripts/init-database.py`** - Initialize database (membuat tabel jika belum ada)
 - **`scripts/verify-db-connection.py`** - Verifikasi lengkap koneksi (untuk troubleshooting)
 - **`scripts/list-tables.py`** - List semua tabel di database (untuk troubleshooting)
+
+#### Scripts Service
+- **`scripts/start-service.sh`** - Script untuk menjalankan aplikasi FastAPI dengan uvicorn
+- **`scripts/install-systemd-service.sh`** - Script untuk menginstall systemd service
 
 Semua script berada di folder `scripts/` dan dapat dijalankan manual:
 
@@ -241,36 +188,53 @@ python3 scripts/init-database.py
 
 ### Mengubah Konfigurasi
 
-#### Edit File Service
+#### Perintah Setelah Edit Script/Service
 
-Untuk mengubah konfigurasi service, edit file service:
+Setelah melakukan perubahan pada file service atau script, jalankan perintah berikut sesuai dengan file yang diubah:
 
+**1. Jika mengubah `scripts/start-service.sh`:**
 ```bash
-sudo nano /etc/systemd/system/digifor-v2.service
+# Hanya perlu restart service (tidak perlu reload daemon)
+sudo systemctl restart digifor-v2
 ```
 
-Atau jika ingin edit file di project directory:
-
+**2. Jika mengubah `digifor-v2.service` (file template di root):**
 ```bash
-nano /home/digifor/digifor-v2/digifor-v2.service
-# Kemudian copy ke systemd
-sudo cp digifor-v2.service /etc/systemd/system/digifor-v2.service
-```
+# Option 1: Gunakan script install (recommended)
+sudo ./scripts/install-systemd-service.sh
 
-**Setelah edit, WAJIB reload daemon dan restart service:**
-
-```bash
+# Option 2: Manual copy dan reload
+sudo cp /home/digifor/digifor-v2/digifor-v2.service /etc/systemd/system/digifor-v2.service
 sudo systemctl daemon-reload
 sudo systemctl restart digifor-v2
 ```
 
+**3. Jika mengubah file di `/etc/systemd/system/digifor-v2.service` langsung:**
+```bash
+# Wajib reload daemon setelah edit file systemd
+sudo systemctl daemon-reload
+sudo systemctl restart digifor-v2
+```
+
+**4. Jika mengubah script Python (check-db-connection.py, init-database.py, dll):**
+```bash
+# Hanya perlu restart service
+sudo systemctl restart digifor-v2
+```
+
+**Ringkasan:**
+- Edit script `.sh` → Hanya `restart`
+- Edit template `.service` → `copy` + `daemon-reload` + `restart`
+- Edit file systemd langsung → `daemon-reload` + `restart`
+- Edit script Python → Hanya `restart`
+
 #### Mengubah Port
 
-Jika ingin mengubah port, edit file `/etc/systemd/system/digifor-v2.service` dan ubah file `start-service.sh`:
+Jika ingin mengubah port, edit file `/etc/systemd/system/digifor-v2.service` dan ubah file `scripts/start-service.sh`:
 
 ```bash
 # Edit start-service.sh
-nano /home/digifor/digifor-v2/start-service.sh
+nano /home/digifor/digifor-v2/scripts/start-service.sh
 ```
 
 Ubah baris uvicorn:
@@ -287,18 +251,28 @@ sudo systemctl restart digifor-v2
 
 #### Mengubah Log Level
 
-Edit file `start-service.sh` dan ubah `--log-level info` menjadi:
+Edit file `scripts/start-service.sh` dan ubah `--log-level info` menjadi:
 - `debug` - untuk debugging (lebih detail)
 - `info` - informasi standar (default)
 - `warning` - hanya warning dan error
 - `error` - hanya error
 - `critical` - hanya critical error
 
+Setelah edit, restart service:
+```bash
+sudo systemctl restart digifor-v2
+```
+
 #### Mengubah Host Binding
 
-Edit file `start-service.sh` dan ubah `--host 0.0.0.0` menjadi:
+Edit file `scripts/start-service.sh` dan ubah `--host 0.0.0.0` menjadi:
 - `0.0.0.0` - semua interface (default, bisa diakses dari luar)
 - `127.0.0.1` atau `localhost` - hanya localhost (tidak bisa diakses dari luar)
+
+Setelah edit, restart service:
+```bash
+sudo systemctl restart digifor-v2
+```
 
 #### Menonaktifkan Auto-Install Dependencies
 
@@ -327,44 +301,6 @@ sudo rm /etc/systemd/system/digifor-v2.service
 sudo systemctl daemon-reload
 ```
 
-## Endpoint yang Tersedia
-
-### Endpoint Public (Tidak Perlu Authentication)
-
-- `GET /` - Info API dan version
-- `GET /docs` - Swagger UI documentation
-- `GET /redoc` - ReDoc documentation
-- `GET /openapi.json` - OpenAPI schema
-- `GET /health/health` - Health check
-- `GET /health/health/ready` - Readiness check
-- `GET /health/health/live` - Liveness check
-- `POST /api/v1/auth/login` - Login endpoint
-- `POST /api/v1/auth/register` - Register endpoint
-- `POST /api/v1/auth/refresh` - Refresh token endpoint
-
-### Endpoint yang Memerlukan Authentication
-
-Semua endpoint lainnya memerlukan Bearer token di header Authorization:
-```
-Authorization: Bearer <your-jwt-token>
-```
-
-### Contoh Penggunaan
-
-```bash
-# Test endpoint root (public)
-curl http://localhost:8000/
-
-# Test login
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password"}'
-
-# Test endpoint dengan authentication
-curl http://localhost:8000/api/v1/analytics/files \
-  -H "Authorization: Bearer <your-token>"
-```
-
 ## Catatan Penting
 
 1. **Database:** Pastikan database PostgreSQL sudah berjalan sebelum service dimulai
@@ -391,35 +327,6 @@ sudo ufw reload
 # Untuk firewalld (CentOS/RHEL)
 sudo firewall-cmd --permanent --add-port=8000/tcp
 sudo firewall-cmd --reload
-```
-
-## Monitoring Service
-
-### Cek Resource Usage
-
-```bash
-# Cek memory dan CPU usage
-systemctl status digifor-v2
-
-# Cek process details
-ps aux | grep uvicorn
-
-# Cek network connections
-sudo netstat -tlnp | grep 8000
-```
-
-### Cek Logs Real-time
-
-```bash
-# Follow logs
-sudo journalctl -u digifor-v2 -f
-
-# Filter logs by level
-sudo journalctl -u digifor-v2 -p err -f  # Error only
-sudo journalctl -u digifor-v2 -p warning -f  # Warning and above
-
-# Cek logs startup sequence
-sudo journalctl -u digifor-v2 --since "5 minutes ago" | grep -E "(pip install|check-db|init-database|seed|Started)"
 ```
 
 ## Troubleshooting Detail
@@ -482,7 +389,7 @@ Jika service start tapi langsung crash:
    ```bash
    cd /home/digifor/digifor-v2
    source venv/bin/activate
-   bash start-service.sh
+   bash scripts/start-service.sh
    ```
 
 3. **Cek port conflict:**
@@ -519,5 +426,22 @@ Lihat dokumentasi lengkap di [DATABASE_TROUBLESHOOTING.md](DATABASE_TROUBLESHOOT
 
 ---
 
-**Terakhir diupdate:** 2025-11-04
+## Struktur File Service
+
+File-file terkait systemd service:
+
+- **`digifor-v2.service`** (di root project) - Template file service untuk version control
+- **`scripts/start-service.sh`** - Script untuk menjalankan aplikasi
+- **`scripts/install-systemd-service.sh`** - Script untuk install/update systemd service
+- **`/etc/systemd/system/digifor-v2.service`** - File aktif yang digunakan systemd
+
+**Catatan Penting:**
+- File `digifor-v2.service` di root project adalah **template** yang disimpan di Git
+- File di `/etc/systemd/system/` adalah **file aktif** yang digunakan systemd
+- Setelah edit template, jalankan `sudo ./scripts/install-systemd-service.sh` untuk update file aktif
+- Atau manual: `sudo cp digifor-v2.service /etc/systemd/system/` lalu `sudo systemctl daemon-reload`
+
+---
+
+**Terakhir diupdate:** 2025-11-05
 
