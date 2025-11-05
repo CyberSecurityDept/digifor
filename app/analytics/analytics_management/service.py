@@ -70,9 +70,6 @@ def get_analytic_devices(db: Session, analytic_id: int):
     return devices
 
 MOBSF_URL="http://172.15.2.105:5001"
-# =====================================================
-# 🔹 Permission Classifier
-# =====================================================
 def classify_permissions(permissions, suspicious_set=None):
     if not permissions:
         print("[!] No permissions found in report.")
@@ -137,10 +134,6 @@ def classify_permissions(permissions, suspicious_set=None):
         return (safety_score, "Malicious", f"High risk: {dangerous_count} dangerous permissions found.", dangerous_found, risk_weight)
     return (safety_score, "Dangerous", f"Critical risk: {dangerous_count} dangerous permissions detected.", dangerous_found, risk_weight)
 
-
-# =====================================================
-# 🔹 Helpers
-# =====================================================
 def normalize_permission_entry(entry):
     if isinstance(entry, dict):
         return entry.get("status", ""), entry.get("description", "")
@@ -150,7 +143,6 @@ def normalize_permission_entry(entry):
         return "", ""
     else:
         return str(entry), ""
-
 
 def get_mobsf_api_key():
     secret_path = os.path.expanduser("~/.MobSF/secret")
@@ -183,19 +175,14 @@ def load_suspicious_indicators(script_dir):
 
 
 def log_response(prefix: str, resp):
-    """Pretty print MobSF API responses safely"""
     print(f"    → {prefix} response: {resp.status_code}")
     try:
         data = resp.json()
-        dump = json.dumps(data, indent=2)[:500]  # truncate for readability
+        dump = json.dumps(data, indent=2)[:500]
         print(f"       Response JSON (truncated):\n{dump}")
     except Exception:
         print(f"       Response text (truncated): {resp.text[:500]}")
 
-
-# =====================================================
-# 🔹 Main Analysis Function
-# =====================================================
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     print(f"\n==== Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
 
@@ -220,7 +207,6 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     api_key = get_mobsf_api_key()
     headers = {"Authorization": api_key}
 
-    # === Upload ke MobSF ===
     print("[*] Uploading to MobSF...")
     with open(file_path, "rb") as f:
         filename = os.path.basename(file_path)
@@ -232,15 +218,13 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     file_hash = resp.json().get("hash")
     if not file_hash:
         raise RuntimeError("Tidak dapat membaca hash dari response upload")
-
-    # === Jalankan scan ===
+    
     print("[*] Starting MobSF scan...")
     scan_resp = requests.post(f"{MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
     log_response("Scan", scan_resp)
     if scan_resp.status_code != 200:
         raise RuntimeError(f"Scan gagal: {scan_resp.text}")
 
-    # === Ambil JSON report ===
     print("[*] Fetching MobSF JSON report...")
     json_resp = requests.post(f"{MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
     log_response("Report JSON", json_resp)
@@ -296,7 +280,6 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
         }
     }
 
-    # === Simpan hasil ke DB ===
     print("[*] Saving analysis results to database...")
     for perm, value in permissions.items():
         status, desc = normalize_permission_entry(value)

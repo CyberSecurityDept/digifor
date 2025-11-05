@@ -97,7 +97,7 @@ class HashFile(Base):
     
     md5_hash = Column(String, nullable=True)
     sha1_hash = Column(String, nullable=True)
-    algorithm = Column(String, nullable=True)  # MD5, SHA1, or MD5, SHA1
+    algorithm = Column(String, nullable=True)
     
     source_tool = Column(String, nullable=True)
     

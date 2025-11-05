@@ -3,20 +3,16 @@ from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum as PyEnum
 
-
 class CaseStatusEnum(PyEnum):
     OPEN = "Open"
     CLOSED = "Closed"
     REOPENED = "Re-open"
 
-
 class AgencyBase(BaseModel):
     name: str = Field(..., description="Agency name")
 
-
 class AgencyCreate(AgencyBase):
     pass
-
 
 class Agency(AgencyBase):
     id: int
@@ -24,15 +20,12 @@ class Agency(AgencyBase):
     class Config:
         from_attributes = True
 
-
 class WorkUnitBase(BaseModel):
     name: str = Field(..., description="Work unit name")
     agency_id: int = Field(..., description="Agency ID")
 
-
 class WorkUnitCreate(WorkUnitBase):
     pass
-
 
 class WorkUnit(WorkUnitBase):
     id: int
@@ -40,14 +33,12 @@ class WorkUnit(WorkUnitBase):
     class Config:
         from_attributes = True
 
-
 class CaseBase(BaseModel):
     case_number: str = Field(..., description="Case number")
     title: str = Field(..., description="Case title")
     description: Optional[str] = Field(None, description="Case description")
     status: str = Field("Open", description="Case status")
     main_investigator: str = Field(..., description="Main investigator name")
-    
     agency_id: Optional[Union[int, str]] = Field(None, description="Agency ID")
     work_unit_id: Optional[Union[int, str]] = Field(None, description="Work unit ID")
     agency_name: Optional[str] = Field(None, description="Agency name (manual input)")
@@ -110,7 +101,6 @@ class CaseUpdate(BaseModel):
     class Config:
         extra = "ignore"
 
-
 class Case(BaseModel):
     id: int
     case_number: str = Field(..., description="Case number")
@@ -126,23 +116,19 @@ class Case(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CasePersonBase(BaseModel):
     person_id: int = Field(..., description="Person ID")
     person_type: str = Field(..., description="Person type")
     notes: Optional[str] = Field(None, description="Notes")
     is_primary: bool = Field(False, description="Is primary person")
 
-
 class CasePersonCreate(CasePersonBase):
     pass
-
 
 class CasePersonUpdate(BaseModel):
     person_type: Optional[str] = None
     notes: Optional[str] = None
     is_primary: Optional[bool] = None
-
 
 class CasePerson(CasePersonBase):
     id: int
@@ -152,7 +138,6 @@ class CasePerson(CasePersonBase):
 
     class Config:
         from_attributes = True
-
 
 class PersonBase(BaseModel):
     name: str = Field(..., description="Person name")
@@ -164,10 +149,8 @@ class PersonBase(BaseModel):
     investigator: Optional[str] = Field(None, description="Investigator name")
     created_by: str = Field(..., description="User who created the person record")
 
-
 class PersonCreate(PersonBase):
     case_id: int = Field(..., description="Case ID")
-
 
 class PersonUpdate(BaseModel):
     name: Optional[str] = None
@@ -181,7 +164,6 @@ class PersonUpdate(BaseModel):
     class Config:
         extra = "ignore"
 
-
 class Person(PersonBase):
     id: int
     case_id: int
@@ -191,12 +173,10 @@ class Person(PersonBase):
     class Config:
         from_attributes = True
 
-
 class PersonResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: Person
-
 
 class PersonListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -206,12 +186,10 @@ class PersonListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-
 class CaseResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: Case
-
 
 class CaseListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -251,7 +229,6 @@ class CaseLogUpdate(BaseModel):
             raise ValueError(f"Invalid status '{v}'. Valid values are: {valid_statuses} (case-sensitive)")
         return v
 
-
 class CaseLog(BaseModel):
     id: int
     case_id: int
@@ -265,12 +242,10 @@ class CaseLog(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CaseLogResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CaseLog
-
 
 class CaseLogListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -327,7 +302,6 @@ class PersonWithAnalysis(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CaseLogDetail(BaseModel):
     status: str = Field(..., description="Log status")
     timestamp: str = Field(..., description="Formatted timestamp")
@@ -336,7 +310,6 @@ class CaseLogDetail(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class CaseNoteDetail(BaseModel):
     timestamp: str = Field(..., description="Formatted timestamp")
@@ -352,7 +325,6 @@ class CaseSummary(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class CaseDetailResponse(BaseModel):
     status: int = Field(200, description="Response status")
