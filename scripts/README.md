@@ -16,6 +16,12 @@ Folder ini berisi semua script Python untuk menjalankan dan mengelola aplikasi D
 - **[run_analytics_workflow.py](run_analytics_workflow.py)** - Python script for analytics workflow with API contract
 - **[run_analytics_workflow.sh](run_analytics_workflow.sh)** - Bash script for analytics workflow with API contract
 
+### **Database Management**
+- **[check-db-connection.py](check-db-connection.py)** - Test koneksi database
+- **[verify-db-connection.py](verify-db-connection.py)** - Verifikasi lengkap koneksi dan tabel
+- **[list-tables.py](list-tables.py)** - List semua tabel dengan detail
+- **[init-database.py](init-database.py)** - Initialize database (membuat tabel jika belum ada)
+
 ### **Utilities**
 - **[clean.py](clean.py)** - Clean temporary files and directories
 
@@ -54,7 +60,22 @@ python scripts/run_analytics_workflow.py
 ./scripts/run_analytics_workflow.sh
 ```
 
-### **4. Utilities**
+### **4. Database Management**
+```bash
+# Test database connection
+python3 scripts/check-db-connection.py
+
+# Verify database connection and tables
+python3 scripts/verify-db-connection.py
+
+# List all tables
+python3 scripts/list-tables.py
+
+# Initialize database (create tables)
+python3 scripts/init-database.py
+```
+
+### **5. Utilities**
 ```bash
 # Clean files
 python scripts/clean.py
@@ -73,6 +94,12 @@ python scripts/clean.py
 - **`run_complete_analysis.sh`**: Script Bash yang mengotomatiskan seluruh alur kerja analisis, termasuk hash file.
 - **`run_analytics_workflow.py`**: Script Python untuk workflow analytics dengan API contract yang lengkap, termasuk error handling dan logging.
 - **`run_analytics_workflow.sh`**: Script Bash untuk workflow analytics dengan API contract yang lengkap, termasuk error handling dan logging.
+
+### **Database Management Scripts**
+- **`check-db-connection.py`**: Script untuk test koneksi database sebelum service start. Digunakan oleh systemd service.
+- **`verify-db-connection.py`**: Script untuk verifikasi lengkap koneksi database, menampilkan semua tabel, permissions, dan informasi server.
+- **`list-tables.py`**: Script untuk menampilkan semua tabel di database beserta jumlah kolom dan baris.
+- **`init-database.py`**: Script untuk initialize database - membuat semua tabel jika belum ada. Digunakan oleh systemd service.
 
 ### **Utility Scripts**
 - **`clean.py`**: Script Python untuk membersihkan file dan direktori sementara yang dihasilkan selama pengembangan dan pengujian.

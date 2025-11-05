@@ -1,5 +1,10 @@
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import warnings
+# Suppress bcrypt version warning
+warnings.filterwarnings('ignore', message='.*bcrypt.*')
+warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
+
+from sqlalchemy.orm import Session  # type: ignore
+from passlib.context import CryptContext  # type: ignore
 from app.db.session import SessionLocal
 from app.auth.models import User  # sesuaikan path model User kamu
 

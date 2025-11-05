@@ -1,13 +1,16 @@
 import pandas as pd
 import warnings
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import HashFile
 import os
 from datetime import datetime
 from sqlalchemy import text
 from app.utils.timezone import get_indonesia_time
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
 
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
@@ -189,7 +192,7 @@ class HashFileParser:
                 "modified_at_original": None
             }
 
-    def _bulk_insert_ultrafast(self, data: List[Dict[str, Any]], file_id: int):
+    def _bulk_insert_ultrafast(self, data: List[Dict[str, Any]], file_id: int, upload_id: str = None, progress_callback = None, total_records: int = 0):
         if not data:
             return 0
 
@@ -211,7 +214,6 @@ class HashFileParser:
                 record["created_at"] = current_time
                 record["updated_at"] = current_time
             
-            conn = self.db.connection()
             insert_query = text("""
                 INSERT INTO hash_files (
                     file_id, file_name, path_original, size_bytes,
@@ -225,13 +227,58 @@ class HashFileParser:
                 )
             """)
 
-            batch_size = 100000
-            for i in range(0, len(records), batch_size):
-                batch = records[i:i + batch_size]
-                conn.execute(insert_query, batch)
-                inserted += len(batch)
+            batch_size = 1000
+            total_batches = (len(records) + batch_size - 1) // batch_size
+            
+            engine: Optional["Engine"] = None
+            
+            if hasattr(self.db, 'bind') and self.db.bind:
+                bind = self.db.bind
+                if hasattr(bind, 'connect'):
+                    engine = bind  # type: ignore[assignment]
 
-            self.db.commit()
+                elif hasattr(bind, 'engine'):
+                    engine = bind.engine  # type: ignore[assignment]
+            
+            if not engine:
+                try:
+                    conn_temp = self.db.connection()
+                    if hasattr(conn_temp, 'engine'):
+                        engine = conn_temp.engine  # type: ignore[assignment]
+                    conn_temp.close()
+                except Exception:
+                    pass
+            
+            for batch_idx in range(0, len(records), batch_size):
+                batch = records[batch_idx:batch_idx + batch_size]
+                
+                if engine and hasattr(engine, 'connect'):
+                    with engine.connect() as conn:  # type: ignore[misc]
+                        trans = conn.begin()
+                        try:
+                            conn.execute(insert_query, batch)
+                            trans.commit()
+                            inserted += len(batch)
+                        except Exception as batch_error:
+                            trans.rollback()
+                            raise batch_error
+                else:
+                    self.db.execute(insert_query, batch)
+                    inserted += len(batch)
+                
+                self.db.commit()
+                
+                if progress_callback and upload_id:
+                    current_batch = (batch_idx // batch_size) + 1
+                    progress_percent = 97.5 + (current_batch / total_batches) * 1.5
+                    progress_callback(upload_id, {
+                        "message": f"Inserting hashfiles batch {current_batch}/{total_batches} ({inserted:,} records inserted)...",
+                        "percent": min(progress_percent, 99.0),
+                        "amount_of_data": inserted
+                    })
+                
+                print(f"Inserted batch {batch_idx // batch_size + 1}/{total_batches}: {len(batch)} records (Total: {inserted:,})")
+
             print(f"Ultra-fast inserted {inserted:,} rows directly via SQL")
             return inserted
         except Exception as e:
@@ -239,23 +286,22 @@ class HashFileParser:
             print(f"Ultra-fast insert failed: {e}")
             raise
 
-    def parse_hashfile(self, file_path: str, file_id: int, tools: str, original_file_path: str = None):
+    def parse_hashfile(self, file_path: str, file_id: int, tools: str, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         if tools == "Magnet Axiom":
-            return self.parse_axiom_hashfile(file_path, file_id, original_file_path)
+            return self.parse_axiom_hashfile(file_path, file_id, original_file_path, upload_id, progress_callback)
         elif tools == "Cellebrite":
-            return self.parse_cellebrite_hashfile(file_path, file_id, original_file_path)
+            return self.parse_cellebrite_hashfile(file_path, file_id, original_file_path, upload_id, progress_callback)
         elif tools == "Oxygen":
-            return self.parse_oxygen_hashfile(file_path, file_id, original_file_path)
+            return self.parse_oxygen_hashfile(file_path, file_id, original_file_path, upload_id, progress_callback)
         elif tools == "Encase":
-            return self.parse_encase_hashfile(file_path, file_id, original_file_path)
+            return self.parse_encase_hashfile(file_path, file_id, original_file_path, upload_id, progress_callback)
         else:
             print(f"Unknown tool: {tools}. Supported tools: Magnet Axiom, Cellebrite, Oxygen, Encase")
             return []
 
-    def parse_axiom_hashfile(self, file_path: str, file_id: int, original_file_path: str = None):
+    def parse_axiom_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
         try:
-            # Determine file_type from extension
             file_type = self._get_file_type_from_extension(file_path)
             
             if file_path.lower().endswith('.csv'):
@@ -266,8 +312,21 @@ class HashFileParser:
                 sheets = [pd.read_excel(file_path, sheet_name=s, engine='openpyxl', dtype=str)
                          for s in xls.sheet_names if any(k in s.lower() for k in ['hash', 'file', 'artifact'])]
 
-            for df in sheets:
-                for _, row in df.iterrows():
+            total_rows = sum(len(df) for df in sheets)
+            processed_rows = 0
+            batch_size = 1000
+            total_inserted = 0
+            
+            if progress_callback and upload_id:
+                progress_callback(upload_id, {
+                    "message": f"Parsing hashfile data (0/{total_rows:,} rows)...",
+                    "percent": 97.5
+                })
+
+            for sheet_idx, df in enumerate(sheets):
+                batch_results = []
+                for row_idx, (_, row) in enumerate(df.iterrows()):
+                    processed_rows += 1
                     name_val = row.get('Name', '')
                     md5_val = row.get('MD5 hash', row.get('MD5', ''))
                     sha1_val = row.get('SHA1 hash', row.get('SHA1', ''))
@@ -292,11 +351,9 @@ class HashFileParser:
                     if name_normalized != "-" and not has_hash:
                         continue
                     
-                    # Validasi: Abaikan jika ketiga kosong
                     if (not name_normalized or name_normalized == "") and not has_hash:
                         continue
                     
-                    # Jika Name = "-", gunakan langsung "-"
                     if name_normalized == "-":
                         file_name_clean = "-"
                     else:
@@ -307,7 +364,6 @@ class HashFileParser:
                         if file_name_clean.lower() in ['nan', 'none', 'null', '']:
                             continue
                     
-                    # Validasi hash
                     md5_hash = safe_str(md5_val)
                     sha1_hash = safe_str(sha1_val)
                     
@@ -316,14 +372,12 @@ class HashFileParser:
                     if sha1_hash and sha1_hash.lower() in ['nan', 'none', 'null', '']:
                         sha1_hash = None
                     
-                    # Pastikan minimal ada satu hash
                     if not md5_hash and not sha1_hash:
                         continue
                     
-                    # Determine algorithm
                     algorithm = determine_algorithm(md5_hash, sha1_hash)
                     
-                    results.append({
+                    batch_results.append({
                         "file_id": file_id,
                         "file_name": file_name_clean,
                         "path_original": safe_str(row.get('Full path', row.get('Path', ''))),
@@ -336,8 +390,29 @@ class HashFileParser:
                         "algorithm": algorithm,
                         "source_tool": "magnet_axiom"
                     })
+                    
+                    if len(batch_results) >= batch_size:
+                        inserted = self._bulk_insert_ultrafast(batch_results, file_id, upload_id, progress_callback, total_rows)
+                        total_inserted += inserted
+                        results.extend(batch_results)
+                        batch_results = []
+                        
+                        if progress_callback and upload_id:
+                            parse_progress = (processed_rows / total_rows) * 0.5
+                            progress_callback(upload_id, {
+                                "message": f"Parsing hashfile data ({processed_rows:,}/{total_rows:,} rows processed)...",
+                                "percent": 97.5 + parse_progress,
+                                "amount_of_data": total_inserted
+                            })
+                
+                if batch_results:
+                    inserted = self._bulk_insert_ultrafast(batch_results, file_id, upload_id, progress_callback, total_rows)
+                    total_inserted += inserted
+                    results.extend(batch_results)
+                    batch_results = []
 
-            inserted_count = self._bulk_insert_ultrafast(results, file_id)
+            inserted_count = total_inserted
+                
             print(f"Successfully saved {inserted_count} Axiom hashfiles to database")
             return inserted_count
 
@@ -346,10 +421,9 @@ class HashFileParser:
             self.db.rollback()
             raise e
 
-    def parse_cellebrite_hashfile(self, file_path: str, file_id: int, original_file_path: str = None):
+    def parse_cellebrite_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
         try:
-            # Determine file_type from extension
             file_type = self._get_file_type_from_extension(file_path)
             
             xls = pd.ExcelFile(file_path, engine='openpyxl')
@@ -397,7 +471,6 @@ class HashFileParser:
                 
                 if name_col and md5_col:
                     print(f"Found columns: Name={name_col}, MD5={md5_col}")
-                    # Cari kolom tambahan jika ada
                     path_col = None
                     size_col = None
                     created_col = None
@@ -430,11 +503,9 @@ class HashFileParser:
                         if not file_name_normalized or file_name_normalized == "":
                             continue
                         
-                        # Abaikan jika MD5 kosong (kecuali Name = "-")
                         if file_name_normalized != "-" and (not md5_hash_normalized or md5_hash_normalized == ""):
                             continue
                         
-                        # Abaikan jika keduanya kosong
                         if (not file_name_normalized or file_name_normalized == "") and (not md5_hash_normalized or md5_hash_normalized == ""):
                             continue
                         
@@ -505,7 +576,6 @@ class HashFileParser:
                 
                 if name_col and sha1_col:
                     print(f"Found columns: Name={name_col}, SHA1={sha1_col}")
-                    # Cari kolom tambahan jika ada
                     path_col = None
                     size_col = None
                     created_col = None
@@ -590,7 +660,7 @@ class HashFileParser:
             self.db.rollback()
             raise e
 
-    def parse_oxygen_hashfile(self, file_path: str, file_id: int, original_file_path: str = None):
+    def parse_oxygen_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
         try:
             file_type = self._get_file_type_from_extension(file_path)
@@ -611,7 +681,6 @@ class HashFileParser:
                     md5_hash_val = str(row.get('Hash(MD5)', row.get('MD5', '')))
                     sha1_hash_val = str(row.get('Hash(SHA1)', row.get('Hash(SHA-1)', row.get('SHA1', ''))))
                     
-                    # Normalize hash values
                     md5_hash_val = None if not md5_hash_val or md5_hash_val.lower() in ['nan', 'none', 'null', ''] else md5_hash_val
                     sha1_hash_val = None if not sha1_hash_val or sha1_hash_val.lower() in ['nan', 'none', 'null', ''] else sha1_hash_val
                     
@@ -640,10 +709,9 @@ class HashFileParser:
             self.db.rollback()
             raise e
 
-    def parse_encase_hashfile(self, file_path: str, file_id: int, original_file_path: str = None):
+    def parse_encase_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
         try:
-            # Determine file_type from extension
             file_type = self._get_file_type_from_extension(file_path)
             
             file_extension = Path(file_path).suffix.lower()

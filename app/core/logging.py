@@ -1,14 +1,29 @@
 import logging
 import sys
+import socket
 from datetime import datetime
 from pathlib import Path
-
 from app.core.config import settings
 
+def get_server_ip():
+    try:
+        if hasattr(settings, 'SERVER_IP') and settings.SERVER_IP:
+            return settings.SERVER_IP
+        if hasattr(settings, 'POSTGRES_HOST') and settings.POSTGRES_HOST:
+            return settings.POSTGRES_HOST
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = 'localhost'
+        finally:
+            s.close()
+        return ip
+    except Exception:
+        return 'unknown'
 
 class ColoredFormatter(logging.Formatter):
-    """Custom formatter with colors and structured format"""
-    
     COLORS = {
         'DEBUG': '\033[36m',
         'INFO': '\033[32m',
@@ -22,12 +37,11 @@ class ColoredFormatter(logging.Formatter):
         color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
         reset = self.COLORS['RESET']
         
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        server_ip = get_server_ip()
         
-        formatted_message = f"{timestamp} | {color}{record.levelname}{reset}| {settings.PROJECT_NAME} | {record.getMessage()}"
+        formatted_message = f"| {color}{record.levelname}{reset}| {settings.PROJECT_NAME} |{server_ip}| {record.getMessage()}"
         
         return formatted_message
-
 
 def setup_logging():
     
@@ -50,7 +64,6 @@ def setup_logging():
     root_logger.addHandler(file_handler)
     
     return logging.getLogger(__name__)
-
 
 def log_startup_info(logger):
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")

@@ -73,7 +73,7 @@ sudo systemctl stop digifor-v2
 # Restart service
 sudo systemctl restart digifor-v2
 
-# Reload daemon (setelah edit service file)
+# Reload daemon (WAJIB setelah edit service file)
 sudo systemctl daemon-reload
 
 # Restart service setelah edit config
@@ -87,6 +87,12 @@ sudo systemctl enable digifor-v2
 
 # Disable auto-start on boot
 sudo systemctl disable digifor-v2
+
+# Edit service file (manual)
+sudo nano /etc/systemd/system/digifor-v2.service
+# Setelah edit, reload daemon dan restart service
+sudo systemctl daemon-reload
+sudo systemctl restart digifor-v2
 ```
 
 ### Melihat Logs
@@ -173,38 +179,115 @@ File service (`digifor-v2.service`) berisi konfigurasi berikut:
 - **Log Level:** info
 - **Environment File:** `/home/digifor/digifor-v2/.env`
 
+### Startup Sequence
+
+Service akan menjalankan beberapa langkah sebelum aplikasi dimulai (dalam urutan):
+
+1. **Install/Update Dependencies** (`ExecStartPre`)
+   - Menjalankan: `pip install --quiet --upgrade -r requirements.txt`
+   - Memastikan semua package dependencies terinstall dan terupdate
+   - Flag `--quiet` mengurangi output log
+   - Flag `--upgrade` memastikan package selalu terupdate
+
+2. **Check Database Connection** (`ExecStartPre`)
+   - Menjalankan: `scripts/check-db-connection.py`
+   - Memverifikasi koneksi ke database PostgreSQL
+   - Service akan gagal start jika database tidak dapat diakses
+
+3. **Initialize Database** (`ExecStartPre`)
+   - Menjalankan: `scripts/init-database.py`
+   - Membuat semua tabel database jika belum ada
+   - Memastikan schema database siap digunakan
+
+4. **Seed Users** (`ExecStartPre`)
+   - Menjalankan: `python3 -m app.auth.seed`
+   - Menambahkan user default ke database
+   - User akan di-update jika sudah ada
+
+5. **Start Application** (`ExecStart`)
+   - Menjalankan: `start-service.sh`
+   - Menjalankan aplikasi FastAPI dengan uvicorn
+
 ### Konfigurasi Keamanan
 
 - **NoNewPrivileges:** true (mencegah privilege escalation)
 - **PrivateTmp:** true (isolasi temporary files)
 - **LimitNOFILE:** 65536 (batas file descriptor)
 
+### Scripts Database yang Digunakan
+
+Service menggunakan beberapa script Python untuk manajemen database:
+
+- **`scripts/check-db-connection.py`** - Test koneksi database sebelum service start
+- **`scripts/init-database.py`** - Initialize database (membuat tabel jika belum ada)
+- **`scripts/verify-db-connection.py`** - Verifikasi lengkap koneksi (untuk troubleshooting)
+- **`scripts/list-tables.py`** - List semua tabel di database (untuk troubleshooting)
+
+Semua script berada di folder `scripts/` dan dapat dijalankan manual:
+
+```bash
+# Test koneksi database
+python3 scripts/check-db-connection.py
+
+# Verifikasi lengkap
+python3 scripts/verify-db-connection.py
+
+# List semua tabel
+python3 scripts/list-tables.py
+
+# Initialize database manual
+python3 scripts/init-database.py
+```
+
 ### Mengubah Konfigurasi
 
-#### Mengubah Port
+#### Edit File Service
 
-Jika ingin mengubah port, edit file `/etc/systemd/system/digifor-v2.service`:
+Untuk mengubah konfigurasi service, edit file service:
 
 ```bash
 sudo nano /etc/systemd/system/digifor-v2.service
 ```
 
-Ubah baris `ExecStart`:
-```ini
-ExecStart=/home/digifor/digifor-v2/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+Atau jika ingin edit file di project directory:
+
+```bash
+nano /home/digifor/digifor-v2/digifor-v2.service
+# Kemudian copy ke systemd
+sudo cp digifor-v2.service /etc/systemd/system/digifor-v2.service
 ```
 
-Ganti `--port 8000` dengan port yang diinginkan, contoh `--port 8080`.
+**Setelah edit, WAJIB reload daemon dan restart service:**
 
-Setelah edit, reload dan restart:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl restart digifor-v2
 ```
 
+#### Mengubah Port
+
+Jika ingin mengubah port, edit file `/etc/systemd/system/digifor-v2.service` dan ubah file `start-service.sh`:
+
+```bash
+# Edit start-service.sh
+nano /home/digifor/digifor-v2/start-service.sh
+```
+
+Ubah baris uvicorn:
+```bash
+exec uvicorn app.main:app --host 0.0.0.0 --port 8080 --log-level info --no-access-log
+```
+
+Ganti `--port 8000` dengan port yang diinginkan, contoh `--port 8080`.
+
+Setelah edit, restart service:
+```bash
+sudo systemctl restart digifor-v2
+```
+
 #### Mengubah Log Level
 
-Ubah `--log-level info` di baris `ExecStart` menjadi:
+Edit file `start-service.sh` dan ubah `--log-level info` menjadi:
 - `debug` - untuk debugging (lebih detail)
 - `info` - informasi standar (default)
 - `warning` - hanya warning dan error
@@ -213,9 +296,25 @@ Ubah `--log-level info` di baris `ExecStart` menjadi:
 
 #### Mengubah Host Binding
 
-Untuk mengubah host binding, ubah `--host 0.0.0.0` menjadi:
+Edit file `start-service.sh` dan ubah `--host 0.0.0.0` menjadi:
 - `0.0.0.0` - semua interface (default, bisa diakses dari luar)
 - `127.0.0.1` atau `localhost` - hanya localhost (tidak bisa diakses dari luar)
+
+#### Menonaktifkan Auto-Install Dependencies
+
+Jika tidak ingin auto-install dependencies setiap start (misalnya untuk production), hapus atau comment baris:
+
+```ini
+# ExecStartPre=/home/digifor/digifor-v2/venv/bin/pip install --quiet --upgrade -r /home/digifor/digifor-v2/requirements.txt
+```
+
+Atau ganti dengan versi yang lebih cepat (hanya install jika ada perubahan):
+
+```ini
+ExecStartPre=/bin/bash -c '/home/digifor/digifor-v2/venv/bin/pip install --quiet --upgrade -r /home/digifor/digifor-v2/requirements.txt || true'
+```
+
+Flag `|| true` memastikan service tetap start meskipun pip install gagal.
 
 ## Uninstall Service
 
@@ -276,6 +375,9 @@ curl http://localhost:8000/api/v1/analytics/files \
 6. **User:** Service berjalan sebagai user `digifor`, pastikan user ini memiliki akses ke direktori project
 7. **Network:** Service binding ke `0.0.0.0:8000` berarti bisa diakses dari jaringan lain (jika firewall mengizinkan)
 8. **Security:** Service menggunakan security settings seperti `NoNewPrivileges` dan `PrivateTmp`
+9. **Dependencies:** Service akan auto-install/update dependencies setiap start (dapat dinonaktifkan)
+10. **Database Initialization:** Service akan otomatis membuat tabel dan seed user saat start pertama kali
+11. **Daemon Reload:** SELALU jalankan `sudo systemctl daemon-reload` setelah edit file service
 
 ## Firewall Configuration
 
@@ -315,5 +417,107 @@ sudo journalctl -u digifor-v2 -f
 # Filter logs by level
 sudo journalctl -u digifor-v2 -p err -f  # Error only
 sudo journalctl -u digifor-v2 -p warning -f  # Warning and above
+
+# Cek logs startup sequence
+sudo journalctl -u digifor-v2 --since "5 minutes ago" | grep -E "(pip install|check-db|init-database|seed|Started)"
 ```
+
+## Troubleshooting Detail
+
+### Service Gagal Start
+
+Jika service gagal start, cek urutan troubleshooting:
+
+1. **Cek apakah semua ExecStartPre berhasil:**
+   ```bash
+   sudo journalctl -u digifor-v2 -n 50
+   ```
+   Lihat apakah ada error di:
+   - pip install
+   - check-db-connection
+   - init-database
+   - seed users
+
+2. **Test manual setiap script:**
+   ```bash
+   # Test pip install
+   cd /home/digifor/digifor-v2
+   source venv/bin/activate
+   pip install --quiet --upgrade -r requirements.txt
+   
+   # Test database connection
+   python3 scripts/check-db-connection.py
+   
+   # Test database initialization
+   python3 scripts/init-database.py
+   
+   # Test seed
+   python3 -m app.auth.seed
+   ```
+
+3. **Cek permission:**
+   ```bash
+   # Pastikan user digifor memiliki akses
+   ls -la /home/digifor/digifor-v2
+   ls -la /home/digifor/digifor-v2/scripts/
+   ls -la /home/digifor/digifor-v2/venv/bin/
+   ```
+
+4. **Cek database connection:**
+   ```bash
+   # Test koneksi database
+   python3 scripts/verify-db-connection.py
+   ```
+
+### Service Start Tapi Crash
+
+Jika service start tapi langsung crash:
+
+1. **Cek logs detail:**
+   ```bash
+   sudo journalctl -u digifor-v2 -n 100 --no-pager
+   ```
+
+2. **Cek apakah aplikasi bisa jalan manual:**
+   ```bash
+   cd /home/digifor/digifor-v2
+   source venv/bin/activate
+   bash start-service.sh
+   ```
+
+3. **Cek port conflict:**
+   ```bash
+   sudo netstat -tlnp | grep 8000
+   sudo lsof -i :8000
+   ```
+
+### Database Connection Issues
+
+Jika ada masalah koneksi database:
+
+1. **Verifikasi koneksi:**
+   ```bash
+   python3 scripts/verify-db-connection.py
+   ```
+
+2. **Cek konfigurasi .env:**
+   ```bash
+   grep -E "^(POSTGRES_|DATABASE_)" /home/digifor/digifor-v2/.env
+   ```
+
+3. **Test koneksi langsung:**
+   ```bash
+   psql -h localhost -U digifor -d db_forensics -c "SELECT 1;"
+   ```
+
+4. **Cek PostgreSQL service:**
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+Lihat dokumentasi lengkap di [DATABASE_TROUBLESHOOTING.md](DATABASE_TROUBLESHOOTING.md) untuk troubleshooting database lebih detail.
+
+---
+
+**Terakhir diupdate:** 2025-11-04
 

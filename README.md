@@ -144,6 +144,141 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
   ```
 - **Backup**: Regular backups recommended for production environments
 
+## 🔴 Redis Server
+
+### Why Redis?
+
+Redis is used as a message broker for Celery task queue and for caching purposes in this platform:
+
+- **Task Queue**: Celery uses Redis as a message broker to handle asynchronous tasks
+- **Caching**: Fast in-memory data storage for frequently accessed data
+- **Performance**: Sub-millisecond latency for data operations
+- **Persistence**: Optional persistence to disk for data durability
+- **Scalability**: Supports master-slave replication and clustering
+
+### Redis Installation (Ubuntu/Debian)
+
+#### Install Redis Server
+
+```bash
+# Update package list
+sudo apt update
+
+# Install Redis Server
+sudo apt install redis-server -y
+```
+
+#### Start and Enable Redis Service
+
+```bash
+# Start Redis service
+sudo systemctl start redis-server
+
+# Enable Redis to start on boot
+sudo systemctl enable redis-server
+
+# Check Redis status
+sudo systemctl status redis-server
+```
+
+#### Verify Redis Installation
+
+```bash
+# Test Redis connection
+redis-cli ping
+# Should return: PONG
+
+# Check Redis version
+redis-cli --version
+```
+
+#### View Redis Logs
+
+```bash
+# View recent Redis logs (last 30 lines)
+sudo journalctl -u redis-server --no-pager -n 30
+
+# Follow Redis logs in real-time
+sudo journalctl -u redis-server -f
+```
+
+#### Redis Service Management
+
+```bash
+# Check Redis service status
+sudo systemctl status redis-server
+
+# Restart Redis service
+sudo systemctl restart redis-server
+
+# Stop Redis service
+sudo systemctl stop redis-server
+
+# Start Redis service
+sudo systemctl start redis-server
+```
+
+### Redis Configuration
+
+Redis configuration file is located at `/etc/redis/redis.conf`. You can modify settings such as:
+
+- **Port**: Default is 6379
+- **Bind Address**: Default is 127.0.0.1 (localhost)
+- **Password**: Optional authentication
+- **Persistence**: RDB snapshots and AOF logging
+
+To edit Redis configuration:
+
+```bash
+sudo nano /etc/redis/redis.conf
+```
+
+After modifying configuration, restart Redis:
+
+```bash
+sudo systemctl restart redis-server
+```
+
+### Redis Usage in This Platform
+
+Redis is used for:
+
+1. **Celery Message Broker**: Handles asynchronous task queue for background jobs
+2. **Caching**: Stores frequently accessed data for faster retrieval
+3. **Session Storage**: Optional session management (if configured)
+
+### Troubleshooting Redis
+
+**Redis service not starting:**
+```bash
+# Check Redis logs for errors
+sudo journalctl -u redis-server -n 50
+
+# Verify Redis configuration
+sudo redis-server --test-memory 1
+```
+
+**Redis connection refused:**
+```bash
+# Check if Redis is running
+sudo systemctl status redis-server
+
+# Verify Redis is listening on correct port
+sudo netstat -tlnp | grep 6379
+# or
+sudo ss -tlnp | grep 6379
+```
+
+**Redis permission denied:**
+```bash
+# Check Redis socket permissions
+ls -la /var/run/redis/
+
+# Fix permissions if needed
+sudo chown redis:redis /var/run/redis/redis-server.sock
+sudo chmod 755 /var/run/redis/
+```
+
 
 
 ## Quick Start
@@ -151,6 +286,7 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
 ### Prerequisites
 - Python 3.11+
 - PostgreSQL 15+
+- Redis Server (for Celery task queue and caching)
 - Git
 
 ### Installation Steps
@@ -226,34 +362,42 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 sudo apt update
 sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip postgresql postgresql-contrib git build-essential -y
 
-# 2. Start PostgreSQL
+# 2. Install Redis Server (for Celery task queue)
+sudo apt install redis-server -y
+
+# 3. Start PostgreSQL and Redis services
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
 
-# 3. Create database and user
+# 4. Verify Redis is running
+sudo systemctl status redis-server
+
+# 5. Create database and user
 sudo -u postgres psql -c "CREATE DATABASE forenlytic;"
 sudo -u postgres psql -c "CREATE USER forenlytic_user WITH PASSWORD 'your_password';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;"
 
-# 4. Clone project
+# 6. Clone project
 git clone https://github.com/CyberSecurityDept/digifor.git
 cd digifor/backend
 
-# 5. Create virtual environment
+# 7. Create virtual environment
 python3.11 -m venv venv
 source venv/bin/activate
 
-# 6. Install dependencies
+# 8. Install dependencies
 pip install -r requirements.txt
 
-# 7. Setup environment
+# 9. Setup environment
 cp env.example .env
 # Edit .env file with your database credentials
 
-# 8. Initialize database
+# 10. Initialize database
 python tools/setup_postgres.py
 
-# 9. Run server
+# 11. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -287,6 +431,18 @@ pip install -r requirements.txt
 - Pastikan PostgreSQL sedang berjalan
 - Cek kredensial di file `.env`
 - Verifikasi database sudah dibuat
+
+**Error: Redis connection failed**
+```bash
+# Pastikan Redis sedang berjalan
+sudo systemctl status redis-server
+
+# Start Redis jika belum berjalan
+sudo systemctl start redis-server
+
+# Cek Redis logs untuk error
+sudo journalctl -u redis-server --no-pager -n 30
+```
 
 **Error: Port already in use**
 ```bash

@@ -10,6 +10,9 @@ Group=digifor
 WorkingDirectory=/home/digifor/digifor-v2
 Environment="PATH=/home/digifor/digifor-v2/venv/bin:/usr/local/bin:/usr/bin:/bin"
 EnvironmentFile=/home/digifor/digifor-v2/.env
+ExecStartPre=/home/digifor/digifor-v2/venv/bin/pip install --quiet --upgrade -r /home/digifor/digifor-v2/requirements.txt
+ExecStartPre=/home/digifor/digifor-v2/venv/bin/python3 /home/digifor/digifor-v2/scripts/check-db-connection.py
+ExecStartPre=/home/digifor/digifor-v2/venv/bin/python3 /home/digifor/digifor-v2/scripts/init-database.py
 ExecStartPre=/home/digifor/digifor-v2/venv/bin/python3 -m app.auth.seed
 ExecStart=/bin/bash /home/digifor/digifor-v2/start-service.sh
 Restart=always
@@ -27,4 +30,3 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-

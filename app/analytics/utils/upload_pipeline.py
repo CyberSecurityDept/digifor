@@ -125,7 +125,7 @@ class UploadService:
         type: str,
         tools: str,
         file_bytes: bytes,
-        method: str = None,
+        method: str | None = None,
     ):
         start_time = time.time()
         if upload_id in self._progress and not self._progress[upload_id].get("done"):
@@ -135,6 +135,10 @@ class UploadService:
 
         try:
             original_filename = file.filename
+            if not original_filename:
+                self._mark_done(upload_id, "Filename is required")
+                return {"status": 400, "message": "Filename is required", "data": None}
+            
             total_size = len(file_bytes)
             self._progress[upload_id].update(
                 {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
@@ -305,6 +309,8 @@ class UploadService:
             db.commit()
             db.refresh(file_record)
             
+            file_id: int = int(file_record.id)  # type: ignore[assignment]
+            
             parsing_result = {
                 "tool_used": parsed_data.get("tool", tools),
                 "contacts_count": len(parsed_data.get("contacts", [])),
@@ -323,7 +329,7 @@ class UploadService:
             
             if hashfiles_data:
                 try:
-                    saved_hashfiles = save_hashfiles_to_database(file_record.id, hashfiles_data, tools)
+                    saved_hashfiles = save_hashfiles_to_database(file_id, hashfiles_data, tools)
                     parsing_result["hashfiles_saved"] = saved_hashfiles
                 except Exception as e:
                     parsing_result["hashfiles_save_error"] = str(e)
@@ -335,9 +341,9 @@ class UploadService:
                         "percent": 97.5
                     })
                     if tools == "Magnet Axiom":
-                        social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
+                        social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
+                        social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_id)
                     elif tools == "Oxygen":
                         try:
                             import pandas as pd
@@ -348,15 +354,15 @@ class UploadService:
                             
                             if has_social_media_sheets:
                                 
-                                social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                                social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                             else:
                                 
-                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
+                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_id)
                         except Exception as e:
                             print(f"Error determining Oxygen format: {e}")
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                     else:
-                        social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                     
                     if social_media_result:
                         parsing_result["social_media_count"] = len(social_media_result)
@@ -375,12 +381,12 @@ class UploadService:
                         "percent": 97.5
                     })
                     if tools == "Magnet Axiom":
-                        chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                        chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                        chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_id)
                     elif tools == "Oxygen":
-                        print(f"Calling parse_oxygen_chat_messages for file_id={file_record.id}")
-                        chat_messages_result = sm_parser.parse_oxygen_chat_messages(original_path_abs, file_record.id)
+                        print(f"Calling parse_oxygen_chat_messages for file_id={file_id}")
+                        chat_messages_result = sm_parser.parse_oxygen_chat_messages(original_path_abs, file_id)
                         print(f"parse_oxygen_chat_messages returned {len(chat_messages_result) if chat_messages_result else 0} messages")
                     else:
                         chat_messages_result = []
@@ -408,17 +414,17 @@ class UploadService:
                     contact_parser = ContactParser(db=sm_db)
                     
                     if tools == "Magnet Axiom":
-                        contacts_result = contact_parser.parse_axiom_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_axiom_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_axiom_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_axiom_calls(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        contacts_result = contact_parser.parse_cellebrite_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_cellebrite_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_cellebrite_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_cellebrite_calls(original_path_abs, file_id)
                     elif tools == "Oxygen":
-                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_id)
                     else:
-                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_id)
                     
                     if contacts_result:
                         parsing_result["contacts_count"] = len(contacts_result)
@@ -435,8 +441,8 @@ class UploadService:
             elif method == "Hashfile Analytics":
                 try:
                     self._progress[upload_id].update({
-                        "message": "Parsing hashfile data...",
-                        "percent": 97.5
+                        "message": "Preparing hashfile parsing...",
+                        "percent": 97.0
                     })
                     hashfile_parser_instance = HashFileParser(db=db)
                     
@@ -445,11 +451,28 @@ class UploadService:
                     ])
                     
                     if is_sample_file:
-                        original_file_path = os.path.abspath(os.path.join(os.getcwd(), 'sample_hashfile', original_filename))
+                        if original_filename:
+                            original_file_path = os.path.abspath(os.path.join(os.getcwd(), 'sample_hashfile', original_filename))
+                        else:
+                            original_file_path = original_path_abs
                     else:
                         original_file_path = original_path_abs
                     
-                    hashfiles_result = hashfile_parser_instance.parse_hashfile(original_path_abs, file_record.id, tools, original_file_path)
+                    def update_hashfile_progress(upload_id: str, progress_info: dict):
+                        self._progress[upload_id].update({
+                            "message": progress_info.get("message", "Processing hashfiles..."),
+                            "percent": progress_info.get("percent", 97.5),
+                            "amount_of_data": progress_info.get("amount_of_data", 0)
+                        })
+                    
+                    hashfiles_result = hashfile_parser_instance.parse_hashfile(
+                        original_path_abs, 
+                        file_id, 
+                        tools, 
+                        original_file_path,
+                        upload_id=upload_id,
+                        progress_callback=update_hashfile_progress
+                    )
                     
                     if hashfiles_result:
                         if isinstance(hashfiles_result, int):
@@ -458,27 +481,31 @@ class UploadService:
                             parsing_result["hashfiles_count"] = len(hashfiles_result)
                     else:
                         parsing_result["hashfiles_count"] = 0
+                    
                     self._progress[upload_id].update({
-                        "message": "Inserting hashfile data to database...",
-                        "percent": 98.5
+                        "message": f"Hashfile parsing completed ({parsing_result['hashfiles_count']:,} records)...",
+                        "percent": 99.0,
+                        "amount_of_data": parsing_result["hashfiles_count"]
                     })
                 except Exception as e:
                     print(f"Error parsing hashfiles: {e}")
+                    import traceback
+                    traceback.print_exc()
                     parsing_result["hashfiles_error"] = str(e)
             
             else:
                 if is_social_media:
                     try:
                         if tools == "Magnet Axiom":
-                            social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
-                            chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_id)
+                            chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_id)
                         elif tools == "Cellebrite":
-                            social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
-                            chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_id)
+                            chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_id)
                         elif tools == "Oxygen":
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                         else:
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                         
                         if social_media_result:
                             parsing_result["social_media_count"] = len(social_media_result)
@@ -612,7 +639,7 @@ class UploadService:
         owner_name: str,
         phone_number: str,
         tools: str,
-        device_id: int = None
+        device_id: int | None = None
     ) -> Dict[str, Any]:
         try:
             db = next(get_db())
@@ -657,10 +684,14 @@ class UploadService:
                     "file_id": file_id
                 }
                 
+                file_id_from_data = device_data.get("file_id")
+                if file_id_from_data is None:
+                    return {"status": 400, "message": "file_id is required", "data": None}
+                
                 device = Device(
                     owner_name=device_data.get("owner_name"),
                     phone_number=device_data.get("phone_number"),
-                    file_id=device_data.get("file_id"),
+                    file_id=int(file_id_from_data),  # type: ignore[arg-type]
                     created_at=get_indonesia_time(),
                 )
                 
@@ -720,7 +751,7 @@ class UploadService:
         file_id: int,
         owner_name: str,
         phone_number: str,
-        device_id: int = None
+        device_id: int | None = None
     ) -> Dict[str, Any]:
         try:
             db = next(get_db())

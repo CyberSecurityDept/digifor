@@ -1,0 +1,45 @@
+{
+  "include": [
+    "app",
+    "scripts",
+    "tools",
+    "tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "venv",
+    "**/.*"
+  ],
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonVersion": "3.10",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportArgumentType": false,
+  "reportCallIssue": false,
+  "reportAssignmentType": false,
+  "reportOptionalSubscript": false,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalCall": false,
+  "reportOptionalIterable": false,
+  "reportOptionalContextManager": false,
+  "reportOptionalOperand": false,
+  "extraPaths": [
+    "venv/lib/python3.10/site-packages"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "pythonVersion": "3.10",
+      "pythonPlatform": "Linux",
+      "extraPaths": [
+        "venv/lib/python3.10/site-packages"
+      ]
+    }
+  ]
+}
+

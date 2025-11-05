@@ -4,11 +4,13 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
+warnings.filterwarnings('ignore', message='.*bcrypt.*')
+warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Request, HTTPException  # type: ignore
+from fastapi.responses import JSONResponse, Response  # type: ignore
 from contextlib import asynccontextmanager
-import uvicorn
+import uvicorn  # type: ignore
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -30,7 +32,7 @@ from app.api.v1 import (
     analytics_social_media_routes,
     auth_routes
 )
-from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
 
 logger = setup_logging()

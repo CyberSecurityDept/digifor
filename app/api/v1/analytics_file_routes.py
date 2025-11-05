@@ -1,4 +1,4 @@
-from fastapi import (
+from fastapi import (  # type: ignore
     APIRouter,
     Depends,
     UploadFile,
@@ -7,8 +7,8 @@ from fastapi import (
     Query,
     BackgroundTasks
 )
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse  # type: ignore
+from sqlalchemy.orm import Session  # type: ignore
 from app.db.session import get_db
 from app.analytics.device_management.service import get_all_files
 from app.analytics.shared.models import File, Analytic
@@ -16,25 +16,19 @@ from app.analytics.utils.upload_pipeline import upload_service
 from typing import Optional
 import os, time, uuid, asyncio
 from app.api.v1.analytics_apk_routes import UPLOAD_PROGRESS as APK_PROGRESS, run_real_upload_and_finalize as run_real_upload_and_finalize_apk
-from sqlalchemy import or_
+from sqlalchemy import or_  # type: ignore
 
 
 router = APIRouter()
 UPLOAD_PROGRESS = {}
 
-# ============================================================
-# 🔧 Helper
-# ============================================================
+
 def format_file_size(size_bytes: int) -> str:
     if not size_bytes:
         return "0 MB"
     mb = size_bytes / (1024 * 1024)
     return f"{mb:.3f} MB"
 
-
-# ============================================================
-# Fungsi upload & finalize data
-# ============================================================
 async def run_real_upload_and_finalize(
     upload_id: str,
     file: UploadFile,
@@ -218,6 +212,19 @@ async def upload_data(
             "_started": False,
         }
 
+        background_tasks.add_task(
+            run_real_upload_and_finalize,
+            upload_id=upload_id,
+            file=file,
+            file_name=file_name,
+            notes=notes,
+            type=type,
+            tools=tools,
+            file_bytes=file_bytes,
+            method=method,
+            total_size=total_size,
+        )
+
         return JSONResponse({
             "status": 200,
             "message": "File uploaded, encrypted & parsed successfully",
@@ -232,36 +239,9 @@ async def upload_data(
         return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
 
 
-# ============================================================
-# 🧠 Simulate Upload Progress (Dummy)
-# ============================================================
-async def simulate_upload_process(upload_id, file_name, total_size, notes, type, tools, method):
-    try:
-        for i in range(1, 101):
-            await asyncio.sleep(0.05)
-            UPLOAD_PROGRESS[upload_id]["uploaded"] = int((i / 100) * total_size)
-            UPLOAD_PROGRESS[upload_id]["percentage"] = i
-
-        UPLOAD_PROGRESS[upload_id].update({
-            "status": "Success",
-            "upload_status": "Success",
-            "message": "Upload successful",
-            "percentage": 100,
-        })
-
-    except Exception as e:
-        UPLOAD_PROGRESS[upload_id].update({
-            "status": "Failed",
-            "upload_status": "Failed",
-            "message": f"Upload Failed! {str(e)}",
-            "percentage": "Error",
-            "data": []
-        })
-
 @router.get("/analytics/upload-progress")
 async def get_upload_progress(upload_id: str, type: str = Query("data", description="data or apk")):
     try:
-        # Pilih sumber progress
         if type.lower() == "apk":
             prog_dict = APK_PROGRESS
             run_func = run_real_upload_and_finalize_apk
@@ -271,7 +251,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
 
         prog = prog_dict.get(upload_id)
 
-        # === Start upload kalau belum dimulai ===
         if prog and not prog.get("_started") and prog.get("_ctx"):
             ctx = prog["_ctx"]
             prog["_started"] = True
@@ -329,7 +308,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "data": [],
                 }
 
-        # === Jika tidak ditemukan ===
         if upload_id not in prog_dict:
             return JSONResponse(
                 {
@@ -420,11 +398,9 @@ def get_files(
 
         query = db.query(File)
 
-        # Apply method filter
         if filter and filter in allowed_methods and filter != "All":
             query = query.filter(File.method == filter)
 
-        # Apply search filter
         if search:
             term = f"%{search.strip()}%"
             query = query.filter(

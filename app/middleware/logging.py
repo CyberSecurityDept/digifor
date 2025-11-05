@@ -15,7 +15,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         
         process_time = time.time() - start_time
         
-        log_message = f"{request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)"
+        # Get client IP
+        client_ip = request.client.host if request.client else "unknown"
+        log_message = f"{request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s) [Client: {client_ip}]"
         
         if response.status_code >= 500:
             logger.error(log_message)
