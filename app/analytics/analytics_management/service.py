@@ -69,7 +69,7 @@ def get_analytic_devices(db: Session, analytic_id: int):
     devices = db.query(Device).filter(Device.analytic_id == analytic_id).all()
     return devices
 
-MOBSF_URL="http://localhost:5001"
+MOBSF_URL="http://172.15.2.105:5001"
 # =====================================================
 # 🔹 Permission Classifier
 # =====================================================
