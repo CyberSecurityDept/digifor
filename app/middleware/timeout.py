@@ -21,13 +21,12 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host
         
         current_time = time.time()
-        if client_ip in self.last_activity:
-            if current_time - self.last_activity[client_ip] > self.timeout_seconds:
-                raise HTTPException(
-                    status_code=status.HTTP_408_REQUEST_TIMEOUT,
-                    detail="Session has timed out"
-                )
-        
+        # if client_ip in self.last_activity:
+            # if current_time - self.last_activity[client_ip] > self.timeout_seconds:
+            #     raise HTTPException(
+            #         status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            #         detail="Session has timed out"
+            #     )
         self.last_activity[client_ip] = current_time
         
         response = await call_next(request)

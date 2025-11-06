@@ -263,8 +263,8 @@ def get_hashfile_analytics(
             file_path = first.path_original or "Unknown"
             file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.file_name or "Unknown")
             file_type = first.file_type or "Unknown"
-            if first.file_extension:
-                file_type = f"{file_type} ({first.file_extension.upper()})"
+            # if first.file_extension:
+            #     file_type = f"{file_type} ({first.file_extension.upper()})"
 
             device_labels_found = [
                 device_labels[i]

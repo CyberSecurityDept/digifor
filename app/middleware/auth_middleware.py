@@ -29,6 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         public_patterns = [
             r"^/api/v1/file-encryptor/progress/[^/]+$",
+            r"^/data/.*$",  # biar bisa akses file langsung
         ]
 
         path = request.url.path

@@ -37,10 +37,12 @@ from app.api.v1 import (
     person_routes,
     evidence_routes,
     suspect_routes,
-    report_routes
+    report_routes,
+    user_managements_routes
 )
 from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
+from fastapi.staticfiles import StaticFiles
 
 logger = setup_logging()
 
@@ -77,6 +79,7 @@ add_cors_middleware(app)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 app.add_middleware(AuthMiddleware)
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
 def custom_openapi():
     if app.openapi_schema:
@@ -126,10 +129,12 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
 # app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
 app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
+# app.include_router(user_managements_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
 # app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 # app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
 # app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
