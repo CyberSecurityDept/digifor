@@ -38,7 +38,7 @@ from app.api.v1 import (
     evidence_routes,
     suspect_routes,
     report_routes,
-    user_managements_routes
+    # user_managements_routes
 )
 from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
