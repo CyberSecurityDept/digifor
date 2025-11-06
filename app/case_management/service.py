@@ -183,12 +183,12 @@ class CaseService:
             agency_name = None
             work_unit_name = None
             
-            if case.agency_id:
+            if case.agency_id is not None:
                 agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
                 if agency:
                     agency_name = agency.name
             
-            if case.work_unit_id:
+            if case.work_unit_id is not None:
                 work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
                 if work_unit:
                     work_unit_name = work_unit.name
@@ -249,12 +249,12 @@ class CaseService:
         agency_name = None
         work_unit_name = None
         
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
@@ -315,12 +315,12 @@ class CaseService:
         agency_name = None
         work_unit_name = None
         
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
@@ -332,7 +332,7 @@ class CaseService:
         
         for person in persons:
             analysis_items = []
-            if person.evidence_id and person.evidence_summary:
+            if person.evidence_id is not None and person.evidence_summary is not None:
                 summaries = person.evidence_summary.split('\n') if '\n' in person.evidence_summary else [person.evidence_summary]
                 for summary in summaries:
                     if summary.strip():
@@ -382,7 +382,7 @@ class CaseService:
             }
             case_notes.append(note_data)
         
-        evidence_count = len([p for p in persons if p.evidence_id])
+        evidence_count = len([p for p in persons if p.evidence_id is not None])
         
         case_data = {
             "case": {

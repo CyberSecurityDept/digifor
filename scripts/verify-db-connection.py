@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Script untuk verifikasi koneksi database dan menampilkan tabel
-Membantu troubleshoot jika tabel tidak muncul di database client
-"""
 import sys
 import os
 
@@ -20,19 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 def verify_connection():
-    """Verifikasi koneksi dan tampilkan informasi detail"""
     print("\n" + "="*70)
     print("DATABASE CONNECTION VERIFICATION")
     print("="*70)
     
-    print(f"\n📋 Configuration from .env:")
-    print(f"   Host: {settings.POSTGRES_HOST}")
-    print(f"   Port: {settings.POSTGRES_PORT}")
-    print(f"   Database: {settings.POSTGRES_DB}")
-    print(f"   User: {settings.POSTGRES_USER}")
+    print(f"\nConfiguration from .env:")
+    print(f"Host: {settings.POSTGRES_HOST}")
+    print(f"Port: {settings.POSTGRES_PORT}")
+    print(f"Database: {settings.POSTGRES_DB}")
+    print(f"User: {settings.POSTGRES_USER}")
     
     try:
-        # Test connection
         conn = psycopg2.connect(
             host=settings.POSTGRES_HOST,
             port=settings.POSTGRES_PORT,
@@ -42,7 +36,6 @@ def verify_connection():
         )
         cur = conn.cursor()
         
-        # Get connection info
         cur.execute("""
             SELECT 
                 current_database() as db,
@@ -60,7 +53,6 @@ def verify_connection():
         print(f"   Server Port: {info[3]}")
         print(f"   PostgreSQL Version: {info[4].split(',')[0]}")
         
-        # List all databases on server
         cur.execute("""
             SELECT datname 
             FROM pg_database 
@@ -73,7 +65,6 @@ def verify_connection():
             marker = " ← CURRENT" if db == settings.POSTGRES_DB else ""
             print(f"   - {db}{marker}")
         
-        # List all schemas
         cur.execute("""
             SELECT schema_name 
             FROM information_schema.schemata 
@@ -86,7 +77,6 @@ def verify_connection():
             marker = " ← DEFAULT" if schema == 'public' else ""
             print(f"   - {schema}{marker}")
         
-        # List all tables in public schema
         cur.execute("""
             SELECT 
                 table_name,
@@ -113,7 +103,6 @@ def verify_connection():
         else:
             print(" No tables found in 'public' schema!")
         
-        # Check user permissions
         cur.execute("""
             SELECT 
                 has_database_privilege(%s, %s, 'CONNECT') as can_connect,
@@ -153,9 +142,9 @@ def verify_connection():
         return True
         
     except Exception as e:
-        logger.error(f"❌ Connection failed: {e}")
+        logger.error(f"Connection failed: {e}")
         print(f"\n" + "="*70)
-        print("❌ VERIFICATION FAILED")
+        print("VERIFICATION FAILED")
         print("="*70)
         return False
 

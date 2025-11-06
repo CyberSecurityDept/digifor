@@ -116,7 +116,7 @@ class CustodyService:
             if not custody_log:
                 raise ValueError("Custody log not found")
             
-            if custody_log.is_immutable:
+            if custody_log.is_immutable is True:
                 raise ValueError("Cannot modify immutable custody log")
             
             update_data = custody_update.dict(exclude_unset=True)
@@ -203,10 +203,10 @@ class CustodyService:
             if not custody_log:
                 raise ValueError("Custody log not found")
             
-            custody_log.is_verified = True
-            custody_log.verified_by = verified_by
+            setattr(custody_log, 'is_verified', True)
+            setattr(custody_log, 'verified_by', verified_by)
             WIB = timezone(timedelta(hours=7))
-            custody_log.verification_date = datetime.now(WIB)
+            setattr(custody_log, 'verification_date', datetime.now(WIB))
             
             self.db.commit()
             self.db.refresh(custody_log)
@@ -254,7 +254,7 @@ class CustodyService:
             "verification_method": custody_log.verification_method,
             "is_immutable": custody_log.is_immutable,
             "is_verified": custody_log.is_verified,
-            "verification_date": custody_log.verification_date.isoformat() if custody_log.verification_date else None,
+            "verification_date": custody_log.verification_date.isoformat() if custody_log.verification_date is not None else None,
             "verified_by": custody_log.verified_by,
             "created_at": custody_log.created_at.isoformat(),
             "created_by": custody_log.created_by,
@@ -277,7 +277,7 @@ class CustodyService:
             "report_file_hash": report.report_file_hash,
             "is_verified": report.is_verified,
             "verified_by": report.verified_by,
-            "verification_date": report.verification_date.isoformat() if report.verification_date else None,
+            "verification_date": report.verification_date.isoformat() if report.verification_date is not None else None,
             "created_at": report.created_at.isoformat(),
             "is_active": report.is_active
         }

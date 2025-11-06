@@ -23,7 +23,7 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
             status_code=401
         )
     
-    if not user.is_active:
+    if user.is_active is False:
         print(f"Login failed: User '{data.email}' is inactive")
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
@@ -105,7 +105,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise HTTPException(status_code=401, detail="Invalid token")
 
     user = db.get(User, user_id)
-    if not user or not user.is_active:
+    if not user or user.is_active is False:
         raise HTTPException(status_code=401, detail="Inactive user")
     return user
 
@@ -138,7 +138,7 @@ def logout(
         ).all()
 
         for token in tokens:
-            token.revoked = True
+            setattr(token, 'revoked', True)
             db.add(token)
         db.commit()
 

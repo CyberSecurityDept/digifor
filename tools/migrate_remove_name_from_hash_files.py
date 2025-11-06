@@ -47,7 +47,7 @@ def remove_name_column_from_hash_files():
             print("Successfully removed 'name' column from hash_files table")
             
     except Exception as e:
-        print(f"❌ Error during migration: {e}")
+        print(f"Error during migration: {e}")
         raise
     finally:
         engine.dispose()

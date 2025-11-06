@@ -156,7 +156,7 @@ except Exception as e:
     raise
 ```
 
-## 📋 Checklist Troubleshooting
+## Checklist Troubleshooting
 
 - [ ] Database connection berhasil (`check-db-connection.py`)
 - [ ] Permissions user cukup (`verify-db-connection.py`)

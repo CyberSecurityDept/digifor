@@ -16,7 +16,7 @@ PASSWORD="${4:-passwordD*8}"
 DATABASE="${5:-db_forensics}"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "❌ Error: File $ENV_FILE tidak ditemukan!"
+    echo "Error: File $ENV_FILE tidak ditemukan!"
     exit 1
 fi
 
@@ -33,7 +33,7 @@ echo "Apakah Anda yakin ingin mengupdate .env file? (y/n)"
 read -r confirmation
 
 if [ "$confirmation" != "y" ] && [ "$confirmation" != "Y" ]; then
-    echo "❌ Update dibatalkan"
+    echo "Update dibatalkan"
     exit 0
 fi
 

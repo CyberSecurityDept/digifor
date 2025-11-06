@@ -24,7 +24,7 @@ def social_media_correlation(
             status_code=404,
         )
 
-    if analytic.method != "Social Media Correlation":
+    if analytic.method is None or str(analytic.method) != "Social Media Correlation":
         return JSONResponse(
             {
                 "status": 400,
@@ -80,7 +80,6 @@ def social_media_correlation(
     if selected_platform == "x":
         id_column = "X_id"
 
-    # === Ambil data sosial media dari semua file_id perangkat ===
     file_ids = [d.file_id for d in devices]
     socials = (
         db.query(SocialMedia)
@@ -96,7 +95,6 @@ def social_media_correlation(
     device_map = {d.file_id: d for d in devices}
     platform_display = selected_platform.capitalize()
 
-    # === Build metadata devices (selalu ditampilkan)
     devices_data = [
         {
             "device_id": d.id,
@@ -108,7 +106,6 @@ def social_media_correlation(
         for d in devices
     ]
 
-    # === Kalau gak ada data sosial media untuk platform ini
     if not socials:
         return JSONResponse(
             {
@@ -128,16 +125,18 @@ def social_media_correlation(
             status_code=200,
         )
 
-    # === Buat correlation map berdasarkan ID / account_name
     correlation_map = {}
     for sm in socials:
-        if not getattr(sm, id_column) and not sm.account_name:
+        platform_id_value = getattr(sm, id_column, None)
+        account_name_value = sm.account_name
+        
+        if platform_id_value is None and account_name_value is None:
             continue
 
-        key = getattr(sm, id_column)
-        if not key or str(key).lower() in ["", "nan", "none", "null"]:
-            key = sm.account_name
-        if not key:
+        key = platform_id_value
+        if key is None or (isinstance(key, str) and str(key).lower() in ["", "nan", "none", "null"]):
+            key = account_name_value
+        if key is None or (isinstance(key, str) and str(key).strip() == ""):
             continue
 
         key = str(key).strip().lower()
@@ -149,7 +148,6 @@ def social_media_correlation(
         }
         correlation_map.setdefault(key, []).append(record)
 
-    # === Group akun berdasarkan jumlah device (koneksi)
     bucket_map = {}
     for key, records in correlation_map.items():
         devices_present = {r["device"].id: r for r in records if r["device"]}
@@ -168,14 +166,12 @@ def social_media_correlation(
                 row.append(None)
         bucket_map[label].append(row)
 
-    # === Sort hasil berdasarkan jumlah koneksi terbesar
     sorted_buckets = []
     for label in sorted(
         bucket_map.keys(), key=lambda x: int(x.split()[0]), reverse=True
     ):
         sorted_buckets.append({"label": label, "devices": bucket_map[label]})
 
-    # === Return hasil
     return JSONResponse(
         {
             "status": 200,

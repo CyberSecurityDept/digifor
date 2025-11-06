@@ -1,12 +1,11 @@
 import warnings
-# Suppress bcrypt version warning
 warnings.filterwarnings('ignore', message='.*bcrypt.*')
 warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
 from sqlalchemy.orm import Session  # type: ignore
 from passlib.context import CryptContext  # type: ignore
 from app.db.session import SessionLocal
-from app.auth.models import User  # sesuaikan path model User kamu
+from app.auth.models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -45,8 +44,8 @@ def seed_users():
             existing_user = db.query(User).filter(User.email == u["email"]).first()
             if existing_user:
                 hashed_pw = get_password_hash(u["password"])
-                existing_user.hashed_password = hashed_pw
-                existing_user.is_active = True
+                setattr(existing_user, 'hashed_password', hashed_pw)
+                setattr(existing_user, 'is_active', True)
                 db.add(existing_user)
                 print(f"User '{u['email']}' sudah ada, password di-update.")
             else:

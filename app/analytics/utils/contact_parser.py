@@ -9,7 +9,6 @@ import re
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 class ContactParser:
-    """Parser for contact and call data from various forensic tools"""
     
     def __init__(self, db: Session):
         self.db = db

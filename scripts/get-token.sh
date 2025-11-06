@@ -16,7 +16,7 @@ RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/login" \
 TOKEN=$(echo $RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
 
 if [ -z "$TOKEN" ]; then
-    echo "❌ Login failed!"
+    echo "Login failed!"
     echo "Response: $RESPONSE"
     exit 1
 fi

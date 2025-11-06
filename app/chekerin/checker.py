@@ -1,6 +1,7 @@
 import os
 import json
 import struct
+import argparse
 
 def is_sdp_encrypted(file_path):
     try:
@@ -94,8 +95,6 @@ def get_sdp_file_info(file_path):
         return None
 
 if __name__ == "__main__":
-    import argparse
-    
     parser = argparse.ArgumentParser(description='SDP File Encryption Checker')
     parser.add_argument('file', nargs='?', help='File to check (optional)')
     parser.add_argument('--dir', default='.', help='Directory to check')

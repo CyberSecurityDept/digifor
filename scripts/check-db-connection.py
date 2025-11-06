@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""
-Script untuk test koneksi database sebelum service start
-Digunakan oleh systemd service untuk memastikan database tersedia
-"""
+
 import sys
 import os
-
-# Add project root to path (go up one level from scripts/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
@@ -22,21 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def check_database_connection():
-    """Test koneksi ke database server"""
     try:
         logger.info("Checking database connection...")
         logger.info(f"Host: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}")
         logger.info(f"Database: {settings.POSTGRES_DB}")
         logger.info(f"User: {settings.POSTGRES_USER}")
         
-        # Create engine with connection test
         engine = create_engine(
             settings.DATABASE_URL,
             pool_pre_ping=True,
             connect_args={"connect_timeout": 10}
         )
         
-        # Test connection
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
             result.fetchone()

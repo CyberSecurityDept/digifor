@@ -14,58 +14,55 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.case_management.models import Case, CasePerson, Agency, WorkUnit
+from app.case_management.models import Case, Person, Agency, WorkUnit
 from app.evidence_management.models import Evidence
-from app.suspect_management.models import Person
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def check_postgres_connection():
-    """Check if PostgreSQL is running and accessible"""
     try:
         conn = psycopg2.connect(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
+            host=settings.POSTGRES_HOST,
+            port=settings.POSTGRES_PORT,
+            user=settings.POSTGRES_USER,
+            password=settings.POSTGRES_PASSWORD,
             database='postgres'
         )
         conn.close()
         logger.info(" PostgreSQL connection successful")
-        logger.info(f"   Host: {settings.postgres_host}:{settings.postgres_port}")
-        logger.info(f"   User: {settings.postgres_user}")
-        logger.info(f"   Database: {settings.postgres_db}")
+        logger.info(f"   Host: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}")
+        logger.info(f"   User: {settings.POSTGRES_USER}")
+        logger.info(f"   Database: {settings.POSTGRES_DB}")
         return True
     except Exception as e:
         logger.error(f" PostgreSQL connection failed: {e}")
         logger.error(f"   Check your .env file configuration")
-        logger.error(f"   Current settings: {settings.postgres_host}:{settings.postgres_port}")
+        logger.error(f"   Current settings: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}")
         return False
 
 
 def create_database():
-    """Create the Digital Forensics database if it doesn't exist"""
     try:
         conn = psycopg2.connect(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
+            host=settings.POSTGRES_HOST,
+            port=settings.POSTGRES_PORT,
+            user=settings.POSTGRES_USER,
+            password=settings.POSTGRES_PASSWORD,
             database='postgres'
         )
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = conn.cursor()
         
-        cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (settings.postgres_db,))
+        cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (settings.POSTGRES_DB,))
         exists = cursor.fetchone()
         
         if not exists:
-            cursor.execute(f'CREATE DATABASE "{settings.postgres_db}"')
-            logger.info(f" Database '{settings.postgres_db}' created successfully")
+            cursor.execute(f'CREATE DATABASE "{settings.POSTGRES_DB}"')
+            logger.info(f" Database '{settings.POSTGRES_DB}' created successfully")
         else:
-            logger.info(f" Database '{settings.postgres_db}' already exists")
+            logger.info(f" Database '{settings.POSTGRES_DB}' already exists")
         
         cursor.close()
         conn.close()
@@ -77,7 +74,6 @@ def create_database():
 
 
 def create_tables():
-    """Create all tables in PostgreSQL"""
     try:
         Base.metadata.create_all(bind=engine)
         logger.info(" All tables created successfully")
@@ -88,7 +84,6 @@ def create_tables():
 
 
 def migrate_data_from_sqlite():
-    """Migrate data from SQLite to PostgreSQL"""
     sqlite_path = "./data/Digital Forensics.db"
     
     if not os.path.exists(sqlite_path):
@@ -99,7 +94,7 @@ def migrate_data_from_sqlite():
         sqlite_conn = sqlite3.connect(sqlite_path)
         sqlite_cursor = sqlite_conn.cursor()
         
-        pg_engine = create_engine(settings.database_url)
+        pg_engine = create_engine(settings.DATABASE_URL)
         pg_session = sessionmaker(bind=pg_engine)()
         
         sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -144,10 +139,9 @@ def migrate_data_from_sqlite():
 
 
 def create_admin_user():
-    """Create default admin user"""
     try:
         
-        pg_engine = create_engine(settings.database_url)
+        pg_engine = create_engine(settings.DATABASE_URL)
         pg_session = sessionmaker(bind=pg_engine)()
         
         logger.info("ℹ User management not yet implemented - skipping admin user creation")
@@ -162,7 +156,6 @@ def create_admin_user():
 
 
 def main():
-    """Main setup function"""
     logger.info(" Starting PostgreSQL setup for Digital Forensics...")
     
     if not check_postgres_connection():

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
@@ -59,17 +59,14 @@ router = APIRouter()
 hashfile_router = APIRouter(tags=["Hashfile Analytics"])
 
 
-class CreateAnalyticWithDevicesRequest(BaseModel):
-    analytic_name: str
-    method: str
-
 @router.post("/analytics/start-analyzing")
 def create_analytic_with_devices(
-    data: CreateAnalyticWithDevicesRequest, 
+    analytic_name: str = Form(...),
+    method: str = Form(...),
     db: Session = Depends(get_db)
 ):
     try:
-        if not data.analytic_name.strip():
+        if not analytic_name.strip():
             return JSONResponse(
                 content={
                 "status": 400,
@@ -87,7 +84,7 @@ def create_analytic_with_devices(
             "Hashfile Analytics"
         ]
         
-        if data.method not in valid_methods:
+        if method not in valid_methods:
             return JSONResponse(
                 content={
                 "status": 400,
@@ -99,8 +96,8 @@ def create_analytic_with_devices(
 
         new_analytic = store_analytic(
             db=db,
-            analytic_name=data.analytic_name,
-            method=data.method,
+            analytic_name=analytic_name,
+            method=method,
         )
         
         db.commit()

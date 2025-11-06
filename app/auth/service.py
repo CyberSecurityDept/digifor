@@ -40,7 +40,6 @@ def create_user(
     return user
 
 def create_refresh_token(db: Session, user: models.User) -> models.RefreshToken:
-    """Buat refresh token baru untuk user tertentu."""
     token = secrets.token_urlsafe(48)
     expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     rt = models.RefreshToken(

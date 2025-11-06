@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Script untuk menampilkan semua tabel di database
-"""
 import sys
 import os
 
@@ -18,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def list_all_tables():
-    """List semua tabel di database"""
     try:
         engine = create_engine(settings.DATABASE_URL)
         

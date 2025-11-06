@@ -4,13 +4,12 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives import serialization
 
 def validate_private_key(key_path):
-    """Validate if private key is correct X25519 key"""
     try:
         with open(key_path, 'rb') as f:
             key_data = f.read()
         
         print(f"Validating: {key_path}")
-        print(f"📏 Key size: {len(key_data)} bytes")
+        print(f"Key size: {len(key_data)} bytes")
         
         if len(key_data) != 32:
             print(f"INVALID: Key must be 32 bytes, got {len(key_data)} bytes")
@@ -41,8 +40,7 @@ def validate_private_key(key_path):
         return False
 
 def test_key_pair(private_path, public_path):
-    """Test if private and public keys are a valid pair"""
-    print("\n🔗 Testing Key Pair Match")
+    print("\nTesting Key Pair Match")
     print("=" * 40)
     
     with open(private_path, 'rb') as f:
@@ -57,7 +55,7 @@ def test_key_pair(private_path, public_path):
         shared_secret1 = private_key.exchange(public_key)
         
         print("Key pair: VALID (can perform key exchange)")
-        print(f"📏 Shared secret: {len(shared_secret1)} bytes")
+        print(f"Shared secret: {len(shared_secret1)} bytes")
         print(f"🔐 First 16 bytes: {shared_secret1.hex()[:32]}...")
         
         return True

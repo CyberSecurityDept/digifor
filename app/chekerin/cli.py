@@ -7,10 +7,6 @@ import glob
 from sdp_crypto import generate_keypair, encrypt_to_sdp, decrypt_from_sdp
 
 def is_sdp_encrypted(file_path):
-    """
-    Check if file is SDP encrypted
-    Returns: True if encrypted, False if not, None if error
-    """
     try:
         if not os.path.exists(file_path):
             return False
@@ -46,7 +42,6 @@ def is_sdp_encrypted(file_path):
         return False
 
 def get_sdp_file_info(file_path):
-    """Get detailed info about SDP encrypted file"""
     if not is_sdp_encrypted(file_path):
         return None
         
@@ -78,7 +73,6 @@ def get_sdp_file_info(file_path):
         return None
 
 def check_files_in_directory(directory='.'):
-    """Check all files in directory for encryption status"""
     print(f"Checking encryption status in: {os.path.abspath(directory)}")
     print("=" * 60)
     
@@ -93,7 +87,6 @@ def check_files_in_directory(directory='.'):
             results.append((file, status, file_path))
     
 def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
-    """Encrypt multiple files matching patterns"""
     with open(public_key_path, 'rb') as f:
         pub_key = f.read()
     
@@ -124,7 +117,6 @@ def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
     return encrypted_files
 
 def decrypt_multiple_files(private_key_path, sdp_patterns, output_dir='.'):
-    """Decrypt multiple .sdp files matching patterns"""
     with open(private_key_path, 'rb') as f:
         priv_key = f.read()
     
@@ -149,7 +141,6 @@ def decrypt_multiple_files(private_key_path, sdp_patterns, output_dir='.'):
     return decrypted_files
 
 def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=False):
-    """Encrypt semua files dalam folder"""
     with open(public_key_path, 'rb') as f:
         pub_key = f.read()
     
@@ -214,7 +205,6 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     return encrypted_files
 
 def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=False):
-    """Decrypt semua .sdp files dalam folder"""
     with open(private_key_path, 'rb') as f:
         priv_key = f.read()
     

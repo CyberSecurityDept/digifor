@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Digital Forensics Backend API Testing Script
-"""
 import requests
 import json
 import time
@@ -9,7 +6,6 @@ import time
 BASE_URL = "http://localhost:8000"
 
 def test_health():
-    """Test health endpoint"""
     print(" Testing health endpoint...")
     try:
         response = requests.get(f"{BASE_URL}/health")
@@ -22,7 +18,6 @@ def test_health():
         print(f" Health check error: {e}")
 
 def test_auth():
-    """Test authentication"""
     print("\n Testing authentication...")
     
     login_data = {
@@ -50,7 +45,6 @@ def test_auth():
         return None
 
 def test_cases(token):
-    """Test case management"""
     print("\n Testing case management...")
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -87,7 +81,6 @@ def test_cases(token):
         return None
 
 def test_case_operations(token, case_id):
-    """Test case operations"""
     print("\n Testing case operations...")
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -163,7 +156,6 @@ def test_case_operations(token, case_id):
         print(f" Get case stats error: {e}")
 
 def test_reports(token, case_id):
-    """Test report generation"""
     print("\n Testing report generation...")
     
     headers = {"Authorization": f"Bearer {token}"}
@@ -200,7 +192,6 @@ def test_reports(token, case_id):
         print(f" List reports error: {e}")
 
 def main():
-    """Main testing function"""
     print(" Starting Digital Forensics Backend API Tests...")
     print("=" * 50)
     
