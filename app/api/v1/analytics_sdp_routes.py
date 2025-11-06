@@ -80,8 +80,8 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
             status_code=500
         )
 
-@router.get("/file-encryptor/progress/{upload_id}")
-async def get_convert_progress(upload_id: str):
+@router.get("/file-encryptor/progress")
+async def get_convert_progress(upload_id: str = Query(..., description="Upload ID")):
     try:
         progress = CONVERT_PROGRESS.get(upload_id)
         if not progress:

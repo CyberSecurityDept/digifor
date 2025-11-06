@@ -2618,7 +2618,7 @@ atau
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | |
+| `analytic_id` | integer | - | ✅ |
 
 ---
 
