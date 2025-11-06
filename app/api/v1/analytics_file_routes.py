@@ -248,7 +248,7 @@ async def upload_data(
 
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Pending",
-            "message": "Preparing...",
+            "message": "Waiting for processing to start...",
             "upload_status": "Pending",
             "file_name": file_name,
             "total_size": total_size,
@@ -266,20 +266,8 @@ async def upload_data(
                 "total_size": total_size,
             },
             "_started": False,
+            "_processing": False,
         }
-
-        background_tasks.add_task(
-            run_real_upload_and_finalize,
-            upload_id=upload_id,
-            file=file,
-            file_name=file_name,
-            notes=notes,
-            type=type,
-            tools=tools,
-            file_bytes=file_bytes,
-            method=method,
-            total_size=total_size,
-        )
 
         return JSONResponse({
             "status": 200,
@@ -313,6 +301,9 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
             prog["_processing"] = True
             prog["status"] = "Progress"
             prog["upload_status"] = "Progress"
+            prog["message"] = "Upload Progress"
+            prog["percentage"] = 0
+            
             if type == "data":
                 asyncio.create_task(run_func(
                     upload_id,
@@ -334,6 +325,19 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     ctx["total_size"],
                 ))
             prog["_ctx"] = None
+            
+            total_size_mb = prog.get("total_size", 0) / (1024 * 1024)
+            total_size_fmt = f"{total_size_mb:.3f} MB"
+            return {
+                "status": "Progress",
+                "message": "Upload Progress",
+                "upload_id": upload_id,
+                "file_name": prog.get("file_name"),
+                "size": f"0.000/{total_size_fmt}",
+                "percentage": 0,
+                "upload_status": "Progress",
+                "data": []
+            }
 
         if upload_id not in prog_dict:
             return JSONResponse(

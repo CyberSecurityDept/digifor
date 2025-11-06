@@ -144,7 +144,8 @@ def get_hashfile_analytics(
                 {"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
             )
-        if analytic.method != "Hashfile Analytics":
+        method_value = analytic.method
+        if method_value is None or str(method_value) != "Hashfile Analytics":
             return JSONResponse(
                 {
                     "status": 400,
@@ -211,7 +212,7 @@ def get_hashfile_analytics(
         print(f"[DEBUG] Found {len(hashfiles)} hashfiles for file_ids: {file_ids}")
         print(f"[DEBUG] Devices: {[{'id': d.id, 'file_id': d.file_id, 'owner': d.owner_name} for d in devices]}")
 
-        correlation_map = defaultdict(lambda: {"records": [], "devices": set()})
+        correlation_map: dict[str, dict[str, list | set]] = defaultdict(lambda: {"records": [], "devices": set()})
 
         for hf in hashfiles:
             hash_value = hf.md5_hash or hf.sha1_hash
@@ -223,11 +224,15 @@ def get_hashfile_analytics(
             
             key = f"{hash_value}::{hf.file_name.strip().lower()}"  # kombinasi hash + file_name
             device_id = file_to_device.get(hf.file_id)
-            if not device_id:
+            if device_id is None:
                 continue
 
-            correlation_map[key]["records"].append(hf)
-            correlation_map[key]["devices"].add(device_id)
+            records_list = correlation_map[key]["records"]
+            if isinstance(records_list, list):
+                records_list.append(hf)
+            devices_set = correlation_map[key]["devices"]
+            if isinstance(devices_set, set):
+                devices_set.add(device_id)
 
         print(f"[DEBUG] Total correlation keys: {len(correlation_map)}")
         for key, data in list(correlation_map.items())[:5]:  # Print first 5
@@ -242,7 +247,10 @@ def get_hashfile_analytics(
 
         hashfile_list = []
         for key, info in correlated.items():
-            first = info["records"][0]
+            records_list = info["records"]
+            if not isinstance(records_list, list) or len(records_list) == 0:
+                continue
+            first = records_list[0]
             device_ids_found = info["devices"]
 
             file_size_bytes = first.size_bytes or 0
@@ -286,7 +294,8 @@ def get_hashfile_analytics(
             for i, d in enumerate(devices)
         ]
 
-        summary = analytic.summary if analytic.summary else None
+        summary_value = analytic.summary
+        summary = summary_value if summary_value is not None else None
         return JSONResponse(
             {
                 "status": 200,
@@ -346,16 +355,17 @@ def start_data_extraction(
                 status_code=400
             )
 
-        method = analytic.method
+        method_value = analytic.method
+        method_str = str(method_value) if method_value is not None else ""
         
-        if method == "Contact Correlation":
+        if method_str == "Contact Correlation":
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": f"Data extraction completed {method}",
+                    "message": f"Data extraction completed {method_str}",
                     "data": {
                         "analytic_id": analytic.id,
-                        "method": method,
+                        "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
                         "next_step": f"GET /api/v1/analytic/{analytic_id}/contact-correlation"
@@ -363,14 +373,14 @@ def start_data_extraction(
                 },
                 status_code=200
             )
-        elif method == "Hashfile Analytics":
+        elif method_str == "Hashfile Analytics":
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": f"Data extraction completed {method}",
+                    "message": f"Data extraction completed {method_str}",
                     "data": {
                         "analytic_id": analytic.id,
-                        "method": method,
+                        "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
                         "next_step": f"GET /api/v1/analytic/{analytic_id}/hashfile-analytics"
@@ -378,14 +388,14 @@ def start_data_extraction(
                 },
                 status_code=200
             )
-        elif method == "Deep Communication Analytics":
+        elif method_str == "Deep Communication Analytics":
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": f"Data extraction completed {method}",
+                    "message": f"Data extraction completed {method_str}",
                     "data": {
                         "analytic_id": analytic.id,
-                        "method": method,
+                        "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
                         "next_step": f"GET /api/v1/analytic/{analytic_id}/deep-communication-analytics"
@@ -393,14 +403,14 @@ def start_data_extraction(
                 },
                 status_code=200
             )
-        elif method == "Social Media Correlation":
+        elif method_str == "Social Media Correlation":
             return JSONResponse(
                 {
                     "status": 200,
-                    "message": f"Data extraction completed {method}",
+                    "message": f"Data extraction completed {method_str}",
                     "data": {
                         "analytic_id": analytic.id,
-                        "method": method,
+                        "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
                         "next_step": f"GET /api/v1/analytic/{analytic_id}/social-media-correlation"
@@ -419,8 +429,6 @@ def start_data_extraction(
 def get_all_analytic(
     search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
     method: Optional[str] = Query(None, description="Filter by method"),
-    date_from: Optional[str] = Query(None, description="Filter from date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
-    date_to: Optional[str] = Query(None, description="Filter to date (formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD)"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -439,59 +447,6 @@ def get_all_analytic(
         if method:
             query = query.filter(Analytic.method == method)
 
-        if date_from or date_to:
-            date_from_parsed = None
-            date_to_parsed = None
-            
-            if date_from and date_to:
-                try:
-                    date_from_parsed = datetime.strptime(date_from, "%m/%d/%Y")
-                    date_to_parsed = datetime.strptime(date_to, "%m/%d/%Y")
-                    if date_from_parsed > date_to_parsed:
-                        raise ValueError("Date range invalid")
-                except ValueError:
-                    try:
-                        date_from_parsed = datetime.strptime(date_from, "%d/%m/%Y")
-                        date_to_parsed = datetime.strptime(date_to, "%d/%m/%Y")
-                        if date_from_parsed > date_to_parsed:
-                            raise ValueError("Date range invalid")
-                    except ValueError:
-                        pass
-            
-            if date_from and not date_from_parsed:
-                try:
-                    date_from_parsed = parse_date_string(date_from)
-                except ValueError as e:
-                    return JSONResponse(
-                        content={
-                            "status": 400,
-                            "message": f"Invalid date_from: {str(e)}",
-                            "data": []
-                        },
-                        status_code=400
-                    )
-            
-            if date_to and not date_to_parsed:
-                try:
-                    date_to_parsed = parse_date_string(date_to)
-                except ValueError as e:
-                    return JSONResponse(
-                        content={
-                            "status": 400,
-                            "message": f"Invalid date_to: {str(e)}",
-                            "data": []
-                        },
-                        status_code=400
-                    )
-            
-            if date_from_parsed:
-                date_from_datetime = datetime.combine(date_from_parsed.date(), datetime.min.time())
-                query = query.filter(Analytic.created_at >= date_from_datetime)
-            
-            if date_to_parsed:
-                date_to_datetime = datetime.combine(date_to_parsed.date(), time(23, 59, 59, 999999))
-                query = query.filter(Analytic.created_at <= date_to_datetime)
-
         analytics = query.order_by(Analytic.created_at.desc()).all()
 
         formatted_analytics = [
@@ -500,7 +455,7 @@ def get_all_analytic(
                 "analytic_name": a.analytic_name,
                 "method": a.method,
                 "summary": a.summary,
-                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at else None
+                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at is not None else None
             }
             for a in analytics
         ]
