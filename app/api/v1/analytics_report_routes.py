@@ -52,13 +52,14 @@ def export_analytics_pdf(
         for link in device_links:
             device_ids.extend(link.device_ids)
         device_ids = list(set(device_ids))
-        if not device_ids:
-            return JSONResponse(
-                content={"status": 400, "message": "No devices linked to this analytic", "data": None},
-                status_code=400,
-            )
-
         method = analytic.method
+        if "APK" not in method or "apk" not in method.lower():
+            if not device_ids:
+                return JSONResponse(
+                    content={"status": 400, "message": "No devices linked to this analytic", "data": None},
+                    status_code=400,
+                )
+
         if "Contact" in method or "contact" in method.lower():
             return _export_contact_correlation_pdf(analytic, db)
         elif "APK" in method or "apk" in method.lower():
