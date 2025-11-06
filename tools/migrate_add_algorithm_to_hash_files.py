@@ -17,9 +17,7 @@ def migrate_add_algorithm_to_hash_files():
     print("Starting migration: Add 'algorithm' column to hash_files table")
     db = SessionLocal()
     try:
-        # Check if the 'algorithm' column exists before attempting to add it
         with db.connection() as connection:
-            # Check if column exists
             result = connection.execute(text("""
                 SELECT column_name 
                 FROM information_schema.columns 

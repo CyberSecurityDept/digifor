@@ -577,7 +577,7 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     )
 
     # ======================================================
-    # 🔹 Ambil data chat real dari get_chat_detail()
+    # Ambil data chat real dari get_chat_detail()
     # ======================================================
     response = get_chat_detail(
         analytic_id=analytic.id,
@@ -593,7 +593,7 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         chat_data = response_data.get("data", {})
         chat_messages = chat_data.get("chat_messages", [])
     except Exception as e:
-        print(f"⚠️ Gagal parse chat_detail: {e}")
+        print(f"Gagal parse chat_detail: {e}")
         chat_messages = []
 
     # === Styles ===
@@ -628,7 +628,7 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(Spacer(1, 16))
 
     # ======================================================
-    # 🔹 Chat data dinamis dari get_chat_detail()
+    # Chat data dinamis dari get_chat_detail()
     # ======================================================
     chat_records = []
     for msg in chat_messages:

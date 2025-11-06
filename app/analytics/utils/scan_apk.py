@@ -4,7 +4,7 @@ import os
 import re
 
 # =====================================================
-# 🔹 Permission Classifier (safe & updated)
+# Permission Classifier (safe & updated)
 # =====================================================
 def classify_permissions(permissions, suspicious_set=None):
     """Classify app based on permissions only."""
@@ -87,7 +87,7 @@ def classify_permissions(permissions, suspicious_set=None):
 
 
 # =====================================================
-# 🔹 Load suspicious indicator list
+# Load suspicious indicator list
 # =====================================================
 def load_suspicious_indicators(script_dir):
     indicators_file = os.path.join(script_dir, "suspicious_indicators.json")
@@ -111,7 +111,7 @@ def load_suspicious_indicators(script_dir):
 
 
 # =====================================================
-# 🔹 Main function for CLI analysis
+# Main function for CLI analysis
 # =====================================================
 def main():
     if len(sys.argv) != 2:
@@ -158,7 +158,7 @@ def main():
 
 
 # =====================================================
-# 🔹 Run as CLI
+# Run as CLI
 # =====================================================
 if __name__ == "__main__":
     main()

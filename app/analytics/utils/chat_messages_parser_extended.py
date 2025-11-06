@@ -38,14 +38,26 @@ class ChatMessagesParserExtended:
         self.db = db
     
     # Helper methods
-    def _clean(self, text: Any) -> Optional[str]:
-        if text is None or pd.isna(text):
-            return None
-        text = str(text).strip()
-        if text.lower() in ["", "nan", "none", "null", "n/a", "none"]:
-            return None
-        return text
+    def _is_na(self, value: Any) -> bool:
+        """Safely check if value is NA/NaN, returns bool (not Series/NDArray)"""
+        if value is None:
+            return True
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return True
+            na_result = value.isna().all()
+            return bool(na_result) if isinstance(na_result, (pd.Series, pd.DataFrame)) else bool(na_result)
+        try:
+            na_result = pd.isna(value)
+            if isinstance(na_result, (pd.Series, pd.DataFrame)):
+                return bool(na_result.all())
+            return bool(na_result)
+        except (TypeError, ValueError):
+            return False
     
+    def _not_na(self, value: Any) -> bool:
+        """Safely check if value is not NA/NaN, returns bool (not Series/NDArray)"""
+        return not self._is_na(value)
 
     def _normalize_platform_name(self, platform: str) -> str:
         if not platform:
@@ -310,7 +322,7 @@ class ChatMessagesParserExtended:
 
                 except Exception as e:
                     skipped_count += 1
-                    logger.warning(f"[ROW {idx}] ⚠️ Error parsing row: {e}", exc_info=False)
+                    logger.warning(f"[ROW {idx}] Error parsing row: {e}", exc_info=False)
 
             logger.info(
                 f"[CELLEBRITE CHATS PARSER] Processed {processed_count} valid rows, "
@@ -360,7 +372,11 @@ class ChatMessagesParserExtended:
 
     
     def _clean(self, value: Any) -> Optional[str]:
-        if value is None or str(value).strip().lower() in ["", "nan", "none"]:
+        if value is None or self._is_na(value):
+            return None
+        
+        text_str = str(value).strip()
+        if text_str.lower() in ["", "nan", "none", "null", "n/a"]:
             return None
 
         text = str(value)
@@ -572,7 +588,7 @@ class ChatMessagesParserExtended:
         return results
 
 
-    def _parse_oxygen_messages_sheet(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
+    def _parse_oxygen_messages_sheet(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:  # type: ignore[reportGeneralTypeIssues]
         results = []
         
         try:
@@ -615,7 +631,7 @@ class ChatMessagesParserExtended:
                 
                 if col_idx == 0:
                     if len(df) > 0:
-                        sample_val = str(df.iloc[0][col]).lower() if pd.notna(df.iloc[0][col]) else ''
+                        sample_val = str(df.iloc[0][col]).lower() if self._not_na(df.iloc[0][col]) else ''
                         if any(platform in sample_val for platform in ['whatsapp', 'telegram', 'instagram', 'twitter', 'facebook', 'tiktok', 'x']):
                             source_col = col
                             logger.info(f"[OXYGEN MESSAGES PARSER] Column {col_idx} ('{col}') detected as Source/Platform column")
@@ -633,7 +649,7 @@ class ChatMessagesParserExtended:
                 
                 if col_idx == 3 and not message_col:
                     if len(df) > 0:
-                        sample = str(df.iloc[0][col]) if pd.notna(df.iloc[0][col]) else ''
+                        sample = str(df.iloc[0][col]) if self._not_na(df.iloc[0][col]) else ''
                         if len(sample) > 5 and any(c.isalpha() for c in sample[:50]):
                             message_col = col
                             logger.info(f"[OXYGEN MESSAGES PARSER] Column {col_idx} ('{col}') detected as Message column")
@@ -645,7 +661,7 @@ class ChatMessagesParserExtended:
                             message_col = col
                 
                 if col_idx == 2 and not timestamp_col:
-                    sample = str(df.iloc[0][col]) if len(df) > 0 and pd.notna(df.iloc[0][col]) else ''
+                    sample = str(df.iloc[0][col]) if len(df) > 0 and self._not_na(df.iloc[0][col]) else ''
                     if '/' in sample and ':' in sample:
                         timestamp_col = col
                         logger.info(f"[OXYGEN MESSAGES PARSER] Column {col_idx} ('{col}') detected as Timestamp column")
@@ -656,7 +672,7 @@ class ChatMessagesParserExtended:
                         timestamp_col = col
                 
                 if col_idx in [4, 5]:
-                    sample = str(df.iloc[0][col]) if len(df) > 0 and pd.notna(df.iloc[0][col]) else ''
+                    sample = str(df.iloc[0][col]) if len(df) > 0 and self._not_na(df.iloc[0][col]) else ''
                     if '@' in sample and 's.whatsapp.net' in sample.lower():
                         if col_idx == 4 and not sender_col:
                             sender_col = col
@@ -697,7 +713,7 @@ class ChatMessagesParserExtended:
             if not source_col and len(df.columns) > 0:
                 first_col = df.columns[0]
                 if len(df) > 0:
-                    sample_val = str(df.iloc[0][first_col]).lower() if pd.notna(df.iloc[0][first_col]) else ''
+                    sample_val = str(df.iloc[0][first_col]).lower() if self._not_na(df.iloc[0][first_col]) else ''
                     if any(platform in sample_val for platform in ['whatsapp', 'telegram', 'instagram', 'twitter', 'facebook', 'tiktok', 'x']):
                         source_col = first_col
                         logger.info(f"[OXYGEN MESSAGES PARSER] Using first column '{first_col}' as Source/Platform column")
@@ -708,7 +724,7 @@ class ChatMessagesParserExtended:
                     if i < len(df.columns):
                         col = df.columns[i]
                         if len(df) > 0:
-                            sample = str(df.iloc[0][col]) if pd.notna(df.iloc[0][col]) else ''
+                            sample = str(df.iloc[0][col]) if self._not_na(df.iloc[0][col]) else ''
                             if len(sample) > 10 and any(c.isalpha() for c in sample[:50]):
                                 message_col = col
                                 logger.info(f"[OXYGEN MESSAGES PARSER] Using column {i} '{col}' as Message column")
@@ -717,7 +733,7 @@ class ChatMessagesParserExtended:
             
             if not timestamp_col and len(df.columns) > 2:
                 col = df.columns[2]
-                sample = str(df.iloc[0][col]) if len(df) > 0 and pd.notna(df.iloc[0][col]) else ''
+                sample = str(df.iloc[0][col]) if len(df) > 0 and self._not_na(df.iloc[0][col]) else ''
                 if '/' in sample and ':' in sample:
                     timestamp_col = col
                     logger.info(f"[OXYGEN MESSAGES PARSER] Using column 2 '{col}' as Timestamp column")
@@ -742,7 +758,7 @@ class ChatMessagesParserExtended:
                 print(f"[OXYGEN MESSAGES PARSER] WARNING: No Message column found!")
             
             for idx, row in df.iterrows():
-                if all(pd.isna(row[col] if col in row.index else None) or not str(self._clean(row[col] if col in row.index else None) or '').strip() for col in df.columns[:3]):
+                if all(self._is_na(row[col] if col in row.index else None) or not str(self._clean(row[col] if col in row.index else None) or '').strip() for col in df.columns[:3]):
                     continue
                 
                 first_col = df.columns[0] if len(df.columns) > 0 else None
@@ -2337,18 +2353,18 @@ class ChatMessagesParserExtended:
             for idx, row in df.iterrows():
                 # Special handling for Telegram Messages - Android: use "Message Body" column
                 if sheet_name == 'Telegram Messages - Android' and 'Message Body' in df.columns:
-                    message_text = str(row.get('Message Body', '')).strip() if pd.notna(row.get('Message Body')) else ''
+                    message_text = str(row.get('Message Body', '')).strip() if self._not_na(row.get('Message Body')) else ''
                 else:
-                    message_text = str(row.get('Message', '')).strip() if pd.notna(row.get('Message')) else ''
+                    message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
                 
                 # Get message_id and message_type based on sheet type
                 if sheet_name == 'Telegram Messages - Android':
                     # For Android: use "Item ID" for message_id
-                    message_id = str(row.get('Item ID', '')).strip() if pd.notna(row.get('Item ID')) else ''
-                    message_type = str(row.get('Type', 'text')).strip() if pd.notna(row.get('Type')) else 'text'
+                    message_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
+                    message_type = str(row.get('Type', 'text')).strip() if self._not_na(row.get('Type')) else 'text'
                 else:
-                    message_type = str(row.get('Type', '')).strip().lower() if pd.notna(row.get('Type')) else ''
-                    message_id = str(row.get('Message ID', '')).strip() if pd.notna(row.get('Message ID')) else ''
+                    message_type = str(row.get('Type', '')).strip().lower() if self._not_na(row.get('Type')) else ''
+                    message_id = str(row.get('Message ID', '')).strip() if self._not_na(row.get('Message ID')) else ''
                 
                 if not message_text:
                     skipped_count += 1
@@ -2359,18 +2375,18 @@ class ChatMessagesParserExtended:
                 # Special handling for Telegram Messages - Android
                 if sheet_name == 'Telegram Messages - Android':
                     # Map direction: Sent -> "Outgoing", Received -> "Incoming"
-                    direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                    direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                     direction = self._normalize_direction(direction_raw)
                     
                     # Get chat_id (Telegram Android uses _ChatId, not _ThreadID)
-                    chat_id = str(row.get('_ChatId', '')).strip() if pd.notna(row.get('_ChatId')) else ''
+                    chat_id = str(row.get('_ChatId', '')).strip() if self._not_na(row.get('_ChatId')) else ''
                     
                     # Use chat_id as thread_id (for Telegram Android, they are the same)
                     # If chat_id is empty, try to generate from Sender ID + Recipient ID
                     thread_id = chat_id
                     if not thread_id:
-                        sender_id = str(row.get('Sender ID', '')).strip() if pd.notna(row.get('Sender ID')) else ''
-                        recipient_id = str(row.get('Recipient ID', '')).strip() if pd.notna(row.get('Recipient ID')) else ''
+                        sender_id = str(row.get('Sender ID', '')).strip() if self._not_na(row.get('Sender ID')) else ''
+                        recipient_id = str(row.get('Recipient ID', '')).strip() if self._not_na(row.get('Recipient ID')) else ''
                         if sender_id and recipient_id:
                             # Create consistent thread_id from sorted participants
                             participants = sorted([sender_id, recipient_id])
@@ -2387,11 +2403,11 @@ class ChatMessagesParserExtended:
                         "file_id": file_id,
                         "platform": "Telegram",
                         "message_text": message_text,
-                        "from_name": str(row.get('Sender', '')).strip() if pd.notna(row.get('Sender')) else '',
-                        "sender_number": str(row.get('Sender ID', '')).strip() if pd.notna(row.get('Sender ID')) else '',
-                        "to_name": str(row.get('Recipient', '')).strip() if pd.notna(row.get('Recipient')) else '',
-                        "recipient_number": str(row.get('Recipient ID', '')).strip() if pd.notna(row.get('Recipient ID')) else '',
-                        "timestamp": str(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)', '')).strip() if pd.notna(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)')) else str(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)', '')).strip() if pd.notna(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)')) else '',
+                        "from_name": str(row.get('Sender', '')).strip() if self._not_na(row.get('Sender')) else '',
+                        "sender_number": str(row.get('Sender ID', '')).strip() if self._not_na(row.get('Sender ID')) else '',
+                        "to_name": str(row.get('Recipient', '')).strip() if self._not_na(row.get('Recipient')) else '',
+                        "recipient_number": str(row.get('Recipient ID', '')).strip() if self._not_na(row.get('Recipient ID')) else '',
+                        "timestamp": str(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)', '')).strip() if self._not_na(row.get('Created Date/Time - UTC+00:00 (dd/MM/yyyy)')) else str(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)', '')).strip() if self._not_na(row.get('Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)')) else '',
                         "thread_id": thread_id,
                         "chat_id": chat_id,
                         "message_id": message_id or f"telegram_{file_id}_{idx}",
@@ -2408,7 +2424,7 @@ class ChatMessagesParserExtended:
                     elif message_status.lower() == 'sent':
                         direction = 'Outgoing'
                     else:
-                        direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                        direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                         direction = self._normalize_direction(direction_raw)
                     
                     message_data = {
@@ -2460,7 +2476,7 @@ class ChatMessagesParserExtended:
             
             for idx, row in df.iterrows():
                 # Get message text from 'Message' column
-                message_text = str(row.get('Message', '')).strip() if pd.notna(row.get('Message')) else ''
+                message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
                 
                 # Skip messages without text
                 if not message_text:
@@ -2480,22 +2496,22 @@ class ChatMessagesParserExtended:
                 ]
                 for col in timestamp_columns:
                     if col in df.columns:
-                        timestamp = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        timestamp = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if timestamp:
                             break
                 
                 # Get Sender and Recipient
-                sender_name = str(row.get('Sender', '')).strip() if pd.notna(row.get('Sender')) else ''
-                recipient_name = str(row.get('Recipient', '')).strip() if pd.notna(row.get('Recipient')) else ''
+                sender_name = str(row.get('Sender', '')).strip() if self._not_na(row.get('Sender')) else ''
+                recipient_name = str(row.get('Recipient', '')).strip() if self._not_na(row.get('Recipient')) else ''
                 
                 # Get Direction
-                direction = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                direction = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                 
                 # Get _ThreadID
-                thread_id = str(row.get('_ThreadID', '')).strip() if pd.notna(row.get('_ThreadID')) else ''
+                thread_id = str(row.get('_ThreadID', '')).strip() if self._not_na(row.get('_ThreadID')) else ''
                 
                 # Get Chat ID
-                chat_id = str(row.get('Chat ID', '')).strip() if pd.notna(row.get('Chat ID')) else ''
+                chat_id = str(row.get('Chat ID', '')).strip() if self._not_na(row.get('Chat ID')) else ''
                 
                 # Generate chat_id and thread_id from participants if both are empty
                 if not thread_id and not chat_id:
@@ -2517,11 +2533,11 @@ class ChatMessagesParserExtended:
                     thread_id = chat_id
                 
                 # Get Item ID for message_id
-                item_id = str(row.get('Item ID', '')).strip() if pd.notna(row.get('Item ID')) else ''
+                item_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                 message_id = item_id or f"instagram_{file_id}_{idx}"
                 
                 # Get message type
-                message_type = str(row.get('Type', 'text')).strip() if pd.notna(row.get('Type')) else 'text'
+                message_type = str(row.get('Type', 'text')).strip() if self._not_na(row.get('Type')) else 'text'
                 
                 message_data = {
                     "file_id": file_id,
@@ -2570,9 +2586,9 @@ class ChatMessagesParserExtended:
             skipped_count = 0
             
             for idx, row in df.iterrows():
-                message_text = str(row.get('Message', '')).strip() if pd.notna(row.get('Message')) else ''
-                message_type = str(row.get('Message Type', '')).strip().lower() if pd.notna(row.get('Message Type')) else ''
-                item_id = str(row.get('Item ID', '')).strip() if pd.notna(row.get('Item ID')) else ''
+                message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
+                message_type = str(row.get('Message Type', '')).strip().lower() if self._not_na(row.get('Message Type')) else ''
+                item_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                 
                 if not message_text:
                     skipped_count += 1
@@ -2590,26 +2606,26 @@ class ChatMessagesParserExtended:
                 ]
                 for col in timestamp_columns:
                     if col in df.columns:
-                        timestamp = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        timestamp = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if timestamp:
                             break
                 
-                direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                 direction = self._normalize_direction(direction_raw)
                 
                 message_data = {
                     "file_id": file_id,
                     "platform": "TikTok",
                     "message_text": message_text,
-                    "from_name": str(row.get('Sender', '')).strip() if pd.notna(row.get('Sender')) else '',
+                    "from_name": str(row.get('Sender', '')).strip() if self._not_na(row.get('Sender')) else '',
                     "sender_number": "",
-                    "to_name": str(row.get('Recipient', '')).strip() if pd.notna(row.get('Recipient')) else '',
+                    "to_name": str(row.get('Recipient', '')).strip() if self._not_na(row.get('Recipient')) else '',
                     "recipient_number": "",
                     "timestamp": timestamp,
-                    "thread_id": str(row.get('_ThreadID', '')).strip() if pd.notna(row.get('_ThreadID')) else '',
+                    "thread_id": str(row.get('_ThreadID', '')).strip() if self._not_na(row.get('_ThreadID')) else '',
                     "chat_id": "",
                     "message_id": item_id or f"tiktok_{file_id}_{idx}",
-                    "message_type": str(row.get('Message Type', 'text')).strip() if pd.notna(row.get('Message Type')) else 'text',
+                    "message_type": str(row.get('Message Type', 'text')).strip() if self._not_na(row.get('Message Type')) else 'text',
                     "direction": direction,
                     "source_tool": "Magnet Axiom",
                     "sheet_name": sheet_name
@@ -2644,7 +2660,7 @@ class ChatMessagesParserExtended:
             skipped_count = 0
             
             for idx, row in df.iterrows():
-                message_text = str(row.get('Text', '')).strip() if pd.notna(row.get('Text')) else ''
+                message_text = str(row.get('Text', '')).strip() if self._not_na(row.get('Text')) else ''
                 
                 if not message_text:
                     skipped_count += 1
@@ -2662,20 +2678,20 @@ class ChatMessagesParserExtended:
                 ]
                 for col in timestamp_columns:
                     if col in df.columns:
-                        timestamp = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        timestamp = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if timestamp:
                             break
                 
-                sender_id = str(row.get('Sender ID', '')).strip() if pd.notna(row.get('Sender ID')) else ''
-                sender_name = str(row.get('Sender Name', '')).strip() if pd.notna(row.get('Sender Name')) else ''
+                sender_id = str(row.get('Sender ID', '')).strip() if self._not_na(row.get('Sender ID')) else ''
+                sender_name = str(row.get('Sender Name', '')).strip() if self._not_na(row.get('Sender Name')) else ''
                 
-                recipient_id = str(row.get('Recipient ID(s)', '')).strip() if pd.notna(row.get('Recipient ID(s)')) else ''
-                recipient_name = str(row.get('Recipient Name(s)', '')).strip() if pd.notna(row.get('Recipient Name(s)')) else ''
+                recipient_id = str(row.get('Recipient ID(s)', '')).strip() if self._not_na(row.get('Recipient ID(s)')) else ''
+                recipient_name = str(row.get('Recipient Name(s)', '')).strip() if self._not_na(row.get('Recipient Name(s)')) else ''
                 
-                direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                 direction = self._normalize_direction(direction_raw)
                 
-                thread_id = str(row.get('_ThreadID', '')).strip() if pd.notna(row.get('_ThreadID')) else ''
+                thread_id = str(row.get('_ThreadID', '')).strip() if self._not_na(row.get('_ThreadID')) else ''
                 
                 chat_id = thread_id
                 if not chat_id:
@@ -2687,7 +2703,7 @@ class ChatMessagesParserExtended:
                         chat_id = participants[0]
                         thread_id = chat_id
                 
-                item_id = str(row.get('Item ID', '')).strip() if pd.notna(row.get('Item ID')) else ''
+                item_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                 message_id = item_id or f"twitter_{file_id}_{idx}"
                 
                 message_data = {
@@ -2737,7 +2753,7 @@ class ChatMessagesParserExtended:
             skipped_count = 0
             
             for idx, row in df.iterrows():
-                message_text = str(row.get('Text', '')).strip() if pd.notna(row.get('Text')) else ''
+                message_text = str(row.get('Text', '')).strip() if self._not_na(row.get('Text')) else ''
                 
                 if not message_text:
                     skipped_count += 1
@@ -2745,7 +2761,7 @@ class ChatMessagesParserExtended:
                         logger.debug(f"[FACEBOOK PARSER] Row {idx} skipped: No message text")
                     continue
                 
-                message_type = str(row.get('Message Type', '')).strip() if pd.notna(row.get('Message Type')) else ''
+                message_type = str(row.get('Message Type', '')).strip() if self._not_na(row.get('Message Type')) else ''
                 if message_type.lower() == 'system':
                     skipped_count += 1
                     if skipped_count <= 5:
@@ -2762,19 +2778,19 @@ class ChatMessagesParserExtended:
                 ]
                 for col in timestamp_columns:
                     if col in df.columns:
-                        timestamp = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        timestamp = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if timestamp:
                             break
                 
-                sender_name = str(row.get('Sender Name', '')).strip() if pd.notna(row.get('Sender Name')) else ''
-                sender_id_raw = str(row.get('Sender ID', '')).strip() if pd.notna(row.get('Sender ID')) else ''
+                sender_name = str(row.get('Sender Name', '')).strip() if self._not_na(row.get('Sender Name')) else ''
+                sender_id_raw = str(row.get('Sender ID', '')).strip() if self._not_na(row.get('Sender ID')) else ''
                 
                 sender_id = sender_id_raw
                 if sender_id and sender_id.startswith('FACEBOOK:'):
                     sender_id = sender_id.replace('FACEBOOK:', '', 1).strip()
                 
-                receiver_name = str(row.get('Receiver Name', '')).strip() if pd.notna(row.get('Receiver Name')) else ''
-                receiver_id_raw = str(row.get('Receiver ID', '')).strip() if pd.notna(row.get('Receiver ID')) else ''
+                receiver_name = str(row.get('Receiver Name', '')).strip() if self._not_na(row.get('Receiver Name')) else ''
+                receiver_id_raw = str(row.get('Receiver ID', '')).strip() if self._not_na(row.get('Receiver ID')) else ''
                 
                 receiver_id = receiver_id_raw
                 if receiver_id and receiver_id.startswith('FACEBOOK:'):
@@ -2782,7 +2798,7 @@ class ChatMessagesParserExtended:
                 
                 direction = ''
                 
-                send_state = str(row.get('Send State', '')).strip() if pd.notna(row.get('Send State')) else ''
+                send_state = str(row.get('Send State', '')).strip() if self._not_na(row.get('Send State')) else ''
                 if send_state:
                     send_state_lower = send_state.lower()
                     if 'sent' in send_state_lower:
@@ -2791,10 +2807,10 @@ class ChatMessagesParserExtended:
                         direction = 'Incoming'
                 
                 if not direction and 'Direction' in df.columns:
-                    direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                    direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                     direction = self._normalize_direction(direction_raw)
                 
-                thread_id_raw = str(row.get('Thread ID', '')).strip() if pd.notna(row.get('Thread ID')) else ''
+                thread_id_raw = str(row.get('Thread ID', '')).strip() if self._not_na(row.get('Thread ID')) else ''
                 
                 thread_id = thread_id_raw
                 if thread_id and thread_id.startswith('ONE_TO_ONE:'):
@@ -2816,8 +2832,8 @@ class ChatMessagesParserExtended:
                             chat_id = "_".join(participants)
                             thread_id = chat_id
                 
-                message_id = str(row.get('Message ID', '')).strip() if pd.notna(row.get('Message ID')) else ''
-                item_id = str(row.get('Item ID', '')).strip() if pd.notna(row.get('Item ID')) else ''
+                message_id = str(row.get('Message ID', '')).strip() if self._not_na(row.get('Message ID')) else ''
+                item_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                 
                 if not message_id:
                     message_id = item_id or f"facebook_{file_id}_{idx}"
@@ -2875,9 +2891,9 @@ class ChatMessagesParserExtended:
             for idx, row in df.iterrows():
                 message_text = ''
                 if 'Message' in df.columns:
-                    message_text = str(row.get('Message', '')).strip() if pd.notna(row.get('Message')) else ''
+                    message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
                 elif 'Text' in df.columns:
-                    message_text = str(row.get('Text', '')).strip() if pd.notna(row.get('Text')) else ''
+                    message_text = str(row.get('Text', '')).strip() if self._not_na(row.get('Text')) else ''
                 
                 if not message_text:
                     skipped_count += 1
@@ -2896,11 +2912,11 @@ class ChatMessagesParserExtended:
                     # Use Sender Nickname for from_name
                     sender_name = ''
                     if 'Sender Nickname' in df.columns:
-                        sender_name = str(row.get('Sender Nickname', '')).strip() if pd.notna(row.get('Sender Nickname')) else ''
+                        sender_name = str(row.get('Sender Nickname', '')).strip() if self._not_na(row.get('Sender Nickname')) else ''
                     
                     # Extract sender_number from Sender column if available
                     sender_number = ''
-                    sender_raw = str(row.get('Sender', '')) if pd.notna(row.get('Sender')) else ''
+                    sender_raw = str(row.get('Sender', '')) if self._not_na(row.get('Sender')) else ''
                     if '@s.whatsapp.net' in sender_raw:
                         phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', sender_raw)
                         if phone_match:
@@ -2913,11 +2929,11 @@ class ChatMessagesParserExtended:
                     # Use Recipient Nickname for to_name
                     recipient_name = ''
                     if 'Recipient Nickname' in df.columns:
-                        recipient_name = str(row.get('Recipient Nickname', '')).strip() if pd.notna(row.get('Recipient Nickname')) else ''
+                        recipient_name = str(row.get('Recipient Nickname', '')).strip() if self._not_na(row.get('Recipient Nickname')) else ''
                     
                     # Extract recipient_number from Recipient column if available
                     recipient_number = ''
-                    recipient_raw = str(row.get('Recipient', '')) if pd.notna(row.get('Recipient')) else ''
+                    recipient_raw = str(row.get('Recipient', '')) if self._not_na(row.get('Recipient')) else ''
                     if '@s.whatsapp.net' in recipient_raw:
                         phone_match = re.search(r'(\+?[0-9]{10,15})@s\.whatsapp\.net', recipient_raw)
                         if phone_match:
@@ -2928,7 +2944,7 @@ class ChatMessagesParserExtended:
                             recipient_number = phone_match.group(1)
                 else:
                     # Default handling for other WhatsApp sheets
-                    sender_raw = str(row.get('Sender', '')) if pd.notna(row.get('Sender')) else ''
+                    sender_raw = str(row.get('Sender', '')) if self._not_na(row.get('Sender')) else ''
                     sender_name = ''
                     sender_number = ''
                     
@@ -2945,7 +2961,7 @@ class ChatMessagesParserExtended:
                         if phone_match:
                             sender_number = phone_match.group(1)
                     
-                    recipient_raw = str(row.get('Recipient', '')) if pd.notna(row.get('Recipient')) else ''
+                    recipient_raw = str(row.get('Recipient', '')) if self._not_na(row.get('Recipient')) else ''
                     recipient_name = ''
                     recipient_number = ''
                     
@@ -2973,15 +2989,15 @@ class ChatMessagesParserExtended:
                 ]
                 for col in timestamp_columns:
                     if col in df.columns:
-                        timestamp = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        timestamp = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if timestamp:
                             break
                 
-                direction_raw = str(row.get('Direction', '')).strip() if pd.notna(row.get('Direction')) else ''
+                direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                 direction = self._normalize_direction(direction_raw)
                 
                 if not direction and 'Message Status' in df.columns:
-                    status = str(row.get('Message Status', '')).strip().lower() if pd.notna(row.get('Message Status')) else ''
+                    status = str(row.get('Message Status', '')).strip().lower() if self._not_na(row.get('Message Status')) else ''
                     if 'received' in status:
                         direction = 'Incoming'
                     elif 'sent' in status:
@@ -2991,7 +3007,7 @@ class ChatMessagesParserExtended:
                 id_columns = ['Message ID', 'Item ID', 'ID']
                 for col in id_columns:
                     if col in df.columns:
-                        message_id = str(row.get(col, '')).strip() if pd.notna(row.get(col)) else ''
+                        message_id = str(row.get(col, '')).strip() if self._not_na(row.get(col)) else ''
                         if message_id:
                             break
                 
@@ -3021,13 +3037,11 @@ class ChatMessagesParserExtended:
                         thread_id = participants[0]
                         chat_id = thread_id
                     else:
-                        # Fallback: use message_id as thread_id if no participants found
                         thread_id = message_id or f"whatsapp_{file_id}_{idx}"
                         chat_id = thread_id
                 else:
-                    # Default handling for other WhatsApp sheets
-                    thread_id = str(row.get('_ThreadID', '')).strip() if pd.notna(row.get('_ThreadID')) else ''
-                    chat_id = str(row.get('Chat ID', '')).strip() if pd.notna(row.get('Chat ID')) else ''
+                    thread_id = str(row.get('_ThreadID', '')).strip() if self._not_na(row.get('_ThreadID')) else ''
+                    chat_id = str(row.get('Chat ID', '')).strip() if self._not_na(row.get('Chat ID')) else ''
                     
                     if not thread_id and not chat_id:
                         participants = sorted([p for p in [sender_number or sender_name, recipient_number or recipient_name] if p])
@@ -3038,7 +3052,7 @@ class ChatMessagesParserExtended:
                             chat_id = sender_number or recipient_number
                             thread_id = chat_id
                 
-                message_type = str(row.get('Type', 'text')).strip() if pd.notna(row.get('Type')) else 'text'
+                message_type = str(row.get('Type', 'text')).strip() if self._not_na(row.get('Type')) else 'text'
                 
                 message_data = {
                     "file_id": file_id,

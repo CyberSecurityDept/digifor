@@ -113,7 +113,7 @@ def check_hashfile_data(analytic_id: int = 1):
                 print(f"   {i+1}. Hash: {hash_part}, Name: {name_part[:50]}")
                 print(f"      Devices: {data['devices']}, Files: {data['file_ids']}, Count: {data['count']}")
         else:
-            print(f"\n⚠️  No correlations found in multiple devices!")
+            print(f"\n No correlations found in multiple devices!")
             print(f"   This could mean:")
             print(f"   - Hashfiles have different hashes in different devices")
             print(f"   - Hashfiles have same hash but different file_name")

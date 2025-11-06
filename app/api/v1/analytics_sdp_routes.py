@@ -191,7 +191,7 @@ def list_sdp_files():
                     reverse=True  # terbaru di atas
                 )
             except Exception as e:
-                print(f"⚠️ Warning: failed to sort data by timestamp: {e}")
+                print(f"Warning: failed to sort data by timestamp: {e}")
 
         return JSONResponse(
             {"status": 200, "message": "Successfully retrieved SDP file list.", "data": data},

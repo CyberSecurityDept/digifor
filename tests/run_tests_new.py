@@ -1,8 +1,3 @@
-"""
-Test Runner
-Run all tests with proper configuration
-"""
-
 import pytest
 import sys
 import os

@@ -12,11 +12,30 @@ class ChatMessagesParser:
     def __init__(self, db: Session):
         self.db = db
     
+    def _is_na(self, value: Any) -> bool:
+
+        if value is None:
+            return True
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return True
+            na_result = value.isna().all()
+            return bool(na_result) if isinstance(na_result, (pd.Series, pd.DataFrame)) else bool(na_result)
+        try:
+            na_result = pd.isna(value)
+            if isinstance(na_result, (pd.Series, pd.DataFrame)):
+                return bool(na_result.all())
+            return bool(na_result)
+        except (TypeError, ValueError):
+            return False
+    
+    def _not_na(self, value: Any) -> bool:
+        return not self._is_na(value)
+    
     def _clean(self, text: Any) -> Optional[str]:
-        """Clean dan normalize text value"""
         if text is None:
             return None
-        if isinstance(text, float) and pd.isna(text):
+        if self._is_na(text):
             return None
         text_str = str(text).strip()
         if text_str.lower() in ['nan', 'none', 'null', '', 'n/a']:
@@ -26,7 +45,7 @@ class ChatMessagesParser:
     def _generate_message_id(self, platform: str, row: pd.Series, file_id: int, index: int) -> str:
         message_id_fields = ['Message ID', 'Item ID', 'Record', 'message_id', 'id']
         for field in message_id_fields:
-            if field in row.index and pd.notna(row.get(field)):
+            if field in row.index and self._not_na(row.get(field)):
                 msg_id = str(row.get(field)).strip()
                 if msg_id and msg_id.lower() not in ['nan', 'none', '']:
                     return f"{platform}_{file_id}_{msg_id}"
@@ -107,7 +126,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -173,7 +192,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -242,7 +261,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'from', 'message', 'record', 'timestamp']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'from', 'message', 'record', 'timestamp']):
                         header_row = idx
                         break
                 
@@ -341,7 +360,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -417,7 +436,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'text', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'text', 'record']):
                         header_row = idx
                         break
                 
@@ -496,7 +515,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record', 'content']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record', 'content']):
                         header_row = idx
                         break
                 

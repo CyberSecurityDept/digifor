@@ -14,7 +14,6 @@ class ContactParser:
         self.db = db
     
     def parse_axiom_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse contacts from Axiom file — only insert if phone number valid"""
         results = []
         seen_numbers = set()  # Track nomor unik (setelah normalisasi)
 
@@ -37,11 +36,8 @@ class ContactParser:
                 return results
             
             df = pd.read_excel(file_path, sheet_name=contacts_sheet, engine='openpyxl', dtype=str)
-            print(f"📄 Found {len(df)} rows in '{contacts_sheet}' — starting parse...")
+            print(f"Found {len(df)} rows in '{contacts_sheet}' — starting parse...")
 
-            # ===============================
-            # Parsing tiap baris
-            # ===============================
             for idx, row in df.iterrows():
                 name = str(row.get('Display Name', '')).strip()
                 phone_field = str(row.get('Phone Number(s)', '')).strip()
@@ -49,7 +45,6 @@ class ContactParser:
 
                 phone_number = ""
 
-                # --- Parsing dan cleaning nomor telepon ---
                 if phone_field and phone_field.lower() != 'nan':
                     # Pisahkan berdasarkan koma, titik koma, atau newline
                     parts = re.split(r'[\n,;]+', phone_field)
@@ -57,16 +52,13 @@ class ContactParser:
 
                     for part in parts:
                         part_clean = part.strip()
-                        # Ambil substring yang terlihat seperti nomor (angka, +, spasi, -, ())
                         match = re.search(r'(\+?\d[\d\s\-().]*)', part_clean)
                         if match:
-                            num = re.sub(r'[^\d+]', '', match.group(1))  # bersihkan dari simbol
+                            num = re.sub(r'[^\d+]', '', match.group(1))
                             if 7 <= len(num) <= 15:
-                                # Normalisasi untuk perbandingan duplikat
                                 normalized = num.lstrip('+').replace(' ', '').replace('-', '')
                                 cleaned_candidates.append((num, normalized))
                     
-                    # Ambil nomor pertama valid yang bukan duplikat
                     for original, normalized in cleaned_candidates:
                         if normalized not in seen_numbers:
                             phone_number = original
@@ -74,17 +66,14 @@ class ContactParser:
                             break
 
                     if not phone_number and cleaned_candidates:
-                        print(f"⚠️ All numbers in row {idx+1} are duplicates or invalid: {cleaned_candidates}")
+                        print(f"All numbers in row {idx+1} are duplicates or invalid: {cleaned_candidates}")
 
-                # Ganti nama jika kosong / nan
                 if not name or name.lower() == 'nan':
                     name = "Unknown"
 
-                # Log tiap 10 data
                 if idx % 10 == 0 or idx == len(df) - 1:
-                    print(f"🔹 Row {idx+1}/{len(df)} → Name='{name}', Phone='{phone_number}', Account='{acc_type}'")
+                    print(f"Row {idx+1}/{len(df)} → Name='{name}', Phone='{phone_number}', Account='{acc_type}'")
 
-                # Tambahkan hanya jika nomor valid
                 if phone_number:
                     contact_data = {
                         "file_id": file_id,
@@ -94,13 +83,10 @@ class ContactParser:
                     }
                     results.append(contact_data)
                 else:
-                    print(f"⚠️ Skipped row {idx+1} — no valid phone number found")
+                    print(f"Skipped row {idx+1} — no valid phone number found")
 
             print(f"Finished parsing Axiom contacts — valid unique entries: {len(results)}")
 
-            # ===============================
-            # Save ke database
-            # ===============================
             for contact in results:
                 existing = (
                     self.db.query(Contact)
@@ -113,10 +99,10 @@ class ContactParser:
                 if not existing:
                     self.db.add(Contact(**contact))
                 else:
-                    print(f"⚠️ Skipped DB insert — duplicate number in DB: {contact['phone_number']}")
+                    print(f"Skipped DB insert — duplicate number in DB: {contact['phone_number']}")
 
             self.db.commit()
-            print(f"💾 Successfully saved {len(results)} Axiom contacts (unique & valid numbers only)")
+            print(f"Successfully saved {len(results)} Axiom contacts (unique & valid numbers only)")
 
         except Exception as e:
             print(f"Error parsing Axiom contacts: {e}")
@@ -126,7 +112,6 @@ class ContactParser:
         return results
     
     def parse_axiom_calls(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse calls from Axiom file"""
         results = []
         
         try:
@@ -185,9 +170,8 @@ class ContactParser:
         return results
     
     def parse_cellebrite_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse contacts from Cellebrite file — only insert if phone number valid and unique"""
         results = []
-        seen_numbers = set()  # Track nomor yang sudah pernah muncul
+        seen_numbers = set()
 
         try:
             print("📘 Reading Cellebrite Excel file...")
@@ -200,19 +184,15 @@ class ContactParser:
 
             print("[SHEET NAME DETECTED: Contacts]")
 
-            # Baris pertama cuma judul “Contacts (480)” → header mulai baris ke-2
             df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str, header=1)
-            print(f"📄 Found {len(df)} rows in 'Contacts' sheet — starting parse...")
+            print(f"Found {len(df)} rows in 'Contacts' sheet — starting parse...")
             print(f"🧩 Columns detected: {list(df.columns)}")
 
             # Hapus kolom pertama kalau cuma "#"
-            if df.columns[0].startswith('#'):
+            if str(df.columns[0]).startswith('#'):
                 df = df.drop(df.columns[0], axis=1)
-                print("⚙️ Dropped first column (#) — not part of contact data")
+                print("Dropped first column (#) — not part of contact data")
 
-            # ===============================
-            # Parsing tiap baris
-            # ===============================
             for idx, row in df.iterrows():
                 name = str(row.get('Name', '')).strip()
                 entries_raw = str(row.get('Entries', '')).strip()
@@ -229,7 +209,7 @@ class ContactParser:
 
                         # 🧹 Skip entri bot/newsletter
                         if any(kw in lower for kw in ["@newsletter", "@bot", "@system", "@broadcast", "@business"]):
-                            print(f"🚫 Skipped system/bot entry: {part_clean}")
+                            print(f"Skipped system/bot entry: {part_clean}")
                             continue
 
                         # WhatsApp ID → ambil angka sebelum @
@@ -242,7 +222,7 @@ class ContactParser:
                                     print(f"📞 Found WhatsApp number: {phone_number}")
                                     break
                                 else:
-                                    print(f"🚫 Skipped invalid WhatsApp number (length {len(candidate)}): {candidate}")
+                                    print(f"Skipped invalid WhatsApp number (length {len(candidate)}): {candidate}")
 
                         # Phone-Mobile dengan angka
                         elif lower.startswith("phone-mobile:"):
@@ -253,7 +233,7 @@ class ContactParser:
                                 print(f"📱 Found mobile number: {phone_number}")
                                 break
                             else:
-                                print(f"🧾 Skipped Phone-Mobile invalid or non-numeric: {content}")
+                                print(f"Skipped Phone-Mobile invalid or non-numeric: {content}")
 
                         # Phone- dengan angka
                         elif lower.startswith("phone-:"):
@@ -261,23 +241,24 @@ class ContactParser:
                             digits = re.sub(r'[^\d+]', '', content)
                             if re.search(r'\d{7,}', digits) and 7 <= len(digits) <= 15:
                                 phone_number = digits
-                                print(f"☎️ Found phone number: {phone_number}")
+                                print(f"Found phone number: {phone_number}")
                                 break
                             else:
-                                print(f"🚫 Skipped invalid Phone- number: {content}")
+                                print(f"Skipped invalid Phone- number: {content}")
 
                 # Ganti nama jika kosong atau 'nan'
                 if not display_name or display_name.lower() == 'nan':
                     display_name = "Unknown"
 
                 # Log progress tiap 10 data
-                if idx % 10 == 0 or idx == len(df) - 1:
-                    print(f"🔹 Row {idx+1}/{len(df)} → Name='{display_name}', Phone='{phone_number}', Status='{status}'")
+                idx_int = int(idx)
+                if idx_int % 10 == 0 or idx_int == len(df) - 1:
+                    print(f"Row {idx_int+1}/{len(df)} → Name='{display_name}', Phone='{phone_number}', Status='{status}'")
 
                 # Hanya masukkan kalau punya nomor valid DAN belum pernah ada
                 if phone_number:
                     if phone_number in seen_numbers:
-                        print(f"⚠️ Duplicate number detected, skipped: {phone_number}")
+                        print(f"Duplicate number detected, skipped: {phone_number}")
                         continue  # Skip nomor duplikat
 
                     seen_numbers.add(phone_number)
@@ -289,18 +270,16 @@ class ContactParser:
                     }
                     results.append(contact_data)
                 else:
-                    print(f"⚠️ Skipped row {idx+1} — no valid number found in Entries")
+                    idx_int = int(idx)
+                    print(f"Skipped row {idx_int+1} — no valid number found in Entries")
 
             print(f"Finished parsing Cellebrite contacts — valid unique entries: {len(results)}")
 
-            # ===============================
-            # Save to database — only valid contacts
-            # ===============================
             for contact in results:
                 existing = (
                     self.db.query(Contact)
                     .filter(
-                        Contact.phone_number == contact["phone_number"],  # Cek nomor juga
+                        Contact.phone_number == contact["phone_number"],
                         Contact.file_id == file_id
                     )
                     .first()
@@ -308,10 +287,10 @@ class ContactParser:
                 if not existing:
                     self.db.add(Contact(**contact))
                 else:
-                    print(f"⚠️ Skipped DB insert — duplicate in database: {contact['phone_number']}")
+                    print(f"Skipped DB insert — duplicate in database: {contact['phone_number']}")
 
             self.db.commit()
-            print(f"💾 Successfully saved {len(results)} Cellebrite contacts (unique & valid numbers only)")
+            print(f"Successfully saved {len(results)} Cellebrite contacts (unique & valid numbers only)")
 
         except Exception as e:
             print(f"Error parsing Cellebrite contacts: {e}")
@@ -409,25 +388,18 @@ class ContactParser:
             
             df = pd.read_excel(file_path, sheet_name=contacts_sheet, dtype=str, engine=engine)
             
-            print(f"📄 Found {len(df)} rows in '{contacts_sheet}' sheet — starting parse...")
+            print(f"Found {len(df)} rows in '{contacts_sheet}' sheet — starting parse...")
 
-            # ===============================
-            # Parsing tiap baris + cleaning nomor HP & nama
-            # ===============================
             for idx, row in df.iterrows():
-                # === CLEAN CONTACT NAME ===
                 raw_name_field = str(row.get('Contact', '')).strip()
                 display_name = ""
                 if raw_name_field and raw_name_field.lower() != 'nan':
-                    # Pisahkan baris
                     name_lines = [ln.strip() for ln in re.split(r'[\n,;]+', raw_name_field) if ln.strip()]
                     if name_lines:
                         first_line = name_lines[0]
-                        # Kalau baris pertama tidak mengandung label apa pun → ambil
                         if not re.match(r'^(nickname|fullname|first name|last name)\s*:', first_line.lower()):
                             display_name = first_line
                         else:
-                            # Cari baris yang mengandung fullname / first name / last name
                             for ln in name_lines:
                                 lower_ln = ln.lower()
                                 if lower_ln.startswith("fullname:"):
@@ -439,14 +411,12 @@ class ContactParser:
                                 elif lower_ln.startswith("last name:"):
                                     display_name = ln.split(":", 1)[1].strip()
                                     break
-                            # Kalau masih kosong dan ada baris bukan nickname, ambil yang pertama non-nickname
                             if not display_name:
                                 for ln in name_lines:
                                     if not ln.lower().startswith("nickname:"):
                                         display_name = ln.strip()
                                         break
 
-                # === CLEAN PHONE NUMBER ===
                 raw_phone_field = str(row.get('Phones & Emails', '')).strip()
                 phone_number = ""
                 if raw_phone_field and raw_phone_field.lower() != 'nan':
@@ -460,7 +430,7 @@ class ContactParser:
                                 num = re.sub(r'[^\d+]', '', match.group(1))
                                 if len(num) >= 7:
                                     phone_number = num
-                                    break  # hanya satu nomor pertama valid
+                                    break
 
                 contact_data = {
                     "file_id": file_id,
@@ -469,13 +439,11 @@ class ContactParser:
                     "type": str(row.get('Type', '')).strip(),
                 }
 
-                # Log progress tiap 10 data
                 if idx % 10 == 0 or idx == len(df) - 1:
-                    print(f"🔹 Parsing contact [{idx + 1}/{len(df)}]: "
+                    print(f"Parsing contact [{idx + 1}/{len(df)}]: "
                         f"Name='{contact_data['display_name']}', "
                         f"Phone='{contact_data['phone_number']}'")
 
-                # Hanya tambahkan kalau valid
                 if (
                     contact_data["display_name"]
                     and contact_data["display_name"].lower() != 'nan'
@@ -484,13 +452,10 @@ class ContactParser:
                 ):
                     results.append(contact_data)
                 else:
-                    print(f"⚠️ Skipped contact '{display_name}' — invalid or missing phone")
+                    print(f"Skipped contact '{display_name}' — invalid or missing phone")
 
             print(f"Finished parsing Oxygen contacts — valid entries: {len(results)}")
 
-            # ===============================
-            # Save to database — hanya yang valid
-            # ===============================
             for contact in results:
                 existing = (
                     self.db.query(Contact)
@@ -504,7 +469,7 @@ class ContactParser:
                     self.db.add(Contact(**contact))
             
             self.db.commit()
-            print(f"💾 Successfully saved {len(results)} Oxygen contacts to database (phone entries only)")
+            print(f"Successfully saved {len(results)} Oxygen contacts to database (phone entries only)")
         
         except Exception as e:
             print(f"Error parsing Oxygen contacts: {e}")

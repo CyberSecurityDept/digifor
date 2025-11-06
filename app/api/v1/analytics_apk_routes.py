@@ -192,7 +192,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             }
             print(f"📦 [DEBUG] Upload complete! File saved at {data.get('file_path')}")
         else:
-            print(f"⚠️ [WARN] Upload failed! Response: {resp}")
+            print(f"[WARN] Upload failed! Response: {resp}")
             UPLOAD_PROGRESS[upload_id] = {
                 "status": "Failed",
                 "message": "Upload Failed! Please try again",

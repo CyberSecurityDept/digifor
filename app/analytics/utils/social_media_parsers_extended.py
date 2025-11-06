@@ -450,7 +450,7 @@ class SocialMediaParsersExtended:
                                 if acc.get('tiktok_id'):
                                     platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
                         
                         if self._check_existing_social_media(acc):
@@ -642,7 +642,7 @@ class SocialMediaParsersExtended:
                                 if acc.get('tiktok_id'):
                                     platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
                         
                         if self._check_existing_social_media(acc):

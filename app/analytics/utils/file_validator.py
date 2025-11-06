@@ -8,7 +8,7 @@ warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
-warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
+warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
 
 
 class FileValidator:

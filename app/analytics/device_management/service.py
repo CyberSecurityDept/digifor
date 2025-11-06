@@ -53,7 +53,7 @@ def get_all_files(db: Session, search: str = None, method: str = None):
                 "tools": f.tools,
                 "method": f.method,
                 "total_size": f.total_size,
-                "total_size_formatted": format_file_size(f.total_size) if f.total_size else None,
+                "total_size_formatted": format_file_size(f.total_size) if f.total_size is not None else None,
                 "amount_of_data": f.amount_of_data,
                 "created_at": f.created_at
             }
@@ -111,7 +111,7 @@ def create_device(
             db.add(device)
             db.commit()
             db.refresh(device)
-            device_id = device.id
+            device_id = int(device.id)
 
         if device_data.get("file_path"):
             db.add(HashFile(
@@ -170,7 +170,7 @@ def create_device(
             ))
 
         db.commit()
-        return device_id
+        return int(device_id)
 
     except Exception as e:
         db.rollback()

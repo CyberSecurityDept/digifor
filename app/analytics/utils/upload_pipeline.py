@@ -173,7 +173,21 @@ class UploadService:
                 try:
                     self._progress[upload_id].update({"message": "Decrypting file...", "percent": 75})
                     priv_key = _load_existing_private_key()
-                    decrypted_path_abs = decrypt_from_sdp(priv_key, encrypted_path_abs, DATA_DIR)
+                    
+                    loop = asyncio.get_event_loop()
+                    try:
+                        decrypted_path_abs = await asyncio.wait_for(
+                            loop.run_in_executor(None, decrypt_from_sdp, priv_key, encrypted_path_abs, DATA_DIR),
+                            timeout=300.0
+                        )
+                    except asyncio.TimeoutError:
+                        self._mark_done(upload_id, "Decryption timeout: Process took too long (exceeded 5 minutes)")
+                        return {"status": 500, "message": "Decryption timeout: Process took too long", "data": None}
+                    except Exception as e:
+                        self._mark_done(upload_id, f"Decryption error: {str(e)}")
+                        return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
+                    
+                    self._progress[upload_id].update({"message": "Decryption completed", "percent": 80})
                     
                     expected_name = os.path.splitext(original_filename)[0]
                     expected_abs = os.path.join(DATA_DIR, expected_name)
@@ -215,12 +229,15 @@ class UploadService:
                         })
                         await asyncio.sleep(0.02)
 
-            for i in range(60, 95):
+            current_percent = self._progress[upload_id].get("percent", 60)
+            start_percent = max(60, int(current_percent))
+            
+            for i in range(start_percent, 95):
                 if self._is_canceled(upload_id):
-                    self._mark_done(upload_id, "Encryption canceled")
-                    return {"status": 200, "message": "Encryption canceled", "data": {"done": True}}
+                    self._mark_done(upload_id, "Processing canceled")
+                    return {"status": 200, "message": "Processing canceled", "data": {"done": True}}
 
-                phase_ratio = (i - 60) / 35
+                phase_ratio = (i - 60) / 35 if i >= 60 else 0
                 current_bytes = int(0.6 * total_size + phase_ratio * 0.4 * total_size)
                 self._progress[upload_id].update({
                     "percent": i,

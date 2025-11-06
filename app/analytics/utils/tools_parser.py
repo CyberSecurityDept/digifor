@@ -228,7 +228,7 @@ class ToolsParser:
                     
                     records = []
                     for i, row in df.iterrows():
-                        rec = {"index": i + 1}
+                        rec = {"index": int(i) + 1}
                         for col in df.columns:
                             rec[col] = self._cell_to_value(row.get(col))
                         records.append(rec)

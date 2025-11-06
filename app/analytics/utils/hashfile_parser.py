@@ -67,10 +67,6 @@ def safe_str(value) -> str | None:
 
 
 def determine_algorithm(md5_hash: str | None, sha1_hash: str | None) -> str | None:
-    """
-    Determine hash algorithm from available hashes
-    Returns: 'MD5', 'SHA1', 'MD5, SHA1', or None
-    """
     has_md5 = md5_hash and md5_hash.strip() and md5_hash.lower() not in ['nan', 'none', 'null', '']
     has_sha1 = sha1_hash and sha1_hash.strip() and sha1_hash.lower() not in ['nan', 'none', 'null', '']
     

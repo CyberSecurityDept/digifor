@@ -6,9 +6,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
 from app.analytics.shared.models import Device, Contact, Call
-
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
-
 Base.metadata.create_all(bind=engine)
 
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +26,6 @@ def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
 def cell_to_value(text: Optional[str]):
     if text is None:
         return None
@@ -41,7 +38,6 @@ def cell_to_value(text: Optional[str]):
         return clean if clean else None
     return sval
 
-
 def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
     xls = pd.ExcelFile(xlsx_path)
     target = next((s for s in xls.sheet_names if sheet_keyword.lower() in s.lower()), None)
@@ -52,30 +48,25 @@ def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
 
     records: List[dict] = []
     for i, row in df.iterrows():
-        rec = {"index": i + 1}
+        rec = {"index": int(i) + 1}
         for col in df.columns:
             rec[col] = cell_to_value(row.get(col))
         records.append(rec)
     return records
 
-
 def _to_str(value):
-    """Helper: list -> newline-joined string; None -> None; else str(value)."""
     if value is None:
         return None
     if isinstance(value, list):
         return "\n".join(str(v) for v in value)
     return str(value)
 
-
 def normalize_str(val: Optional[str]) -> Optional[str]:
-    """Hilangkan whitespace berlebih, normalisasi string supaya konsisten"""
     if not val:
         return None
     s = str(val).strip()
     s = re.sub(r"\s+", " ", s)
     return s
-
 
 def save_device(
     device_data: Dict[str, Any],
@@ -118,7 +109,7 @@ def save_device(
             ))
 
         db.commit()
-        return device.id
+        return int(device.id)
 
     finally:
         db.close()
