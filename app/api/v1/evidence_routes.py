@@ -162,13 +162,13 @@ async def get_custody_chain(
                 "id": log.id,
                 "evidence_id": log.evidence_id,
                 "event_type": log.event_type,
-                "event_date": log.event_date.isoformat() if log.event_date else None,
+                "event_date": log.event_date.isoformat() if log.event_date is not None else None,
                 "person_name": log.person_name,
                 "location": log.location,
                 "action_description": log.action_description,
                 "tools_used": log.tools_used,
                 "is_verified": log.is_verified,
-                "created_at": log.created_at.isoformat() if log.created_at else None
+                "created_at": log.created_at.isoformat() if log.created_at is not None else None
             })
         
         return {
@@ -222,13 +222,13 @@ async def get_custody_events(
                 "id": event.id,
                 "evidence_id": event.evidence_id,
                 "event_type": event.event_type,
-                "event_date": event.event_date.isoformat() if event.event_date else None,
+                "event_date": event.event_date.isoformat() if event.event_date is not None else None,
                 "person_name": event.person_name,
                 "location": event.location,
                 "action_description": event.action_description,
                 "tools_used": event.tools_used,
                 "is_verified": event.is_verified,
-                "created_at": event.created_at.isoformat() if event.created_at else None
+                "created_at": event.created_at.isoformat() if event.created_at is not None else None
             })
         
         return {

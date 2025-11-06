@@ -53,6 +53,8 @@ data/apks/apk/*
 !data/uploads/.gitkeep
 !data/analysis/.gitkeep
 !data/reports/.gitkeep
+data/.gitkeep
+data/**/.gitkeep
 
 # IDE
 .vscode/
@@ -226,3 +228,6 @@ sample_file/
 sample_data/
 sample_social_mediaa/
 sample_file_encryptor/
+
+# Systemd service files
+digifor-v2.service 

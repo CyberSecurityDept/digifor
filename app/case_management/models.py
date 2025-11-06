@@ -62,13 +62,14 @@ class Case(Base):
     suspects = relationship("Suspect", back_populates="case", cascade="all, delete-orphan")
     
     def generate_case_number(self):
-        if not self.case_number:
+        if self.case_number is None or (isinstance(self.case_number, str) and self.case_number.strip() == ""):
             title_words = self.title.split()[:3]
             title_prefix = ''.join([word[0].upper() for word in title_words])
             today = datetime.today()
             date_str = today.strftime("%d%m%y")
             
-            self.case_number = f"{title_prefix}-{date_str}-{self.id:04d}"
+            case_num_value = f"{title_prefix}-{date_str}-{self.id:04d}"
+            setattr(self, 'case_number', case_num_value)
     
     def __repr__(self):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"

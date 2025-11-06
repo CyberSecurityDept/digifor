@@ -7,10 +7,6 @@ import glob
 from sdp_crypto import generate_keypair, encrypt_to_sdp, decrypt_from_sdp
 
 def is_sdp_encrypted(file_path):
-    """
-    Check if file is SDP encrypted
-    Returns: True if encrypted, False if not, None if error
-    """
     try:
         if not os.path.exists(file_path):
             return False
@@ -46,7 +42,6 @@ def is_sdp_encrypted(file_path):
         return False
 
 def get_sdp_file_info(file_path):
-    """Get detailed info about SDP encrypted file"""
     if not is_sdp_encrypted(file_path):
         return None
         
@@ -78,8 +73,7 @@ def get_sdp_file_info(file_path):
         return None
 
 def check_files_in_directory(directory='.'):
-    """Check all files in directory for encryption status"""
-    print(f"🔍 Checking encryption status in: {os.path.abspath(directory)}")
+    print(f"Checking encryption status in: {os.path.abspath(directory)}")
     print("=" * 60)
     
     files = os.listdir(directory)
@@ -89,11 +83,10 @@ def check_files_in_directory(directory='.'):
         file_path = os.path.join(directory, file)
         if os.path.isfile(file_path):
             is_encrypted = is_sdp_encrypted(file_path)
-            status = "✅ ENCRYPTED" if is_encrypted else "❌ NOT ENCRYPTED"
+            status = "ENCRYPTED" if is_encrypted else "NOT ENCRYPTED"
             results.append((file, status, file_path))
     
 def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
-    """Encrypt multiple files matching patterns"""
     with open(public_key_path, 'rb') as f:
         pub_key = f.read()
     
@@ -116,15 +109,14 @@ def encrypt_multiple_files(public_key_path, file_patterns, output_dir=None):
                     
                     encrypt_to_sdp(pub_key, file_path, output_file)
                     encrypted_files.append((file_path, output_file))
-                    print(f"✅ Encrypted: {file_path} -> {output_file}")
+                    print(f"Encrypted: {file_path} -> {output_file}")
                     
                 except Exception as e:
-                    print(f"❌ Failed to encrypt {file_path}: {e}")
+                    print(f"Failed to encrypt {file_path}: {e}")
     
     return encrypted_files
 
 def decrypt_multiple_files(private_key_path, sdp_patterns, output_dir='.'):
-    """Decrypt multiple .sdp files matching patterns"""
     with open(private_key_path, 'rb') as f:
         priv_key = f.read()
     
@@ -141,26 +133,25 @@ def decrypt_multiple_files(private_key_path, sdp_patterns, output_dir='.'):
                 try:
                     decrypted_path = decrypt_from_sdp(priv_key, file_path, output_dir)
                     decrypted_files.append((file_path, decrypted_path))
-                    print(f"✅ Decrypted: {file_path} -> {decrypted_path}")
+                    print(f"Decrypted: {file_path} -> {decrypted_path}")
                     
                 except Exception as e:
-                    print(f"❌ Failed to decrypt {file_path}: {e}")
+                    print(f"Failed to decrypt {file_path}: {e}")
     
     return decrypted_files
 
 def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=False):
-    """Encrypt semua files dalam folder"""
     with open(public_key_path, 'rb') as f:
         pub_key = f.read()
     
     folder_path = os.path.abspath(folder_path)
     
     if not os.path.exists(folder_path):
-        print(f"❌ Folder tidak ditemukan: {folder_path}")
+        print(f"Folder tidak ditemukan: {folder_path}")
         return []
     
     if not os.path.isdir(folder_path):
-        print(f"❌ Path bukan folder: {folder_path}")
+        print(f"Path bukan folder: {folder_path}")
         return []
     
     if output_dir is None:
@@ -170,7 +161,7 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     
     print(f"📁 Encrypting folder: {folder_path}")
     print(f"📂 Output directory: {output_dir}")
-    print(f"🔍 Recursive: {'Yes' if recursive else 'No'}")
+    print(f"Recursive: {'Yes' if recursive else 'No'}")
     print("=" * 50)
     
     encrypted_files = []
@@ -183,7 +174,7 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     all_files = glob.glob(pattern, recursive=recursive)
     file_count = sum(1 for f in all_files if os.path.isfile(f))
     
-    print(f"📊 Found {file_count} files to encrypt")
+    print(f"Found {file_count} files to encrypt")
     
     for i, file_path in enumerate(all_files, 1):
         if os.path.isfile(file_path):
@@ -205,23 +196,22 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
                 encrypt_to_sdp(pub_key, file_path, output_file)
                 encrypted_files.append((file_path, output_file))
                 
-                print(f"✅ [{i}/{file_count}] Encrypted: {relative_path}")
+                print(f"[{i}/{file_count}] Encrypted: {relative_path}")
                 
             except Exception as e:
-                print(f"❌ [{i}/{file_count}] Failed to encrypt {file_path}: {e}")
+                print(f"[{i}/{file_count}] Failed to encrypt {file_path}: {e}")
     
-    print(f"\n📊 Summary: {len(encrypted_files)} files encrypted successfully")
+    print(f"\nSummary: {len(encrypted_files)} files encrypted successfully")
     return encrypted_files
 
 def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=False):
-    """Decrypt semua .sdp files dalam folder"""
     with open(private_key_path, 'rb') as f:
         priv_key = f.read()
     
     folder_path = os.path.abspath(folder_path)
     
     if not os.path.exists(folder_path):
-        print(f"❌ Folder tidak ditemukan: {folder_path}")
+        print(f"Folder tidak ditemukan: {folder_path}")
         return []
     
     if output_dir is None:
@@ -231,7 +221,7 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     
     print(f"📁 Decrypting folder: {folder_path}")
     print(f"📂 Output directory: {output_dir}")
-    print(f"🔍 Recursive: {'Yes' if recursive else 'No'}")
+    print(f"Recursive: {'Yes' if recursive else 'No'}")
     print("=" * 50)
     
     decrypted_files = []
@@ -243,7 +233,7 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     
     sdp_files = glob.glob(pattern, recursive=recursive)
     
-    print(f"📊 Found {len(sdp_files)} .sdp files to decrypt")
+    print(f"Found {len(sdp_files)} .sdp files to decrypt")
     
     for i, sdp_file in enumerate(sdp_files, 1):
         try:
@@ -261,12 +251,12 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
             decrypted_path = decrypt_from_sdp(priv_key, sdp_file, file_output_dir)
             decrypted_files.append((sdp_file, decrypted_path))
             
-            print(f"✅ [{i}/{len(sdp_files)}] Decrypted: {relative_path}")
+            print(f"[{i}/{len(sdp_files)}] Decrypted: {relative_path}")
             
         except Exception as e:
-            print(f"❌ [{i}/{len(sdp_files)}] Failed to decrypt {sdp_file}: {e}")
+            print(f"[{i}/{len(sdp_files)}] Failed to decrypt {sdp_file}: {e}")
     
-    print(f"\n📊 Summary: {len(decrypted_files)} files decrypted successfully")
+    print(f"\nSummary: {len(decrypted_files)} files decrypted successfully")
     return decrypted_files
 
 def main():
@@ -323,7 +313,7 @@ def main():
         with open(f"{args.name}_public.key", "wb") as f:
             f.write(public_key)
             
-        print(f"✅ Keys generated: {args.name}_private.key, {args.name}_public.key")
+        print(f"Keys generated: {args.name}_private.key, {args.name}_public.key")
         
     elif args.command == 'encrypt':
         with open(args.public_key, "rb") as f:
@@ -332,43 +322,43 @@ def main():
         output_file = args.output or f"{args.file}.sdp"
         
         encrypt_to_sdp(pub_key, args.file, output_file)
-        print(f"✅ Encrypted: {args.file} -> {output_file}")
+        print(f"Encrypted: {args.file} -> {output_file}")
         
     elif args.command == 'encrypt-multiple':
         encrypted_files = encrypt_multiple_files(args.public_key, args.files, args.output_dir)
-        print(f"\n📊 Summary: {len(encrypted_files)} files encrypted successfully")
+        print(f"\nSummary: {len(encrypted_files)} files encrypted successfully")
         
     elif args.command == 'decrypt':
         with open(args.private_key, "rb") as f:
             priv_key = f.read()
             
         decrypted_path = decrypt_from_sdp(priv_key, args.file, args.output_dir)
-        print(f"✅ Decrypted: {args.file} -> {decrypted_path}")
+        print(f"Decrypted: {args.file} -> {decrypted_path}")
         
     elif args.command == 'decrypt-multiple':
         decrypted_files = decrypt_multiple_files(args.private_key, args.files, args.output_dir)
-        print(f"\n📊 Summary: {len(decrypted_files)} files decrypted successfully")
+        print(f"\nSummary: {len(decrypted_files)} files decrypted successfully")
         
     elif args.command == 'check':
         if args.file:
             file_path = args.file
             if os.path.exists(file_path):
                 if is_sdp_encrypted(file_path):
-                    print(f"✅ {file_path} - ENCRYPTED (.sdp format)")
+                    print(f"{file_path} - ENCRYPTED (.sdp format)")
                     
                     if args.info:
                         info = get_sdp_file_info(file_path)
                         if info:
-                            print("\n📋 File Details:")
+                            print("\nFile Details:")
                             print(f"  Original filename: {info['filename']}")
                             print(f"  Original size: {info['original_size']:,} bytes")
                             print(f"  Encrypted size: {info['encrypted_size']:,} bytes")
                             print(f"  Algorithm: {info['algorithm']}")
                             print(f"  Timestamp: {info['timestamp']}")
                 else:
-                    print(f"❌ {file_path} - NOT ENCRYPTED")
+                    print(f"{file_path} - NOT ENCRYPTED")
             else:
-                print(f"❌ File not found: {file_path}")
+                print(f"File not found: {file_path}")
         else:
             check_files_in_directory(args.dir)
 

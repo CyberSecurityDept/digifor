@@ -9,7 +9,6 @@ from app.core.config import settings
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
 
 router = APIRouter()

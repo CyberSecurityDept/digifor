@@ -6,15 +6,8 @@ from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 
 router = APIRouter()
 
-# ===============================
-# Global progress tracker
-# ===============================
 CONVERT_PROGRESS = {}  # key: upload_id (filename), value: dict(progress, status, message, file_path)
 
-
-# ===============================
-# Helper
-# ===============================
 def _sanitize_name(name: str) -> str:
     base = os.path.basename(name)
     base = re.sub(r"\s+", "_", base)
@@ -23,9 +16,6 @@ def _sanitize_name(name: str) -> str:
     return base
 
 
-# ===============================
-# Convert file to SDP (Prepare Only)
-# ===============================
 @router.post("/file-encryptor/convert-to-sdp")
 async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
     try:
@@ -66,7 +56,6 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
 
         upload_id = safe_name
 
-        # Initialize progress entry (not yet converting)
         CONVERT_PROGRESS[upload_id] = {
             "status": "waiting",
             "progress": 0,
@@ -91,10 +80,6 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
             status_code=500
         )
 
-
-# ===============================
-# Progress Endpoint (Triggers Conversion)
-# ===============================
 @router.get("/file-encryptor/progress/{upload_id}")
 async def get_convert_progress(upload_id: str):
     try:
@@ -105,7 +90,6 @@ async def get_convert_progress(upload_id: str):
                 status_code=404
             )
 
-        # If still waiting, start the conversion process asynchronously
         if progress["status"] == "waiting":
             CONVERT_PROGRESS[upload_id]["status"] = "converting"
             CONVERT_PROGRESS[upload_id]["message"] = "Starting conversion..."
@@ -126,10 +110,6 @@ async def get_convert_progress(upload_id: str):
     except Exception as e:
         return JSONResponse({"status": 500, "message": f"Progress check error: {str(e)}"}, status_code=500)
 
-
-# ===============================
-# Background Conversion Task
-# ===============================
 async def run_conversion(upload_id: str):
     try:
         base_dir = os.getcwd()
@@ -145,20 +125,17 @@ async def run_conversion(upload_id: str):
         safe_name = os.path.basename(src_path)
         unique_id = uuid.uuid4().hex[:10]
         base, ext = os.path.splitext(safe_name)
-        ext = ext.lstrip('.')  # hapus titik di depan ekstensi kalau ada
+        ext = ext.lstrip('.')
         out_name = f"{base}_{unique_id}.{ext}.sdp"      
         out_path = os.path.join(converted_dir, out_name)
 
-        # Simulate conversion progress
         for step in range(1, 6):
             CONVERT_PROGRESS[upload_id]["progress"] = step * 20
             CONVERT_PROGRESS[upload_id]["message"] = f"Converting... {step * 20}%"
             await asyncio.sleep(0.5)
 
-        # Perform encryption
         encrypt_to_sdp(pub_key, src_path, out_path)
 
-        # Update metadata
         metadata_path = os.path.join(converted_dir, "converted_files.json")
         new_entry = {
             "original_filename": safe_name,
@@ -191,10 +168,6 @@ async def run_conversion(upload_id: str):
             "message": f"Conversion failed: {str(e)}"
         })
 
-
-# ===============================
-# List Converted Files
-# ===============================
 @router.get("/file-encryptor/list-sdp")
 def list_sdp_files():
     try:
@@ -211,7 +184,6 @@ def list_sdp_files():
         with open(metadata_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # === Sort descending berdasarkan timestamp ===
         if isinstance(data, list):
             try:
                 data.sort(
@@ -232,10 +204,6 @@ def list_sdp_files():
             status_code=500
         )
 
-
-# ===============================
-# Download Converted File
-# ===============================
 @router.get("/file-encryptor/download-sdp")
 def download_sdp(
     filename: str = Query(..., description="The name of the .sdp file located in the converted folder."),

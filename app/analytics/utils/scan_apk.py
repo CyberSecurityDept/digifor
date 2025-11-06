@@ -153,7 +153,7 @@ def main():
         },
     }
 
-    print("\n===================== 📊 FINAL ANALYSIS =====================")
+    print("\n===================== FINAL ANALYSIS =====================")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

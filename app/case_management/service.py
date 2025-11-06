@@ -7,9 +7,7 @@ from datetime import datetime
 from fastapi import HTTPException
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
-
 
 def get_or_create_agency(db: Session, name: str):
     agency = db.query(Agency).filter(Agency.name == name).first()
@@ -20,7 +18,6 @@ def get_or_create_agency(db: Session, name: str):
         db.refresh(agency)
     return agency
 
-
 def get_or_create_work_unit(db: Session, name: str, agency: Agency):
     work_unit = db.query(WorkUnit).filter(WorkUnit.name == name, WorkUnit.agency_id == agency.id).first()
     if not work_unit:
@@ -29,7 +26,6 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
         db.commit()
         db.refresh(work_unit)
     return work_unit
-
 
 class CaseService:
     
@@ -55,7 +51,6 @@ class CaseService:
         else:
             case_dict["agency_id"] = None
         
-        
         work_unit = None
         work_unit_name = None
         work_unit_id = case_dict.get("work_unit_id")
@@ -74,7 +69,6 @@ class CaseService:
         else:
             case_dict["work_unit_id"] = None
 
-        
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
 
@@ -86,14 +80,11 @@ class CaseService:
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
             case_dict["case_number"] = manual_case_number.strip()
         else:
-            
             title = case_dict["title"].strip().upper()
             words = title.split()
             first_three = words[:3]
             initials = "".join([w[0] for w in first_three])
             date_part = get_wib_now().strftime("%d%m%y")
-
-            
             today_str = get_wib_now().strftime("%Y-%m-%d")
             today_count = db.query(Case).filter(
                 cast(Case.created_at, String).like(f"%{today_str}%")
@@ -107,14 +98,12 @@ class CaseService:
             db.add(case)
             db.commit()
             db.refresh(case)
-
         except Exception as e:
             db.rollback()
             print("ERROR CREATE CASE:", str(e))
             if "duplicate key value" in str(e) and "case_number" in str(e):
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
-        
         
         try:
             initial_log = CaseLog(
@@ -130,7 +119,6 @@ class CaseService:
         except Exception as e:
             print(f"Warning: Could not create initial case log: {str(e)}")
             
-
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
@@ -148,7 +136,6 @@ class CaseService:
     
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
-
         status_mapping = {
             'open': 'Open',
             'OPEN': 'Open',
@@ -196,12 +183,12 @@ class CaseService:
             agency_name = None
             work_unit_name = None
             
-            if case.agency_id:
+            if case.agency_id is not None:
                 agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
                 if agency:
                     agency_name = agency.name
             
-            if case.work_unit_id:
+            if case.work_unit_id is not None:
                 work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
                 if work_unit:
                     work_unit_name = work_unit.name
@@ -221,16 +208,12 @@ class CaseService:
             result.append(case_dict)
         
         return result
-
-
     
     def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise Exception(f"Case with ID {case_id} not found")
-        
         update_data = case_data.dict(exclude_unset=True)
-        
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
             if manual_case_number and manual_case_number.strip():
@@ -266,12 +249,12 @@ class CaseService:
         agency_name = None
         work_unit_name = None
         
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
@@ -332,12 +315,12 @@ class CaseService:
         agency_name = None
         work_unit_name = None
         
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
@@ -349,7 +332,7 @@ class CaseService:
         
         for person in persons:
             analysis_items = []
-            if person.evidence_id and person.evidence_summary:
+            if person.evidence_id is not None and person.evidence_summary is not None:
                 summaries = person.evidence_summary.split('\n') if '\n' in person.evidence_summary else [person.evidence_summary]
                 for summary in summaries:
                     if summary.strip():
@@ -399,7 +382,7 @@ class CaseService:
             }
             case_notes.append(note_data)
         
-        evidence_count = len([p for p in persons if p.evidence_id])
+        evidence_count = len([p for p in persons if p.evidence_id is not None])
         
         case_data = {
             "case": {
@@ -426,12 +409,10 @@ class CaseService:
         
         return case_data
 
-
 class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
         case = db.query(Case).filter(Case.id == log_data['case_id']).first()
         case_status = case.status if case else None
-        
         log = CaseLog(**log_data)
         db.add(log)
         db.commit()
@@ -522,7 +503,6 @@ class CaseLogService:
     def get_log_count(self, db: Session, case_id: int) -> int:
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
 
-
 class CaseNoteService:
     def create_note(self, db: Session, note_data: dict) -> dict:
         note = CaseNote(**note_data)
@@ -591,7 +571,6 @@ class CaseNoteService:
         db.commit()
         return True
 
-
 class PersonService:
     def create_person(self, db: Session, person_data: PersonCreate) -> dict:
         person_dict = person_data.dict()
@@ -601,7 +580,6 @@ class PersonService:
             db.add(person)
             db.commit()
             db.refresh(person)
-            
             try:
                 case = db.query(Case).filter(Case.id == person.case_id).first()
                 current_status = case.status if case else "Open"

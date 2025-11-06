@@ -6,7 +6,7 @@ from app.analytics.analytics_management.service import analyze_apk_from_file
 from app.analytics.analytics_management.models import ApkAnalytic, Analytic
 from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
-import asyncio, time, uuid
+import asyncio, time, uuid, traceback
 
 router = APIRouter()
 
@@ -144,7 +144,6 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
 
     except Exception as e:
         # Error tak terduga
-        import traceback
         traceback.print_exc()
         return JSONResponse(
             {"status": 500, "message": "Something went wrong, please try again later!", "data": None},
@@ -161,14 +160,14 @@ def format_file_size(size_bytes: int) -> str:
 
 async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes, total_size: int):
     try:
-        print(f"🚀 [DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
+        print(f"[DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
         resp = await upload_service.start_app_upload(
             upload_id=upload_id,
             file=file,
             file_name=file_name,
             file_bytes=file_bytes,
         )
-        print(f"✅ [DEBUG] upload_service response: {resp}")
+        print(f"[DEBUG] upload_service response: {resp}")
 
         if isinstance(resp, dict) and resp.get("status") in (200, "200"):
             data = resp.get("data", {})
@@ -206,8 +205,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             }
 
     except Exception as e:
-        print(f"❌ [ERROR] run_real_upload_and_finalize error: {str(e)}")
-        import traceback
+        print(f"[ERROR] run_real_upload_and_finalize error: {str(e)}")
         traceback.print_exc()
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Failed",

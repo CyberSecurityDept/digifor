@@ -4,11 +4,13 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
+warnings.filterwarnings('ignore', message='.*bcrypt.*')
+warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Request, HTTPException  # type: ignore
+from fastapi.responses import JSONResponse, Response  # type: ignore
 from contextlib import asynccontextmanager
-import uvicorn
+import uvicorn  # type: ignore
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -28,9 +30,16 @@ from app.api.v1 import (
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
     analytics_social_media_routes,
-    auth_routes
+    auth_routes,
+    case_routes,
+    case_log_routes,
+    case_note_routes,
+    person_routes,
+    evidence_routes,
+    suspect_routes,
+    report_routes
 )
-from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
 
 logger = setup_logging()
@@ -69,9 +78,6 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 app.add_middleware(AuthMiddleware)
 
-# ===========================================================
-# 🧩 Tambahkan BearerAuth ke dokumentasi Swagger
-# ===========================================================
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -83,7 +89,6 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # 🧠 Tambahkan definisi BearerAuth
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
             "type": "http",
@@ -93,10 +98,8 @@ def custom_openapi():
         }
     }
 
-    # 🧠 Set default semua endpoint pakai BearerAuth
     openapi_schema["security"] = [{"BearerAuth": []}]
 
-    # 🚫 Buat 3 endpoint public (tanpa gembok)
     public_paths = [
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
@@ -117,7 +120,7 @@ def custom_openapi():
     for path, path_item in openapi_schema["paths"].items():
         if any(path.startswith(pub) for pub in public_paths):
             for method in path_item.values():
-                method["security"] = []  # hapus security dari endpoint public
+                method["security"] = []
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

@@ -97,7 +97,7 @@ def get_contact_correlation(
     correlation_map = defaultdict(dict)
 
     for contact in contacts:
-        # 🔍 Skip contact jika type mengandung "account"
+        # Skip contact jika type mengandung "account"
         if contact.type and "account" in contact.type.lower():
             print(f"🚫 Skipped contact (account type): {contact.display_name} — {contact.type}")
             continue

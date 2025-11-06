@@ -13,7 +13,7 @@ class AnalyticsWorkflow:
     def __init__(self, base_url=BASE_URL):
         self.base_url = base_url
         self.session = requests.Session()
-        self.session.timeout = TIMEOUT
+        self.timeout = TIMEOUT
         
         self.file_id = None
         self.device_id = None
@@ -24,9 +24,9 @@ class AnalyticsWorkflow:
         print(f"[{timestamp}] [{level}] {message}")
         
     def check_server(self):
-        """Check if server is running"""
+
         try:
-            response = self.session.get(f"{self.base_url.replace('/api/v1', '')}/health")
+            response = self.session.get(f"{self.base_url.replace('/api/v1', '')}/health", timeout=self.timeout)
             if response.status_code == 200:
                 self.log("Server is running and healthy")
                 return True
@@ -38,7 +38,6 @@ class AnalyticsWorkflow:
             return False
     
     def upload_file(self, file_path, file_name, tools):
-        """Upload file untuk analisis"""
         self.log(f"Uploading file: {file_name}")
         
         if not os.path.exists(file_path):
@@ -52,7 +51,7 @@ class AnalyticsWorkflow:
                     'file_name': file_name,
                     'tools': tools
                 }
-                response = self.session.post(f"{self.base_url}/analytics/upload-data", files=files, data=data)
+                response = self.session.post(f"{self.base_url}/analytics/upload-data", files=files, data=data, timeout=self.timeout)
                 
             if response.status_code == 200:
                 result = response.json()
@@ -83,7 +82,7 @@ class AnalyticsWorkflow:
                 'phone_number': phone_number,
                 'file_id': file_id
             }
-            response = self.session.post(f"{self.base_url}/analytics/device/add-device", data=data)
+            response = self.session.post(f"{self.base_url}/analytics/device/add-device", data=data, timeout=self.timeout)
             
             if response.status_code == 200:
                 result = response.json()
@@ -99,7 +98,6 @@ class AnalyticsWorkflow:
             return False
     
     def create_analytic(self, name, description, method, device_ids=None):
-        """Buat analytic baru"""
         if device_ids is None:
             device_ids = [self.device_id] if self.device_id else []
             
@@ -116,7 +114,7 @@ class AnalyticsWorkflow:
                 'method': method,
                 'device_ids': device_ids
             }
-            response = self.session.post(f"{self.base_url}/analytics/create-analytic-with-devices", json=data)
+            response = self.session.post(f"{self.base_url}/analytics/create-analytic-with-devices", json=data, timeout=self.timeout)
             
             if response.status_code == 200:
                 result = response.json()
@@ -143,7 +141,7 @@ class AnalyticsWorkflow:
         
         try:
             data = {'analytic_id': analytic_id}
-            response = self.session.post(f"{self.base_url}/analytic/{analytic_id}/contact-correlation", json=data)
+            response = self.session.post(f"{self.base_url}/analytic/{analytic_id}/contact-correlation", json=data, timeout=self.timeout)
             
             if response.status_code == 200:
                 result = response.json()
@@ -170,7 +168,6 @@ class AnalyticsWorkflow:
             return False
     
     def export_pdf(self, analytic_id=None, output_path=None):
-        """Export hasil ke PDF"""
         if analytic_id is None:
             analytic_id = self.analytic_id
             
@@ -181,7 +178,7 @@ class AnalyticsWorkflow:
         self.log(f"Exporting PDF for analytic ID: {analytic_id}")
         
         try:
-            response = self.session.get(f"{self.base_url}/analytic/{analytic_id}/export-pdf")
+            response = self.session.get(f"{self.base_url}/analytic/{analytic_id}/export-pdf", timeout=self.timeout)
             
             if response.status_code == 200:
                 if output_path is None:
@@ -202,7 +199,7 @@ class AnalyticsWorkflow:
     
     def get_all_files(self):
         try:
-            response = self.session.get(f"{self.base_url}/analytics/files/all")
+            response = self.session.get(f"{self.base_url}/analytics/files/all", timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 self.log(f"Retrieved {len(result['data'])} files")
@@ -216,7 +213,7 @@ class AnalyticsWorkflow:
     
     def get_all_devices(self):
         try:
-            response = self.session.get(f"{self.base_url}/analytics/device/get-all-devices")
+            response = self.session.get(f"{self.base_url}/analytics/device/get-all-devices", timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 self.log(f"Retrieved {len(result['data'])} devices")
@@ -230,7 +227,7 @@ class AnalyticsWorkflow:
     
     def get_all_analytics(self):
         try:
-            response = self.session.get(f"{self.base_url}/analytics/get-all-analytics")
+            response = self.session.get(f"{self.base_url}/analytics/get-all-analytics", timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 self.log(f"Retrieved {len(result['data'])} analytics")

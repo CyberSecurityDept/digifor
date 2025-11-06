@@ -1,12 +1,9 @@
 import os
 import json
 import struct
+import argparse
 
 def is_sdp_encrypted(file_path):
-    """
-    Check if file is SDP encrypted
-    Returns: True if encrypted, False if not, None if error
-    """
     try:
         if not os.path.exists(file_path):
             return False
@@ -42,8 +39,7 @@ def is_sdp_encrypted(file_path):
         return False
 
 def check_files_in_directory(directory='.'):
-    """Check all files in directory for encryption status"""
-    print(f"🔍 Checking encryption status in: {os.path.abspath(directory)}")
+    print(f"Checking encryption status in: {os.path.abspath(directory)}")
     print("=" * 60)
     
     files = os.listdir(directory)
@@ -53,7 +49,7 @@ def check_files_in_directory(directory='.'):
         file_path = os.path.join(directory, file)
         if os.path.isfile(file_path):
             is_encrypted = is_sdp_encrypted(file_path)
-            status = "✅ ENCRYPTED" if is_encrypted else "❌ NOT ENCRYPTED"
+            status = "ENCRYPTED" if is_encrypted else "NOT ENCRYPTED"
             results.append((file, status))
     
     results.sort(key=lambda x: x[1], reverse=True)
@@ -61,16 +57,15 @@ def check_files_in_directory(directory='.'):
     for filename, status in results:
         print(f"{status:20} {filename}")
     
-    encrypted_count = sum(1 for _, status in results if status == "✅ ENCRYPTED")
+    encrypted_count = sum(1 for _, status in results if status == "ENCRYPTED")
     total_count = len(results)
     
     print("=" * 60)
-    print(f"📊 Summary: {encrypted_count}/{total_count} files encrypted")
+    print(f"Summary: {encrypted_count}/{total_count} files encrypted")
     
     return results
 
 def get_sdp_file_info(file_path):
-    """Get detailed info about SDP encrypted file"""
     if not is_sdp_encrypted(file_path):
         return None
         
@@ -100,8 +95,6 @@ def get_sdp_file_info(file_path):
         return None
 
 if __name__ == "__main__":
-    import argparse
-    
     parser = argparse.ArgumentParser(description='SDP File Encryption Checker')
     parser.add_argument('file', nargs='?', help='File to check (optional)')
     parser.add_argument('--dir', default='.', help='Directory to check')
@@ -113,12 +106,12 @@ if __name__ == "__main__":
         file_path = args.file
         if os.path.exists(file_path):
             if is_sdp_encrypted(file_path):
-                print(f"✅ {file_path} - ENCRYPTED (.sdp format)")
+                print(f"{file_path} - ENCRYPTED (.sdp format)")
                 
                 if args.info:
                     info = get_sdp_file_info(file_path)
                     if info:
-                        print("\n📋 File Details:")
+                        print("\nFile Details:")
                         print(f"  Original filename: {info['filename']}")
                         print(f"  Original size: {info['original_size']:,} bytes")
                         print(f"  Encrypted size: {info['encrypted_size']:,} bytes")
@@ -128,8 +121,8 @@ if __name__ == "__main__":
                         print(f"  Total chunks: {info['total_chunks']}")
                         print(f"  Size ratio: {info['compression_ratio']}")
             else:
-                print(f"❌ {file_path} - NOT ENCRYPTED")
+                print(f"{file_path} - NOT ENCRYPTED")
         else:
-            print(f"❌ File not found: {file_path}")
+            print(f"File not found: {file_path}")
     else:
         check_files_in_directory(args.dir)
