@@ -41,25 +41,30 @@ async def run_real_upload_and_finalize(
     total_size: int,
 ):
     try:
-        # Prevent duplicate execution by checking if already processing
+        svc_resp, svc_code = upload_service.get_progress(upload_id)
+        upload_service_ready = svc_code == 200
+        
         if upload_id in UPLOAD_PROGRESS:
-            if UPLOAD_PROGRESS[upload_id].get("_processing"):
+            if UPLOAD_PROGRESS[upload_id].get("_processing") and upload_service_ready:
                 print(f"Upload {upload_id} is already being processed, skipping duplicate call")
                 return
             UPLOAD_PROGRESS[upload_id]["status"] = "Progress"
             UPLOAD_PROGRESS[upload_id]["upload_status"] = "Progress"
             UPLOAD_PROGRESS[upload_id]["_processing"] = True
         
-        resp = await upload_service.start_file_upload(
-            upload_id=upload_id,
-            file=file,
-            file_name=file_name,
-            notes=notes,
-            type=type,
-            tools=tools,
-            file_bytes=file_bytes,
-            method=method,
-        )
+        if not upload_service_ready:
+            resp = await upload_service.start_file_upload(
+                upload_id=upload_id,
+                file=file,
+                file_name=file_name,
+                notes=notes,
+                type=type,
+                tools=tools,
+                file_bytes=file_bytes,
+                method=method,
+            )
+        else:
+            resp = {"status": 200, "message": "Upload in progress", "data": {}}
 
         max_wait = 300
         wait_count = 0
@@ -69,19 +74,16 @@ async def run_real_upload_and_finalize(
             svc_resp, code = upload_service.get_progress(upload_id)
             if code == 200:
                 svc_data = svc_resp.get("data", {})
-                # Sync progress from upload_service to UPLOAD_PROGRESS in real-time
                 if upload_id in UPLOAD_PROGRESS:
                     percent = int((svc_data.get("percent") or 0))
                     progress_size = svc_data.get("progress_size") or "0 MB"
                     
-                    # Update percentage and message
                     UPLOAD_PROGRESS[upload_id]["percentage"] = percent
                     message = svc_resp.get("message", "Preparing...")
                     if percent > 0 and "(" not in message:
                         message = f"Preparing... ({percent}%)"
                     UPLOAD_PROGRESS[upload_id]["message"] = message
                     
-                    # Calculate uploaded bytes from progress_size for accurate size calculation
                     try:
                         if progress_size and progress_size != "0 MB":
                             match = re.search(r'([\d.]+)', progress_size)
@@ -95,32 +97,24 @@ async def run_real_upload_and_finalize(
                                     uploaded_bytes = int(size_num)
                                 UPLOAD_PROGRESS[upload_id]["uploaded"] = uploaded_bytes
                             else:
-                                # Fallback: calculate from percentage
                                 UPLOAD_PROGRESS[upload_id]["uploaded"] = int((percent / 100) * total_size) if percent > 0 else 0
                         else:
-                            # Fallback: calculate from percentage
                             UPLOAD_PROGRESS[upload_id]["uploaded"] = int((percent / 100) * total_size) if percent > 0 else 0
                     except:
-                        # Fallback: calculate from percentage
                         UPLOAD_PROGRESS[upload_id]["uploaded"] = int((percent / 100) * total_size) if percent > 0 else 0
                     
-                    # Keep status as Progress during processing
                     UPLOAD_PROGRESS[upload_id]["status"] = "Progress"
                     UPLOAD_PROGRESS[upload_id]["upload_status"] = "Progress"
                 
                 if svc_data.get("done"):
                     upload_service_done = True
-                    # Wait a bit more to ensure all processing is complete
-                    # This ensures parsing and database insertion are fully done
                     await asyncio.sleep(2)
                     break
-            await asyncio.sleep(0.5)  # Check more frequently for better real-time updates
+            await asyncio.sleep(0.5)
             wait_count += 1
 
-        # Only update to Success after upload_service is done AND we have response data
         if upload_service_done and isinstance(resp, dict) and resp.get("status") in (200, "200"):
             data = resp.get("data", {})
-            # Final update to Success status
             UPLOAD_PROGRESS[upload_id] = {
                 "status": "Success",
                 "message": "Upload successful",
@@ -326,18 +320,55 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 ))
             prog["_ctx"] = None
             
-            total_size_mb = prog.get("total_size", 0) / (1024 * 1024)
-            total_size_fmt = f"{total_size_mb:.3f} MB"
-            return {
-                "status": "Progress",
-                "message": "Upload Progress",
-                "upload_id": upload_id,
-                "file_name": prog.get("file_name"),
-                "size": f"0.000/{total_size_fmt}",
-                "percentage": 0,
-                "upload_status": "Progress",
-                "data": []
-            }
+            svc_resp = None
+            code = 404
+            for retry in range(5):
+                await asyncio.sleep(0.2 * (retry + 1))
+                svc_resp, code = upload_service.get_progress(upload_id)
+                if code == 200:
+                    svc_data = svc_resp.get("data", {})
+                    percent = svc_data.get("percent", 0)
+                    if percent > 0:
+                        break
+            
+            if code == 200:
+                svc_data = svc_resp.get("data", {})
+                percent = int((svc_data.get("percent") or 0))
+                progress_size = svc_data.get("progress_size") or "0 MB"
+                total_size_fmt = svc_data.get("total_size") or format_file_size(prog.get("total_size", 0))
+                
+                if upload_id in prog_dict:
+                    prog_dict[upload_id]["percentage"] = percent
+                    message = svc_resp.get("message", "Preparing...")
+                    if percent > 0 and "(" not in message:
+                        message = f"Preparing... ({percent}%)"
+                    prog_dict[upload_id]["message"] = message
+                
+                size_out = f"{progress_size}/{total_size_fmt}"
+                
+                return {
+                    "status": "Progress",
+                    "message": message if percent > 0 else "Upload Progress",
+                    "upload_id": upload_id,
+                    "file_name": prog.get("file_name"),
+                    "size": size_out,
+                    "percentage": percent,
+                    "upload_status": "Progress",
+                    "data": []
+                }
+            else:
+                total_size_mb = prog.get("total_size", 0) / (1024 * 1024)
+                total_size_fmt = f"{total_size_mb:.3f} MB"
+                return {
+                    "status": "Progress",
+                    "message": "Upload Progress",
+                    "upload_id": upload_id,
+                    "file_name": prog.get("file_name"),
+                    "size": f"0.000/{total_size_fmt}",
+                    "percentage": 0,
+                    "upload_status": "Progress",
+                    "data": []
+                }
 
         if upload_id not in prog_dict:
             return JSONResponse(
@@ -386,7 +417,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     message = f"Preparing... ({percent}%)"
             
             progress_size = svc_data.get("progress_size") or "0 MB"
-            # If done and percent is 100, show full size
             if done and percent >= 100:
                 size_out = f"{total_size_fmt}/{total_size_fmt}"
             else:
@@ -426,8 +456,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "data": [],
                 }
             else:
-                # Always return Progress status with real-time data
-                # Only return Success if prog_dict explicitly says Success
                 return {
                     "status": "Progress",
                     "message": message,

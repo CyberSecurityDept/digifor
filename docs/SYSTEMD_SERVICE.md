@@ -188,18 +188,47 @@ python3 scripts/init-database.py
 
 ### Mengubah Konfigurasi
 
+#### Cara Edit File dengan Nano
+
+Untuk mengedit file konfigurasi, gunakan `nano` atau `sudo nano` tergantung pada lokasi file:
+
+```bash
+# Edit file di project (tidak perlu sudo)
+nano /home/digifor/digifor-v2/scripts/start-service.sh
+nano /home/digifor/digifor-v2/digifor-v2.service
+nano /home/digifor/digifor-v2/docs/SYSTEMD_SERVICE.md
+
+# Edit file systemd (perlu sudo)
+sudo nano /etc/systemd/system/digifor-v2.service
+```
+
+**Tips Nano:**
+- Tekan `Ctrl + O` untuk save
+- Tekan `Enter` untuk konfirmasi save
+- Tekan `Ctrl + X` untuk keluar
+- Tekan `Ctrl + K` untuk cut line
+- Tekan `Ctrl + U` untuk paste
+- Tekan `Ctrl + W` untuk search
+- Tekan `Ctrl + \` untuk replace
+
 #### Perintah Setelah Edit Script/Service
 
 Setelah melakukan perubahan pada file service atau script, jalankan perintah berikut sesuai dengan file yang diubah:
 
 **1. Jika mengubah `scripts/start-service.sh`:**
 ```bash
+# Edit start-service.sh
+sudo nano /home/digifor/digifor-v2/scripts/start-service.sh
+
 # Hanya perlu restart service (tidak perlu reload daemon)
 sudo systemctl restart digifor-v2
 ```
 
 **2. Jika mengubah `digifor-v2.service` (file template di root):**
 ```bash
+# Edit template file
+nano /home/digifor/digifor-v2/digifor-v2.service
+
 # Option 1: Gunakan script install (recommended)
 sudo ./scripts/install-systemd-service.sh
 
@@ -211,6 +240,9 @@ sudo systemctl restart digifor-v2
 
 **3. Jika mengubah file di `/etc/systemd/system/digifor-v2.service` langsung:**
 ```bash
+# Edit file systemd (perlu sudo)
+sudo nano /etc/systemd/system/digifor-v2.service
+
 # Wajib reload daemon setelah edit file systemd
 sudo systemctl daemon-reload
 sudo systemctl restart digifor-v2
@@ -218,6 +250,11 @@ sudo systemctl restart digifor-v2
 
 **4. Jika mengubah script Python (check-db-connection.py, init-database.py, dll):**
 ```bash
+# Edit script Python
+nano /home/digifor/digifor-v2/scripts/check-db-connection.py
+# atau
+nano /home/digifor/digifor-v2/scripts/init-database.py
+
 # Hanya perlu restart service
 sudo systemctl restart digifor-v2
 ```
@@ -230,11 +267,11 @@ sudo systemctl restart digifor-v2
 
 #### Mengubah Port
 
-Jika ingin mengubah port, edit file `/etc/systemd/system/digifor-v2.service` dan ubah file `scripts/start-service.sh`:
+Jika ingin mengubah port, edit file `scripts/start-service.sh`:
 
 ```bash
 # Edit start-service.sh
-nano /home/digifor/digifor-v2/scripts/start-service.sh
+sudo nano /home/digifor/digifor-v2/scripts/start-service.sh
 ```
 
 Ubah baris uvicorn:
@@ -251,7 +288,13 @@ sudo systemctl restart digifor-v2
 
 #### Mengubah Log Level
 
-Edit file `scripts/start-service.sh` dan ubah `--log-level info` menjadi:
+Edit file `scripts/start-service.sh`:
+
+```bash
+sudo nano /home/digifor/digifor-v2/scripts/start-service.sh
+```
+
+Ubah `--log-level info` menjadi:
 - `debug` - untuk debugging (lebih detail)
 - `info` - informasi standar (default)
 - `warning` - hanya warning dan error
@@ -265,7 +308,13 @@ sudo systemctl restart digifor-v2
 
 #### Mengubah Host Binding
 
-Edit file `scripts/start-service.sh` dan ubah `--host 0.0.0.0` menjadi:
+Edit file `scripts/start-service.sh`:
+
+```bash
+sudo nano /home/digifor/digifor-v2/scripts/start-service.sh
+```
+
+Ubah `--host 0.0.0.0` menjadi:
 - `0.0.0.0` - semua interface (default, bisa diakses dari luar)
 - `127.0.0.1` atau `localhost` - hanya localhost (tidak bisa diakses dari luar)
 

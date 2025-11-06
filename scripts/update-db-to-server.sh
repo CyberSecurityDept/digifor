@@ -39,7 +39,7 @@ fi
 
 # Backup .env file
 cp "$ENV_FILE" "${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-echo "✅ Backup created: ${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+echo "Backup created: ${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
 
 # Update DATABASE_URL
 sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://${USER}:${PASSWORD}@${SERVER_IP}:${PORT}/${DATABASE}|g" "$ENV_FILE"
@@ -60,7 +60,7 @@ sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${PASSWORD}|g" "$ENV_FILE"
 sed -i "s|^POSTGRES_DB=.*|POSTGRES_DB=${DATABASE}|g" "$ENV_FILE"
 
 echo ""
-echo "✅ Update selesai!"
+echo "Update selesai!"
 echo ""
 echo "File .env telah diupdate dengan konfigurasi:"
 echo "  DATABASE_URL=postgresql://${USER}:****@${SERVER_IP}:${PORT}/${DATABASE}"

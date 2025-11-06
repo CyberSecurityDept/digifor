@@ -31,7 +31,7 @@ def remove_name_column_from_hash_files():
             column_exists = result.fetchone() is not None
             
             if not column_exists:
-                print("✅ Column 'name' does not exist in hash_files table. Migration not needed.")
+                print("Column 'name' does not exist in hash_files table. Migration not needed.")
                 return
             
             print("⚠️ Column 'name' found. Removing it...")
@@ -44,7 +44,7 @@ def remove_name_column_from_hash_files():
             conn.execute(alter_query)
             conn.commit()
             
-            print("✅ Successfully removed 'name' column from hash_files table")
+            print("Successfully removed 'name' column from hash_files table")
             
     except Exception as e:
         print(f"❌ Error during migration: {e}")

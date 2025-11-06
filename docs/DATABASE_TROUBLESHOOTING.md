@@ -22,7 +22,7 @@ Panduan untuk mengatasi masalah koneksi database dan tabel tidak muncul di datab
    - Connect ke IP server yang salah
    - Atau connect ke localhost padahal seharusnya ke IP server
 
-## ✅ Solusi Step-by-Step
+## Solusi Step-by-Step
 
 ### 1. Verifikasi Koneksi dengan Script
 

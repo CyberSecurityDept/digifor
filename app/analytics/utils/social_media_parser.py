@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore', message='.*OLE2.*')
 warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
-warnings.filterwarnings('ignore', message='.*WARNING \*\*\*.*')
+warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
 import io
 class FilteredStderr(io.TextIOWrapper):
     def write(self, s):
@@ -224,11 +224,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
         elif 'tiktok' in source_lower:
             return 'tiktok'
         
-        return None
+        return ""
     
     def _extract_account_name(self, contact: str, platform: str) -> str:
         if not contact:
-            return None
+            return ""
         
         contact = contact.replace('\\r\\n', '').strip()
         
@@ -252,12 +252,12 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         return contact.split('\\n')[0].strip()
     
-    def _extract_account_id(self, contact: str, platform: str) -> str:
+    def _extract_account_id_simple(self, contact: str, platform: str) -> str:
         return self._extract_account_name(contact, platform)
     
     def _extract_account_id_from_contact(self, contact: str, platform: str) -> str:
         if not contact:
-            return None
+            return ""
         
         contact = contact.replace('\\r\\n', '').strip()
         
@@ -294,7 +294,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
     
     def _extract_account_name_enhanced(self, contact: str, platform: str, phones_emails: str, internet: str) -> str:
         if not contact:
-            return None
+            return ""
         
         contact = contact.replace('\\r\\n', '').strip()
         phones_emails = phones_emails or ''
@@ -321,7 +321,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
     
     def _extract_account_id_enhanced(self, contact: str, platform: str, phones_emails: str, internet: str) -> str:
         if not contact:
-            return None
+            return ""
         
         contact = contact.replace('\\r\\n', '').strip()
         phones_emails = phones_emails or ''
@@ -1066,7 +1066,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         return None
 
-    def _parse_oxygen_contacts_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
+    def _parse_oxygen_contacts_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:  # type: ignore[reportGeneralTypeIssues]
         results = []
         
         try:
@@ -1294,7 +1294,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if not source_field or self._is_header_or_metadata(source_field):
                         skipped_by_source += 1
                         if skipped_by_source <= 3:
-                            print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Source filter: '{source_field}'")
+                            print(f"Skipping WhatsApp row {row_idx} by Source filter: '{source_field}'")
                         continue
                     
                     source_clean = "WhatsApp"
@@ -1312,7 +1312,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if not (is_account_type or is_contact_type):
                         skipped_by_type += 1
                         if skipped_by_type <= 3:
-                            print(f"  ⚠️  Skipping WhatsApp row {row_idx} by Type filter: Type='{type_field}' (not Account/Contact)")
+                            print(f"Skipping WhatsApp row {row_idx} by Type filter: Type='{type_field}' (not Account/Contact)")
                         continue
 
                     contact_field = self._clean(row.get("Contact"))
@@ -1935,16 +1935,21 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         self._dup_log_count = 0
                     if self._dup_log_count < 5:
                         existing_info = []
-                        if existing.telegram_id:
-                            existing_info.append(f"TG:{existing.telegram_id}")
-                        if existing.instagram_id:
-                            existing_info.append(f"IG:{existing.instagram_id}")
-                        if existing.whatsapp_id:
-                            existing_info.append(f"WA:{existing.whatsapp_id}")
-                        if existing.X_id:
-                            existing_info.append(f"X:{existing.X_id}")
-                        if existing.tiktok_id:
-                            existing_info.append(f"TT:{existing.tiktok_id}")
+                        telegram_id_val = existing.telegram_id
+                        if telegram_id_val is not None and str(telegram_id_val).strip():
+                            existing_info.append(f"TG:{telegram_id_val}")
+                        instagram_id_val = existing.instagram_id
+                        if instagram_id_val is not None and str(instagram_id_val).strip():
+                            existing_info.append(f"IG:{instagram_id_val}")
+                        whatsapp_id_val = existing.whatsapp_id
+                        if whatsapp_id_val is not None and str(whatsapp_id_val).strip():
+                            existing_info.append(f"WA:{whatsapp_id_val}")
+                        x_id_val = existing.X_id
+                        if x_id_val is not None and str(x_id_val).strip():
+                            existing_info.append(f"X:{x_id_val}")
+                        tiktok_id_val = existing.tiktok_id
+                        if tiktok_id_val is not None and str(tiktok_id_val).strip():
+                            existing_info.append(f"TT:{tiktok_id_val}")
                         existing_str = ', '.join(existing_info) if existing_info else 'N/A'
                         print(f"⚠️  Duplicate detected: Platform IDs: {', '.join(platform_info)}, Account: {acc.get('account_name', 'N/A')}")
                         print(f"    → Already exists in DB: {existing_str}, Account: {existing.account_name or 'N/A'}, Sheet: {existing.sheet_name or 'N/A'}")

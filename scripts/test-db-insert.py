@@ -18,7 +18,6 @@ from sqlalchemy import text
 import traceback
 
 def test_database_insert():
-    """Test insert ke database"""
     print("="*60)
     print("DATABASE INSERT TEST")
     print("="*60)
@@ -30,17 +29,17 @@ def test_database_insert():
         print("\n1. Testing database connection...")
         result = db.execute(text("SELECT 1"))
         result.fetchone()
-        print("   ✅ Connection OK")
+        print("Connection OK")
         
         # Test 2: Check permissions
         print("\n2. Testing permissions...")
         db.execute(text("SELECT has_table_privilege('digifor', 'cases', 'INSERT')"))
-        print("   ✅ Permissions OK")
+        print("Permissions OK")
         
         # Test 3: Check current data
         print("\n3. Checking existing data...")
         count_before = db.query(Case).count()
-        print(f"   Current cases count: {count_before}")
+        print(f"Current cases count: {count_before}")
         
         # Test 4: Test insert
         print("\n4. Testing INSERT...")
@@ -53,50 +52,50 @@ def test_database_insert():
         )
         
         db.add(test_case)
-        print("   ✅ db.add() successful")
+        print("db.add() successful")
         
         # Flush to test if insert would work
         db.flush()
-        print(f"   ✅ db.flush() successful - ID: {test_case.id}")
+        print(f"db.flush() successful - ID: {test_case.id}")
         
         # Commit
         db.commit()
-        print(f"   ✅ db.commit() successful - ID: {test_case.id}")
+        print(f"db.commit() successful - ID: {test_case.id}")
         
         # Verify
         saved = db.query(Case).filter(Case.id == test_case.id).first()
         if saved:
-            print(f"   ✅ Data verified in database!")
-            print(f"      Title: {saved.title}")
-            print(f"      Case Number: {saved.case_number}")
+            print(f"Data verified in database!")
+            print(f"Title: {saved.title}")
+            print(f"Case Number: {saved.case_number}")
             
             # Cleanup
             db.delete(saved)
             db.commit()
-            print(f"   ✅ Cleanup successful")
+            print(f"Cleanup successful")
         else:
-            print(f"   ❌ Data NOT found in database after commit!")
+            print(f"Data NOT found in database after commit!")
             
         # Test 5: Check count after
         count_after = db.query(Case).count()
         print(f"\n5. Cases count after test: {count_after}")
         if count_after == count_before:
-            print("   ✅ Count matches (data cleaned up)")
+            print("Count matches (data cleaned up)")
         else:
-            print(f"   ⚠️  Count mismatch (expected {count_before}, got {count_after})")
+            print(f"Count mismatch (expected {count_before}, got {count_after})")
         
         print("\n" + "="*60)
-        print("✅ ALL TESTS PASSED!")
+        print("ALL TESTS PASSED!")
         print("="*60)
         return True
         
     except Exception as e:
-        print(f"\n❌ ERROR: {type(e).__name__}: {e}")
+        print(f"\nERROR: {type(e).__name__}: {e}")
         print("\nFull traceback:")
         traceback.print_exc()
         db.rollback()
         print("\n" + "="*60)
-        print("❌ TEST FAILED!")
+        print("TEST FAILED!")
         print("="*60)
         return False
         

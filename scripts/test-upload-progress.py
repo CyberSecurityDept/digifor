@@ -30,15 +30,15 @@ def test_upload_progress():
         )
         print(f"   Status Code: {response.status_code}")
         if response.status_code == 404:
-            print("   ✅ Endpoint berfungsi (return 404 for non-existent ID)")
+            print("Endpoint berfungsi (return 404 for non-existent ID)")
         else:
             print(f"   Response: {response.json()}")
     except requests.exceptions.ConnectionError:
-        print("   ❌ Cannot connect to API server")
-        print("   Make sure the service is running on http://172.15.2.105:8000")
+        print("Cannot connect to API server")
+        print("Make sure the service is running on http://172.15.2.105:8000")
         return False
     except Exception as e:
-        print(f"   ❌ Error: {e}")
+        print(f"Error: {e}")
         return False
     
     # Test endpoint accessibility
@@ -46,19 +46,19 @@ def test_upload_progress():
     try:
         response = requests.get(f"{api_url}/health/health", timeout=5)
         if response.status_code == 200:
-            print("   ✅ API server is accessible")
+            print("API server is accessible")
         else:
-            print(f"   ⚠️  API server returned status {response.status_code}")
+            print(f" API server returned status {response.status_code}")
     except Exception as e:
-        print(f"   ❌ Cannot access API server: {e}")
+        print(f"Cannot access API server: {e}")
         return False
     
     print("\n" + "="*60)
-    print("✅ Upload-progress endpoint test completed")
+    print("Upload-progress endpoint test completed")
     print("="*60)
     print("\nNote: Upload-progress menggunakan in-memory storage")
-    print("      Tidak memerlukan Redis untuk tracking progress")
-    print("      Redis hanya digunakan untuk Celery task queue (jika ada)")
+    print("Tidak memerlukan Redis untuk tracking progress")
+    print("Redis hanya digunakan untuk Celery task queue (jika ada)")
     return True
 
 if __name__ == "__main__":

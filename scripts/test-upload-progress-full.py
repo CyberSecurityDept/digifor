@@ -34,7 +34,7 @@ def test_upload_progress_full():
     test_file_path = "/tmp/test_upload.xlsx"
     if not os.path.exists(test_file_path):
         # Create a minimal Excel file (or use existing test file)
-        print(f"   ⚠️  Test file not found: {test_file_path}")
+        print(f"Test file not found: {test_file_path}")
         print("   Please provide a test file path")
         test_file_path = input("   Enter test file path (or press Enter to skip upload test): ").strip()
         if not test_file_path:
@@ -61,7 +61,7 @@ def test_upload_progress_full():
             )
             
             if response.status_code != 200:
-                print(f"   ❌ Upload failed: {response.status_code}")
+                print(f"Upload failed: {response.status_code}")
                 print(f"   Response: {response.json()}")
                 return False
             
@@ -69,15 +69,15 @@ def test_upload_progress_full():
             upload_id = upload_response.get("data", {}).get("upload_id")
             
             if not upload_id:
-                print(f"   ❌ No upload_id in response: {upload_response}")
+                print(f"No upload_id in response: {upload_response}")
                 return False
             
-            print(f"   ✅ Upload initiated")
-            print(f"   📋 Upload ID: {upload_id}")
-            print(f"   📋 Status: {upload_response.get('data', {}).get('status_upload', 'Unknown')}")
+            print(f"Upload initiated")
+            print(f"Upload ID: {upload_id}")
+            print(f"Status: {upload_response.get('data', {}).get('status_upload', 'Unknown')}")
     
     except Exception as e:
-        print(f"   ❌ Upload error: {e}")
+        print(f"Upload error: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -101,7 +101,7 @@ def test_upload_progress_full():
             )
             
             if response.status_code != 200:
-                print(f"\n   ❌ Error: {response.status_code}")
+                print(f"\nError: {response.status_code}")
                 print(f"   Response: {response.text}")
                 break
             
@@ -128,20 +128,20 @@ def test_upload_progress_full():
             
             # Stop if Success or Failed
             if current_status == "Success":
-                print(f"\n   ✅ Upload completed successfully!")
+                print(f"\nUpload completed successfully!")
                 break
             elif current_status == "Failed":
-                print(f"\n   ❌ Upload failed!")
+                print(f"\nUpload failed!")
                 break
             
             time.sleep(0.5)
             poll_count += 1
             
         except requests.exceptions.Timeout:
-            print(f"\n   ⚠️  Timeout waiting for response")
+            print(f"\nTimeout waiting for response")
             break
         except Exception as e:
-            print(f"\n   ❌ Error polling: {e}")
+            print(f"\nError polling: {e}")
             break
     
     # Step 3: Summary
@@ -170,19 +170,19 @@ def test_upload_progress_full():
         
         print("\nStatus transitions:")
         if saw_pending:
-            print("  ✅ Saw Pending status")
+            print("Saw Pending status")
         else:
-            print("  ❌ Never saw Pending status")
+            print("Never saw Pending status")
         
         if saw_progress:
-            print("  ✅ Saw Progress status")
+            print("Saw Progress status")
         else:
-            print("  ❌ Never saw Progress status - THIS IS THE PROBLEM!")
+            print("Never saw Progress status - THIS IS THE PROBLEM!")
         
         if saw_success:
-            print("  ✅ Saw Success status")
+            print("Saw Success status")
         else:
-            print("  ❌ Never saw Success status")
+            print("Never saw Success status")
         
         # Show first and last status
         if len(status_history) > 0:
@@ -194,9 +194,9 @@ def test_upload_progress_full():
             print(f"\nUnique statuses seen: {', '.join(unique_statuses)}")
             
             if len(unique_statuses) < 2:
-                print("\n⚠️  WARNING: Only saw one status! Expected: Pending -> Progress -> Success")
+                print("\nWARNING: Only saw one status! Expected: Pending -> Progress -> Success")
     else:
-        print("\n❌ No status history recorded!")
+        print("\nNo status history recorded!")
     
     print("\n" + "="*80)
     return True
@@ -226,7 +226,7 @@ def test_progress_only(api_url):
             )
             
             if response.status_code != 200:
-                print(f"   ❌ Error: {response.status_code} - {response.text}")
+                print(f"Error: {response.status_code} - {response.text}")
                 break
             
             result = response.json()
@@ -252,7 +252,7 @@ def test_progress_only(api_url):
             poll_count += 1
             
         except Exception as e:
-            print(f"   ❌ Error: {e}")
+            print(f"Error: {e}")
             break
     
     return True
@@ -262,10 +262,10 @@ if __name__ == "__main__":
         success = test_upload_progress_full()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n\n⚠️  Test interrupted by user")
+        print("\n\nTest interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\nest failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

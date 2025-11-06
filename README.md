@@ -452,6 +452,44 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 API akan tersedia di `http://localhost:8000`
 
+## 🚀 Setup Awal dan Menjalankan Service (Linux)
+
+### Langkah Setup Awal (hanya sekali)
+
+**Aktifkan virtual environment:**
+
+```bash
+cd /home/digifor/digifor-v2
+source venv/bin/activate
+```
+
+**Install dependencies:**
+
+```bash
+pip install --upgrade -r requirements.txt
+```
+
+**Cek DB & inisialisasi:**
+
+```bash
+python scripts/check-db-connection.py
+python scripts/init-database.py
+python -m app.auth.seed
+```
+
+### Menjalankan Service
+
+Setelah setup awal selesai:
+
+```bash
+sudo systemctl daemon-reload        # reload systemd
+sudo systemctl enable digifor-v2    # auto-start saat boot (opsional)
+sudo systemctl start digifor-v2
+sudo systemctl status digifor-v2
+```
+
+Untuk informasi lebih detail tentang systemd service, lihat dokumentasi di [`docs/SYSTEMD_SERVICE.md`](docs/SYSTEMD_SERVICE.md).
+
 ## 📚 API Documentation
 
 Once the server is running, you can access:

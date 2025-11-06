@@ -57,7 +57,7 @@ except Exception as e:
 - Pastikan database server accessible
 - Cek connection pool settings
 
-## ✅ Solusi Step-by-Step
+## Solusi Step-by-Step
 
 ### 1. Verifikasi Database Connection
 

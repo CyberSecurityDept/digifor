@@ -27,7 +27,7 @@ def check_hashfile_data(analytic_id: int = 1):
             print(f"❌ Analytic ID {analytic_id} not found!")
             return
         
-        print(f"\n✅ Analytic found:")
+        print(f"\nAnalytic found:")
         print(f"   ID: {analytic.id}")
         print(f"   Name: {analytic.analytic_name}")
         print(f"   Method: {analytic.method}")
@@ -45,7 +45,7 @@ def check_hashfile_data(analytic_id: int = 1):
             return
         
         devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-        print(f"✅ Found {len(devices)} devices:")
+        print(f"Found {len(devices)} devices:")
         for d in devices:
             print(f"   Device ID: {d.id}, File ID: {d.file_id}, Owner: {d.owner_name}")
         
@@ -116,7 +116,7 @@ def check_hashfile_data(analytic_id: int = 1):
         print(f"   Correlations in >= 2 devices: {len(multi_device_correlations)}")
         
         if multi_device_correlations:
-            print(f"\n✅ Sample Correlations (first 5):")
+            print(f"\nSample Correlations (first 5):")
             for i, (key, data) in enumerate(list(multi_device_correlations.items())[:5]):
                 hash_part = key.split("::")[0][:20] + "..." if len(key.split("::")[0]) > 20 else key.split("::")[0]
                 name_part = key.split("::")[1] if "::" in key else "N/A"
@@ -154,7 +154,7 @@ def check_hashfile_data(analytic_id: int = 1):
         print(f"   Hash-only correlations in >= 2 devices: {len(multi_device_hash_only)}")
         
         if multi_device_hash_only:
-            print(f"\n✅ Sample Hash-Only Correlations (first 3):")
+            print(f"\nSample Hash-Only Correlations (first 3):")
             for i, (hash_val, data) in enumerate(list(multi_device_hash_only.items())[:3]):
                 hash_display = hash_val[:30] + "..." if len(hash_val) > 30 else hash_val
                 print(f"   {i+1}. Hash: {hash_display}")

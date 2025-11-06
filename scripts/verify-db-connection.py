@@ -53,7 +53,7 @@ def verify_connection():
         """)
         info = cur.fetchone()
         
-        print(f"\n✅ Connection Successful!")
+        print(f"\nConnection Successful!")
         print(f"   Connected Database: {info[0]}")
         print(f"   Connected User: {info[1]}")
         print(f"   Server IP: {info[2] or 'localhost'}")
@@ -111,7 +111,7 @@ def verify_connection():
                 except Exception as e:
                     print(f"   {i:2d}. {table_name:<35} ({col_count:2d} cols, error: {str(e)[:30]})")
         else:
-            print("   ⚠️  No tables found in 'public' schema!")
+            print(" No tables found in 'public' schema!")
         
         # Check user permissions
         cur.execute("""
@@ -135,7 +135,7 @@ def verify_connection():
         conn.close()
         
         print(f"\n" + "="*70)
-        print("✅ VERIFICATION COMPLETE")
+        print("VERIFICATION COMPLETE")
         print("="*70)
         
         print(f"\n💡 Troubleshooting Tips:")
