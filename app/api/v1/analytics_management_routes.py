@@ -127,14 +127,15 @@ def create_analytic_with_devices(
             "data": []
         }
     
-@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
+@hashfile_router.get("/analytics/hashfile-analytics")
 def get_hashfile_analytics(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
+    limit: int = Query(1000, ge=1, le=10000, description="Maximum number of correlations to return (default: 1000, max: 10000)"),
+    offset: int = Query(0, ge=0, description="Number of correlations to skip for pagination (default: 0)"),
     db: Session = Depends(get_db)
 ):
     try:
         min_devices = 2
-
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -281,6 +282,12 @@ def get_hashfile_analytics(
             })
 
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
+        
+        # Apply pagination
+        total_correlations = len(hashfile_list)
+        paginated_list = hashfile_list[offset:offset + limit]
+        
+        print(f"[DEBUG] Pagination: returning {len(paginated_list)} of {total_correlations} correlations (offset: {offset}, limit: {limit})")
 
         devices_list = [
             {
@@ -299,8 +306,14 @@ def get_hashfile_analytics(
                 "message": "Hashfile correlation completed successfully",
                 "data": {
                     "devices": devices_list,
-                    "correlations": hashfile_list,
+                    "correlations": paginated_list,
                     "summary": summary,
+                    "pagination": {
+                        "total": total_correlations,
+                        "limit": limit,
+                        "offset": offset,
+                        "has_more": (offset + limit) < total_correlations
+                    }
                 },
             },
             status_code=200,
