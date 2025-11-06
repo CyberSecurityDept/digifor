@@ -1,12 +1,5 @@
-<<<<<<< HEAD
-# sdp_crypto/__init__.py
 from .core import SDPCrypto
 
-# Expose the main functions
-=======
-from .core import SDPCrypto
-
->>>>>>> analytics-fix
 generate_keypair = SDPCrypto.generate_keypair
 encrypt_to_sdp = SDPCrypto.encrypt_to_sdp  
 decrypt_from_sdp = SDPCrypto.decrypt_from_sdp
