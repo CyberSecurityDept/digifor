@@ -6,7 +6,6 @@ from datetime import datetime, timezone, timedelta
 from app.db.session import get_db
 from app.core.config import settings
 
-# WIB timezone (UTC+7)
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
@@ -19,7 +18,6 @@ router = APIRouter()
 @router.get("/health")
 async def health_check(db: Session = Depends(get_db)):
     try:
-        # Test database connection
         db.execute(text("SELECT 1"))
         db_status = "connected"
     except Exception:

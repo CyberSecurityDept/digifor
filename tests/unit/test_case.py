@@ -65,17 +65,14 @@ class TestCaseService:
         case_data = CaseCreate(**sample_case_data)
         case = case_service.create_case(db_session, case_data)
         
-        # First close the case
         case_service.close_case(db_session, case.id, "Test closure")
         
-        # Then reopen it
         reopened_case = case_service.reopen_case(db_session, case.id, "Test reopening")
         assert reopened_case.status == "reopened"
         assert reopened_case.reopened_count == 1
     
     def test_get_case_statistics(self, db_session: Session, sample_case_data: dict):
         """Test case statistics"""
-        # Create multiple cases
         for i in range(3):
             case_data = CaseCreate(**{**sample_case_data, "case_number": f"CASE-{i}"})
             case_service.create_case(db_session, case_data)

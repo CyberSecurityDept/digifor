@@ -5,11 +5,13 @@ Folder ini berisi semua file test untuk aplikasi Digital Forensics Backend.
 ## 🧪 Daftar Test Files
 
 ### **API Tests**
+
 - **[test_api.py](test_api.py)** - Automated API testing script
 
 ## 🚀 Cara Menjalankan Tests
 
 ### **1. API Testing**
+
 ```bash
 # Dari root directory backend/
 python tests/test_api.py
@@ -20,6 +22,7 @@ python test_api.py
 ```
 
 ### **2. Unit Testing (Future)**
+
 ```bash
 # Install pytest jika belum ada
 pip install pytest pytest-asyncio
@@ -37,18 +40,21 @@ pytest tests/ --cov=app
 ## 📋 Test Categories
 
 ### **1. API Integration Tests**
+
 - Health check endpoint
 - Authentication endpoints
 - Case management endpoints
 - Report generation endpoints
 
 ### **2. Unit Tests (Planned)**
+
 - Model validation tests
 - Service layer tests
 - Utility function tests
 - Analytics engine tests
 
 ### **3. End-to-End Tests (Planned)**
+
 - Complete workflow tests
 - Database integration tests
 - File upload tests
@@ -57,19 +63,23 @@ pytest tests/ --cov=app
 ## 🔧 Test Configuration
 
 ### **Environment Setup**
+
 Tests menggunakan environment yang sama dengan aplikasi:
+
 - Database: SQLite3 test database
 - API Base URL: http://localhost:8000
 - Default admin: admin / admin123
 
 ### **Test Data**
+
 - Test cases dibuat otomatis
 - Test data di-cleanup setelah test
 - Isolated test environment
 
-## 📊 Test Results
+## Test Results
 
 ### **API Test Output**
+
 ```
 🚀 Starting Digital Forensics Backend API Tests...
 ==================================================
@@ -92,7 +102,7 @@ Tests menggunakan environment yang sama dengan aplikasi:
 ✅ Add person successful
 ✅ Get case stats successful
 
-📄 Testing report generation...
+Testing report generation...
 ✅ Generate comprehensive report successful
    Filename: case_1_comprehensive_TEST-001.json
 ✅ List reports successful
@@ -107,12 +117,14 @@ Tests menggunakan environment yang sama dengan aplikasi:
 ## 🐛 Troubleshooting
 
 ### **Test Failures**
+
 1. Pastikan aplikasi berjalan di http://localhost:8000
 2. Check database sudah diinitialize
 3. Check admin user sudah dibuat
 4. Check logs untuk error details
 
 ### **Connection Errors**
+
 ```bash
 # Check if server is running
 curl http://localhost:8000/health
@@ -122,6 +134,7 @@ curl http://localhost:8000/health
 ```
 
 ### **Database Errors**
+
 ```bash
 # Recreate database
 rm data/digifor.db
@@ -132,6 +145,7 @@ python create_admin.py
 ## 📝 Writing New Tests
 
 ### **API Test Template**
+
 ```python
 def test_endpoint():
     """Test specific endpoint"""
@@ -141,6 +155,7 @@ def test_endpoint():
 ```
 
 ### **Unit Test Template**
+
 ```python
 def test_function():
     """Test specific function"""
@@ -151,16 +166,19 @@ def test_function():
 ## 🎯 Future Test Plans
 
 ### **Phase 1: Basic Tests**
+
 - ✅ API integration tests
 - 🔄 Authentication tests
 - 🔄 Case management tests
 
 ### **Phase 2: Advanced Tests**
+
 - 📋 Analytics engine tests
 - 📋 Report generation tests
 - 📋 File upload tests
 
 ### **Phase 3: Performance Tests**
+
 - 📋 Load testing
 - 📋 Stress testing
 - 📋 Database performance tests

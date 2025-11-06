@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 # sdp_crypto/core.py
+=======
+>>>>>>> analytics-fix
 import os
 import json
 import base64
@@ -13,8 +16,12 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class SDPCrypto:
+<<<<<<< HEAD
     # Constants
     CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks
+=======
+    CHUNK_SIZE = 10 * 1024 * 1024
+>>>>>>> analytics-fix
     HEADER_SIZE_BYTES = 4
     CHUNK_SIZE_BYTES = 4
     HASH_SIZE = 32
@@ -50,7 +57,11 @@ class SDPCrypto:
         
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
+<<<<<<< HEAD
             length=32,  # AES-256
+=======
+            length=32,
+>>>>>>> analytics-fix
             salt=salt,
             info=info,
             backend=default_backend()
@@ -71,13 +82,17 @@ class SDPCrypto:
         if chunk_size is None:
             chunk_size = SDPCrypto.CHUNK_SIZE
             
+<<<<<<< HEAD
         # Input validation
+=======
+>>>>>>> analytics-fix
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input file not found: {input_path}")
         
         if not recipient_public_key or len(recipient_public_key) != 32:
             raise ValueError("Invalid recipient public key (must be 32 bytes)")
         
+<<<<<<< HEAD
         # Generate ephemeral keys
         ephemeral_private, ephemeral_public = SDPCrypto.generate_keypair()
         
@@ -94,6 +109,19 @@ class SDPCrypto:
         filename = os.path.basename(input_path)
         
         # Create header
+=======
+        ephemeral_private, ephemeral_public = SDPCrypto.generate_keypair()
+        
+        salt = os.urandom(16)
+        base_nonce = os.urandom(8)
+        
+        aes_key = SDPCrypto.derive_symmetric_key(ephemeral_private, recipient_public_key, salt)
+        aesgcm = AESGCM(aes_key)
+        
+        file_size = os.path.getsize(input_path)
+        filename = os.path.basename(input_path)
+        
+>>>>>>> analytics-fix
         header = {
             "version": "2.0",
             "filename": filename,
@@ -104,11 +132,16 @@ class SDPCrypto:
             "base_nonce": base64.b64encode(base_nonce).decode('ascii'),
             "chunk_size": chunk_size,
             "algorithm": "X25519+AES-GCM-256",
+<<<<<<< HEAD
             "total_chunks": (file_size + chunk_size - 1) // chunk_size  # Ceiling division
+=======
+            "total_chunks": (file_size + chunk_size - 1) // chunk_size
+>>>>>>> analytics-fix
         }
         
         header_json = json.dumps(header, separators=(',', ':')).encode('utf-8')
         
+<<<<<<< HEAD
         # Process encryption
         sha256_hash = hashlib.sha256()
         
@@ -118,6 +151,14 @@ class SDPCrypto:
             outfile.write(header_json)
             
             # Encrypt file in chunks
+=======
+        sha256_hash = hashlib.sha256()
+        
+        with open(input_path, 'rb') as infile, open(output_path, 'wb') as outfile:
+            outfile.write(len(header_json).to_bytes(SDPCrypto.HEADER_SIZE_BYTES, 'big'))
+            outfile.write(header_json)
+            
+>>>>>>> analytics-fix
             chunk_index = 0
             bytes_processed = 0
             
@@ -126,6 +167,7 @@ class SDPCrypto:
                 if not chunk_data:
                     break
                 
+<<<<<<< HEAD
                 # Update hash of original data
                 sha256_hash.update(chunk_data)
                 
@@ -136,12 +178,21 @@ class SDPCrypto:
                 encrypted_chunk = aesgcm.encrypt(nonce, chunk_data, None)
                 
                 # Write chunk size + encrypted data
+=======
+                sha256_hash.update(chunk_data)
+                
+                nonce = base_nonce + chunk_index.to_bytes(4, 'big')
+                
+                encrypted_chunk = aesgcm.encrypt(nonce, chunk_data, None)
+                
+>>>>>>> analytics-fix
                 outfile.write(len(encrypted_chunk).to_bytes(SDPCrypto.CHUNK_SIZE_BYTES, 'big'))
                 outfile.write(encrypted_chunk)
                 
                 chunk_index += 1
                 bytes_processed += len(chunk_data)
                 
+<<<<<<< HEAD
                 # Progress for large files (optional)
                 if file_size > 100 * 1024 * 1024:  # Only for files > 100MB
                     progress = (bytes_processed / file_size) * 100
@@ -155,6 +206,19 @@ class SDPCrypto:
             print(f"✅ Encryption complete: {chunk_index} chunks processed")
             print(f"📊 Original size: {file_size:,} bytes")
             print(f"🔐 Encrypted size: {os.path.getsize(output_path):,} bytes")
+=======
+                if file_size > 100 * 1024 * 1024:
+                    progress = (bytes_processed / file_size) * 100
+                    if chunk_index % 10 == 0:
+                        print(f"Encrypted: {bytes_processed}/{file_size} bytes ({progress:.1f}%)")
+            
+            original_hash = sha256_hash.digest()
+            outfile.write(original_hash)
+            
+            print(f"Encryption complete: {chunk_index} chunks processed")
+            print(f"Original size: {file_size:,} bytes")
+            print(f"Encrypted size: {os.path.getsize(output_path):,} bytes")
+>>>>>>> analytics-fix
 
     @staticmethod
     def decrypt_from_sdp(recipient_private_key, input_path, output_dir=None):
@@ -169,7 +233,10 @@ class SDPCrypto:
         Returns:
             str: Path to decrypted file
         """
+<<<<<<< HEAD
         # Input validation
+=======
+>>>>>>> analytics-fix
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"SDP file not found: {input_path}")
         
@@ -177,7 +244,10 @@ class SDPCrypto:
             raise ValueError("Invalid recipient private key (must be 32 bytes)")
         
         with open(input_path, 'rb') as infile:
+<<<<<<< HEAD
             # Read and parse header
+=======
+>>>>>>> analytics-fix
             try:
                 header_len_bytes = infile.read(SDPCrypto.HEADER_SIZE_BYTES)
                 if len(header_len_bytes) != SDPCrypto.HEADER_SIZE_BYTES:
@@ -194,23 +264,35 @@ class SDPCrypto:
             except (ValueError, KeyError, json.JSONDecodeError) as e:
                 raise ValueError(f"Invalid SDP header: {str(e)}")
             
+<<<<<<< HEAD
             # Validate header
+=======
+>>>>>>> analytics-fix
             required_fields = ['filename', 'ephemeral_public_key', 'salt', 'base_nonce', 'chunk_size']
             for field in required_fields:
                 if field not in header:
                     raise ValueError(f"Missing required field in header: {field}")
             
+<<<<<<< HEAD
             # Get crypto parameters
+=======
+>>>>>>> analytics-fix
             ephemeral_public = base64.b64decode(header['ephemeral_public_key'])
             salt = base64.b64decode(header['salt'])
             base_nonce = base64.b64decode(header['base_nonce'])
             chunk_size = header['chunk_size']
             
+<<<<<<< HEAD
             # Derive AES key
             aes_key = SDPCrypto.derive_symmetric_key(recipient_private_key, ephemeral_public, salt)
             aesgcm = AESGCM(aes_key)
             
             # Determine output path
+=======
+            aes_key = SDPCrypto.derive_symmetric_key(recipient_private_key, ephemeral_public, salt)
+            aesgcm = AESGCM(aes_key)
+            
+>>>>>>> analytics-fix
             if output_dir is None:
                 output_dir = os.path.dirname(input_path) or '.'
             
@@ -218,7 +300,10 @@ class SDPCrypto:
             output_filename = header['filename']
             output_path = os.path.join(output_dir, output_filename)
             
+<<<<<<< HEAD
             # Handle filename conflicts
+=======
+>>>>>>> analytics-fix
             counter = 1
             original_output_path = output_path
             while os.path.exists(output_path):
@@ -226,11 +311,17 @@ class SDPCrypto:
                 output_path = f"{name}_{counter}{ext}"
                 counter += 1
             
+<<<<<<< HEAD
             # Get file size for progress tracking
             file_size = os.path.getsize(input_path)
             header_total_size = SDPCrypto.HEADER_SIZE_BYTES + header_len
             
             # Process decryption
+=======
+            file_size = os.path.getsize(input_path)
+            header_total_size = SDPCrypto.HEADER_SIZE_BYTES + header_len
+            
+>>>>>>> analytics-fix
             sha256_hash = hashlib.sha256()
             
             with open(output_path, 'wb') as outfile:
@@ -238,36 +329,52 @@ class SDPCrypto:
                 bytes_processed = 0
                 total_chunks = header.get('total_chunks', 0)
                 
+<<<<<<< HEAD
                 # Read until we reach the footer (last 32 bytes)
                 while infile.tell() < file_size - SDPCrypto.HASH_SIZE:
                     # Read chunk size
+=======
+                while infile.tell() < file_size - SDPCrypto.HASH_SIZE:
+>>>>>>> analytics-fix
                     chunk_size_bytes = infile.read(SDPCrypto.CHUNK_SIZE_BYTES)
                     if not chunk_size_bytes or len(chunk_size_bytes) != SDPCrypto.CHUNK_SIZE_BYTES:
                         break
                     
                     chunk_data_size = int.from_bytes(chunk_size_bytes, 'big')
                     
+<<<<<<< HEAD
                     # Read encrypted chunk
+=======
+>>>>>>> analytics-fix
                     encrypted_chunk = infile.read(chunk_data_size)
                     if len(encrypted_chunk) != chunk_data_size:
                         raise ValueError(f"Incomplete chunk data at position {infile.tell()}")
                     
+<<<<<<< HEAD
                     # Generate nonce
                     nonce = base_nonce + chunk_index.to_bytes(4, 'big')
                     
                     # Decrypt chunk
+=======
+                    nonce = base_nonce + chunk_index.to_bytes(4, 'big')
+                    
+>>>>>>> analytics-fix
                     try:
                         decrypted_chunk = aesgcm.decrypt(nonce, encrypted_chunk, None)
                     except Exception as e:
                         raise ValueError(f"Decryption failed for chunk {chunk_index}: {str(e)}")
                     
+<<<<<<< HEAD
                     # Write decrypted data and update hash
+=======
+>>>>>>> analytics-fix
                     outfile.write(decrypted_chunk)
                     sha256_hash.update(decrypted_chunk)
                     
                     chunk_index += 1
                     bytes_processed += len(decrypted_chunk)
                     
+<<<<<<< HEAD
                     # Progress for large files (optional)
                     if header.get('file_size', 0) > 100 * 1024 * 1024:  # Only for files > 100MB
                         progress = (bytes_processed / header['file_size']) * 100
@@ -279,11 +386,23 @@ class SDPCrypto:
             # Verify integrity
             current_pos = infile.tell()
             infile.seek(-SDPCrypto.HASH_SIZE, 2)  # Seek to footer
+=======
+                    if header.get('file_size', 0) > 100 * 1024 * 1024:
+                        progress = (bytes_processed / header['file_size']) * 100
+                        if chunk_index % 10 == 0:
+                            print(f"Decrypted: {bytes_processed}/{header['file_size']} bytes ({progress:.1f}%)")
+                
+                print(f"Decryption complete: {chunk_index} chunks processed")
+            
+            current_pos = infile.tell()
+            infile.seek(-SDPCrypto.HASH_SIZE, 2)
+>>>>>>> analytics-fix
             original_hash = infile.read(SDPCrypto.HASH_SIZE)
             
             decrypted_hash = sha256_hash.digest()
             
             if decrypted_hash != original_hash:
+<<<<<<< HEAD
                 # Clean up corrupted file
                 if os.path.exists(output_path):
                     os.remove(output_path)
@@ -296,5 +415,17 @@ class SDPCrypto:
                 decrypted_size = os.path.getsize(output_path)
                 if decrypted_size != header['file_size']:
                     print(f"⚠️  Warning: File size mismatch. Expected: {header['file_size']}, Got: {decrypted_size}")
+=======
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                raise ValueError("Integrity check failed: SHA256 hash mismatch")
+            
+            print("Integrity verification: SHA256 hash matches")
+            
+            if 'file_size' in header:
+                decrypted_size = os.path.getsize(output_path)
+                if decrypted_size != header['file_size']:
+                    print(f"Warning: File size mismatch. Expected: {header['file_size']}, Got: {decrypted_size}")
+>>>>>>> analytics-fix
             
             return output_path

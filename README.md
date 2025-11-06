@@ -1,271 +1,298 @@
 # 🔍Digifor (digital forensik)
 
-> **A comprehensive platform for managing digital forensics cases, evidence, suspects, and persons of interest with secure chain of custody tracking.**
+> **A comprehensive platform for managing digital forensics cases, evidence, suspects, and persons of interest with secure chain of custody tracking. Includes advanced analytics capabilities for contact correlation, hashfile analysis, social media correlation, deep communication analysis, APK analysis, and secure file encryption.**
 
 ## 🎯 What This Platform Does
 
-Forenlytic is a powerful backend API designed to help law enforcement agencies, government institutions, and corporate security teams manage digital forensics investigations efficiently and securely.
-
-### 🚀 Key Features
+Forenlytic is a powerful backend API designed to help law enforcement agencies, government institutions, and corporate security teams manage digital forensics investigations efficiently and securely. The platform provides three main modules:
 
 **📁 Case Management**
-- Create and track investigation cases with unique identifiers
-- Monitor case status (Open, Closed, Re-open) with automatic case logging
-- Automatic case log creation for all case activities (creation, person addition, evidence addition)
-- Link cases with suspects, evidence, and persons of interest
-- Generate comprehensive case statistics and reports
-- Real-time case status updates with audit trail
+- **Cases**: Create and manage investigation cases with comprehensive tracking
+- **Evidence**: Track digital evidence with secure chain of custody and hash verification
+- **Suspect**: Manage suspect profiles and link them to cases and evidence
 
-**🔬 Evidence Management**
-- Track digital evidence with unique identifiers and hash verification
-- Maintain secure chain of custody records with timestamps
-- Store evidence metadata, file information, and analysis results
-- Support for multiple evidence sources (HP, SSD, Harddisk, PC, Laptop, DVR)
-- Automatic case log creation when evidence is added to cases
+**📊 Analytics**
+- **Contact Correlation**: Analyze and correlate contact information across multiple sources
+- **Hashfile Analytics**: Process and analyze hash files from various forensic tools
+- **Social Media Correlation**: Extract and correlate social media data and communications
+- **Deep Communication Analytics**: Advanced analysis of communication patterns and threads
+- **APK Analysis**: Analyze Android APK files for forensic investigation
 
-**👤 Suspect Management**
-- Create detailed suspect profiles with comprehensive information
-- Track aliases, personal information, and criminal history
-- Monitor suspect status and activities throughout investigations
-- Risk assessment and threat level classification
-
-**👥 Person of Interest Management**
-- Add persons of interest to cases with detailed profiles
-- Track custody stages (Acquisition, Preparation, Extraction, Analysis)
-- Link persons with evidence and investigating officers
-- Support for unknown persons and unidentified individuals
-- Automatic case log creation when persons are added to cases
-
-**📊 Reporting & Analytics**
-- Generate comprehensive case reports with multiple templates
-- Create evidence chain documentation and custody reports
-- Real-time dashboard with key metrics and statistics
-- Export capabilities for legal documentation
+**🔐 File Encryptor**
+- Convert original files into encrypted format for secure storage and transmission
+- Protect sensitive forensic data with encryption before sharing or archiving
 
 ## 🛠️ Technology Stack
 
-- **Backend**: FastAPI (Python 3.11+)
+### Core Framework
+- **Backend Framework**: FastAPI 0.120.4 (Python 3.11+)
+- **ASGI Server**: Uvicorn 0.38.0 with uvloop
+- **Language**: Python 3.11+
+
+### Database & ORM
 - **Database**: PostgreSQL 15+
-- **ORM**: SQLAlchemy 2.0
-- **Authentication**: JWT-based security
+  - Open-source relational database management system
+  - ACID-compliant with robust data integrity
+  - Supports complex queries, JSON data types, and full-text search
+  - Excellent performance for large-scale forensic data
+  - Built-in support for concurrent connections and transactions
+- **ORM**: SQLAlchemy 2.0.44
+  - Modern Python SQL toolkit and ORM
+  - Type-safe query building and relationship management
+  - Connection pooling and session management
+- **Database Driver**: psycopg2-binary 2.9.11
+  - PostgreSQL adapter for Python
+  - Binary package for easy installation
+  - Supports all PostgreSQL features and data types
+- **Migrations**: Alembic 1.17.1
+  - Database migration tool integrated with SQLAlchemy
+  - Version control for database schema changes
+  - Automatic migration generation and rollback support
+
+### Authentication & Security
+- **Authentication**: JWT-based security (python-jose 3.5.0)
+- **Password Hashing**: Passlib 1.7.4 with bcrypt 4.1.2
+- **Encryption**: Cryptography 46.0.3
+- **Email Validation**: email-validator 2.2.0
+
+### Data Processing & Analytics
+- **Data Analysis**: Pandas 2.3.3, NumPy 2.3.4
+- **Excel Processing**: OpenPyXL 3.1.5, xlrd 2.0.2
+- **File Type Detection**: python-magic 0.4.27
+- **Image Processing**: Pillow 12.0.0
+
+### Task Queue & Caching
+- **Task Queue**: Celery 5.5.3
+- **Message Broker**: Redis 7.0.1
+- **AMQP**: Kombu 5.5.4
+
+### Document Generation
+- **PDF Generation**: ReportLab 4.4.4
+
+### API Documentation
 - **Documentation**: Auto-generated OpenAPI/Swagger
+- **API Testing**: Postman collections included
+
+### Development & Testing
 - **Testing**: Pytest with comprehensive test coverage
-- **Deployment**: Docker-ready with production configurations
+- **Code Quality**: Flake8 6.1.0
+- **Logging**: Structlog 25.5.0
+- **Environment Management**: python-dotenv 1.2.1
 
-## 🚀 Quick Start
+### Deployment
+- **Production Ready**: Docker-ready with production configurations
+- **Monitoring**: Prometheus client 0.23.1
 
-### Prerequisites
-- Python 3.11 or higher
-- PostgreSQL 15 or higher
-- Git
+## 🗄️ PostgreSQL Database
 
-## 🍎 macOS Installation
+### Why PostgreSQL?
 
-### 1. Install Homebrew (if not already installed)
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+PostgreSQL is chosen as the primary database for this platform due to its:
 
-### 2. Install Python and PostgreSQL
-```bash
-# Install Python 3.11
-brew install python@3.11
+- **Reliability & Data Integrity**: ACID-compliant transactions ensure data consistency for critical forensic evidence
+- **Performance**: Optimized for handling large datasets common in digital forensics investigations
+- **Advanced Features**: 
+  - JSON/JSONB support for flexible data storage
+  - Full-text search capabilities
+  - Array data types for complex data structures
+  - Advanced indexing (B-tree, Hash, GiST, GIN, BRIN)
+- **Scalability**: Handles concurrent connections and high transaction volumes
+- **Extensibility**: Support for custom functions, operators, and data types
+- **Security**: Row-level security, encryption at rest, and comprehensive access controls
 
-# Install PostgreSQL
-brew install postgresql@15
+### Database Configuration
 
-# Start PostgreSQL service
-brew services start postgresql@15
-
-# Create database
-createdb forenlytic
-```
-
-### 3. Clone and Setup Project
-```bash
-# Clone repository
-git clone https://github.com/CyberSecurityDept/digifor.git
-cd digifor/backend
-
-# Create virtual environment
-python3.11 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup environment
-cp env.example .env
-# Edit .env with your database credentials
-
-# Initialize database
-python tools/init_db.py
-
-# Run the server
-python scripts/run_dev.py
-```
-
-## 🪟 Windows Installation
-
-### 1. Install Python 3.11
-- Download from [python.org](https://www.python.org/downloads/)
-- **Important**: Check "Add Python to PATH" during installation
-- Verify installation: `python --version`
-
-### 2. Install PostgreSQL
-- Download from [postgresql.org](https://www.postgresql.org/download/windows/)
-- Install with default settings
-- Remember the password you set for the `postgres` user
-- Open pgAdmin and create a database named `forenlytic`
-
-### 3. Install Git
-- Download from [git-scm.com](https://git-scm.com/download/win)
-- Install with default settings
-
-### 4. Clone and Setup Project
-```cmd
-# Clone repository
-git clone https://github.com/CyberSecurityDept/digifor.git
-cd digifor/backend
-
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup environment
-copy env.example .env
-# Edit .env with your database credentials
-
-# Initialize database
-python tools\init_db.py
-
-# Run the server
-python scripts\run_dev.py
-```
-
-## 🐧 Linux Installation (Ubuntu/Debian)
-
-### 1. Update system packages
-```bash
-sudo apt update
-sudo apt upgrade -y
-```
-
-### 2. Install Python 3.11 and pip
-```bash
-# Install Python 3.11
-sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip -y
-
-# Install build essentials
-sudo apt install build-essential -y
-```
-
-### 3. Install PostgreSQL
-```bash
-# Install PostgreSQL
-sudo apt install postgresql postgresql-contrib -y
-
-# Start PostgreSQL service
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# Create database and user
-sudo -u postgres psql
-```
-
-In PostgreSQL shell:
-```sql
-CREATE DATABASE forenlytic;
-CREATE USER_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;
-\q
-```
-
-### 4. Install Git
-```bash
-sudo apt install git -y
-```
-
-### 5. Clone and Setup Project
-```bash
-# Clone repository
-git clone https://github.com/CyberSecurityDept/digifor.git
-cd digifor/backend
-
-# Create virtual environment
-python3.11 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup environment
-cp env.example .env
-# Edit .env with your database credentials
-
-# Initialize database
-python tools/init_db.py
-
-# Run the server
-python scripts/run_dev.py
-```
-
-## 🔧 Environment Configuration
-
-### Database Configuration (.env file)
-
-Copy the example environment file and update the values:
-
-```bash
-# Copy environment template
-cp env.example .env
-```
-
-Then edit `.env` file with your actual values:
+The platform uses PostgreSQL 15+ with the following default configuration:
 
 ```env
-# Database Configuration
-DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
-
-# PostgreSQL Configuration
+# PostgreSQL Connection Settings
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_USER=forenlytic_user
 POSTGRES_PASSWORD=your_password
 POSTGRES_DB=forenlytic
 
-# Security
-SECRET_KEY=your-secret-key-here-change-in-production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# File Storage
-UPLOAD_DIR=./data/uploads
-ANALYSIS_DIR=./data/analysis
-REPORTS_DIR=./data/reports
-MAX_FILE_SIZE=104857600  # 100MB
-
-# Development
-DEBUG=True
-LOG_LEVEL=INFO
+# Database URL (alternative format)
+DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
 ```
 
-### Verify Installation
+### Database Features Used
+
+- **Connection Pooling**: SQLAlchemy manages connection pools for efficient database access
+- **Transactions**: All database operations are wrapped in transactions for data integrity
+- **Migrations**: Alembic handles schema versioning and database migrations
+- **Relationships**: Complex relationships between cases, evidence, suspects, and analytics data
+- **Indexes**: Optimized indexes for fast query performance on large datasets
+- **Constraints**: Foreign keys, unique constraints, and check constraints ensure data consistency
+
+### Performance Considerations
+
+- **Connection Pooling**: Configured through SQLAlchemy for optimal connection management
+- **Query Optimization**: Efficient queries with proper indexing on frequently accessed columns
+- **Batch Processing**: Large data imports use batch operations for better performance
+- **Async Support**: Ready for async database operations with FastAPI
+
+### Database Management
+
+- **Migrations**: Run migrations using Alembic
+  ```bash
+  alembic upgrade head
+  ```
+- **Database Initialization**: Use the provided script to set up the database
+  ```bash
+  python tools/init_db.py
+  ```
+- **Backup**: Regular backups recommended for production environments
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.11+
+- PostgreSQL 15+
+- Git
+
+### Installation Steps
+
+#### 🍎 macOS
+
 ```bash
-# Check Python version
-python --version
+# 1. Install dependencies (if not installed)
+brew install python@3.11 postgresql@15 git
 
-# Check PostgreSQL connection
-python tools/check_env.py
+# 2. Start PostgreSQL
+brew services start postgresql@15
 
-# Run tests
-python tests/run_tests_new.py
+# 3. Create database
+createdb forenlytic
+
+# 4. Clone project
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor/backend
+
+# 5. Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# 6. Install dependencies
+pip install -r requirements.txt
+
+# 7. Setup environment
+cp env.example .env
+# Edit .env file with your database credentials
+
+# 8. Initialize database
+python tools/init_db.py
+
+# 9. Run server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`
+#### 🪟 Windows
+
+```cmd
+# 1. Install Python 3.11+ from python.org (check "Add to PATH")
+# 2. Install PostgreSQL from postgresql.org
+# 3. Install Git from git-scm.com
+# 4. Open pgAdmin and create database named 'forenlytic'
+
+# 5. Clone project
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor\backend
+
+# 6. Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# 7. Install dependencies
+pip install -r requirements.txt
+
+# 8. Setup environment
+copy env.example .env
+# Edit .env file with your database credentials
+
+# 9. Initialize database
+python tools\init_db.py
+
+# 10. Run server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### 🐧 Linux (Ubuntu/Debian)
+
+```bash
+# 1. Install dependencies
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3.11-dev python3-pip postgresql postgresql-contrib git build-essential -y
+
+# 2. Start PostgreSQL
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# 3. Create database and user
+sudo -u postgres psql -c "CREATE DATABASE forenlytic;"
+sudo -u postgres psql -c "CREATE USER forenlytic_user WITH PASSWORD 'your_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE forenlytic TO forenlytic_user;"
+
+# 4. Clone project
+git clone https://github.com/CyberSecurityDept/digifor.git
+cd digifor/backend
+
+# 5. Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# 6. Install dependencies
+pip install -r requirements.txt
+
+# 7. Setup environment
+cp env.example .env
+# Edit .env file with your database credentials
+
+# 8. Initialize database
+python tools/init_db.py
+
+# 9. Run server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Environment Configuration
+
+Edit `.env` file with your database credentials:
+
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=forenlytic_user
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=forenlytic
+DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlytic
+```
+
+### Troubleshooting
+
+**Error: ModuleNotFoundError**
+```bash
+# Pastikan virtual environment aktif
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
+
+# Install ulang dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**Error: Database connection failed**
+- Pastikan PostgreSQL sedang berjalan
+- Cek kredensial di file `.env`
+- Verifikasi database sudah dibuat
+
+**Error: Port already in use**
+```bash
+# Gunakan port lain
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+API akan tersedia di `http://localhost:8000`
 
 ## 📚 API Documentation
 
@@ -278,10 +305,8 @@ Once the server is running, you can access:
 
 | Document | Description | Link |
 |----------|-------------|------|
-| **Quick Start Guide** | 5-minute setup guide for getting started | [`docs/QUICK_START.md`](docs/QUICK_START.md) |
-| **Complete Environment Guide** | Comprehensive environment configuration guide | [`docs/COMPLETE_ENVIRONMENT_GUIDE.md`](docs/COMPLETE_ENVIRONMENT_GUIDE.md) |
 | **Case Management API** | Detailed API documentation for case management | [`docs/CASE_MANAGEMENT_API_DOCUMENTATION.md`](docs/CASE_MANAGEMENT_API_DOCUMENTATION.md) |
-| **Authentication API** | Complete authentication API documentation | [`docs/README.md`](docs/README.md) |
+| **Analytics API** | Complete analytics API documentation (Contact Correlation, Hashfile Analytics, Social Media Correlation, Deep Communication Analytics, APK Analysis) | [`docs/Digital_Forensics_API_Contract_Analytics.md`](docs/Digital_Forensics_API_Contract_Analytics.md) |
 
 ## 🔧 Development
 
@@ -303,7 +328,6 @@ python scripts/setup_db.py  # Setup database
 python tools/migrate_database.py  # Run migrations
 ```
 
-
 ## 🔐 Security Features
 
 - **JWT Authentication**: Secure token-based authentication
@@ -313,7 +337,6 @@ python tools/migrate_database.py  # Run migrations
 - **Chain of Custody**: Secure evidence tracking with timestamps
 - **Input Validation**: Comprehensive data validation and sanitization
 - **Case Log Management**: Automatic logging of all case activities with WIB timezone support
-
 
 ## 📈 Performance & Monitoring
 
@@ -340,6 +363,5 @@ The system now includes comprehensive case log management with the following fea
 ### **API Endpoints**
 - `PUT /api/v1/case-logs/update-log/{case_id}` - Update case status and create log entry
 - `GET /api/v1/case-logs/case/{case_id}/logs` - Retrieve case logs with pagination
-
 
 **Built with ❤️ for Digital Forensics Professionals**

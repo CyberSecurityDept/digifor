@@ -5,7 +5,6 @@ from datetime import datetime, date, timezone, timedelta
 
 from app.api.deps import get_database
 
-# WIB timezone (UTC+7)
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():

@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -10,7 +10,6 @@ from app.evidence_management.schemas import (
     CustodyLogCreate, CustodyLogUpdate, CustodyReportCreate
 )
 
-
 class CustodyService:
     
     def __init__(self, db: Session):
@@ -18,11 +17,9 @@ class CustodyService:
     
     def create_custody_log(self, custody_data: CustodyLogCreate) -> CustodyLog:
         try:
-            # Generate hash for integrity verification
             log_data = f"{custody_data.evidence_id}_{custody_data.event_type}_{custody_data.event_date}_{custody_data.person_name}_{custody_data.location}"
             log_hash = hashlib.sha256(log_data.encode()).hexdigest()
             
-            # Create custody log
             custody_log = CustodyLog(
                 evidence_id=custody_data.evidence_id,
                 event_type=custody_data.event_type,
@@ -61,12 +58,10 @@ class CustodyService:
     
     def get_custody_chain(self, evidence_id: UUID) -> Dict[str, Any]:
         try:
-            # Get all custody logs for evidence
             custody_logs = self.db.query(CustodyLog).filter(
                 CustodyLog.evidence_id == evidence_id
             ).order_by(CustodyLog.event_date).all()
             
-            # Get evidence details
             evidence = self.db.query(Evidence).filter(
                 Evidence.id == evidence_id
             ).first()
@@ -74,7 +69,6 @@ class CustodyService:
             if not evidence:
                 raise ValueError("Evidence not found")
             
-            # Check chain integrity
             chain_integrity = self._check_chain_integrity(custody_logs)
             
             return {
@@ -122,11 +116,9 @@ class CustodyService:
             if not custody_log:
                 raise ValueError("Custody log not found")
             
-            # Check if log is immutable
             if custody_log.is_immutable:
                 raise ValueError("Cannot modify immutable custody log")
             
-            # Update only allowed fields
             update_data = custody_update.dict(exclude_unset=True)
             for field, value in update_data.items():
                 setattr(custody_log, field, value)
@@ -142,10 +134,8 @@ class CustodyService:
     
     def create_custody_report(self, report_data: CustodyReportCreate) -> CustodyReport:
         try:
-            # Get custody chain data
             chain_data = self.get_custody_chain(report_data.evidence_id)
-            
-            # Create report
+
             report = CustodyReport(
                 evidence_id=report_data.evidence_id,
                 report_type=report_data.report_type,
@@ -215,7 +205,6 @@ class CustodyService:
             
             custody_log.is_verified = True
             custody_log.verified_by = verified_by
-            from datetime import timezone, timedelta
             WIB = timezone(timedelta(hours=7))
             custody_log.verification_date = datetime.now(WIB)
             
@@ -232,14 +221,12 @@ class CustodyService:
         if not custody_logs:
             return True
         
-        # Check for gaps in custody
         for i in range(1, len(custody_logs)):
             prev_log = custody_logs[i-1]
             curr_log = custody_logs[i]
             
-            # Check if there's a reasonable time gap
             time_diff = (curr_log.event_date - prev_log.event_date).total_seconds()
-            if time_diff > 86400:  # More than 24 hours
+            if time_diff > 86400:
                 return False
         
         return True

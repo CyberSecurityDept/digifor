@@ -5,7 +5,6 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum as PyEnum
 from app.db.base import Base
 
-# WIB timezone (UTC+7)
 WIB = timezone(timedelta(hours=7))
 
 

@@ -110,20 +110,19 @@ class CaseService:
 
         except Exception as e:
             db.rollback()
-            print("🔥 ERROR CREATE CASE:", str(e))
+            print("ERROR CREATE CASE:", str(e))
             if "duplicate key value" in str(e) and "case_number" in str(e):
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
             raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
         
         
         try:
-            # Create initial case log with empty fields as per requirements
             initial_log = CaseLog(
                 case_id=case.id,
                 action="Open",
-                changed_by="",  # Empty for initial creation
-                change_detail="",  # Empty for initial creation
-                notes="",  # Empty for initial creation
+                changed_by="",
+                change_detail="",
+                notes="",
                 status="Open"
             )
             db.add(initial_log)
@@ -192,7 +191,6 @@ class CaseService:
 
         cases = query.order_by(Case.id.desc()).offset(skip).limit(limit).all()
         
-        # Convert cases to dict with agency and work unit names
         result = []
         for case in cases:
             agency_name = None
@@ -242,7 +240,6 @@ class CaseService:
                     Case.id != case_id
                 ).first()
                 if existing_case:
-                    from fastapi import HTTPException
                     raise HTTPException(
                         status_code=409, 
                         detail=f"Case number '{manual_case_number}' already exists"
@@ -412,7 +409,7 @@ class CaseService:
                 "description": case.description or "No description available",
                 "status": case.status,
                 "case_officer": case.main_investigator,
-                "agency": agency_name or "Unknown",
+                "agency": agency_name or "N/A",
                 "work_unit": work_unit_name,
                 "created_date": created_date
             },
@@ -460,15 +457,12 @@ class CaseLogService:
         new_status = log_data['status']
         old_status = case.status
         
-        # Update case status in cases table
         case.status = new_status
         db.commit()
         db.refresh(case)
         
-        # Get notes from case_notes table if status is Closed or Re-open
         notes = ""
         if new_status in ['Closed', 'Re-open']:
-            # Get the latest case note for this case
             latest_note = db.query(CaseNote).filter(
                 CaseNote.case_id == case_id
             ).order_by(CaseNote.created_at.desc()).first()
@@ -608,19 +602,17 @@ class PersonService:
             db.commit()
             db.refresh(person)
             
-            # Auto-create case log for adding person
             try:
-                # Get the current case status
                 case = db.query(Case).filter(Case.id == person.case_id).first()
                 current_status = case.status if case else "Open"
                 
                 case_log = CaseLog(
                     case_id=person.case_id,
                     action="Edit",
-                    changed_by="Wisnu",  # Default user for now
+                    changed_by="Wisnu",
                     change_detail=f"Adding Person: {person.name}",
                     notes="",
-                    status=current_status  # Use current case status
+                    status=current_status
                 )
                 db.add(case_log)
                 db.commit()

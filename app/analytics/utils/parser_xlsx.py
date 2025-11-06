@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import re
+<<<<<<< HEAD
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
@@ -10,6 +11,18 @@ from app.analytics.models import Device, Contact, Message, Call
 Base.metadata.create_all(bind=engine)
 
 # ---------- Parsing Helpers ----------
+=======
+import warnings
+from typing import Optional, List, Dict, Any
+from sqlalchemy.orm import Session
+from app.db.init_db import SessionLocal, engine, Base
+from app.analytics.shared.models import Device, Contact, Call
+
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+
+Base.metadata.create_all(bind=engine)
+
+>>>>>>> analytics-fix
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(axis=1, how='all')
 
@@ -46,7 +59,11 @@ def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
     target = next((s for s in xls.sheet_names if sheet_keyword.lower() in s.lower()), None)
     if not target:
         return None
+<<<<<<< HEAD
     df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str)
+=======
+    df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str, engine='openpyxl')
+>>>>>>> analytics-fix
     df = sanitize_headers(df)
 
     records: List[dict] = []
@@ -76,7 +93,10 @@ def normalize_str(val: Optional[str]) -> Optional[str]:
     return s
 
 
+<<<<<<< HEAD
 # ---------- Persistence ----------
+=======
+>>>>>>> analytics-fix
 def save_device(
     device_data: Dict[str, Any],
     contacts: List[dict],
@@ -85,7 +105,10 @@ def save_device(
 ) -> int:
     db: Session = SessionLocal()
     try:
+<<<<<<< HEAD
         # --- Buat Device ---
+=======
+>>>>>>> analytics-fix
         device = Device(
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
@@ -94,6 +117,7 @@ def save_device(
         db.commit()
         db.refresh(device)
 
+<<<<<<< HEAD
         # --- Contacts dari sheet ---
         for c in contacts:
             db.add(Contact(
@@ -130,6 +154,21 @@ def save_device(
             db.add(Call(
                 device_id=device.id,
                 index_row=c.get("index"),
+=======
+        for c in contacts:
+            db.add(Contact(
+                device_id=device.id,
+                display_name=_to_str(c.get("Contact")),
+                phone_number=_to_str(c.get("Phones & Emails")),
+                type=_to_str(c.get("Type")),
+                last_time_contacted=None
+            ))
+
+
+        for c in calls:
+            db.add(Call(
+                device_id=device.id,
+>>>>>>> analytics-fix
                 direction=_to_str(c.get("Direction")),
                 source=_to_str(c.get("Source")),
                 type=_to_str(c.get("Type")),
