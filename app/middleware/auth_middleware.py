@@ -29,7 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         ]
 
         public_patterns = [
-            r"^/data/.*$",  # biar bisa akses file langsung
+            r"^/data/.*$",
         ]
 
         path = request.url.path

@@ -13,14 +13,12 @@ router = APIRouter()
 @router.post("/analytics/upload-apk")
 async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastAPIFile(...), file_name: str = Form(...)):
     try:
-        # === Validasi field ===
         if not file_name or str(file_name).strip() == "":
             return JSONResponse(
                 {"status": 422, "message": "Field 'file_name' is required", "error_field": "file_name"},
                 status_code=422,
             )
 
-        # === Validasi ekstensi ===
         allowed_ext = ["apk", "ipa"]
         ext = file.filename.lower().split(".")[-1]
         if ext not in allowed_ext:
@@ -29,14 +27,11 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
                 status_code=400,
             )
 
-        # === Baca file ===
         file_bytes = await file.read()
         total_size = len(file_bytes)
 
-        # === Generate upload ID ===
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
-        # === Simpan progress awal ===
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Progress",
             "message": "Upload Progress",
@@ -75,7 +70,6 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
 @router.post("/analytics/analyze-apk")
 def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
     try:
-        # === Validasi analytic ===
         analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic_obj:
             return JSONResponse(
@@ -89,7 +83,6 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
                 status_code=404,
             )
 
-        # === Jalankan analisis APK ===
         result = analyze_apk_from_file(db, file_id=file_id, analytic_id=analytic_id)
         if not result or not isinstance(result, dict):
             return JSONResponse(
@@ -97,7 +90,6 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
                 status_code=400,
             )
 
-        # === Parsing hasil analisis ===
         analysis = result.get("permission_analysis", {})
         malware_scoring = str(analysis.get("security_score", analysis.get("safety_score", 0)))
 
@@ -136,20 +128,17 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
         )
 
     except FileNotFoundError as e:
-        # File tidak ditemukan
         return JSONResponse(
             {"status": 404, "message": f"File not found: {str(e)}", "data": None},
             status_code=404,
         )
 
     except Exception as e:
-        # Error tak terduga
         traceback.print_exc()
         return JSONResponse(
             {"status": 500, "message": "Something went wrong, please try again later!", "data": None},
             status_code=500,
         )
-
 
 UPLOAD_PROGRESS = {}
 def format_file_size(size_bytes: int) -> str:
@@ -217,7 +206,6 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             "upload_status": "Failed",
             "data": [],
         }
-
 
 @router.get("/analytics/apk-analytic")
 def get_apk_analysis(

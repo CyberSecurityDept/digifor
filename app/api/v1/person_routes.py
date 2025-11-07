@@ -10,7 +10,6 @@ from app.case_management.schemas import (
 
 router = APIRouter(prefix="/persons", tags=["Person Management"])
 
-
 @router.post("/create-person", response_model=PersonResponse)
 async def create_person(
     person_data: PersonCreate,
@@ -31,7 +30,6 @@ async def create_person(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.get("/get-person/{person_id}", response_model=PersonResponse)
 async def get_person(
     person_id: int,
@@ -49,7 +47,6 @@ async def get_person(
             status_code=404, 
             detail=f"Person with ID {person_id} not found"
         )
-
 
 @router.get("/get-persons-by-case/{case_id}", response_model=PersonListResponse)
 async def get_persons_by_case(
@@ -75,7 +72,6 @@ async def get_persons_by_case(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.put("/update-person/{person_id}", response_model=PersonResponse)
 async def update_person(
     person_id: int,
@@ -100,7 +96,6 @@ async def update_person(
                 status_code=500, 
                 detail="Unexpected server error, please try again later"
             )
-
 
 @router.delete("/delete-person/{person_id}")
 async def delete_person(

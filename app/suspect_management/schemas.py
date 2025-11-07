@@ -30,7 +30,6 @@ class SuspectBase(BaseModel):
 class SuspectCreate(SuspectBase):
     pass
 
-
 class SuspectUpdate(BaseModel):
     name: Optional[str] = None
     case_name: Optional[str] = None

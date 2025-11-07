@@ -97,7 +97,6 @@ def _get_contact_correlation_data(analytic_id: int, db: Session):
     correlation_map = defaultdict(dict)
 
     for contact in contacts:
-        # Skip contact jika type mengandung "account"
         contact_type = contact.type
         if contact_type is not None and "account" in str(contact_type).lower():
             display_name = contact.display_name if contact.display_name is not None else "Unknown"

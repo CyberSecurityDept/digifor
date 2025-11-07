@@ -20,7 +20,6 @@ def get_wib_now():
 
 router = APIRouter(prefix="/evidence", tags=["Evidence Management"])
 
-
 @router.get("/get-evidence-list")
 async def get_evidence_list(
     skip: int = Query(0, ge=0),
@@ -77,7 +76,6 @@ async def create_evidence(
             status_code=500,
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.get("/get-evidence-by-id{evidence_id}")
 async def get_evidence(
@@ -189,7 +187,6 @@ async def get_custody_chain(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.get("/{evidence_id}/custody-events")
 async def get_custody_events(
     evidence_id: int,
@@ -247,7 +244,6 @@ async def get_custody_events(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.put("/{evidence_id}/custody-events/{custody_id}")
 async def update_custody_event(
     evidence_id: int,
@@ -271,7 +267,6 @@ async def update_custody_event(
             status_code=500, 
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.post("/{evidence_id}/custody-report")
 async def generate_custody_report(
@@ -305,7 +300,6 @@ async def generate_custody_report(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.get("/{evidence_id}/custody-reports")
 async def get_custody_reports(
     evidence_id: int,
@@ -330,7 +324,6 @@ async def get_custody_reports(
             status_code=500, 
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.get("/{evidence_id}/custody-report/{report_id}")
 async def get_custody_report(

@@ -22,7 +22,6 @@ PLATFORM_MAPPING = {
     'tiktok': ['TikTok', 'tiktok', 'TikTok']
 }
 
-
 def normalize_platform_name(platform: str) -> str:
     if not platform:
         return ''
@@ -118,7 +117,6 @@ def is_valid_person_name(name: str) -> bool:
     
     return True
 
-
 def get_chat_messages_for_analytic(
     db: Session,
     analytic_id: int,
@@ -141,7 +139,6 @@ def get_chat_messages_for_analytic(
         )
     
     return query.all()
-
 
 @router.get("/analytic/deep-communication-analytics")
 def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
@@ -542,7 +539,6 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             },
             status_code=500
         )
-
 
 @router.get("/analytic/platform-cards/intensity")
 def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
@@ -1054,7 +1050,6 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             },
             status_code=500
         )
-
 
 @router.get("/analytic/chat-detail")
 def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]

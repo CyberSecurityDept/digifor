@@ -12,7 +12,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-
 def seed_users():
     db: Session = SessionLocal()
     try:
@@ -68,7 +67,6 @@ def seed_users():
         print(f"Gagal menambahkan user: {e}")
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_users()

@@ -18,7 +18,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.email == email).first()
 
-
 def create_user(
     db: Session,
     email: str,
@@ -97,7 +96,6 @@ def blacklist_access_token(db: Session, token: str, user_id: int, expires_at: da
         )
         db.add(blacklisted)
         db.commit()
-
 
 def is_token_blacklisted(db: Session, token: str) -> bool:
     token_hash = hashlib.sha256(token.encode()).hexdigest()

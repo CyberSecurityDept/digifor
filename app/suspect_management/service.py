@@ -172,5 +172,4 @@ class SuspectService:
         db.commit()
         return True
 
-
 suspect_service = SuspectService()

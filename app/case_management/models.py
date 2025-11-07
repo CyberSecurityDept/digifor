@@ -13,7 +13,6 @@ class CaseStatus(PyEnum):
     CLOSED = "Closed"
     REOPENED = "Re-open"
 
-
 class Agency(Base):
     __tablename__ = "agencies"
     
@@ -24,7 +23,6 @@ class Agency(Base):
     
     def __repr__(self):
         return f"<Agency(id={self.id}, name='{self.name}')>"
-
 
 class WorkUnit(Base):
     __tablename__ = "work_units"
@@ -37,7 +35,6 @@ class WorkUnit(Base):
     
     def __repr__(self):
         return f"<WorkUnit(id={self.id}, name='{self.name}', agency_id={self.agency_id})>"
-
 
 class Case(Base):
     __tablename__ = "cases"
@@ -74,10 +71,8 @@ class Case(Base):
     def __repr__(self):
         return f"<Case(id={self.id}, case_number='{self.case_number}', status='{self.status}')>"
 
-
 class CaseLog(Base):
     __tablename__ = "case_logs"
-
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
     action = Column(String(50), nullable=False)
@@ -95,10 +90,8 @@ class CaseLog(Base):
             f"action='{self.action}', changed_by='{self.changed_by}')>"
         )
 
-
 class CaseNote(Base):
     __tablename__ = "case_notes"
-    
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     note = Column(Text, nullable=False)
@@ -111,10 +104,8 @@ class CaseNote(Base):
     def __repr__(self):
         return f"<CaseNote(id={self.id}, case_id={self.case_id}, status='{self.status}')>"
 
-
 class Person(Base):
     __tablename__ = "persons"
-    
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     is_unknown = Column(Boolean, default=False)

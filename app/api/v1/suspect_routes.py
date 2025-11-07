@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-
 from app.api.deps import get_database
 from app.suspect_management.service import suspect_service
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate, SuspectResponse, SuspectListResponse
 
 router = APIRouter(prefix="/suspects", tags=["Suspect Management"])
-
 
 @router.get("/", response_model=SuspectListResponse)
 async def get_suspects(
@@ -35,7 +33,6 @@ async def get_suspects(
             detail="Unexpected server error, please try again later"
         )
 
-
 @router.post("/create-suspect", response_model=SuspectResponse)
 async def create_suspect(
     suspect_data: SuspectCreate,
@@ -53,7 +50,6 @@ async def create_suspect(
             status_code=500,
             detail="Unexpected server error, please try again later"
         )
-
 
 @router.get("/get-suspect-by-id/{suspect_id}", response_model=SuspectResponse)
 async def get_suspect(
@@ -79,7 +75,6 @@ async def get_suspect(
                 detail="Unexpected server error, please try again later"
             )
 
-
 @router.put("/update-suspect/{suspect_id}", response_model=SuspectResponse)
 async def update_suspect(
     suspect_id: int,
@@ -104,7 +99,6 @@ async def update_suspect(
                 status_code=500,
                 detail="Unexpected server error, please try again later"
             )
-
 
 @router.delete("/delete-suspect/{suspect_id}")
 async def delete_suspect(
