@@ -439,7 +439,7 @@ class ChatMessagesParserExtended:
             print(f"[OXYGEN CHAT PARSER] Searching for Messages sheet...")
             
             for sheet in xls.sheet_names:
-                sheet_clean = sheet.strip().lower()
+                sheet_clean = str(sheet).strip().lower()
                 logger.debug(f"[OXYGEN CHAT PARSER] Checking sheet: '{sheet}' -> cleaned: '{sheet_clean}'")
                 
                 if sheet_clean == 'messages' or sheet_clean == 'message':
@@ -450,7 +450,7 @@ class ChatMessagesParserExtended:
             
             if not messages_sheet:
                 for sheet in xls.sheet_names:
-                    sheet_clean = sheet.strip().lower()
+                    sheet_clean = str(sheet).strip().lower()
                     if sheet_clean in ['messages', 'message']:
                         messages_sheet = sheet
                         logger.info(f"[OXYGEN CHAT PARSER] Found Messages sheet (strip match): '{sheet}'")
@@ -459,7 +459,7 @@ class ChatMessagesParserExtended:
             
             if not messages_sheet:
                 for sheet in xls.sheet_names:
-                    sheet_lower = sheet.lower()
+                    sheet_lower = str(sheet).lower()
                     if sheet_lower.startswith('message') and 'sheet' not in sheet_lower:
                         messages_sheet = sheet
                         logger.info(f"[OXYGEN CHAT PARSER] Found Messages sheet (prefix match): '{sheet}'")
@@ -470,12 +470,12 @@ class ChatMessagesParserExtended:
                 print(f"[OXYGEN CHAT PARSER] DEBUG: All sheet names (detailed):")
                 for idx, sheet in enumerate(xls.sheet_names):
                     sheet_repr = repr(sheet)
-                    sheet_clean = sheet.strip().lower()
-                    print(f"  [{idx}] Original: {sheet_repr} | Cleaned: '{sheet_clean}' | Length: {len(sheet)}")
+                    sheet_clean = str(sheet).strip().lower()
+                    print(f"  [{idx}] Original: {sheet_repr} | Cleaned: '{sheet_clean}' | Length: {len(str(sheet))}")
                     logger.debug(f"Sheet {idx}: {sheet_repr} -> cleaned: '{sheet_clean}'")
                 
                 print(f"[OXYGEN CHAT PARSER] Searching for sheets containing 'message' (case-insensitive):")
-                message_related_sheets = [s for s in xls.sheet_names if 'message' in s.lower()]
+                message_related_sheets = [s for s in xls.sheet_names if 'message' in str(s).lower()]
                 for sheet in message_related_sheets:
                     print(f"  - '{sheet}' (repr: {repr(sheet)})")
                     logger.info(f"Found message-related sheet: '{sheet}' (repr: {repr(sheet)})")
@@ -546,7 +546,7 @@ class ChatMessagesParserExtended:
                 
                 potential_sheets = []
                 for sheet in xls.sheet_names:
-                    sheet_lower = sheet.lower()
+                    sheet_lower = str(sheet).lower()
                     if any(kw in sheet_lower for kw in ['message', 'chat', 'im', 'whatsapp', 'telegram', 'instagram', 'contact']):
                         potential_sheets.append(sheet)
                 

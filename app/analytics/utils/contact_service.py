@@ -112,7 +112,6 @@ class ContactService:
             "skipped_count": skipped_count
         }
     
-    
     def get_contacts_by_device(self, device_id: int) -> List[Dict[str, Any]]:
         db: Session = SessionLocal()
         

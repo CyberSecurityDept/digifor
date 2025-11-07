@@ -40,7 +40,7 @@ def cell_to_value(text: Optional[str]):
 
 def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
     xls = pd.ExcelFile(xlsx_path)
-    target = next((s for s in xls.sheet_names if sheet_keyword.lower() in s.lower()), None)
+    target = next((s for s in xls.sheet_names if isinstance(s, str) and sheet_keyword.lower() in str(s).lower()), None)
     if not target:
         return None
     df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str, engine='openpyxl')
@@ -92,7 +92,6 @@ def save_device(
                 type=_to_str(c.get("Type")),
                 last_time_contacted=None
             ))
-
 
         for c in calls:
             db.add(Call(

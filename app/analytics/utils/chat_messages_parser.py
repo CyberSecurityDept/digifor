@@ -77,32 +77,32 @@ class ChatMessagesParser:
                 
                 print(f"Parsing chat messages from {len(xls.sheet_names)} sheets...")
                 
-                tiktok_sheets = [s for s in xls.sheet_names if 'tiktok' in s.lower() and 'message' in s.lower()]
+                tiktok_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'tiktok' in str(s).lower() and 'message' in str(s).lower()]
                 for sheet in tiktok_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_tiktok_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                instagram_sheets = [s for s in xls.sheet_names if 'instagram' in s.lower() and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
+                instagram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'instagram' in str(s).lower() and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
                 for sheet in instagram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_instagram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                whatsapp_sheets = [s for s in xls.sheet_names if 'whatsapp' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
+                whatsapp_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'whatsapp' in str(s).lower() and ('message' in str(s).lower() or 'chat' in str(s).lower())]
                 for sheet in whatsapp_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_whatsapp_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                telegram_sheets = [s for s in xls.sheet_names if 'telegram' in s.lower() and 'message' in s.lower()]
+                telegram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'telegram' in str(s).lower() and 'message' in str(s).lower()]
                 for sheet in telegram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_telegram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                x_sheets = [s for s in xls.sheet_names if ('twitter' in s.lower() or 'x ' in s.lower()) and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
+                x_sheets = [s for s in xls.sheet_names if isinstance(s, str) and ('twitter' in str(s).lower() or 'x ' in str(s).lower()) and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
                 for sheet in x_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_x_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                facebook_sheets = [s for s in xls.sheet_names if 'facebook' in s.lower() and ('message' in s.lower() or 'messenger' in s.lower() or 'chat' in s.lower())]
+                facebook_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'facebook' in str(s).lower() and ('message' in str(s).lower() or 'messenger' in str(s).lower() or 'chat' in str(s).lower())]
                 for sheet in facebook_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_facebook_messages(file_path, sheet, file_id, source_tool, engine))

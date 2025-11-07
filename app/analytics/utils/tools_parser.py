@@ -221,7 +221,8 @@ class ToolsParser:
     
     def _find_and_parse_sheet(self, xls: pd.ExcelFile, keywords: List[str]) -> Optional[List[dict]]:
         for sheet_name in xls.sheet_names:
-            if any(keyword.lower() in sheet_name.lower() for keyword in keywords):
+            sheet_name_str = str(sheet_name)
+            if any(keyword.lower() in sheet_name_str.lower() for keyword in keywords):
                 try:
                     df = pd.read_excel(xls, sheet_name=sheet_name, dtype=str, engine='openpyxl')
                     df = self._sanitize_headers(df)

@@ -150,55 +150,56 @@ class AxiomParser:
             print(f" Total sheets available: {len(xls.sheet_names)}")
 
             for sheet_name in xls.sheet_names:
-                print(f"Processing sheet: {sheet_name}")
+                sheet_name_str = str(sheet_name)
+                print(f"Processing sheet: {sheet_name_str}")
 
-                if 'Instagram Profiles' in sheet_name:
+                if 'Instagram Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_profiles(file_path, sheet_name, file_id))
-                elif 'Android Instagram Following' in sheet_name:
+                elif 'Android Instagram Following' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_following(file_path, sheet_name, file_id))
-                elif 'Android Instagram Users' in sheet_name:
+                elif 'Android Instagram Users' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_users(file_path, sheet_name, file_id))
 
-                elif 'Twitter Users' in sheet_name:
+                elif 'Twitter Users' in sheet_name_str:
                     results.extend(self._parse_axiom_twitter_users(file_path, sheet_name, file_id))
 
-                elif 'Telegram Accounts' in sheet_name:
+                elif 'Telegram Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_accounts(file_path, sheet_name, file_id))
-                elif 'User Accounts' in sheet_name:
+                elif 'User Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_user_accounts(file_path, sheet_name, file_id))
 
-                elif 'TikTok Contacts' in sheet_name:
+                elif 'TikTok Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_tiktok_contacts(file_path, sheet_name, file_id))
 
-                elif 'Facebook Contacts' in sheet_name:
+                elif 'Facebook Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_contacts(file_path, sheet_name, file_id))
-                elif 'Facebook User-Friends' in sheet_name:
+                elif 'Facebook User-Friends' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_users(file_path, sheet_name, file_id))
 
-                elif 'WhatsApp Contacts - Android' in sheet_name:
+                elif 'WhatsApp Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts(file_path, sheet_name, file_id))
-                elif 'WhatsApp User Profiles - Androi' in sheet_name:
+                elif 'WhatsApp User Profiles - Androi' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_users(file_path, sheet_name, file_id))
-                elif 'WhatsApp Accounts Information' in sheet_name:
+                elif 'WhatsApp Accounts Information' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts(file_path, sheet_name, file_id))
 
-                elif 'Android WhatsApp Accounts Infor' in sheet_name:
+                elif 'Android WhatsApp Accounts Infor' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts_info(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Chats' in sheet_name:
+                elif 'Android WhatsApp Chats' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_chats(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Contacts' in sheet_name:
+                elif 'Android WhatsApp Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts_android(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Messages' in sheet_name:
+                elif 'Android WhatsApp Messages' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_messages(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp User Profiles' in sheet_name:
+                elif 'Android WhatsApp User Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_user_profiles(file_path, sheet_name, file_id))
-                elif 'Telegram Chats - Android' in sheet_name:
+                elif 'Telegram Chats - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_chats(file_path, sheet_name, file_id))
-                elif 'Telegram Contacts - Android' in sheet_name:
+                elif 'Telegram Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_contacts_android(file_path, sheet_name, file_id))
-                elif 'Telegram Messages - Android' in sheet_name:
+                elif 'Telegram Messages - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_messages(file_path, sheet_name, file_id))
-                elif 'Telegram Users - Android' in sheet_name:
+                elif 'Telegram Users - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_users_android(file_path, sheet_name, file_id))
 
             unique_results = []
@@ -310,35 +311,36 @@ class AxiomParser:
 
             for sheet_name in xls.sheet_names:
                 try:
-                    if 'Instagram Profiles' in sheet_name:
+                    sheet_name_str = str(sheet_name)
+                    if 'Instagram Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Twitter Users' in sheet_name:
+                    elif 'Twitter Users' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Telegram Accounts' in sheet_name:
+                    elif 'Telegram Accounts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Account ID' in df.columns:
                             total_count += len(df[df['Account ID'].notna()])
-                    elif 'TikTok Contacts' in sheet_name:
+                    elif 'TikTok Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'Facebook Contacts' in sheet_name:
+                    elif 'Facebook Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Profile ID' in df.columns:
                             total_count += len(df[df['Profile ID'].notna()])
-                    elif 'Facebook User-Friends' in sheet_name:
+                    elif 'Facebook User-Friends' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'WhatsApp Contacts' in sheet_name:
+                    elif 'WhatsApp Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'WhatsApp User Profiles' in sheet_name:
+                    elif 'WhatsApp User Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Phone Number' in df.columns:
                             total_count += len(df[df['Phone Number'].notna()])

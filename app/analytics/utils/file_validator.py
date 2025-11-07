@@ -84,8 +84,8 @@ class FileValidator:
                                 "Ensure file contains a 'Contacts' sheet or check if file is from the correct forensic tool"
                             )
                     else:
-                        hash_sheets = [sheet for sheet in xls.sheet_names if 'hash' in sheet.lower() or 'md5' in sheet.lower()]
-                        oxygen_sheets = [sheet for sheet in xls.sheet_names if any(keyword in sheet.lower() for keyword in ['images', 'videos', 'documents', 'plists', 'databases', 'archives', 'json files', 'other files'])]
+                        hash_sheets = [sheet for sheet in xls.sheet_names if isinstance(sheet, str) and ('hash' in str(sheet).lower() or 'md5' in str(sheet).lower())]
+                        oxygen_sheets = [sheet for sheet in xls.sheet_names if isinstance(sheet, str) and any(keyword in str(sheet).lower() for keyword in ['images', 'videos', 'documents', 'plists', 'databases', 'archives', 'json files', 'other files'])]
                         
                         if hash_sheets:
                             validation_result["has_contacts_sheet"] = True

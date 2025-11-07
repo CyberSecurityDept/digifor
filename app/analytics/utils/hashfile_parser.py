@@ -306,7 +306,7 @@ class HashFileParser:
             else:
                 xls = pd.ExcelFile(file_path, engine='openpyxl')
                 sheets = [pd.read_excel(file_path, sheet_name=s, engine='openpyxl', dtype=str)
-                         for s in xls.sheet_names if any(k in s.lower() for k in ['hash', 'file', 'artifact'])]
+                         for s in xls.sheet_names if isinstance(s, str) and any(k in str(s).lower() for k in ['hash', 'file', 'artifact'])]
 
             total_rows = sum(len(df) for df in sheets)
             processed_rows = 0
@@ -429,7 +429,7 @@ class HashFileParser:
             sha1_sheet = None
             
             for sheet in sheet_names:
-                sheet_lower = sheet.upper().strip()
+                sheet_lower = str(sheet).upper().strip()
                 if sheet_lower == 'MD5':
                     md5_sheet = sheet
                 elif sheet_lower in ['SHA1', 'SHA-1']:
@@ -664,7 +664,7 @@ class HashFileParser:
             file_path_obj = Path(file_path)
             engine = "xlrd" if file_path_obj.suffix.lower() == '.xls' else "openpyxl"
             xls = pd.ExcelFile(file_path, engine=engine)
-            hashfile_sheets = [s for s in xls.sheet_names if s.lower() not in ['table of contents']]
+            hashfile_sheets = [s for s in xls.sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
             for sheet_name in hashfile_sheets:
                 df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine)
                 info_path = original_file_path if original_file_path else file_path

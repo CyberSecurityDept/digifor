@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import Contact, Call
 import re
-# Suppress openpyxl warnings
+
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 class ContactParser:
@@ -15,17 +15,15 @@ class ContactParser:
     
     def parse_axiom_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        seen_numbers = set()  # Track nomor unik (setelah normalisasi)
+        seen_numbers = set()
 
         try:
             print("📘 Reading Axiom Excel file...")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             print(f"LIST SHEET NAME: {xls.sheet_names}")
-
-            # Cari sheet yang mengandung “Android Contacts”
             contacts_sheet = None
             for sheet_name in xls.sheet_names:
-                sheet_clean = sheet_name.strip().lower()
+                sheet_clean = str(sheet_name).strip().lower()
                 if 'android contacts' in sheet_clean:
                     contacts_sheet = sheet_name
                     break
@@ -46,7 +44,6 @@ class ContactParser:
                 phone_number = ""
 
                 if phone_field and phone_field.lower() != 'nan':
-                    # Pisahkan berdasarkan koma, titik koma, atau newline
                     parts = re.split(r'[\n,;]+', phone_field)
                     cleaned_candidates = []
 
@@ -66,13 +63,14 @@ class ContactParser:
                             break
 
                     if not phone_number and cleaned_candidates:
-                        print(f"All numbers in row {idx+1} are duplicates or invalid: {cleaned_candidates}")
+                        print(f"All numbers in row {int(idx)+1} are duplicates or invalid: {cleaned_candidates}")
 
                 if not name or name.lower() == 'nan':
                     name = "Unknown"
 
-                if idx % 10 == 0 or idx == len(df) - 1:
-                    print(f"Row {idx+1}/{len(df)} → Name='{name}', Phone='{phone_number}', Account='{acc_type}'")
+                idx_int = int(idx)
+                if idx_int % 10 == 0 or idx_int == len(df) - 1:
+                    print(f"Row {idx_int+1}/{len(df)} → Name='{name}', Phone='{phone_number}', Account='{acc_type}'")
 
                 if phone_number:
                     contact_data = {
@@ -83,7 +81,7 @@ class ContactParser:
                     }
                     results.append(contact_data)
                 else:
-                    print(f"Skipped row {idx+1} — no valid phone number found")
+                    print(f"Skipped row {int(idx)+1} — no valid phone number found")
 
             print(f"Finished parsing Axiom contacts — valid unique entries: {len(results)}")
 
@@ -119,7 +117,7 @@ class ContactParser:
             
             calls_sheet = None
             for sheet_name in xls.sheet_names:
-                if 'call' in sheet_name.lower():
+                if isinstance(sheet_name, str) and 'call' in str(sheet_name).lower():
                     calls_sheet = sheet_name
                     break
             
@@ -186,9 +184,8 @@ class ContactParser:
 
             df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str, header=1)
             print(f"Found {len(df)} rows in 'Contacts' sheet — starting parse...")
-            print(f"🧩 Columns detected: {list(df.columns)}")
+            print(f"Columns detected: {list(df.columns)}")
 
-            # Hapus kolom pertama kalau cuma "#"
             if str(df.columns[0]).startswith('#'):
                 df = df.drop(df.columns[0], axis=1)
                 print("Dropped first column (#) — not part of contact data")
@@ -207,12 +204,10 @@ class ContactParser:
                         part_clean = part.strip()
                         lower = part_clean.lower()
 
-                        # 🧹 Skip entri bot/newsletter
                         if any(kw in lower for kw in ["@newsletter", "@bot", "@system", "@broadcast", "@business"]):
                             print(f"Skipped system/bot entry: {part_clean}")
                             continue
 
-                        # WhatsApp ID → ambil angka sebelum @
                         if "whatsapp" in lower:
                             match = re.search(r'(\d+)(?=@)', part_clean)
                             if match:
@@ -224,7 +219,6 @@ class ContactParser:
                                 else:
                                     print(f"Skipped invalid WhatsApp number (length {len(candidate)}): {candidate}")
 
-                        # Phone-Mobile dengan angka
                         elif lower.startswith("phone-mobile:"):
                             content = part_clean.split(":", 1)[1].strip()
                             digits = re.sub(r'[^\d+]', '', content)
@@ -235,7 +229,6 @@ class ContactParser:
                             else:
                                 print(f"Skipped Phone-Mobile invalid or non-numeric: {content}")
 
-                        # Phone- dengan angka
                         elif lower.startswith("phone-:"):
                             content = part_clean.split(":", 1)[1].strip()
                             digits = re.sub(r'[^\d+]', '', content)
@@ -246,20 +239,17 @@ class ContactParser:
                             else:
                                 print(f"Skipped invalid Phone- number: {content}")
 
-                # Ganti nama jika kosong atau 'nan'
                 if not display_name or display_name.lower() == 'nan':
                     display_name = "Unknown"
 
-                # Log progress tiap 10 data
                 idx_int = int(idx)
                 if idx_int % 10 == 0 or idx_int == len(df) - 1:
                     print(f"Row {idx_int+1}/{len(df)} → Name='{display_name}', Phone='{phone_number}', Status='{status}'")
 
-                # Hanya masukkan kalau punya nomor valid DAN belum pernah ada
                 if phone_number:
                     if phone_number in seen_numbers:
                         print(f"Duplicate number detected, skipped: {phone_number}")
-                        continue  # Skip nomor duplikat
+                        continue
 
                     seen_numbers.add(phone_number)
                     contact_data = {
@@ -299,9 +289,7 @@ class ContactParser:
 
         return results
 
-    
     def parse_cellebrite_calls(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse calls from Cellebrite file"""
         results = []
         
         try:
@@ -309,7 +297,7 @@ class ContactParser:
             
             calls_sheet = None
             for sheet_name in xls.sheet_names:
-                if 'call' in sheet_name.lower():
+                if isinstance(sheet_name, str) and 'call' in str(sheet_name).lower():
                     calls_sheet = sheet_name
                     break
             
@@ -360,7 +348,6 @@ class ContactParser:
         return results
     
     def parse_oxygen_contacts(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
-        """Parse contacts from Oxygen file"""
         results = []
         
         try:
@@ -376,7 +363,7 @@ class ContactParser:
             contacts_sheet = None
             print(f"LIST SHEET NAME {xls.sheet_names}")
             for sheet_name in xls.sheet_names:
-                sheet_clean = sheet_name.strip().lower()
+                sheet_clean = str(sheet_name).strip().lower()
                 if 'contacts' in sheet_clean:
                     contacts_sheet = sheet_name
                     break
@@ -439,8 +426,9 @@ class ContactParser:
                     "type": str(row.get('Type', '')).strip(),
                 }
 
-                if idx % 10 == 0 or idx == len(df) - 1:
-                    print(f"Parsing contact [{idx + 1}/{len(df)}]: "
+                idx_int = int(idx)
+                if idx_int % 10 == 0 or idx_int == len(df) - 1:
+                    print(f"Parsing contact [{idx_int + 1}/{len(df)}]: "
                         f"Name='{contact_data['display_name']}', "
                         f"Phone='{contact_data['phone_number']}'")
 
@@ -493,7 +481,7 @@ class ContactParser:
             
             calls_sheet = None
             for sheet_name in xls.sheet_names:
-                if 'call' in sheet_name.lower():
+                if isinstance(sheet_name, str) and 'call' in str(sheet_name).lower():
                     calls_sheet = sheet_name
                     break
             
