@@ -143,9 +143,9 @@ def get_chat_messages_for_analytic(
     return query.all()
 
 
-@router.get("/analytic/{analytic_id}/deep-communication-analytics")
+@router.get("/analytic/deep-communication-analytics")
 def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     db: Session = Depends(get_db)
 ):
@@ -544,9 +544,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
         )
 
 
-@router.get("/analytic/{analytic_id}/platform-cards/intensity")
+@router.get("/analytic/platform-cards/intensity")
 def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     platform: str = Query(..., description="Platform name (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     db: Session = Depends(get_db)
@@ -1056,9 +1056,9 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
         )
 
 
-@router.get("/analytic/{analytic_id}/chat-detail")
+@router.get("/analytic/chat-detail")
 def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     person_name: Optional[str] = Query(None, description="Person name to filter chat details (optional if using search only)"),
     platform: Optional[str] = Query(None, description="Platform name (optional, can filter by search only)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),

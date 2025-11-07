@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends,HTTPException,UploadFile,Form, BackgroundTasks, File as FastAPIFile
+from fastapi import APIRouter, Depends, Query,HTTPException,UploadFile,Form, BackgroundTasks, File as FastAPIFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -219,9 +219,9 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
         }
 
 
-@router.get("/analytics/{analytic_id}/apk-analytic")
+@router.get("/analytics/apk-analytic")
 def get_apk_analysis(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     apk_records = (

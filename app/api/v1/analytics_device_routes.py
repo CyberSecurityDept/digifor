@@ -50,7 +50,9 @@ async def add_device(
                 status_code=404
             )
         
-        if file_record.method != analytic.method:
+        file_method = str(file_record.method) if file_record.method is not None else ""
+        analytic_method = str(analytic.method) if analytic.method is not None else ""
+        if file_method != analytic_method:
             return JSONResponse(
                 {
                     "status": 400, 
@@ -98,10 +100,11 @@ async def add_device(
 
         if existing_link:
             current_ids = list(existing_link.device_ids or [])
-            if device.id not in current_ids:
-                current_ids.append(device.id)
-                existing_link.device_ids = current_ids
-                existing_link.updated_at = get_indonesia_time()
+            device_id_value = int(device.id) if device.id is not None else None
+            if device_id_value is not None and device_id_value not in current_ids:
+                current_ids.append(device_id_value)
+                setattr(existing_link, 'device_ids', current_ids)  # type: ignore[reportAttributeAccessIssue]
+                setattr(existing_link, 'updated_at', get_indonesia_time())  # type: ignore[reportAttributeAccessIssue]
                 db.add(existing_link)
         else:
             new_link = AnalyticDevice(
@@ -122,7 +125,11 @@ async def add_device(
         if linked_device_ids:
             devices_q = db.query(Device).filter(Device.id.in_(linked_device_ids)).order_by(Device.id).all()
             labels = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
-            idx = next((i for i, d in enumerate(devices_q) if d.id == device.id), None)
+            device_id_value = int(device.id) if device.id is not None else None
+            if device_id_value is not None:
+                idx = next((i for i, d in enumerate(devices_q) if d.id is not None and int(d.id) == device_id_value), None)
+            else:
+                idx = None
             if idx is not None:
                 if idx < len(labels):
                     label = labels[idx]
@@ -152,7 +159,7 @@ async def add_device(
                 "tools": file_record.tools,
                 "method": file_record.method,
                 "total_size": file_record.total_size,
-                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None
+                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size is not None else None
             }
         }]
 
@@ -211,7 +218,7 @@ async def add_device(
 #                 "tools": file_record.tools,
 #                 "method": file_record.method,
 #                 "total_size": file_record.total_size,
-#                 "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None,
+#                 "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size is not None else None,
 #                 "amount_of_data": file_record.amount_of_data,
 #                 "created_at": str(file_record.created_at),
 #                 "date": file_record.created_at.strftime("%d/%m/%Y") if file_record.created_at else None
@@ -242,9 +249,9 @@ async def add_device(
 #             status_code=500
 #         )
 
-@router.get("/analytics/{analytic_id}/get-devices")
+@router.get("/analytics/get-devices")
 def get_devices_by_analytic_id(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -299,11 +306,11 @@ def get_devices_by_analytic_id(
             
             device_card = {
                 "label": device_label,
-                "device_id": str(device.id) if device.id else "",
+                "device_id": str(device.id) if device.id is not None else "",
                 "name": device.owner_name or "",
                 "phone_number": device.phone_number or "",
                 "file_name": file_record.file_name if file_record else "Unknown",
-                "file_size": format_file_size(file_record.total_size) if file_record and file_record.total_size else "0 B"
+                "file_size": format_file_size(file_record.total_size) if file_record is not None and file_record.total_size is not None else "0 B"
             }
             
             device_cards.append(device_card)

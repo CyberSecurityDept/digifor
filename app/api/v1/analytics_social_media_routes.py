@@ -7,16 +7,12 @@ from app.analytics.shared.models import Analytic, AnalyticDevice, Device, Social
 from typing import Optional
 
 router = APIRouter()
-@router.get("/analytics/{analytic_id}/social-media-correlation")
-def social_media_correlation(
+
+def _get_social_media_correlation_data(
     analytic_id: int,
-    platform: Optional[str] = Query(
-        "Instagram",
-        description='Platform filter: "Instagram", "Facebook", "WhatsApp", "TikTok", "Telegram", "X"',
-    ),
-    db: Session = Depends(get_db),
+    db: Session,
+    platform: Optional[str] = "Instagram"
 ):
-    # === Validasi Analytic ===
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         return JSONResponse(
@@ -34,7 +30,6 @@ def social_media_correlation(
             status_code=400,
         )
 
-    # === Ambil device yang terhubung ===
     device_links = (
         db.query(AnalyticDevice)
         .filter(AnalyticDevice.analytic_id == analytic_id)
@@ -63,7 +58,6 @@ def social_media_correlation(
             status_code=404,
         )
 
-    # === Platform Handling ===
     platform_lower = (platform or "Instagram").lower().strip()
     platform_map = {
         "instagram": "instagram",
@@ -189,3 +183,15 @@ def social_media_correlation(
         },
         status_code=200,
     )
+
+@router.get("/analytics/social-media-correlation")
+def social_media_correlation(
+    analytic_id: int = Query(..., description="Analytic ID"),
+    platform: Optional[str] = Query(
+        "Instagram",
+        description='Platform filter: "Instagram", "Facebook", "WhatsApp", "TikTok", "Telegram", "X"',
+    ),
+    db: Session = Depends(get_db),
+):
+    """Endpoint to get social media correlation data."""
+    return _get_social_media_correlation_data(analytic_id, db, platform)

@@ -11,13 +11,13 @@ from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
 from reportlab.lib.pagesizes import A4  
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,Image,PageBreak 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, KeepTogether 
 from reportlab.lib import colors  
 from reportlab.lib.enums import TA_CENTER, TA_LEFT,TA_RIGHT,TA_JUSTIFY 
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
-from app.api.v1.analytics_contact_routes import get_contact_correlation
-from app.api.v1.analytics_management_routes import get_hashfile_analytics
+from app.api.v1.analytics_contact_routes import _get_contact_correlation_data
+from app.api.v1.analytics_management_routes import _get_hashfile_analytics_data
 from app.api.v1.analytics_social_media_routes import social_media_correlation
 from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
 from datetime import datetime
@@ -28,9 +28,9 @@ class SummaryRequest(BaseModel):
 
 router = APIRouter()
 
-@router.get("/analytic/{analytic_id}/export-pdf")
+@router.get("/analytic/export-pdf")
 def export_analytics_pdf(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db),
     person_name: Optional[str] = Query(None, description="if method = Deep Communication Analytics"),
     device_id: Optional[int] = Query(None, description="if method = Deep Communication Analytics"),
@@ -79,10 +79,10 @@ def export_analytics_pdf(
             status_code=500,
         )
 
-@router.post("/analytic/{analytic_id}/save-summary")
+@router.post("/analytic/save-summary")
 def save_analytic_summary(
-    analytic_id: int,
     request: SummaryRequest,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -129,10 +129,10 @@ def save_analytic_summary(
         )
 
 
-@router.put("/analytic/{analytic_id}/edit-summary")
+@router.put("/analytic/edit-summary")
 def edit_analytic_summary(
-    analytic_id: int,
     request: SummaryRequest,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -286,9 +286,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
 class GlobalPageCanvas(canvas.Canvas):
-    """
-    Canvas global dengan footer text + nomor halaman normal (Page X of Y).
-    """
 
     def __init__(self, *args, footer_text="Generated Report", **kwargs):
         """
@@ -300,12 +297,11 @@ class GlobalPageCanvas(canvas.Canvas):
         self.pages = []
 
     def showPage(self):
-        """Simpan semua halaman sementara sebelum disave."""
+
         self.pages.append(dict(self.__dict__))
-        self._startPage()
+        self._startPage()  # type: ignore[reportAttributeAccessIssue]
 
     def save(self):
-        """Render semua halaman dengan footer Page X of Y."""
         total_pages = len(self.pages)
 
         for page_number, page_dict in enumerate(self.pages, start=1):
@@ -316,7 +312,6 @@ class GlobalPageCanvas(canvas.Canvas):
         super().save()
 
     def _draw_footer(self, current_page, total_pages):
-        """Footer global + nomor halaman bawah normal."""
         self.setFont("Helvetica", 9)
         self.setFillColor(colors.gray)
 
@@ -335,10 +330,6 @@ class GlobalPageCanvas(canvas.Canvas):
 
 
 def build_report_header(analytic, timestamp_now, usable_width):
-    """
-    Generate header elemen (logo, exported time, title, method info)
-    Return: list elemen story (Table + Spacer)
-    """
     styles = getSampleStyleSheet()
     story = []
 
@@ -350,7 +341,6 @@ def build_report_header(analytic, timestamp_now, usable_width):
         "ExportStyle", fontSize=10, alignment=TA_RIGHT, textColor=colors.HexColor("#4b4b4b")
     )
 
-    # === Logo dan waktu export ===
     logo_path = os.path.join(os.getcwd(), "assets", "logo.png")
     if not os.path.exists(logo_path):
         raise FileNotFoundError(f"Logo tidak ditemukan di {logo_path}")
@@ -374,11 +364,9 @@ def build_report_header(analytic, timestamp_now, usable_width):
     story.append(header_table)
     story.append(Spacer(1, 10))
 
-    # === Title ===
     story.append(Paragraph(f"<b>{analytic.analytic_name}</b>", title_style))
     story.append(Spacer(1, 10))
 
-    # === Subheader Method dan File Uploaded ===
     subheader_data = [[
         Paragraph(f"<b>Method:</b> {analytic.method.replace('_', ' ').title()}", subtitle_style),
         Paragraph(f"<b>File Uploaded:</b> {timestamp_now.strftime('%d/%m/%Y %H:%M')}", subtitle_style),
@@ -388,19 +376,18 @@ def build_report_header(analytic, timestamp_now, usable_width):
         ("LINEABOVE", (0, 0), (-1, 0), 1, colors.HexColor("#466086")),
         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#466086")),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("ALIGN", (1, 0), (1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (0, -1), 6),
+        ("RIGHTPADDING", (0, 0), (0, -1), 6),
+        ("LEFTPADDING", (1, 0), (1, -1), 94),
+        ("RIGHTPADDING", (1, 0), (1, -1), 6),
     ]))
     story.append(subheader_table)
     story.append(Spacer(1, 20))
 
     return story
 
-# ===============================================================
-# 🧩 EXPORT IMPLEMENTATIONS (tanpa device_ids)
-# ===============================================================
 def _export_contact_correlation_pdf(analytic, db):
     contacts = db.query(Contact).order_by(Contact.id).all()
     return _generate_pdf_report(
@@ -466,10 +453,6 @@ def _export_generic_analytics_pdf(analytic, db):
         method="generic"
     )
 
-
-# ===============================================================
-# 🧱 ROUTER GENERATOR
-# ===============================================================
 def _generate_pdf_report(
         analytic, db, report_type, filename_prefix, data, method,source:Optional[str] = None,
         person_name:Optional[str] = None, device_id:Optional[int] = None,
@@ -486,9 +469,6 @@ def _generate_pdf_report(
         return _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data)
 
 
-# ===============================================================
-# Utility Functions for Reports
-# ===============================================================
 def _build_table_header_style():
     return TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -506,16 +486,12 @@ def _build_table_header_style():
     ])
 
 def _build_summary_section(usable_width, summary_text):
-    """
-    Build summary box with single text string instead of list.
-    """
-    # === Styles ===
     summary_title_style = ParagraphStyle(
         "SummaryTitle",
-        fontSize=13,
-        leading=16,
+        fontSize=14,
+        leading=18,
         textColor=colors.black,
-        spaceAfter=6,
+        spaceAfter=0,  # No spacing after title - will be in same table
         fontName="Helvetica-Bold"
     )
 
@@ -523,39 +499,52 @@ def _build_summary_section(usable_width, summary_text):
         "Normal",
         fontSize=11,
         alignment=TA_JUSTIFY,
-        leading=15,
-        spaceAfter=4
+        leading=16,
+        spaceAfter=0,
+        textColor=colors.black
     )
 
-    # Handle None summary
-    if summary_text is None:
-        summary_text = "No summary."
+    # Handle empty or None summary
+    if summary_text is None or not summary_text or not summary_text.strip():
+        summary_text = "No summary available."
+    else:
+        summary_text = summary_text.strip()
 
-    # === Build content ===
-    summary_elements = [
-        Paragraph("<b>Summary</b>", summary_title_style),
-        Paragraph(summary_text, normal_style)
-    ]
-
+    # Create title and content in a single table to keep them together
+    title_paragraph = Paragraph("<b>Summary</b>", summary_title_style)
+    summary_content = Paragraph(summary_text, normal_style)
+    
+    # Combine title and content in one table with proper spacing
     summary_table = Table(
-        [[elem] for elem in summary_elements],
-        colWidths=[usable_width - 4]
+        [
+            [title_paragraph],  # Title row
+            [summary_content]   # Content row
+        ],
+        colWidths=[usable_width]
     )
 
+    # Style the table with black border and light grey background like in the example image
     summary_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#466086")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("BOX", (0, 0), (-1, -1), 1, colors.black),  # Black border around entire section
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F5F5")),  # Light grey background
+        # Title row styling
+        ("LEFTPADDING", (0, 0), (-1, 0), 12),
+        ("RIGHTPADDING", (0, 0), (-1, 0), 12),
+        ("TOPPADDING", (0, 0), (-1, 0), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),  # Spacing after title
+        # Content row styling
+        ("LEFTPADDING", (0, 1), (-1, 1), 12),
+        ("RIGHTPADDING", (0, 1), (-1, 1), 12),
+        ("TOPPADDING", (0, 1), (-1, 1), 0),  # No top padding - title already has bottom padding
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        # No line between title and content - they're in the same box
     ]))
+    
+    # Wrap table in KeepTogether to ensure title and content stay together
+    # If there's not enough space, the entire section will move to a new page
+    return [KeepTogether(summary_table)]
 
-    return summary_table
-
-
-# ===============================================================
-# 🧩 Deep Communication Report Example
-# ===============================================================
 def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
@@ -564,7 +553,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === Setup halaman ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -577,9 +565,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         bottomMargin=50,
     )
 
-    # ======================================================
-    # Ambil data chat real dari get_chat_detail()
-    # ======================================================
     response = get_chat_detail(
         analytic_id=analytic.id,
         person_name=person_name,
@@ -589,29 +574,30 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         db=db
     )
 
+    chat_data = {}
+    chat_messages = []
     try:
-        response_data = json.loads(response.body.decode("utf-8"))
-        chat_data = response_data.get("data", {})
-        chat_messages = chat_data.get("chat_messages", [])
+        if response is not None and hasattr(response, "body") and response.body is not None:
+            response_data = json.loads(response.body.decode("utf-8"))
+            chat_data = response_data.get("data", {}) if isinstance(response_data, dict) else {}
+            chat_messages = chat_data.get("chat_messages", []) if isinstance(chat_data, dict) else []
     except Exception as e:
         print(f"Gagal parse chat_detail: {e}")
         chat_messages = []
+        chat_data = {}
 
-    # === Styles ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=11, leading=14, alignment=TA_LEFT)
     wrap_style = ParagraphStyle("Wrap", fontSize=11, leading=14, wordWrap="CJK", alignment=TA_JUSTIFY)
 
-    # === Build content ===
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Example Metadata Table ===
-    sender_name = chat_messages[0]["sender"] if chat_messages else "Unknown"
-    receiver_name = chat_messages[0]["recipient"] if chat_messages else "Unknown"
+    sender_name = chat_messages[0].get("sender", "Unknown") if chat_messages and isinstance(chat_messages[0], dict) else "Unknown"
+    receiver_name = chat_messages[0].get("recipient", "Unknown") if chat_messages and isinstance(chat_messages[0], dict) else "Unknown"
     total_messages = len(chat_messages)
-    platform_name = chat_data.get("platform", source or "Unknown")
+    platform_name = chat_data.get("platform", source or "Unknown") if isinstance(chat_data, dict) else (source or "Unknown")
 
     info_data = [
         ["Source", f": {platform_name}", "Sender", f": {sender_name}"],
@@ -628,22 +614,16 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # ======================================================
-    # Chat data dinamis dari get_chat_detail()
-    # ======================================================
     chat_records = []
     for msg in chat_messages:
-        # Gunakan timestamp lengkap + format jadi YYYY-MM-DD HH:MM
         timestamp_raw = msg.get("timestamp")
         time_display = msg.get("times") or ""
 
         if timestamp_raw:
             try:
                 dt = dateutil.parser.isoparse(timestamp_raw)
-                # Format tanggal + jam lokal
                 time_val = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
-                # fallback jika parsing gagal
                 time_val = time_display or timestamp_raw
         else:
             time_val = time_display
@@ -655,7 +635,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
             "chat": f"{sender}: {text}"
         })
 
-    # === Header dan isi tabel chat ===
     col_time = 140  # diperlebar sedikit biar muat tanggal
     col_chat = usable_width - col_time
     chat_data = [["Time", "Chat"]]
@@ -665,7 +644,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
             Paragraph(row["chat"], wrap_style)
         ])
 
-    # === Buat tabel chat ===
     chat_table = Table(chat_data, colWidths=[col_time, col_chat])
     chat_table.setStyle(TableStyle([
         # Header
@@ -690,12 +668,9 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(chat_table)
     story.append(Spacer(1, 20))
 
-    # === Summary ===
     summary_points = analytic.summary
-    summary_table = _build_summary_section(usable_width, summary_points)
-    story.append(summary_table)
+    story.extend(_build_summary_section(usable_width, summary_points))
 
-    # === Build PDF ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -713,9 +688,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     )
 
 
-# ===============================================================
-# 3️⃣ APK Analytics Report
-# ===============================================================
 def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, data):
 
     reports_dir = settings.REPORTS_DIR
@@ -724,7 +696,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === Setup halaman ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -737,14 +708,12 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         bottomMargin=60
     )
 
-    # === Styles ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=10.5, leading=14, alignment=TA_LEFT)
     wrap_desc = ParagraphStyle("WrapDesc", fontSize=10.5, leading=14, alignment=TA_JUSTIFY)
     title_box_style = ParagraphStyle("TitleBox", fontSize=11.5, leading=14, fontName="Helvetica-Bold", textColor=colors.black)
 
-    # === Ambil data real dari DB ===
     apk_analytics = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).all()
 
     malicious_items = []
@@ -758,11 +727,9 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         else:
             common_items.append([item, desc])
 
-    # === Build content ===
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Ringkasan umum (jumlah & scoring rata-rata) ===
     total_apks = len(apk_analytics)
     total_malicious = len(malicious_items)
     total_common = len(common_items)
@@ -788,7 +755,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     story.append(info_table)
     story.append(Spacer(1, 20))
 
-    # === Section: Malicious ===
     story.append(Paragraph("<b>Malicious</b>", heading_style))
     story.append(Spacer(1, 4))
     if malicious_items:
@@ -804,7 +770,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ditemukan entri berstatus <b>dangerous</b>.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === Section: Common ===
     story.append(Paragraph("<b>Common</b>", heading_style))
     story.append(Spacer(1, 4))
     if common_items:
@@ -818,12 +783,9 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ada entri common terdeteksi.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === Summary ===
     summary_points = analytic.summary
-    summary_table = _build_summary_section(usable_width, summary_points)
-    story.append(summary_table)
+    story.extend(_build_summary_section(usable_width, summary_points))
 
-    # === Build PDF ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -839,9 +801,7 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-# ===============================================================
-# 4️⃣ Social Media Correlations Report (Fixed spacing & padding)
-# ===============================================================
+
 def _generate_social_media_correlation_report(analytic, db, report_type, filename_prefix, data, source):
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
@@ -849,7 +809,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === Setup layout PDF ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -869,13 +828,18 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Ambil data langsung dari endpoint correlation ===
-    response = social_media_correlation(analytic.id, source, db)
-    if hasattr(response, "body"):
-        body = json.loads(response.body)
-        response_data = body.get("data", {})
-    else:
-        response_data = response.get("data", {}) if isinstance(response, dict) else {}
+    from app.api.v1.analytics_social_media_routes import _get_social_media_correlation_data
+    response = _get_social_media_correlation_data(analytic.id, db, source or "Instagram")
+    response_data = {}
+    if response is not None:
+        if hasattr(response, "body") and response.body is not None:
+            try:
+                body = json.loads(response.body)
+                response_data = body.get("data", {}) if isinstance(body, dict) else {}
+            except Exception:
+                response_data = {}
+        elif isinstance(response, dict):
+            response_data = response.get("data", {}) if isinstance(response, dict) else {}
 
     platform_name = list(response_data.get("correlations", {}).keys())[0] if response_data.get("correlations") else source.capitalize()
     correlation_data = response_data.get("correlations", {}).get(platform_name, {})
@@ -884,7 +848,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     total_devices = response_data.get("total_devices", len(devices))
     total_accounts = sum(len(bucket.get("devices", [])) for bucket in buckets)
 
-    # === Info Summary ===
     info_data = [
         ["Source", f": {platform_name}"],
         ["Total Device", f": {total_devices} Devices"],
@@ -900,7 +863,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # === Device Identification Summary ===
     story.append(Paragraph("<b>Device Identification Summary</b>", bold_style))
     story.append(Spacer(1, 4))
 
@@ -924,7 +886,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story.append(device_table)
     story.append(Spacer(1, 20))
 
-    # === Device Account Correlation ===
     story.append(Paragraph("<b>Device Account Correlation</b>", bold_style))
     story.append(Spacer(1, 6))
 
@@ -939,7 +900,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
 
             first_row = True
             for accounts in devices_rows:
-                # Format daftar akun jadi bullet list
                 accounts_clean = [a for a in accounts if a]
                 acc_formatted = [
                     Paragraph(f"• {a}", normal_style) for a in accounts_clean
@@ -980,11 +940,9 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
         story.append(corr_table)
     story.append(Spacer(1, 20))
 
-    # === Summary ===
-    story.append(_build_summary_section(usable_width, analytic.summary))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
     story.append(Spacer(1, 10))
 
-    # === Build PDF ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -1003,16 +961,12 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
 
 
 def _generate_contact_correlation_report(analytic, db, report_type, filename_prefix, data):
-    """
-    Generate PDF report for Contact Correlation analytic
-    """
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === PDF Setup ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -1025,7 +979,7 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         bottomMargin=50,
     )
 
-    result = get_contact_correlation(analytic.id,db)
+    result = _get_contact_correlation_data(analytic.id, db)
     if isinstance(result, JSONResponse):
         result = result.body
     if isinstance(result, (bytes, bytearray)):
@@ -1109,7 +1063,7 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             story.append(PageBreak())
 
     story.append(Spacer(1, 20))
-    story.append(_build_summary_section(usable_width, summary))
+    story.extend(_build_summary_section(usable_width, summary))
 
     doc.build(
         story,
@@ -1123,7 +1077,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     return FileResponse(path=file_path, filename=filename, media_type="application/pdf")
 
 def _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data):
-    # === Setup path dan file ===
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
     timestamp_now = get_indonesia_time()
@@ -1146,14 +1099,21 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     normal_style = ParagraphStyle("Normal", fontSize=10, leading=13, alignment=TA_CENTER)
     header_style = ParagraphStyle("HeaderDevice", alignment=TA_CENTER, textColor=colors.white, fontName="Helvetica-Bold", fontSize=9)
 
-    response = get_hashfile_analytics(analytic.id, db)
-    if hasattr(response, "body"):
-        body = json.loads(response.body)
-        data = body.get("data", {})
-    elif isinstance(response, dict):
-        data = response.get("data", {})
-    else:
-        data = {}
+    response = _get_hashfile_analytics_data(analytic.id, db)
+    data = {}
+    if response is not None:
+        if hasattr(response, "body") and response.body is not None:
+            try:
+                if isinstance(response.body, bytes):
+                    body = json.loads(response.body.decode("utf-8"))
+                else:
+                    body = json.loads(response.body)
+                data = body.get("data", {}) if isinstance(body, dict) else {}
+            except Exception as e:
+                print(f"Error parsing hashfile analytics response: {e}")
+                data = {}
+        elif isinstance(response, dict):
+            data = response.get("data", {}) if isinstance(response, dict) else {}
 
     devices = data.get("devices", [])
     hashfiles = data.get("correlations") or []
@@ -1178,9 +1138,10 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         header_row = ["Filename"]
         for dev in group:
-            device_label = dev.get("device_label", "Unknown")
+            owner_name = dev.get("owner_name", "Unknown")
             phone_number = dev.get("phone_number", "-") or "-"
-            header_html = f"<b>{device_label}</b><br/><font size=9>{phone_number}</font>"
+            # Format: "Owner Name (Phone Number)" like in the example image
+            header_html = f"<b>{owner_name}</b><br/><font size=9>({phone_number})</font>"
             header_row.append(Paragraph(header_html, header_style))
 
         table_data = [header_row]
@@ -1197,6 +1158,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             table_data,
             colWidths=[usable_width * 0.25] +
                       [((usable_width * 0.75) / len(group)) for _ in group],
+            repeatRows=1,  # Repeat header row on each new page
         )
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -1213,7 +1175,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             story.append(PageBreak())
 
     story.append(Spacer(1, 20))
-    story.append(_build_summary_section(usable_width, analytic.summary))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
 
     doc.build(
         story,

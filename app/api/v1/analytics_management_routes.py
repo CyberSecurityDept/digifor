@@ -127,12 +127,9 @@ def create_analytic_with_devices(
             "data": []
         }
     
-@hashfile_router.get("/analytics/hashfile-analytics")
-def get_hashfile_analytics(
-    analytic_id: int = Query(..., description="Analytic ID"),
-    limit: int = Query(1000, ge=1, le=10000, description="Maximum number of correlations to return (default: 1000, max: 10000)"),
-    offset: int = Query(0, ge=0, description="Number of correlations to skip for pagination (default: 0)"),
-    db: Session = Depends(get_db)
+def _get_hashfile_analytics_data(
+    analytic_id: int,
+    db: Session
 ):
     try:
         min_devices = 2
@@ -203,7 +200,7 @@ def get_hashfile_analytics(
 
         if not hashfiles:
             return JSONResponse(
-                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "hashfiles": []}},
+                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "correlations": [], "total_correlations": 0}},
                 status_code=200,
             )
 
@@ -220,7 +217,7 @@ def get_hashfile_analytics(
             if not hf.file_name:
                 continue
             
-            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # kombinasi hash + file_name
+            key = f"{hash_value}::{hf.file_name.strip().lower()}"
             device_id = file_to_device.get(hf.file_id)
             if device_id is None:
                 continue
@@ -264,8 +261,6 @@ def get_hashfile_analytics(
             file_path = first.path_original or "Unknown"
             file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.file_name or "Unknown")
             file_type = first.file_type or "Unknown"
-            # if first.file_extension:
-            #     file_type = f"{file_type} ({first.file_extension.upper()})"
 
             device_labels_found = [
                 device_labels[i]
@@ -283,11 +278,8 @@ def get_hashfile_analytics(
 
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
         
-        # Apply pagination
         total_correlations = len(hashfile_list)
-        paginated_list = hashfile_list[offset:offset + limit]
-        
-        print(f"[DEBUG] Pagination: returning {len(paginated_list)} of {total_correlations} correlations (offset: {offset}, limit: {limit})")
+        print(f"[DEBUG] Returning all {total_correlations} correlations (pagination disabled)")
 
         devices_list = [
             {
@@ -306,14 +298,9 @@ def get_hashfile_analytics(
                 "message": "Hashfile correlation completed successfully",
                 "data": {
                     "devices": devices_list,
-                    "correlations": paginated_list,
+                    "correlations": hashfile_list,
                     "summary": summary,
-                    "pagination": {
-                        "total": total_correlations,
-                        "limit": limit,
-                        "offset": offset,
-                        "has_more": (offset + limit) < total_correlations
-                    }
+                    "total_correlations": total_correlations
                 },
             },
             status_code=200,
@@ -329,10 +316,17 @@ def get_hashfile_analytics(
             status_code=500,
         )
 
+@hashfile_router.get("/analytics/hashfile-analytics")
+def get_hashfile_analytics(
+    analytic_id: int = Query(..., description="Analytic ID"),
+    db: Session = Depends(get_db)
+):
+    return _get_hashfile_analytics_data(analytic_id, db)
 
-@router.post("/analytics/{analytic_id}/start-extraction")
+
+@router.post("/analytics/start-extraction")
 def start_data_extraction(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -408,7 +402,7 @@ def start_data_extraction(
                         "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
-                        "next_step": f"GET /api/v1/analytic/{analytic_id}/deep-communication-analytics"
+                        "next_step": f"GET /api/v1/analytic/deep-communication-analytics?analytic_id={analytic_id}"
                     }
                 },
                 status_code=200
@@ -423,7 +417,7 @@ def start_data_extraction(
                         "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
-                        "next_step": f"GET /api/v1/analytic/{analytic_id}/social-media-correlation"
+                        "next_step": f"GET /api/v1/analytics/social-media-correlation?analytic_id={analytic_id}"
                     }
                 },
                 status_code=200
@@ -488,7 +482,6 @@ def get_all_analytic(
             },
             status_code=500
         )
-
 
 __all__ = ["router", "hashfile_router"]
 

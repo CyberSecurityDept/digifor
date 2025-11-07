@@ -13,7 +13,20 @@ Change Log
 | - Completed response structure for `GET /api/v1/analytics/get-all-analytic`.
 - Added 3 new endpoints for **`Deep Communication Analytics**.`
 - Updated the filter query value in the `/api/v1/analytics/get-files` endpoint from **"Deep Communication"** to **"Deep Communication Analytics"**.
-- Change query parameter in the `/api/v1/analytic/{analytic_id}/export-pdf` | 4 November |
+- Changed path parameters to query parameters for multiple endpoints:
+  - `/api/v1/analytic/export-pdf` (analytic_id as query param)
+  - `/api/v1/analytic/save-summary` (analytic_id as query param)
+  - `/api/v1/analytic/edit-summary` (analytic_id as query param)
+  - `/api/v1/analytics/start-extraction` (analytic_id as query param)
+  - `/api/v1/analytics/get-devices` (analytic_id as query param)
+  - `/api/v1/analytic/contact-correlation` (analytic_id as query param)
+  - `/api/v1/analytics/hashfile-analytics` (analytic_id as query param)
+  - `/api/v1/analytics/social-media-correlation` (analytic_id as query param)
+  - `/api/v1/analytic/deep-communication-analytics` (analytic_id as query param)
+  - `/api/v1/analytic/platform-cards/intensity` (analytic_id as query param)
+  - `/api/v1/analytic/chat-detail` (analytic_id as query param)
+  - `/api/v1/analytics/apk-analytic` (analytic_id as query param)
+- Removed pagination from `/api/v1/analytics/hashfile-analytics` endpoint (now returns all data) | 4 November |
 
 ---
 
@@ -135,17 +148,9 @@ All endpoints require authentication (implementation depends on your auth system
 
 ### Export Analytics PDF
 
-**Endpoint:**`/api/v1/analytic/{analytic_id}/export-pdf`
+**Endpoint:**`/api/v1/analytic/export-pdf`
 
 **Method :** `GET`
-
----
-
-**Path Parameter:**
-
-| Name | Type | Description | Required |
-| --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
 
 ---
 
@@ -153,6 +158,7 @@ All endpoints require authentication (implementation depends on your auth system
 
 | Name | Type | Description | Required |
 | --- | --- | --- | --- |
+| `analytic_id` | integer | Analytic ID | Y |
 | `person_name` | string | Used only for method **Deep Communication Analytics** | N |
 | `device_id` | integer | Used only for method **Deep Communication Analytics** | N |
 | `source` | string | Used for methods **Social Media Correlation** and **Deep Communication Analytics** | N |
@@ -211,15 +217,15 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ### Save Summary
 
-**Endpoint** : `/api/v1/analytic/{analytic_id}/save-summary`
+**Endpoint** : `/api/v1/analytic/save-summary`
 
 **Method** : `POST`
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 **Request Body :**
 
@@ -276,15 +282,15 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ### Edit Summary
 
-**Endpoint** : `/api/v1/analytic/{analytic_id}/edit-summary`
+**Endpoint** : `/api/v1/analytic/edit-summary`
 
 **Method** : `PUT`
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 **Request Body :**
 
@@ -348,7 +354,7 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 **Method** : `POST`
 
-**Path Parameter :**
+**Request Body (Form Data) :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
@@ -646,15 +652,15 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ### Start Data Extraction
 
-**Endpoint** : `/api/v1/analytics/{analytic_id}/start-extraction`
+**Endpoint** : `/api/v1/analytics/start-extraction`
 
 **Method** : `POST`
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 ---
 
@@ -663,13 +669,13 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 ```json
 {
   "status": 200,
-  "message": "Data extraction completed. Use GET /analytic/{analytic_id}/contact-correlation to retrieve results",
+  "message": "Data extraction completed Contact Correlation",
   "data": {
     "analytic_id": 1,
     "method": "Contact Correlation",
     "device_count": 2,
     "status": "completed",
-    "next_step": "GET /api/v1/analytic/{analytic_id}/contact-correlation"
+    "next_step": "GET /api/v1/analytic/contact-correlation?analytic_id={analytic_id}"
   }
 }
 
@@ -682,13 +688,13 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 ```json
 {
   "status": 200,
-  "message": "Data extraction completed. Use GET /analytic/{analytic_id}/hashfile-analytics to retrieve results",
+  "message": "Data extraction completed Hashfile Analytics",
   "data": {
     "analytic_id": 1,
     "method": "Hashfile Analytics",
     "device_count": 2,
     "status": "completed",
-    "next_step": "GET /api/v1/analytic/{analytic_id}/hashfile-analytics"
+    "next_step": "GET /api/v1/analytics/hashfile-analytics?analytic_id={analytic_id}"
   }
 }
 
@@ -701,13 +707,13 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 ```json
 {
   "status": 200,
-  "message": "Data extraction completed. Use GET /analytic/{analytic_id}/deep-communication-analytics to retrieve results",
+  "message": "Data extraction completed Deep Communication Analytics",
   "data": {
     "analytic_id": 1,
-    "method": "Deep communication analytics",
+    "method": "Deep Communication Analytics",
     "device_count": 2,
     "status": "completed",
-    "next_step": "GET /api/v1/analytic/{analytic_id}/deep-communication-analytics"
+    "next_step": "GET /api/v1/analytic/deep-communication-analytics?analytic_id={analytic_id}"
   }
 }
 ```
@@ -719,13 +725,13 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 ```json
 {
   "status": 200,
-  "message": "Data extraction completed. Use GET /analytic/{analytic_id}/social-media-correlation to retrieve results",
+  "message": "Data extraction completed Social Media Correlation",
   "data": {
     "analytic_id": 1,
     "method": "Social Media Correlation",
     "device_count": 2,
     "status": "completed",
-    "next_step": "GET /api/v1/analytic/{analytic_id}/social-media-correlation"
+    "next_step": "GET /api/v1/analytics/social-media-correlation?analytic_id={analytic_id}"
   }
 }
 
@@ -855,13 +861,13 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 **Method** : `POST`
 
-**Path Parameter :**
+**Request Body (Form Data) :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `file_id` | integer | - | Y |
-| `name` | string | - | Y |
-| `phone_number` | string | - | Y |
+| `file_id` | integer | File ID | Y |
+| `name` | string | Device owner name | Y |
+| `phone_number` | string | Device phone number | Y |
 
 **Response 200**
 
@@ -959,17 +965,17 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ### Get Devices by Analytic ID
 
-**Endpoint** : `/api/v1/analytics/{analytic_id}/get-devices`
+**Endpoint** : `/api/v1/analytics/get-devices`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 ---
 
@@ -1056,17 +1062,17 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ## Contact Correlation
 
-**Endpoint** : `/api/v1/analytic/{analytic_id}/contact-correlation`
+**Endpoint** : `/api/v1/analytic/contact-correlation`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 ---
 
@@ -1104,7 +1110,8 @@ Returns a **PDF file download** (content-type: `application/pdf`).
         ]
       }
     ],
-    "summary": "Contacts found in both devices indicate shared connections between John and Jane."
+    "summary": "Contacts found in both devices indicate shared connections between John and Jane.",
+    "total_correlations": 1
   }
 }
 
@@ -1120,7 +1127,8 @@ Returns a **PDF file download** (content-type: `application/pdf`).
   "message": "No devices linked",
   "data": {
     "devices": [],
-    "correlations": []
+    "correlations": [],
+    "total_correlations": 0
   }
 }
 ```
@@ -1165,22 +1173,17 @@ Returns a **PDF file download** (content-type: `application/pdf`).
 
 ## Social Media Correlation
 
-**Endpoint** : `/api/v1/analytics/{analytic_id}/social-media-correlation`
+**Endpoint** : `/api/v1/analytics/social-media-correlation`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
-
-**Query Parameter :**
-
-| Name | Type | Description | Required? |
-| --- | --- | --- | --- |
+| `analytic_id` | integer | Analytic ID | Y |
 | `platform` | string | Social media platform filter. Supported values: `"Instagram"`, `"Facebook"`, `"WhatsApp"`, `"TikTok"`, `"Telegram"`, `"X"` | N (default = `"Instagram"`) |
 
 ---
@@ -1344,17 +1347,17 @@ atau
 
 ## Hashfile Analytics
 
-**Endpoint** : `/api/v1/analytic/{analytic_id}/hashfile-analytics`
+**Endpoint** : `/api/v1/analytics/hashfile-analytics`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
+| `analytic_id` | integer | Analytic ID | Y |
 
 ---
 
@@ -1363,7 +1366,7 @@ atau
 ```json
 {
   "status": 200,
-  "message": "Hashfile correlation (by hash + name) completed successfully",
+  "message": "Hashfile correlation completed successfully",
   "data": {
     "devices": [
       {
@@ -1402,7 +1405,8 @@ atau
         ]
       }
     ],
-    "summary": null
+    "summary": null,
+    "total_correlations": 2
   }
 }
 ```
@@ -1417,7 +1421,8 @@ atau
   "message": "No hashfile data found",
   "data": {
     "devices": [],
-    "correlations": []
+    "correlations": [],
+    "total_correlations": 0
   }
 }
 ```
@@ -1484,25 +1489,18 @@ atau
 
 ### Get Deep Communication Analytics
 
-**Endpoint** : `/api/v1/analytic/{analytic_id}/deep-communication-analytics`
+**Endpoint** : `/api/v1/analytic/deep-communication-analytics`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter :**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
-
----
-
-**Query Parameters**
-
-| Name | Type | Description | Required |
-| --- | --- | --- | --- |
-| `device_id` | integer | - | N |
+| `analytic_id` | integer | Analytic ID | Y |
+| `device_id` | integer | Filter by device ID | N |
 
 ---
 
@@ -2010,26 +2008,19 @@ Response 500 (Internal Server Error)
 
 ### Get Platform Cards Intensity
 
-**Endpoint:** `/api/v1/analytic/{analytic_id}/platform-cards/intensity`
+**Endpoint:** `/api/v1/analytic/platform-cards/intensity`
 
 **Method:** `GET`
 
 ---
 
-**Path Parameter**
+**Query Parameters :**
 
-| Name | Type | Description | Required |
+| Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | Y |
-
----
-
-**Query Parameters**
-
-| Name | Type | Description | Required |
-| --- | --- | --- | --- |
+| `analytic_id` | integer | Analytic ID | Y |
 | `platform` | string | Nama platform yang akan dianalisis. Nilai valid: `Instagram`, `Telegram`, `WhatsApp`, `Facebook`, `X`, `TikTok`. | Y |
-| `device_id` | integer | - | N |
+| `device_id` | integer | Filter by device ID | N |
 
 ---
 
@@ -2186,28 +2177,21 @@ atau jika parameter `platform` tidak diisi:
 
 ### Get Chat Detail
 
-**Endpoint:** `/api/v1/analytic/{analytic_id}/chat-detail`
+**Endpoint:** `/api/v1/analytic/chat-detail`
 
 **Method:** `GET`
 
 ---
 
-**Path Parameter**
+**Query Parameters :**
 
-| Name | Type | Description | Required |
+| Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| analytic_id | integer | ID analytic yang memuat data chat | Y |
-
----
-
-**Query Parameters**
-
-| Name | Type | Description | Required |
-| --- | --- | --- | --- |
-| person_name | string | Nama lawan bicara. Bisa parsial. Wajib jika search kosong. | Conditional |
-| platform | string | Platform chat (Instagram, WhatsApp, Telegram, Facebook, X, TikTok) | N |
-| device_id | integer | Filter percakapan pada device tertentu saja | N |
-| search | string | Text search pada pesan chat. Wajib jika person_name kosong. | Conditional |
+| `analytic_id` | integer | Analytic ID | Y |
+| `person_name` | string | Nama lawan bicara. Bisa parsial. Wajib jika search kosong. | Conditional |
+| `platform` | string | Platform chat (Instagram, WhatsApp, Telegram, Facebook, X, TikTok) | N |
+| `device_id` | integer | Filter percakapan pada device tertentu saja | N |
+| `search` | string | Text search pada pesan chat. Wajib jika person_name kosong. | Conditional |
 
 **Catatan:**
 
@@ -2608,17 +2592,17 @@ atau
 
 ### Get APK Analytic Result
 
-**Endpoint** : `/api/v1/analytics/{analytic_id}/apk-analytic`
+**Endpoint** : `/api/v1/analytics/apk-analytic`
 
 **Method** : `GET`
 
 ---
 
-**Path Parameter:**
+**Query Parameters :**
 
 | Name | Type | Description | Required? |
 | --- | --- | --- | --- |
-| `analytic_id` | integer | - | ✅ |
+| `analytic_id` | integer | Analytic ID | Y |
 
 ---
 
