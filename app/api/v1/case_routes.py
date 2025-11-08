@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-
 from app.api.deps import get_database
 from app.case_management.service import case_service
 from app.case_management.schemas import (
@@ -55,16 +54,18 @@ async def get_cases(
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
+    sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),
     db: Session = Depends(get_database)
 ):
     try:
-        cases = case_service.get_cases(db, skip, limit, search, status)
+        result = case_service.get_cases(db, skip, limit, search, status, sort_by, sort_order)
         return CaseListResponse(
             status=200,
             message="Cases retrieved successfully",
-            data=cases,
-            total=len(cases),
-            page=skip // limit + 1,
+            data=result["cases"],
+            total=result["total"],
+            page=skip // limit + 1 if limit > 0 else 1,
             size=limit
         )
     except Exception as e:

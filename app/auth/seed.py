@@ -22,21 +22,22 @@ def seed_users():
                 "password": "admin.admin",
                 "role": "admin",
                 "tag":"Admin"
-            },
-            {
-                "email": "investigator@gmail.com",
-                "fullname": "Ivestigator",
-                "password": "admin.admin",
-                "role": "user",
-                "tag":"Investigator"
-            },
-            {
-                "email": "ahliforensic@gmail.com",
-                "fullname": "Ahli Forensic",
-                "password": "admin.admin",
-                "role": "user",
-                "tag":"Ahli Forensic"
-            },
+            }
+            # ,
+            # {
+            #     "email": "investigator@gmail.com",
+            #     "fullname": "Ivestigator",
+            #     "password": "admin.admin",
+            #     "role": "user",
+            #     "tag":"Investigator"
+            # },
+            # {
+            #     "email": "ahliforensic@gmail.com",
+            #     "fullname": "Ahli Forensic",
+            #     "password": "admin.admin",
+            #     "role": "user",
+            #     "tag":"Ahli Forensic"
+            # },
         ]
 
         for u in users_to_seed:

@@ -116,6 +116,21 @@ class Case(BaseModel):
     class Config:
         from_attributes = True
 
+class CaseListItem(BaseModel):
+    id: int
+    case_number: str = Field(..., description="Case number")
+    title: str = Field(..., description="Case title")
+    description: Optional[str] = Field(None, description="Case description")
+    status: str = Field("Open", description="Case status")
+    main_investigator: str = Field(..., description="Main investigator name")
+    agency_name: Optional[str] = Field(None, description="Agency name")
+    work_unit_name: Optional[str] = Field(None, description="Work unit name")
+    created_at: str = Field(..., description="Date created in DD/MM/YYYY format")
+    updated_at: Optional[str] = Field(None, description="Date updated in DD/MM/YYYY format")
+
+    class Config:
+        from_attributes = True
+
 class CasePersonBase(BaseModel):
     person_id: int = Field(..., description="Person ID")
     person_type: str = Field(..., description="Person type")
@@ -194,7 +209,7 @@ class CaseResponse(BaseModel):
 class CaseListResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
-    data: List[Case]
+    data: List[CaseListItem]
     total: int = Field(..., description="Total number of cases")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")

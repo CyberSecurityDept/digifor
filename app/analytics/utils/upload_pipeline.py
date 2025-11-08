@@ -819,8 +819,7 @@ class UploadService:
                     })
                     await asyncio.sleep(0.02)
             print(f"[DEBUG] File write completed ({written} bytes)")
-
-            # === Simpan ke database ===
+            
             rel_path = os.path.relpath(target_path, BASE_DIR)
             print(f"🗂️ [DEBUG] Relative path for DB: {rel_path}")
 

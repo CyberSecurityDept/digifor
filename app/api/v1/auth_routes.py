@@ -44,8 +44,8 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
         )
 
     access_token = security.create_access_token(subject=str(user.id))
-
-    token_data = access_token
+    
+    refresh_token_obj = service.create_refresh_token(db, user)
 
     user_data = {
         "id": user.id,
@@ -61,32 +61,39 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
             "message": "Login successful",
             "data": {
                 "user": user_data,
-                "access_token": token_data
+                "access_token": access_token,
+                "refresh_token": refresh_token_obj.token
             }
         },
         status_code=200
     )
 
-# @router.post("/refresh")
-# def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
-#     user = service.use_refresh_token(db, data.refresh_token)
-#     if not user:
-#         return JSONResponse(
-#             {"status": 401, "message": "Invalid or expired refresh token", "data": None},
-#             status_code=401
-#         )
+@router.post("/refresh")
+def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
+    user = service.use_refresh_token(db, data.refresh_token)
+    if not user:
+        return JSONResponse(
+            {"status": 401, "message": "Invalid or expired refresh token", "data": None},
+            status_code=401
+        )
 
-#     service.revoke_refresh_token(db, data.refresh_token)
-#     new_rt = service.create_refresh_token(db, user)
+    service.revoke_refresh_token(db, data.refresh_token)
+    
+    new_refresh_token = service.create_refresh_token(db, user)
 
-#     access_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-#     access_token = security.create_access_token(subject=str(user.id), expires_delta=access_expires)
+    access_token = security.create_access_token(subject=str(user.id))
 
-#     token_data = schemas.Token(access_token=access_token, refresh_token=new_rt.token)
-#     return JSONResponse(
-#         {"status": 200, "message": "Token refreshed successfully", "data": token_data.model_dump()},
-#         status_code=200
-#     )
+    return JSONResponse(
+        {
+            "status": 200,
+            "message": "Token refreshed successfully",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": new_refresh_token.token
+            }
+        },
+        status_code=200
+    )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 

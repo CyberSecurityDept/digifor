@@ -20,7 +20,6 @@ from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
 from app.middleware.auth_middleware import AuthMiddleware
 from app.api.v1 import (
-    dashboard_routes,
     analytics_file_routes,
     analytics_sdp_routes,
     analytics_device_routes,
@@ -106,7 +105,6 @@ def custom_openapi():
     public_paths = [
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
-        "/api/v1/dashboard/landing",
         "/api/v1/file-encryptor/convert-to-sdp",
         "/api/v1/file-encryptor/list-sdp",
         "/api/v1/file-encryptor/download-sdp",
@@ -131,17 +129,21 @@ def custom_openapi():
 app.openapi = custom_openapi
 app.mount("/data", StaticFiles(directory="data"), name="data")
 
-# app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
-app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
-app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
 # app.include_router(user_managements_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
-# app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
-# app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
-# app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
-# app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
-# app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
-# app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
-# app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+
+app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
+
+
+app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
+
+# Analytics Management
+app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
+app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
+app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
+app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
+app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
+app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
+app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 
 # ANALYTICS MANAGEMENTS
 app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])

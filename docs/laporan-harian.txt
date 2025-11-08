@@ -1,0 +1,30 @@
+Laporan Pekerjaan Sabtu 8 November 2025
+
+## Authentication & Security
+
+### [AUTH] Unified Authentication System
+    1. Implementasi Unified Authentication System dengan 1 token JWT untuk multi aplikasi (Analytics & Case Management)
+    2. Implementasi AuthMiddleware dan role-based access control (require_role, require_admin, require_active_user)
+
+### [AUTH] Refresh Token
+    1. Aktifkan refresh token endpoint dengan token rotation (token lama di-revoke saat refresh)
+    2. Update login endpoint untuk mengembalikan access_token dan refresh_token
+
+### [AUTH] Token Expiration Fix
+    1. Perbaikan token expiration untuk memastikan access token valid selama 24 jam (1440 menit)
+
+## Case Management
+    ### [CASE] Get All Cases
+    1. Perbaikan endpoint get-all-cases dengan format tanggal DD/MM/YYYY dan perhitungan total count yang benar
+    2. Menambahkan parameter sorting (sort_by dan sort_order) untuk sorting berdasarkan created_at (ascending/descending)
+    3. Menambahkan filter status untuk get-all-cases dengan nilai valid: "Open", "Closed", "Re-open" atau "Reopen"
+    
+    ### [CASE] Create Case
+    1. Membuat endpoint POST /api/v1/cases/create-case dengan support auto-generation dan manual case number
+    2. Auto-generation case number dengan format {PREFIX}-{DATE}-{UNIQUE_NUMBER} dari 3 kata pertama title
+    3. Support input agency dan work unit sebagai free text dengan auto-create jika belum ada di database
+    4. Error handling untuk duplicate case number dan auto-create initial case log dengan status "Open"
+    
+    ### [CASE] Statistics Summary
+    1. Membuat endpoint GET /api/v1/cases/statistics/summary untuk mendapatkan statistik case berdasarkan status
+    2. Implementasi perhitungan statistik: total cases, open cases, closed cases, dan reopened cases

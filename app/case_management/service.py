@@ -134,7 +134,7 @@ class CaseService:
         
         return case_response
     
-    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
+    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
         status_mapping = {
             'open': 'Open',
@@ -149,7 +149,10 @@ class CaseService:
             'Re-Open': 'Re-open',
             'reopened': 'Re-open',
             'REOPENED': 'Re-open',
-            'Reopened': 'Re-open'
+            'Reopened': 'Re-open',
+            'reopen': 'Re-open',
+            'REOPEN': 'Re-open',
+            'Reopen': 'Re-open'
         }
 
         if search:
@@ -176,7 +179,23 @@ class CaseService:
             normalized_status = status_mapping.get(status, status)
             query = query.filter(Case.status == normalized_status)
 
-        cases = query.order_by(Case.id.desc()).offset(skip).limit(limit).all()
+        # Get total count before pagination
+        total_count = query.count()
+        
+        # Apply sorting
+        if sort_by == "created_at":
+            if sort_order and sort_order.lower() == "asc":
+                # Sort by created_at ascending (oldest first)
+                query = query.order_by(Case.created_at.asc())
+            else:
+                # Sort by created_at descending (newest first)
+                query = query.order_by(Case.created_at.desc())
+        else:
+            # Default: sort by ID descending (newest first)
+            query = query.order_by(Case.id.desc())
+        
+        # Apply pagination
+        cases = query.offset(skip).limit(limit).all()
         
         result = []
         for case in cases:
@@ -193,6 +212,9 @@ class CaseService:
                 if work_unit:
                     work_unit_name = work_unit.name
             
+            date_created = case.created_at.strftime("%d/%m/%Y")
+            date_updated = case.updated_at.strftime("%d/%m/%Y")
+            
             case_dict = {
                 "id": case.id,
                 "case_number": case.case_number,
@@ -202,12 +224,15 @@ class CaseService:
                 "main_investigator": case.main_investigator,
                 "agency_name": agency_name,
                 "work_unit_name": work_unit_name,
-                "created_at": case.created_at,
-                "updated_at": case.updated_at
+                "created_at": date_created,
+                "updated_at": date_updated
             }
             result.append(case_dict)
         
-        return result
+        return {
+            "cases": result,
+            "total": total_count
+        }
     
     def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
