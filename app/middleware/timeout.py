@@ -14,7 +14,12 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         self.last_activity = {}
     
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ["/api/v1/analytics/upload-data", "/api/v1/analytics/add-device"]:
+        # Skip timeout check for long-running endpoints (PDF export can take hours for large datasets)
+        if request.url.path in [
+            "/api/v1/analytics/upload-data", 
+            "/api/v1/analytics/add-device",
+            "/api/v1/analytic/export-pdf"
+        ]:
             response = await call_next(request)
             return response
         
