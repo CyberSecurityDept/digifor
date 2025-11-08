@@ -683,16 +683,24 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 ### 3. Get Case Detail Comprehensive
 
-**Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive`
+**Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 
 **Description:** Get comprehensive details of a specific case including persons of interest, case logs, and notes.
 
+**Note:** Field `summary` dalam response akan berisi nilai summary jika sudah disimpan melalui endpoint `/api/v1/cases/save-summary` atau `/api/v1/cases/edit-summary`, atau `null` jika belum ada summary.
+
 **Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+**Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `case_id` | integer | Yes | Unique case identifier |
+| `case_id` | integer | Yes | Unique case identifier (in URL path) |
+
+**Note:** 
+- `case_id` adalah **path parameter** (di URL path), bukan query parameter
+- URL format: `/api/v1/cases/get-case-detail-comprehensive/{case_id}`
+- Contoh: `/api/v1/cases/get-case-detail-comprehensive/1`
+- Konsisten dengan endpoint lain: `/get-person/{person_id}`, `/update-case/{case_id}`, dll.
 
 **Response (200 OK):**
 ```json
@@ -702,7 +710,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
   "data": {
     "case": {
       "id": 1,
-      "case_number": "34214234",
+      "case_number": "BMI-081125-0001",
       "title": "Buronan Maroko Interpol",
       "description": "Tersangka diduga terlibat dalam kasus perdagangan narkotika lintas negara...",
       "status": "Open",
@@ -760,12 +768,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "content": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting..."
       }
     ],
-    "summary": {
-      "total_persons": 2,
-      "total_evidence": 3,
-      "total_case_log": 5,
-      "total_notes": 1
-    }
+    "summary": null
   }
 }
 ```
@@ -798,6 +801,26 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
   "data": null
 }
 ```
+
+**Example Requests:**
+
+**1. Get case detail dengan ID 1:**
+```
+GET http://localhost:8000/api/v1/cases/get-case-detail-comprehensive/1
+Authorization: Bearer <access_token>
+```
+
+**2. Get case detail dengan ID 2:**
+```
+GET http://localhost:8000/api/v1/cases/get-case-detail-comprehensive/2
+Authorization: Bearer <access_token>
+```
+
+**Note:** 
+- `case_id` adalah **path parameter**, jadi langsung di URL path
+- Format URL: `/get-case-detail-comprehensive/{case_id}`
+- **JANGAN** gunakan query parameter seperti `?case_id=1` (akan error "Not Found")
+- Konsisten dengan endpoint lain yang menggunakan path parameter untuk resource identification
 
 ---
 
@@ -946,21 +969,70 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 ### 5. Update Case
 
-**Endpoint:** `PUT /api/v1/cases/update-case`
+**Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
-**Description:** Update an existing case. All fields are optional (partial update).
+**Description:** Update an existing case. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
 - `Content-Type: application/json`
 
-**Request Body (all fields optional, but `case_id` is required):**
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `case_id` | integer | Yes | Unique case identifier (in URL path) |
+
+**Request Body (all fields optional - partial update):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | No | Case title |
+| `description` | string | No | Case description |
+| `main_investigator` | string | No | Main investigator name |
+| `case_number` | string | No | Case number (manual) |
+| `agency_id` | integer | No | Agency ID |
+| `work_unit_id` | integer | No | Work unit ID |
+| `agency_name` | string | No | Agency name (free text, auto-create if not exists) |
+| `work_unit_name` | string | No | Work unit name (free text, auto-create if not exists) |
+
+**Note:**
+- `case_id` adalah **path parameter** (di URL path), bukan di request body
+- Semua field di request body adalah **optional** (partial update)
+- Hanya field yang diisi yang akan di-update
+- Field yang tidak diisi akan tetap seperti semula
+- URL format: `/api/v1/cases/update-case/{case_id}`
+- Contoh: `/api/v1/cases/update-case/1`
+
+**Request Body Examples:**
+
+**Example 1: Update title saja**
 ```json
 {
-  "case_id": 1,
+  "title": "Updated Case Title"
+}
+```
+
+**Example 2: Update multiple fields**
+```json
+{
   "title": "Updated Case Title",
   "description": "Updated description",
-  "status": "Closed",
+  "main_investigator": "New Investigator"
+}
+```
+
+**Example 3: Update agency dan work unit**
+```json
+{
+  "agency_name": "New Agency",
+  "work_unit_name": "New Work Unit"
+}
+```
+
+**Example 4: Update semua field**
+```json
+{
+  "title": "Updated Case Title",
+  "description": "Updated description",
   "main_investigator": "New Investigator",
   "agency_name": "New Agency",
   "work_unit_name": "New Work Unit"
@@ -974,18 +1046,70 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
   "message": "Case updated successfully",
   "data": {
     "id": 1,
-    "case_number": "34214234",
+    "case_number": "BMI-081125-0001",
     "title": "Updated Case Title",
     "description": "Updated description",
-    "status": "Closed",
+    "status": "Open",
     "main_investigator": "New Investigator",
     "agency_name": "New Agency",
     "work_unit_name": "New Work Unit",
-    "created_at": "2025-12-12T10:30:00Z",
-    "updated_at": "2025-12-12T15:00:00Z"
+    "created_at": "08/11/2025",
+    "updated_at": "08/11/2025"
   }
 }
 ```
+
+**Note:**
+- `created_at` dan `updated_at` menggunakan format "DD/MM/YYYY" (string)
+- Format konsisten dengan response `get-all-cases`
+
+**Example Requests:**
+
+**1. Update case dengan ID 1 (update title saja):**
+```
+PUT http://localhost:8000/api/v1/cases/update-case/1
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Body (raw JSON):
+{
+  "title": "Updated Case Title"
+}
+```
+
+**2. Update case dengan ID 2 (update multiple fields):**
+```
+PUT http://localhost:8000/api/v1/cases/update-case/2
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Body (raw JSON):
+{
+  "title": "Updated Case Title",
+  "description": "Updated description",
+  "main_investigator": "New Investigator"
+}
+```
+
+**3. Update case dengan ID 3 (update agency dan work unit):**
+```
+PUT http://localhost:8000/api/v1/cases/update-case/3
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+Body (raw JSON):
+{
+  "agency_name": "New Agency",
+  "work_unit_name": "New Work Unit"
+}
+```
+
+**Note:**
+- `case_id` adalah **path parameter**, jadi langsung di URL path
+- Format URL: `/update-case/{case_id}`
+- **JANGAN** gunakan query parameter seperti `?case_id=1` (akan error "Not Found")
+- Request body menggunakan **raw JSON** (bukan form-data)
+- Semua field di body adalah optional (partial update)
 
 **Error Responses:**
 
@@ -1027,59 +1151,7 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 ---
 
-### 6. Delete Case
-
-**Endpoint:** `DELETE /api/v1/cases/delete-case`
-
-**Description:** Delete a case and all related data (logs, notes, persons).
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `case_id` | integer | Yes | Unique case identifier |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case deleted successfully"
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Case with ID {case_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 7. Export Case Details PDF
+### 6. Export Case Details PDF
 
 **Endpoint:** `GET /api/v1/cases/export-case-details-pdf`
 
@@ -1135,7 +1207,7 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 8. Save Case Summary
+### 7. Save Case Summary
 
 **Endpoint:** `POST /api/v1/cases/save-summary`
 
@@ -1205,6 +1277,84 @@ Authorization: Bearer {access_token}
   "data": null
 }
 ```
+
+---
+
+### 8. Edit Case Summary
+
+**Endpoint:** `PUT /api/v1/cases/edit-summary`
+
+**Description:** Update summary for a specific case.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "case_id": 1,
+  "summary": "Updated summary: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case summary updated successfully",
+  "data": {
+    "case_id": 1,
+    "case_number": "34214234",
+    "case_title": "Buronan Maroko Interpol",
+    "summary": "Updated summary: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3.",
+    "updated_at": "2025-12-20T15:45:00Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request:**
+```json
+{
+  "status": 400,
+  "message": "Summary cannot be empty",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Case with ID {case_id} not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to edit case summary: {error_message}",
+  "data": null
+}
+```
+
+**Note:**
+- Endpoint `save-summary` dan `edit-summary` memiliki fungsi yang sama (save atau update summary)
+- Gunakan `save-summary` untuk membuat summary baru atau mengupdate summary yang sudah ada
+- Gunakan `edit-summary` untuk mengupdate summary yang sudah ada (lebih eksplisit untuk operasi update)
 
 ---
 

@@ -1,5 +1,7 @@
 Laporan Pekerjaan Sabtu 8 November 2025
 
+PIC : Imanuel Zagoto
+
 ## Authentication & Security
 
 ### [AUTH] Unified Authentication System
@@ -13,11 +15,21 @@ Laporan Pekerjaan Sabtu 8 November 2025
 ### [AUTH] Token Expiration Fix
     1. Perbaikan token expiration untuk memastikan access token valid selama 24 jam (1440 menit)
 
-## Case Management
+## Case Management 
+    ### [CASE] Statistics Summary
+    1. Membuat endpoint GET /api/v1/cases/statistics/summary untuk mendapatkan statistik case berdasarkan status
+    2. Implementasi perhitungan statistik: total cases, open cases, closed cases, dan reopened cases
+
     ### [CASE] Get All Cases
     1. Perbaikan endpoint get-all-cases dengan format tanggal DD/MM/YYYY dan perhitungan total count yang benar
     2. Menambahkan parameter sorting (sort_by dan sort_order) untuk sorting berdasarkan created_at (ascending/descending)
     3. Menambahkan filter status untuk get-all-cases dengan nilai valid: "Open", "Closed", "Re-open" atau "Reopen"
+    
+    ### [CASE] Get Case Detail Comprehensive
+    1. Membuat endpoint GET /api/v1/cases/get-case-detail-comprehensive/{case_id} dengan path parameter case_id
+    2. Implementasi comprehensive case detail termasuk case info, persons of interest dengan analysis, case logs, dan case notes
+    3. Menambahkan summary statistics: total persons, total evidence, total case log, dan total notes
+    4. Error handling untuk case not found dan server error
     
     ### [CASE] Create Case
     1. Membuat endpoint POST /api/v1/cases/create-case dengan support auto-generation dan manual case number
@@ -25,6 +37,9 @@ Laporan Pekerjaan Sabtu 8 November 2025
     3. Support input agency dan work unit sebagai free text dengan auto-create jika belum ada di database
     4. Error handling untuk duplicate case number dan auto-create initial case log dengan status "Open"
     
-    ### [CASE] Statistics Summary
-    1. Membuat endpoint GET /api/v1/cases/statistics/summary untuk mendapatkan statistik case berdasarkan status
-    2. Implementasi perhitungan statistik: total cases, open cases, closed cases, dan reopened cases
+    ### [CASE] Update Case
+    1. Membuat endpoint PUT /api/v1/cases/update-case/{case_id} dengan path parameter case_id
+    2. Implementasi partial update (semua field di request body optional)
+    3. Support update agency dan work unit dengan ID atau nama (auto-create jika belum ada)
+    4. Memformat created_at dan updated_at menjadi "DD/MM/YYYY" agar konsisten dengan endpoint lain
+    5. Error handling untuk case not found dan validation error

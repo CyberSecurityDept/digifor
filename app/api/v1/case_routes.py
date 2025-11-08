@@ -5,8 +5,10 @@ from app.api.deps import get_database
 from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
-    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse
+    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse,
+    CaseSummaryRequest
 )
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -42,11 +44,20 @@ async def get_case_detail_comprehensive(
             message="Case detail retrieved successfully",
             data=case_data
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Case with ID {case_id} not found"
-        )
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail="Unexpected server error, please try again later"
+            )
 
 @router.get("/get-all-cases", response_model=CaseListResponse)
 async def get_cases(
@@ -99,32 +110,6 @@ async def update_case(
                 detail="Unexpected server error, please try again later"
             )
 
-@router.delete("/delete-case/{case_id}")
-async def delete_case(
-    case_id: int,
-    db: Session = Depends(get_database)
-):
-    try:
-        success = case_service.delete_case(db, case_id)
-        if success:
-            return {"status": 200, "message": "Case deleted successfully"}
-        else:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Case with ID {case_id} not found"
-            )
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Case with ID {case_id} not found"
-            )
-        else:
-            raise HTTPException(
-                status_code=500, 
-                detail="Unexpected server error, please try again later"
-            )
-
 @router.get("/statistics/summary")
 async def get_case_statistics(
     db: Session = Depends(get_database)
@@ -146,3 +131,93 @@ async def get_case_statistics(
             status_code=500, 
             detail="Unexpected server error, please try again later"
         )
+
+@router.post("/save-summary")
+async def save_case_summary(
+    request: CaseSummaryRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = case_service.save_case_summary(db, request.case_id, request.summary)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Case summary saved successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Case with ID {request.case_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to save case summary: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )
+
+@router.put("/edit-summary")
+async def edit_case_summary(
+    request: CaseSummaryRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = case_service.edit_case_summary(db, request.case_id, request.summary)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Case summary updated successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Case with ID {request.case_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to edit case summary: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )

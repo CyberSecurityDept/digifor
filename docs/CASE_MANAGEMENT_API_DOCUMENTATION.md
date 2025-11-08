@@ -208,28 +208,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 
 ---
 
-### 5. Delete Case
-**Endpoint:** `DELETE /api/v1/cases/{case_id}`
-
-**Description:** Delete a case by its ID. This will also delete all associated case logs and notes.
-
-**Path Parameters:**
-- `case_id` (required): The unique identifier of the case
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Case deleted successfully"
-}
-```
-
-**Error Responses:**
-- **404 Not Found:** Case not found
-- **500 Internal Server Error:** Database error
-
----
-
 ## Case Log Endpoints
 
 ### 6. Create Case Log

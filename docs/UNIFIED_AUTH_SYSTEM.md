@@ -149,17 +149,18 @@ async def analyst_endpoint(
 ```python
 from app.api.deps import require_admin
 
-@router.delete("/delete-case/{case_id}")
-async def delete_case(
+@router.put("/update-case/{case_id}")
+async def update_case(
     case_id: int,
+    case_data: CaseUpdate,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_database)
 ):
     """
-    Hanya admin yang bisa delete case.
+    Hanya admin yang bisa update case.
     """
-    # ... delete logic
-    return {"message": "Case deleted"}
+    # ... update logic
+    return {"message": "Case updated"}
 ```
 
 ### Require Active User
@@ -317,14 +318,15 @@ async def get_cases(
     # ... implementation
     pass
 
-@router.delete("/delete-case/{case_id}")
-async def delete_case(
+@router.put("/update-case/{case_id}")
+async def update_case(
     case_id: int,
+    case_data: CaseUpdate,
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_database)
 ):
     """
-    Delete case - hanya admin yang bisa.
+    Update case - hanya admin yang bisa.
     """
     # ... implementation
     pass

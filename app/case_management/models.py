@@ -48,6 +48,7 @@ class Case(Base):
     
     agency_id = Column(Integer, ForeignKey("agencies.id"), nullable=True)
     work_unit_id = Column(Integer, ForeignKey("work_units.id"), nullable=True)
+    summary = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -284,6 +284,9 @@ class CaseService:
             if work_unit:
                 work_unit_name = work_unit.name
 
+        date_created = case.created_at.strftime("%d/%m/%Y")
+        date_updated = case.updated_at.strftime("%d/%m/%Y")
+        
         case_dict = {
             "id": case.id,
             "case_number": case.case_number,
@@ -293,31 +296,11 @@ class CaseService:
             "main_investigator": case.main_investigator,
             "agency_name": agency_name,
             "work_unit_name": work_unit_name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at
+            "created_at": date_created,
+            "updated_at": date_updated
         }
         
         return case_dict
-    
-    def delete_case(self, db: Session, case_id: int) -> bool:
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise Exception(f"Case with ID {case_id} not found")
-        
-        try:
-            db.query(CaseLog).filter(CaseLog.case_id == case_id).delete()
-            
-            db.query(CaseNote).filter(CaseNote.case_id == case_id).delete()
-            
-            db.query(Person).filter(Person.case_id == case_id).delete()
-            
-            db.delete(case)
-            db.commit()
-            return True
-            
-        except Exception as e:
-            db.rollback()
-            raise Exception(f"Failed to delete case: {str(e)}")
     
     def get_case_statistics(self, db: Session) -> dict:
         total_cases = db.query(Case).count()
@@ -330,6 +313,52 @@ class CaseService:
             "closed_cases": closed_cases,
             "reopened_cases": reopened_cases,
             "total_cases": total_cases
+        }
+    
+    def save_case_summary(self, db: Session, case_id: int, summary: str) -> dict:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
+        if not summary or not summary.strip():
+            raise ValueError("Summary cannot be empty")
+        
+        setattr(case, 'summary', summary.strip())
+        db.commit()
+        db.refresh(case)
+        
+        updated_at_value = getattr(case, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "case_title": case.title,
+            "summary": getattr(case, 'summary', None),
+            "updated_at": updated_at_str
+        }
+    
+    def edit_case_summary(self, db: Session, case_id: int, summary: str) -> dict:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise Exception(f"Case with ID {case_id} not found")
+        
+        if not summary or not summary.strip():
+            raise ValueError("Summary cannot be empty")
+        
+        setattr(case, 'summary', summary.strip())
+        db.commit()
+        db.refresh(case)
+        
+        updated_at_value = getattr(case, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "case_title": case.title,
+            "summary": getattr(case, 'summary', None),
+            "updated_at": updated_at_str
         }
     
     def get_case_detail_comprehensive(self, db: Session, case_id: int) -> dict:
@@ -407,7 +436,7 @@ class CaseService:
             }
             case_notes.append(note_data)
         
-        evidence_count = len([p for p in persons if p.evidence_id is not None])
+        case_summary = getattr(case, 'summary', None)
         
         case_data = {
             "case": {
@@ -424,12 +453,7 @@ class CaseService:
             "persons_of_interest": persons_of_interest,
             "case_log": case_log,
             "notes": case_notes,
-            "summary": {
-                "total_persons": len(persons),
-                "total_evidence": evidence_count,
-                "total_case_log": len(case_log),
-                "total_notes": len(case_notes)
-            }
+            "summary": case_summary
         }
         
         return case_data

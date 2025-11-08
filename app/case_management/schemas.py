@@ -110,8 +110,8 @@ class Case(BaseModel):
     main_investigator: str = Field(..., description="Main investigator name")
     agency_name: Optional[str] = Field(None, description="Agency name")
     work_unit_name: Optional[str] = Field(None, description="Work unit name")
-    created_at: datetime
-    updated_at: datetime
+    created_at: str = Field(..., description="Date created in DD/MM/YYYY format")
+    updated_at: str = Field(..., description="Date updated in DD/MM/YYYY format")
 
     class Config:
         from_attributes = True
@@ -340,6 +340,10 @@ class CaseSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+class CaseSummaryRequest(BaseModel):
+    case_id: int = Field(..., description="Case ID")
+    summary: str = Field(..., description="Case summary text")
 
 class CaseDetailResponse(BaseModel):
     status: int = Field(200, description="Response status")
