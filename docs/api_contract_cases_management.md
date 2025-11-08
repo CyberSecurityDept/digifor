@@ -685,9 +685,9 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 **Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 
-**Description:** Get comprehensive details of a specific case including persons of interest, case logs, and notes.
+**Description:** Get comprehensive details of a specific case including persons of interest and case logs.
 
-**Note:** Field `summary` dalam response akan berisi nilai summary jika sudah disimpan melalui endpoint `/api/v1/cases/save-summary` atau `/api/v1/cases/edit-summary`, atau `null` jika belum ada summary.
+**Note:** Field `case_notes` dalam response akan berisi nilai notes jika sudah disimpan melalui endpoint `/api/v1/cases/save-notes` atau `/api/v1/cases/edit-notes`, atau `null` jika belum ada notes.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -727,7 +727,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "analysis": [
           {
             "evidence_id": "342344442",
-            "summary": "Berdasarkan rekaman CCTV tanggal 10 September 2025...",
+            "notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025...",
             "status": "Analysis"
           }
         ]
@@ -744,31 +744,32 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "id": 1,
         "case_id": 1,
         "action": "Open",
-        "changed_by": "",
-        "change_detail": "",
+        "edit": [
+          {
+            "changed_by": "",
+            "change_detail": ""
+          }
+        ],
         "notes": "",
         "status": "Open",
-        "created_at": "2025-05-09T18:00:00Z"
+        "created_at": "9 May 2025, 18:00"
       },
       {
         "id": 2,
         "case_id": 1,
         "action": "Edit",
-        "changed_by": "Wisnu",
-        "change_detail": "Adding person Nathalie",
+        "edit": [
+          {
+            "changed_by": "Wisnu",
+            "change_detail": "Adding person Nathalie"
+          }
+        ],
         "notes": "",
         "status": "Open",
-        "created_at": "2025-05-16T12:00:00Z"
+        "created_at": "16 May 2025, 12:00"
       }
     ],
-    "notes": [
-      {
-        "timestamp": "20 Dec 2025, 14:30",
-        "status": "Active",
-        "content": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting..."
-      }
-    ],
-    "summary": null
+    "case_notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
   }
 }
 ```
@@ -1207,11 +1208,11 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 7. Save Case Summary
+### 7. Save Case Notes
 
-**Endpoint:** `POST /api/v1/cases/save-summary`
+**Endpoint:** `POST /api/v1/cases/save-notes`
 
-**Description:** Save or update summary for a specific case.
+**Description:** Save or update notes for a specific case.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1221,22 +1222,22 @@ Authorization: Bearer {access_token}
 ```json
 {
   "case_id": 1,
-  "summary": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
+  "notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
 }
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "status": 200,
-  "message": "Case summary saved successfully",
-  "data": {
-    "case_id": 1,
-    "case_number": "34214234",
-    "case_title": "Buronan Maroko Interpol",
-    "summary": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung.",
-    "updated_at": "2025-12-20T14:30:00Z"
-  }
+    "status": 200,
+    "message": "Case notes saved successfully",
+    "data": {
+        "case_id": 1,
+        "case_number": "BM-081125-0001",
+        "case_title": "Buronan Maroko",
+        "notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung.",
+        "updated_at": "2025-11-08T19:25:34.990264+07:00"
+    }
 }
 ```
 
@@ -1246,7 +1247,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 400,
-  "message": "Summary cannot be empty",
+  "message": "Notes cannot be empty",
   "data": null
 }
 ```
@@ -1273,18 +1274,18 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to save case summary: {error_message}",
+  "message": "Failed to save case notes: {error_message}",
   "data": null
 }
 ```
 
 ---
 
-### 8. Edit Case Summary
+### 8. Edit Case Notes
 
-**Endpoint:** `PUT /api/v1/cases/edit-summary`
+**Endpoint:** `PUT /api/v1/cases/edit-notes`
 
-**Description:** Update summary for a specific case.
+**Description:** Update notes for a specific case.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1294,22 +1295,22 @@ Authorization: Bearer {access_token}
 ```json
 {
   "case_id": 1,
-  "summary": "Updated summary: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3."
+  "notes": "Updated notes: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3."
 }
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "status": 200,
-  "message": "Case summary updated successfully",
-  "data": {
-    "case_id": 1,
-    "case_number": "34214234",
-    "case_title": "Buronan Maroko Interpol",
-    "summary": "Updated summary: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3.",
-    "updated_at": "2025-12-20T15:45:00Z"
-  }
+    "status": 200,
+    "message": "Case notes updated successfully",
+    "data": {
+        "case_id": 1,
+        "case_number": "BM-081125-0001",
+        "case_title": "Buronan Maroko",
+        "notes": "Updated summary: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3.",
+        "updated_at": "2025-11-08T19:27:00.576546+07:00"
+    }
 }
 ```
 
@@ -1319,7 +1320,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 400,
-  "message": "Summary cannot be empty",
+  "message": "Notes cannot be empty",
   "data": null
 }
 ```
@@ -1346,15 +1347,359 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to edit case summary: {error_message}",
+  "message": "Failed to edit case notes: {error_message}",
   "data": null
 }
 ```
 
 **Note:**
-- Endpoint `save-summary` dan `edit-summary` memiliki fungsi yang sama (save atau update summary)
-- Gunakan `save-summary` untuk membuat summary baru atau mengupdate summary yang sudah ada
-- Gunakan `edit-summary` untuk mengupdate summary yang sudah ada (lebih eksplisit untuk operasi update)
+- Endpoint `save-notes` dan `edit-notes` memiliki fungsi yang sama (save atau update notes)
+- Gunakan `save-notes` untuk membuat notes baru atau mengupdate notes yang sudah ada
+- Gunakan `edit-notes` untuk mengupdate notes yang sudah ada (lebih eksplisit untuk operasi update)
+
+**Example Request:**
+```
+POST http://localhost:8000/api/v1/cases/save-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "case_id": 1,
+  "notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
+}
+```
+
+**Example Request (Edit Notes):**
+```
+PUT http://localhost:8000/api/v1/cases/edit-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "case_id": 1,
+  "notes": "Updated notes: Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut menunjukkan bahwa tersangka melakukan aktivitas mencurigakan di lantai 3."
+}
+```
+
+---
+
+## 📝 Case Log Management
+
+### Base Path
+`/api/v1/case-logs`
+
+### 9. Get Case Logs
+
+**Endpoint:** `GET /api/v1/case-logs/case/logs/{case_id}`
+
+**Description:** Retrieve all log entries for a specific case with pagination support.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `case_id` | integer | Yes | Unique case identifier |
+
+**Query Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `skip` | integer | No | 0 | Number of records to skip (for pagination) |
+| `limit` | integer | No | 10 | Number of records to return (max: 100) |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case logs retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "case_id": 1,
+      "action": "Open",
+      "edit": [
+        {
+          "changed_by": "",
+          "change_detail": ""
+        }
+      ],
+      "notes": "Kasus sudah ditutup",
+      "status": "Open",
+      "created_at": "9 May 2025, 10:00"
+    },
+    {
+      "id": 2,
+      "case_id": 1,
+      "action": "Closed",
+      "edit": [
+        {
+          "changed_by": "",
+          "change_detail": ""
+        }
+      ],
+      "notes": "",
+      "status": "Closed",
+      "created_at": "12 May 2025, 14:00"
+    },
+    {
+      "id": 3,
+      "case_id": 1,
+      "action": "Re-Open",
+      "edit": [
+        {
+          "changed_by": "",
+          "change_detail": ""
+        }
+      ],
+      "notes": "Kasus dibuka kembali",
+      "status": "Re-Open",
+      "created_at": "16 May 2025, 12:00"
+    },
+    {
+      "id": 4,
+      "case_id": 1,
+      "action": "Edit",
+      "edit": [
+        {
+          "changed_by": "Admin Forensic",
+          "change_detail": "Adding person Nathalie"
+        }
+      ],
+      "notes": "",
+      "status": "Edit",
+      "created_at": "16 May 2025, 12:00"
+    },
+    {
+      "id": 5,
+      "case_id": 1,
+      "action": "Edit",
+      "edit": [
+        {
+          "changed_by": "Admin Forensic",
+          "change_detail": "Adding evidence 3234222"
+        }
+      ],
+      "notes": "",
+      "status": "Edit",
+      "created_at": "16 May 2025, 12:00"
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "size": 10
+}
+```
+
+**Response Fields:**
+- `id`: Log entry unique identifier
+- `case_id`: Case identifier
+- `action`: Action performed (e.g., "Open", "Closed", "Re-open", "Edit")
+- `edit`: Array of edit details, each containing:
+  - `changed_by`: User who made the change (empty string if system-generated)
+  - `change_detail`: Detail of the change (e.g., "Adding person Nathalie", "Adding evidence 3234222")
+- `notes`: Additional notes (can be empty)
+- `status`: Case status at the time of log creation
+- `created_at`: Date and time formatted as "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Case with ID {case_id} not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error, please try again later",
+  "data": null
+}
+```
+
+**Example Request:**
+```
+GET http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10
+Authorization: Bearer {access_token}
+```
+
+**Note:**
+- Logs are ordered by `created_at` in descending order (newest first)
+- Date format: "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+- Case logs are automatically created when:
+  - Case is created (initial "Open" log)
+  - Case status is updated (via update-log endpoint)
+  - Evidence is added to a case
+  - Person is added to a case
+
+---
+
+### 10. Change Case Log (Update Case Status with Notes)
+
+**Endpoint:** `PUT /api/v1/case-logs/change-log/{case_id}`
+
+**Description:** Update case status and automatically create a new case log entry with optional notes. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `case_id` | integer | Yes | Unique case identifier |
+
+**Request Body:**
+```json
+{
+  "status": "Closed",
+  "notes": "kasus sudah di tutup"
+}
+```
+
+**Request Body Fields:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | string | Yes | Case status (Open, Closed, Re-open) |
+| `notes` | string | No | Optional notes for the case log entry |
+
+**Valid Status Values:**
+- `"Open"`: Case is open and active
+- `"Closed"`: Case is closed
+- `"Re-open"`: Case is reopened (case-insensitive, accepts "Re-open", "Reopen", "re-open", "reopen")
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case log updated successfully",
+  "data": {
+    "id": 6,
+    "case_id": 1,
+    "action": "Closed",
+    "edit": [
+      {
+        "changed_by": "",
+        "change_detail": ""
+      }
+    ],
+    "notes": "kasus sudah di tutup",
+    "status": "Closed",
+    "created_at": "16 May 2025, 15:30"
+  }
+}
+```
+
+**Response Fields:**
+- `id`: New log entry unique identifier
+- `case_id`: Case identifier
+- `action`: Action performed (same as status value)
+- `edit`: Array of edit details, each containing:
+  - `changed_by`: User who made the change (empty string by default, only populated if action is "Edit" and status matches current case status)
+  - `change_detail`: Detail of the change (empty string by default, only populated if action is "Edit" and status matches current case status)
+- `notes`: Notes provided in the request body (empty string if not provided)
+- `status`: New case status
+- `created_at`: Date and time formatted as "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+
+**Error Responses:**
+
+**400 Bad Request (Invalid Status):**
+```json
+{
+  "status": 400,
+  "message": "Invalid status 'InvalidStatus'. Valid values are: ['Open', 'Closed', 'Re-open'] (case-sensitive)",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Case not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error, please try again later",
+  "data": null
+}
+```
+
+**Example Request (With Notes):**
+```
+PUT http://localhost:8000/api/v1/case-logs/change-log/1
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "status": "Closed",
+  "notes": "kasus sudah di tutup"
+}
+```
+
+**Example Request (Without Notes):**
+```
+PUT http://localhost:8000/api/v1/case-logs/change-log/1
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "status": "Closed"
+}
+```
+
+**Example Request (Re-open with Notes):**
+```
+PUT http://localhost:8000/api/v1/case-logs/change-log/1
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "status": "Re-open",
+  "notes": "Kasus dibuka kembali untuk investigasi lanjutan"
+}
+```
+
+**Note:**
+- This endpoint updates the case status in the `cases` table and creates a new log entry
+- The `action` field in the log entry will match the new status value (e.g., "Closed", "Open", "Re-open")
+- The `notes` field is optional. If provided, it will be saved in the case log entry
+- The notes will appear in the `case_log` array when retrieving case detail via `get-case-detail-comprehensive`
+- The `changed_by` and `change_detail` fields in the `edit` array will only contain values if:
+  - `action` is "Edit" AND
+  - `status` matches the current case status (status terakhir)
+- For status change actions (Open, Closed, Re-open), `changed_by` and `change_detail` will be empty strings
+- Status validation is case-insensitive for common variations (e.g., "reopen", "Re-open", "Re-open" all map to "Re-open")
+- Date format: "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
 
 ---
 
@@ -1571,7 +1916,7 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-by-id`
 
-**Description:** Get comprehensive details of a specific evidence item including summary, chain of custody, investigation hypothesis, tools used, and analysis results.
+**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1602,7 +1947,7 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
     "evidence_detail": "081902938201",
     "created_at": "2025-12-20T10:00:00Z",
     "updated_at": "2025-12-20T10:00:00Z",
-    "summary": {
+    "notes": {
       "id": "33242352",
       "thumbnail": "/data/thumbnails/evidence_1_map.png",
       "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
@@ -2244,7 +2589,7 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 
 **Endpoint:** `GET /api/v1/evidence/export-evidence-details-pdf`
 
-**Description:** Export comprehensive evidence details as PDF document. Includes evidence information, summary, chain of custody, investigation hypothesis, tools used, analysis results, and gallery.
+**Description:** Export comprehensive evidence details as PDF document. Includes evidence information, notes, chain of custody, investigation hypothesis, tools used, analysis results, and gallery.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2298,11 +2643,11 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 13. Save Evidence Summary
+### 13. Save Evidence Notes
 
-**Endpoint:** `POST /api/v1/evidence/save-summary`
+**Endpoint:** `POST /api/v1/evidence/save-notes`
 
-**Description:** Save or update summary for a specific evidence item.
+**Description:** Save or update notes for a specific evidence item.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -2312,7 +2657,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "evidence_id": 1,
-  "summary": {
+  "notes": {
     "id": "33242352",
     "thumbnail": "/data/thumbnails/evidence_1_map.png",
     "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
@@ -2324,12 +2669,12 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 200,
-  "message": "Evidence summary saved successfully",
+    "message": "Evidence notes saved successfully",
   "data": {
     "evidence_id": 1,
     "evidence_number": "EVID-001",
     "evidence_title": "Handphone A",
-    "summary": {
+    "notes": {
       "id": "33242352",
       "thumbnail": "/data/thumbnails/evidence_1_map.png",
       "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
@@ -2345,7 +2690,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 400,
-  "message": "Summary cannot be empty",
+  "message": "Notes cannot be empty",
   "data": null
 }
 ```
@@ -2372,8 +2717,127 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to save evidence summary: {error_message}",
+  "message": "Failed to save evidence notes: {error_message}",
   "data": null
+}
+```
+
+---
+
+### 14. Edit Evidence Notes
+
+**Endpoint:** `PUT /api/v1/evidence/edit-notes`
+
+**Description:** Update notes for a specific evidence item.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "evidence_id": 1,
+  "notes": {
+    "id": "33242352",
+    "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
+    "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+    "message": "Evidence notes updated successfully",
+  "data": {
+    "evidence_id": 1,
+    "evidence_number": "EVID-001",
+    "evidence_title": "Handphone A",
+    "notes": {
+      "id": "33242352",
+      "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
+      "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
+    },
+    "updated_at": "2025-12-20T15:45:00Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request:**
+```json
+{
+  "status": 400,
+  "message": "Notes cannot be empty and must be a JSON object",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Evidence with ID {evidence_id} not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to edit evidence notes: {error_message}",
+  "data": null
+}
+```
+
+**Note:**
+- Endpoint `save-notes` dan `edit-notes` memiliki fungsi yang sama (save atau update notes)
+- Gunakan `save-notes` untuk membuat notes baru atau mengupdate notes yang sudah ada
+- Gunakan `edit-notes` untuk mengupdate notes yang sudah ada (lebih eksplisit untuk operasi update)
+- **Evidence notes berbentuk JSON object** dengan struktur: `{"id": "...", "thumbnail": "...", "text": "..."}`
+
+**Example Request:**
+```
+POST http://localhost:8000/api/v1/evidence/save-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "evidence_id": 1,
+  "notes": {
+    "id": "33242352",
+    "thumbnail": "/data/thumbnails/evidence_1_map.png",
+    "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
+  }
+}
+```
+
+**Example Request (Edit Notes):**
+```
+PUT http://localhost:8000/api/v1/evidence/edit-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "evidence_id": 1,
+  "notes": {
+    "id": "33242352",
+    "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
+    "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
+  }
 }
 ```
 
@@ -3160,7 +3624,7 @@ Authorization: Bearer {access_token}
       "evidence_number": "EVID-001",
       "title": "Handphone A",
       "thumbnail": "/data/thumbnails/evidence_1_map.png",
-      "summary": "Summary 33242352",
+      "notes": "Notes 33242352",
       "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
       "status": "Collected",
       "created_at": "2025-12-20T10:00:00Z"
@@ -3171,7 +3635,7 @@ Authorization: Bearer {access_token}
       "evidence_number": "EVID-002",
       "title": "Phone Screen",
       "thumbnail": "/data/thumbnails/evidence_2_phone.png",
-      "summary": "Summary 33242352",
+      "notes": "Notes 33242352",
       "description": "Terdapat dialog seputar pembakaran dengan suspect lain.",
       "status": "Collected",
       "created_at": "2025-12-20T11:00:00Z"
@@ -3229,7 +3693,7 @@ Authorization: Bearer {access_token}
 | `evidence_id` | string | No | Evidence ID (if manual input) |
 | `evidence_source` | string | Yes | Evidence source (e.g., "Handphone", "CCTV") |
 | `evidence_file` | file | Yes | Evidence file to upload |
-| `summary` | string | No | Evidence summary |
+| `notes` | string | No | Evidence notes |
 | `description` | string | No | Evidence description |
 
 **Response (201 Created):**
@@ -3242,7 +3706,7 @@ Authorization: Bearer {access_token}
     "evidence_id": "32342225",
     "evidence_number": "EVID-013",
     "title": "New Evidence",
-    "summary": "Summary 33242353",
+      "notes": "Notes 33242353",
     "description": "New evidence description",
     "suspect_id": 1,
     "created_at": "2025-12-20T12:00:00Z"
@@ -3361,11 +3825,11 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 11. Save Suspect Summary
+### 11. Save Suspect Notes
 
-**Endpoint:** `POST /api/v1/suspects/save-summary`
+**Endpoint:** `POST /api/v1/suspects/save-notes`
 
-**Description:** Save or update summary for a specific suspect.
+**Description:** Save or update notes for a specific suspect.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -3375,7 +3839,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "suspect_id": 1,
-  "summary": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran."
+  "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran."
 }
 ```
 
@@ -3383,11 +3847,11 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 200,
-  "message": "Suspect summary saved successfully",
+    "message": "Suspect notes saved successfully",
   "data": {
     "suspect_id": 1,
     "suspect_name": "John Doe",
-    "summary": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran.",
+    "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran.",
     "updated_at": "2025-12-20T14:30:00Z"
   }
 }
@@ -3399,7 +3863,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 400,
-  "message": "Summary cannot be empty",
+  "message": "Notes cannot be empty",
   "data": null
 }
 ```
@@ -3426,8 +3890,110 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to save suspect summary: {error_message}",
+  "message": "Failed to save suspect notes: {error_message}",
   "data": null
+}
+```
+
+---
+
+### 12. Edit Suspect Notes
+
+**Endpoint:** `PUT /api/v1/suspects/edit-notes`
+
+**Description:** Update notes for a specific suspect.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "suspect_id": 1,
+  "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+    "message": "Suspect notes updated successfully",
+  "data": {
+    "suspect_id": 1,
+    "suspect_name": "John Doe",
+    "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan.",
+    "updated_at": "2025-12-20T15:45:00Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request:**
+```json
+{
+  "status": 400,
+  "message": "Notes cannot be empty",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to edit suspect notes: {error_message}",
+  "data": null
+}
+```
+
+**Note:**
+- Endpoint `save-notes` dan `edit-notes` memiliki fungsi yang sama (save atau update notes)
+- Gunakan `save-notes` untuk membuat notes baru atau mengupdate notes yang sudah ada
+- Gunakan `edit-notes` untuk mengupdate notes yang sudah ada (lebih eksplisit untuk operasi update)
+- **Suspect notes berbentuk string** (plain text)
+
+**Example Request:**
+```
+POST http://localhost:8000/api/v1/suspects/save-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "suspect_id": 1,
+  "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran."
+}
+```
+
+**Example Request (Edit Notes):**
+```
+PUT http://localhost:8000/api/v1/suspects/edit-notes
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "suspect_id": 1,
+  "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan."
 }
 ```
 

@@ -63,7 +63,7 @@ class Evidence(Base):
     archived_at = Column(DateTime(timezone=True))
 
     tags = Column(JSON)
-    notes = Column(Text)
+    notes = Column(JSON, nullable=True)
     is_confidential = Column(Boolean, default=False)
 
     case = relationship("Case", back_populates="evidence")

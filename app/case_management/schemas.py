@@ -225,6 +225,7 @@ class CaseLogCreate(CaseLogBase):
 
 class CaseLogUpdate(BaseModel):
     status: str = Field(..., description="Case status (Open, Closed, Re-open)")
+    notes: Optional[str] = Field(None, description="Notes for the case log entry")
     
     @validator('status')
     def validate_status(cls, v):
@@ -244,18 +245,18 @@ class CaseLogUpdate(BaseModel):
             raise ValueError(f"Invalid status '{v}'. Valid values are: {valid_statuses} (case-sensitive)")
         return v
 
+class CaseLogEditItem(BaseModel):
+    changed_by: str = Field(..., description="User who made the change")
+    change_detail: str = Field(..., description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
+
 class CaseLog(BaseModel):
     id: int
     case_id: int
     action: str = Field(..., description="Action performed")
-    changed_by: str = Field(..., description="User who made the change")
-    change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
+    edit: List[CaseLogEditItem] = Field(..., description="Array of edit details")
     notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
     status: Optional[str] = Field(None, description="Case status at the time of log creation")
     created_at: str
-
-    class Config:
-        from_attributes = True
 
 class CaseLogResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -270,35 +271,6 @@ class CaseLogListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
-class CaseNoteBase(BaseModel):
-    note: str = Field(..., description="Note content")
-    status: Optional[str] = Field(None, description="Optional status for the note")
-    created_by: str = Field(..., description="User who created the note")
-
-class CaseNoteCreate(CaseNoteBase):
-    case_id: int = Field(..., description="Case ID")
-
-class CaseNote(CaseNoteBase):
-    id: int
-    case_id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class CaseNoteResponse(BaseModel):
-    status: int = Field(200, description="Response status")
-    message: str = Field("Success", description="Response message")
-    data: CaseNote
-
-class CaseNoteListResponse(BaseModel):
-    status: int = Field(200, description="Response status")
-    message: str = Field("Success", description="Response message")
-    data: List[CaseNote]
-    total: int = Field(..., description="Total number of notes")
-    page: int = Field(..., description="Current page")
-    size: int = Field(..., description="Page size")
-
 class AnalysisItem(BaseModel):
     evidence_id: str = Field(..., description="Evidence ID")
     summary: str = Field(..., description="Analysis summary")
@@ -306,7 +278,6 @@ class AnalysisItem(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 class PersonWithAnalysis(BaseModel):
     id: int
@@ -326,14 +297,6 @@ class CaseLogDetail(BaseModel):
     class Config:
         from_attributes = True
 
-class CaseNoteDetail(BaseModel):
-    timestamp: str = Field(..., description="Formatted timestamp")
-    status: str = Field(..., description="Note status")
-    content: str = Field(..., description="Note content")
-
-    class Config:
-        from_attributes = True
-
 class CaseSummary(BaseModel):
     total_persons: int = Field(..., description="Total number of persons")
     total_evidence: int = Field(..., description="Total number of evidence")
@@ -341,9 +304,9 @@ class CaseSummary(BaseModel):
     class Config:
         from_attributes = True
 
-class CaseSummaryRequest(BaseModel):
+class CaseNotesRequest(BaseModel):
     case_id: int = Field(..., description="Case ID")
-    summary: str = Field(..., description="Case summary text")
+    notes: str = Field(..., description="Case notes text")
 
 class CaseDetailResponse(BaseModel):
     status: int = Field(200, description="Response status")

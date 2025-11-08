@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.api.deps import get_database
+from app.api.deps import get_database, get_current_user
+from app.auth.models import User
 from app.case_management.service import person_service
 from app.case_management.schemas import (
     Person, PersonCreate, PersonUpdate, PersonResponse, PersonListResponse
@@ -13,10 +14,12 @@ router = APIRouter(prefix="/persons", tags=["Person Management"])
 @router.post("/create-person", response_model=PersonResponse)
 async def create_person(
     person_data: PersonCreate,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
     try:
-        person = person_service.create_person(db, person_data)
+        changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+        person = person_service.create_person(db, person_data, changed_by=changed_by)
         return PersonResponse(
             status=201,
             message="Person created successfully",

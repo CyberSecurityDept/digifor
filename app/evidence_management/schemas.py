@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -201,3 +201,8 @@ class CustodyReportListResponse(BaseModel):
     total: int = Field(..., description="Total number of reports")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+
+class EvidenceNotesRequest(BaseModel):
+    evidence_id: int = Field(..., description="Evidence ID")
+    notes: Dict[str, Any] = Field(..., description="Evidence notes as JSON object with id, thumbnail, and text")

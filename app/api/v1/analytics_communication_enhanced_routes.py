@@ -39,25 +39,6 @@ def normalize_platform_name(platform: str) -> str:
             return normalized
     return platform_lower
 
-def is_local_user_with_file(name: str) -> bool:
-   
-    if not name:
-        return False
-    
-    name_lower = name.strip().lower()
-    
-    # Check for "local user" pattern with file extension in angle brackets
-    # Pattern: "Local User <*.bin>", "Local User <*.tsk>", etc.
-    if 'local user' in name_lower:
-        # Check if it contains angle brackets with file extension
-        if re.search(r'<[^>]*\.(bin|tsk|exe|dll|sys|dat|tmp|log|txt|xml|json|db|sqlite|sql)[^>]*>', name_lower):
-            return True
-        # Also check for pattern like "Local User <HP_TSK2.bin>"
-        if re.search(r'<[^>]+>', name_lower):
-            return True
-    
-    return False
-
 
 def clean_message_text(text: str) -> str:
     if not text:
@@ -264,15 +245,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                         
                         if sender_name and sender_name.strip():
                             person_name = sender_name.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(person_name):
-                                continue
                             person_id = sender_id if sender_id and sender_id.strip() else None
                         elif sender_id and sender_id.strip():
                             sender_id_clean = sender_id.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(sender_id_clean):
-                                continue
                             if len(sender_id_clean) <= 50:
                                 person_name = sender_id_clean
                                 person_id = sender_id_clean
@@ -293,12 +268,10 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                                 )
                             
                             if is_not_device_owner and thread_id not in thread_person_map:
-                                # Double check: filter out "Local User <HP_TSK2.bin>" pattern before storing
-                                if not is_local_user_with_file(person_name):
-                                    thread_person_map[thread_id] = {
-                                        "name": person_name,
-                                        "id": person_id
-                                    }
+                                thread_person_map[thread_id] = {
+                                    "name": person_name,
+                                    "id": person_id
+                                }
                 
                 for msg in platform_messages:
                     sender_name = msg.from_name or ""
@@ -319,22 +292,12 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     if direction_lower in ['outgoing', 'sent']:
                         if recipient_name and recipient_name.strip():
                             recipient_name_clean = recipient_name.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(recipient_name_clean):
-                                continue
                             if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
                                 if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
-                                    recipient_id_clean = recipient_id.strip()
-                                    # Filter out "Local User <HP_TSK2.bin>" pattern
-                                    if is_local_user_with_file(recipient_id_clean):
-                                        continue
-                                    person_name = recipient_id_clean
-                                    person_id = recipient_id_clean
+                                    person_name = recipient_id.strip()
+                                    person_id = recipient_id.strip()
                                 elif thread_id and thread_id in thread_person_map:
                                     person_name = thread_person_map[thread_id]["name"]
-                                    # Filter out "Local User <HP_TSK2.bin>" pattern even from thread_person_map
-                                    if is_local_user_with_file(person_name):
-                                        continue
                                     person_id = thread_person_map[thread_id].get("id")
                                 else:
                                     continue
@@ -343,15 +306,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                                 person_id = recipient_id if recipient_id and recipient_id.strip() else None
                         elif recipient_id and recipient_id.strip():
                             recipient_id_clean = recipient_id.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(recipient_id_clean):
-                                continue
                             if len(recipient_id_clean) > 50:
                                 if thread_id and thread_id in thread_person_map:
                                     person_name = thread_person_map[thread_id]["name"]
-                                    # Filter out "Local User <HP_TSK2.bin>" pattern even from thread_person_map
-                                    if is_local_user_with_file(person_name):
-                                        continue
                                     person_id = thread_person_map[thread_id].get("id")
                                 else:
                                     continue
@@ -361,24 +318,15 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                         else:
                             if thread_id and thread_id in thread_person_map:
                                 person_name = thread_person_map[thread_id]["name"]
-                                # Filter out "Local User <HP_TSK2.bin>" pattern even from thread_person_map
-                                if is_local_user_with_file(person_name):
-                                    continue
                                 person_id = thread_person_map[thread_id].get("id")
                             else:
                                 continue
                     elif direction_lower in ['incoming', 'received']:
                         if sender_name and sender_name.strip():
                             person_name = sender_name.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(person_name):
-                                continue
                             person_id = sender_id if sender_id and sender_id.strip() else None
                         elif sender_id and sender_id.strip():
                             sender_id_clean = sender_id.strip()
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(sender_id_clean):
-                                continue
                             if len(sender_id_clean) > 50:
                                 continue
                             person_name = sender_id_clean
@@ -388,27 +336,15 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     else:
                         sender_name_lower = (sender_name or "").strip().lower()
                         if sender_name and (not device_owner_name or sender_name_lower != device_owner_name):
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(sender_name):
-                                continue
                             person_name = sender_name
                             person_id = sender_id
                         elif recipient_name and (not device_owner_name or recipient_name_lower != device_owner_name):
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(recipient_name):
-                                continue
                             person_name = recipient_name
                             person_id = recipient_id
                         elif recipient_name:
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(recipient_name):
-                                continue
                             person_name = recipient_name
                             person_id = recipient_id
                         elif sender_name:
-                            # Filter out "Local User <HP_TSK2.bin>" pattern
-                            if is_local_user_with_file(sender_name):
-                                continue
                             person_name = sender_name
                             person_id = sender_id
                     

@@ -10,7 +10,7 @@ from app.case_management.schemas import (
 
 router = APIRouter(prefix="/case-logs", tags=["Case Log Management"])
 
-@router.put("/update-log/{case_id}", response_model=CaseLogResponse)
+@router.put("/change-log/{case_id}", response_model=CaseLogResponse)
 async def update_case_log(
     case_id: int,
     log_data: CaseLogUpdate,
@@ -29,7 +29,7 @@ async def update_case_log(
             detail="Unexpected server error, please try again later"
         )
 
-@router.get("/case/{case_id}/logs", response_model=CaseLogListResponse)
+@router.get("/case/logs/{case_id}", response_model=CaseLogListResponse)
 async def get_case_logs(
     case_id: int,
     skip: int = Query(0, ge=0),

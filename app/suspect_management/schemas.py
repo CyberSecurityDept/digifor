@@ -77,3 +77,8 @@ class SuspectListResponse(BaseModel):
     total: int = Field(..., description="Total number of suspects")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+
+class SuspectNotesRequest(BaseModel):
+    suspect_id: int = Field(..., description="Suspect ID")
+    notes: str = Field(..., description="Suspect notes text")

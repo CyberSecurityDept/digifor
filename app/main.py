@@ -32,7 +32,6 @@ from app.api.v1 import (
     auth_routes,
     case_routes,
     case_log_routes,
-    case_note_routes,
     person_routes,
     evidence_routes,
     suspect_routes,
@@ -139,7 +138,6 @@ app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"]
 # Analytics Management
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
-app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
 app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
 app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
 app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])

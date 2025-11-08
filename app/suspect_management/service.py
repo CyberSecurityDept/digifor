@@ -171,5 +171,49 @@ class SuspectService:
         db.delete(suspect)
         db.commit()
         return True
+    
+    def save_suspect_notes(self, db: Session, suspect_id: int, notes: str) -> dict:
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            raise Exception(f"Suspect with ID {suspect_id} not found")
+        
+        if not notes or not notes.strip():
+            raise ValueError("Notes cannot be empty")
+        
+        setattr(suspect, 'notes', notes.strip())
+        db.commit()
+        db.refresh(suspect)
+        
+        updated_at_value = getattr(suspect, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "suspect_id": suspect.id,
+            "suspect_name": suspect.name,
+            "notes": getattr(suspect, 'notes', None),
+            "updated_at": updated_at_str
+        }
+    
+    def edit_suspect_notes(self, db: Session, suspect_id: int, notes: str) -> dict:
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            raise Exception(f"Suspect with ID {suspect_id} not found")
+        
+        if not notes or not notes.strip():
+            raise ValueError("Notes cannot be empty")
+        
+        setattr(suspect, 'notes', notes.strip())
+        db.commit()
+        db.refresh(suspect)
+        
+        updated_at_value = getattr(suspect, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "suspect_id": suspect.id,
+            "suspect_name": suspect.name,
+            "notes": getattr(suspect, 'notes', None),
+            "updated_at": updated_at_str
+        }
 
 suspect_service = SuspectService()

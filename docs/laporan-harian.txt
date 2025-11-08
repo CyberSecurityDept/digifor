@@ -2,6 +2,8 @@ Laporan Pekerjaan Sabtu 8 November 2025
 
 PIC : Imanuel Zagoto
 
+CASE MANAGEMENT
+
 ## Authentication & Security
 
 ### [AUTH] Unified Authentication System
@@ -27,8 +29,8 @@ PIC : Imanuel Zagoto
     
     ### [CASE] Get Case Detail Comprehensive
     1. Membuat endpoint GET /api/v1/cases/get-case-detail-comprehensive/{case_id} dengan path parameter case_id
-    2. Implementasi comprehensive case detail termasuk case info, persons of interest dengan analysis, case logs, dan case notes
-    3. Menambahkan summary statistics: total persons, total evidence, total case log, dan total notes
+    2. Implementasi comprehensive case detail termasuk case info, persons of interest dengan analysis, dan case logs
+    3. Menambahkan field case_notes untuk mengembalikan notes dari model Case (bukan dari tabel case_notes)
     4. Error handling untuk case not found dan server error
     
     ### [CASE] Create Case
@@ -43,3 +45,33 @@ PIC : Imanuel Zagoto
     3. Support update agency dan work unit dengan ID atau nama (auto-create jika belum ada)
     4. Memformat created_at dan updated_at menjadi "DD/MM/YYYY" agar konsisten dengan endpoint lain
     5. Error handling untuk case not found dan validation error
+    
+    ### [CASE] Notes Management
+    1. Mengganti field summary menjadi notes di model Case (Text, nullable)
+    2. Membuat endpoint POST /api/v1/cases/save-notes dan PUT /api/v1/cases/edit-notes
+    3. Implementasi service method untuk save dan edit case notes
+    4. Update get-case-detail-comprehensive untuk mengembalikan case_notes dari field notes di model Case
+    5. Menghapus model CaseNote dan semua referensinya (tabel case_notes tidak digunakan lagi)
+    
+    ### [CASE] Case Log Management
+    1. Membuat endpoint GET /api/v1/case-logs/case/logs/{case_id} untuk mendapatkan daftar case logs dengan pagination
+    2. Mengubah endpoint PUT /api/v1/case-logs/update-log/{case_id} menjadi PUT /api/v1/case-logs/change-log/{case_id}
+    3. Menambahkan field notes ke request body untuk change-log endpoint
+    4. Mengubah format response case log dari changed_by dan change_detail langsung menjadi array edit
+    5. Implementasi logika: changed_by dan change_detail hanya berisi value jika action == "Edit" dan status == current_case_status
+    6. Memperbarui changed_by untuk menggunakan current user (fullname atau email) saat add person dan add evidence (bukan hardcoded)
+    7. Memformat created_at di case log menjadi "D Month YYYY, HH:MM" (contoh: "8 November 2025, 19:23")
+
+## Evidence Management
+    ### [EVIDENCE] Notes Management
+    1. Mengganti field summary menjadi notes di model Evidence (JSON, nullable) untuk menyimpan object dengan id, thumbnail, dan text
+    2. Membuat endpoint POST /api/v1/evidence/save-notes dan PUT /api/v1/evidence/edit-notes
+    3. Implementasi validasi notes sebagai JSON object dengan struktur yang sesuai
+    4. Error handling untuk evidence not found dan validation error
+
+## Suspect Management
+    ### [SUSPECT] Notes Management
+    1. Mengganti field summary menjadi notes di model Suspect (Text, nullable)
+    2. Membuat endpoint POST /api/v1/suspects/save-notes dan PUT /api/v1/suspects/edit-notes
+    3. Implementasi service method untuk save dan edit suspect notes
+    4. Error handling untuk suspect not found dan validation error

@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.api.deps import get_database
 from app.suspect_management.service import suspect_service
-from app.suspect_management.schemas import SuspectCreate, SuspectUpdate, SuspectResponse, SuspectListResponse
+from app.suspect_management.schemas import SuspectCreate, SuspectUpdate, SuspectResponse, SuspectListResponse, SuspectNotesRequest
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/suspects", tags=["Suspect Management"])
 
@@ -124,4 +125,94 @@ async def delete_suspect(
             raise HTTPException(
                 status_code=500,
                 detail="Unexpected server error, please try again later"
+            )
+
+@router.post("/save-notes")
+async def save_suspect_notes(
+    request: SuspectNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = suspect_service.save_suspect_notes(db, request.suspect_id, request.notes)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Suspect notes saved successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {request.suspect_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to save suspect notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )
+
+@router.put("/edit-notes")
+async def edit_suspect_notes(
+    request: SuspectNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = suspect_service.edit_suspect_notes(db, request.suspect_id, request.notes)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Suspect notes updated successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {request.suspect_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to edit suspect notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
             )

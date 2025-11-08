@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
 from app.api.deps import get_database
 from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
     Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse,
-    CaseSummaryRequest
+    CaseNotesRequest
 )
 from fastapi.responses import JSONResponse
 
@@ -18,18 +19,27 @@ async def create_case(
     db: Session = Depends(get_database)
 ):
     try:
-        case = case_service.create_case(db, case_data)
+        case_dict = case_service.create_case(db, case_data)
+        if isinstance(case_dict.get("created_at"), datetime):
+            case_dict["created_at"] = case_dict["created_at"].strftime("%d/%m/%Y")
+        if isinstance(case_dict.get("updated_at"), datetime):
+            case_dict["updated_at"] = case_dict["updated_at"].strftime("%d/%m/%Y")
+        
         return CaseResponse(
             status=201,
             message="Case created successfully",
-            data=case
+            data=case_dict
         )
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR in create_case endpoint: {str(e)}")
+        print(f"ERROR DETAILS: {error_details}")
         raise HTTPException(
             status_code=500, 
-            detail="Unexpected server error, please try again later"
+            detail=f"Unexpected server error: {str(e)}"
         )
 
 @router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
@@ -132,17 +142,17 @@ async def get_case_statistics(
             detail="Unexpected server error, please try again later"
         )
 
-@router.post("/save-summary")
-async def save_case_summary(
-    request: CaseSummaryRequest,
+@router.post("/save-notes")
+async def save_case_notes(
+    request: CaseNotesRequest,
     db: Session = Depends(get_database)
 ):
     try:
-        result = case_service.save_case_summary(db, request.case_id, request.summary)
+        result = case_service.save_case_notes(db, request.case_id, request.notes)
         return JSONResponse(
             content={
                 "status": 200,
-                "message": "Case summary saved successfully",
+                "message": "Case notes saved successfully",
                 "data": result
             },
             status_code=200
@@ -171,23 +181,23 @@ async def save_case_summary(
             return JSONResponse(
                 content={
                     "status": 500,
-                    "message": f"Failed to save case summary: {str(e)}",
+                    "message": f"Failed to save case notes: {str(e)}",
                     "data": None
                 },
                 status_code=500
             )
 
-@router.put("/edit-summary")
-async def edit_case_summary(
-    request: CaseSummaryRequest,
+@router.put("/edit-notes")
+async def edit_case_notes(
+    request: CaseNotesRequest,
     db: Session = Depends(get_database)
 ):
     try:
-        result = case_service.edit_case_summary(db, request.case_id, request.summary)
+        result = case_service.edit_case_notes(db, request.case_id, request.notes)
         return JSONResponse(
             content={
                 "status": 200,
-                "message": "Case summary updated successfully",
+                "message": "Case notes updated successfully",
                 "data": result
             },
             status_code=200
@@ -216,7 +226,7 @@ async def edit_case_summary(
             return JSONResponse(
                 content={
                     "status": 500,
-                    "message": f"Failed to edit case summary: {str(e)}",
+                    "message": f"Failed to edit case notes: {str(e)}",
                     "data": None
                 },
                 status_code=500

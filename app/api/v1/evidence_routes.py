@@ -4,12 +4,15 @@ from typing import Optional
 import hashlib
 from datetime import datetime, timezone, timedelta
 
-from app.api.deps import get_database
+from app.api.deps import get_database, get_current_user
+from app.auth.models import User
 from app.evidence_management.schemas import (
     CustodyLogCreate, CustodyLogUpdate, CustodyLogResponse, 
     CustodyLogListResponse, CustodyChainResponse,
-    CustodyReportCreate, CustodyReportResponse, CustodyReportListResponse
+    CustodyReportCreate, CustodyReportResponse, CustodyReportListResponse,
+    EvidenceNotesRequest
 )
+from fastapi.responses import JSONResponse
 from app.evidence_management.models import Evidence, CustodyLog
 from app.case_management.models import CaseLog, Case
 
@@ -42,7 +45,8 @@ async def get_evidence_list(
 @router.post("/create-evidence")
 async def create_evidence(
     evidence_data: dict,
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
     try:
         case_id = evidence_data.get('case_id')
@@ -53,10 +57,13 @@ async def create_evidence(
                 case = db.query(Case).filter(Case.id == case_id).first()
                 current_status = case.status if case else "Open"
                 
+                # Get changed_by from current user
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                
                 case_log = CaseLog(
                     case_id=case_id,
                     action="Edit",
-                    changed_by="Wisnu",
+                    changed_by=changed_by,
                     change_detail=f"Adding Evidence: {evidence_id}",
                     notes="",
                     status=current_status
@@ -341,3 +348,143 @@ async def get_custody_report(
             status_code=500, 
             detail="Unexpected server error, please try again later"
         )
+
+@router.post("/save-notes")
+async def save_evidence_notes(
+    request: EvidenceNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        evidence = db.query(Evidence).filter(Evidence.id == request.evidence_id).first()
+        if not evidence:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Evidence with ID {request.evidence_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        
+        if not request.notes or not isinstance(request.notes, dict):
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Notes cannot be empty and must be a JSON object",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        setattr(evidence, 'notes', request.notes)
+        db.commit()
+        db.refresh(evidence)
+        
+        updated_at_value = getattr(evidence, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Evidence notes saved successfully",
+                "data": {
+                    "evidence_id": evidence.id,
+                    "evidence_number": evidence.evidence_number,
+                    "evidence_title": evidence.title,
+                    "notes": getattr(evidence, 'notes', None),
+                    "updated_at": updated_at_str
+                }
+            },
+            status_code=200
+        )
+    except Exception as e:
+        db.rollback()
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Evidence with ID {request.evidence_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to save evidence notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )
+
+@router.put("/edit-notes")
+async def edit_evidence_notes(
+    request: EvidenceNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        evidence = db.query(Evidence).filter(Evidence.id == request.evidence_id).first()
+        if not evidence:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Evidence with ID {request.evidence_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        
+        if not request.notes or not isinstance(request.notes, dict):
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Notes cannot be empty and must be a JSON object",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        setattr(evidence, 'notes', request.notes)
+        db.commit()
+        db.refresh(evidence)
+        
+        updated_at_value = getattr(evidence, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Evidence notes updated successfully",
+                "data": {
+                    "evidence_id": evidence.id,
+                    "evidence_number": evidence.evidence_number,
+                    "evidence_title": evidence.title,
+                    "notes": getattr(evidence, 'notes', None),
+                    "updated_at": updated_at_str
+                }
+            },
+            status_code=200
+        )
+    except Exception as e:
+        db.rollback()
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Evidence with ID {request.evidence_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to edit evidence notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )

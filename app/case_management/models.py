@@ -48,13 +48,12 @@ class Case(Base):
     
     agency_id = Column(Integer, ForeignKey("agencies.id"), nullable=True)
     work_unit_id = Column(Integer, ForeignKey("work_units.id"), nullable=True)
-    summary = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
-    notes = relationship("CaseNote", back_populates="case", cascade="all, delete-orphan")
     persons = relationship("Person", back_populates="case", cascade="all, delete-orphan")
     evidence = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
     suspects = relationship("Suspect", back_populates="case", cascade="all, delete-orphan")
@@ -90,20 +89,6 @@ class CaseLog(Base):
             f"<CaseLog(id={self.id}, case_id={self.case_id}, "
             f"action='{self.action}', changed_by='{self.changed_by}')>"
         )
-
-class CaseNote(Base):
-    __tablename__ = "case_notes"
-    id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
-    note = Column(Text, nullable=False)
-    status = Column(String(20), nullable=True)
-    created_by = Column(String(255), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    case = relationship("Case", back_populates="notes")
-    
-    def __repr__(self):
-        return f"<CaseNote(id={self.id}, case_id={self.case_id}, status='{self.status}')>"
 
 class Person(Base):
     __tablename__ = "persons"

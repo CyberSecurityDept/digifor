@@ -40,7 +40,7 @@ class Suspect(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_seen = Column(DateTime(timezone=True))
     
-    notes = Column(Text)
+    notes = Column(Text, nullable=True)
     is_confidential = Column(Boolean, default=False)
     
     case = relationship("Case", back_populates="suspects")
