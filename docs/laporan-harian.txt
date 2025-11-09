@@ -75,3 +75,20 @@ CASE MANAGEMENT
     2. Membuat endpoint POST /api/v1/suspects/save-notes dan PUT /api/v1/suspects/edit-notes
     3. Implementasi service method untuk save dan edit suspect notes
     4. Error handling untuk suspect not found dan validation error
+
+---
+
+Laporan Pekerjaan Senin 11 November 2025
+
+PIC : Imanuel Zagoto
+
+CASE MANAGEMENT
+
+    ### [CASE] Case Log Management (Update)
+    1. Memformat created_at di case log menjadi bahasa Indonesia "D Bulan YYYY, HH:MM" (contoh: "16 Mei 2025, 12:00")
+    2. Membuat endpoint GET /api/v1/case-logs/log/{log_id} untuk mendapatkan detail case log termasuk notes (untuk modal)
+    3. Membuat field notes menjadi wajib (required) pada endpoint PUT /api/v1/case-logs/change-log/{case_id}
+    4. Implementasi conditional fields: field edit dan notes hanya muncul di response jika memiliki value (tidak kosong)
+    5. Update semua endpoint case log (get-case-detail-comprehensive, get-case-logs, get-case-log-detail, change-log) untuk konsistensi conditional fields
+    6. Update schema CaseLog agar edit dan notes menjadi Optional untuk mendukung conditional fields
+    7. Menambahkan dokumentasi lengkap untuk get case log detail endpoint

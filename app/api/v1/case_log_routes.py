@@ -53,3 +53,24 @@ async def get_case_logs(
             status_code=500,
             detail="Unexpected server error, please try again later"
         )
+
+@router.get("/log/{log_id}", response_model=CaseLogResponse)
+async def get_case_log_detail(
+    log_id: int,
+    db: Session = Depends(get_database)
+):
+    """Get detail of a specific case log entry including notes"""
+    try:
+        log = case_log_service.get_case_log_detail(db, log_id)
+        return CaseLogResponse(
+            status=200,
+            message="Case log detail retrieved successfully",
+            data=log
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Unexpected server error, please try again later"
+        )

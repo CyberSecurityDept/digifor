@@ -225,7 +225,7 @@ class CaseLogCreate(CaseLogBase):
 
 class CaseLogUpdate(BaseModel):
     status: str = Field(..., description="Case status (Open, Closed, Re-open)")
-    notes: Optional[str] = Field(None, description="Notes for the case log entry")
+    notes: str = Field(..., description="Notes/alasan wajib untuk perubahan status case log entry")
     
     @validator('status')
     def validate_status(cls, v):
@@ -244,6 +244,12 @@ class CaseLogUpdate(BaseModel):
         else:
             raise ValueError(f"Invalid status '{v}'. Valid values are: {valid_statuses} (case-sensitive)")
         return v
+    
+    @validator('notes')
+    def validate_notes(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Notes/alasan wajib diisi ketika mengubah status case")
+        return v.strip()
 
 class CaseLogEditItem(BaseModel):
     changed_by: str = Field(..., description="User who made the change")
@@ -253,10 +259,13 @@ class CaseLog(BaseModel):
     id: int
     case_id: int
     action: str = Field(..., description="Action performed")
-    edit: List[CaseLogEditItem] = Field(..., description="Array of edit details")
-    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
+    edit: Optional[List[CaseLogEditItem]] = Field(None, description="Array of edit details (only included if changed_by or change_detail has value)")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (only included if notes has value, can be empty)")
     status: Optional[str] = Field(None, description="Case status at the time of log creation")
     created_at: str
+    
+    class Config:
+        exclude_unset = True
 
 class CaseLogResponse(BaseModel):
     status: int = Field(200, description="Response status")

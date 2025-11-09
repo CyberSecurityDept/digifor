@@ -744,15 +744,8 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "id": 1,
         "case_id": 1,
         "action": "Open",
-        "edit": [
-          {
-            "changed_by": "",
-            "change_detail": ""
-          }
-        ],
-        "notes": "",
         "status": "Open",
-        "created_at": "9 May 2025, 18:00"
+        "created_at": "9 Mei 2025, 18:00"
       },
       {
         "id": 2,
@@ -764,9 +757,8 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
             "change_detail": "Adding person Nathalie"
           }
         ],
-        "notes": "",
         "status": "Open",
-        "created_at": "16 May 2025, 12:00"
+        "created_at": "16 Mei 2025, 12:00"
       }
     ],
     "case_notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
@@ -1419,43 +1411,24 @@ Content-Type: application/json
       "id": 1,
       "case_id": 1,
       "action": "Open",
-      "edit": [
-        {
-          "changed_by": "",
-          "change_detail": ""
-        }
-      ],
       "notes": "Kasus sudah ditutup",
       "status": "Open",
-      "created_at": "9 May 2025, 10:00"
+      "created_at": "9 Mei 2025, 10:00"
     },
     {
       "id": 2,
       "case_id": 1,
       "action": "Closed",
-      "edit": [
-        {
-          "changed_by": "",
-          "change_detail": ""
-        }
-      ],
-      "notes": "",
       "status": "Closed",
-      "created_at": "12 May 2025, 14:00"
+      "created_at": "12 Mei 2025, 14:00"
     },
     {
       "id": 3,
       "case_id": 1,
       "action": "Re-Open",
-      "edit": [
-        {
-          "changed_by": "",
-          "change_detail": ""
-        }
-      ],
       "notes": "Kasus dibuka kembali",
       "status": "Re-Open",
-      "created_at": "16 May 2025, 12:00"
+      "created_at": "16 Mei 2025, 12:00"
     },
     {
       "id": 4,
@@ -1467,9 +1440,8 @@ Content-Type: application/json
           "change_detail": "Adding person Nathalie"
         }
       ],
-      "notes": "",
       "status": "Edit",
-      "created_at": "16 May 2025, 12:00"
+      "created_at": "16 Mei 2025, 12:00"
     },
     {
       "id": 5,
@@ -1481,9 +1453,8 @@ Content-Type: application/json
           "change_detail": "Adding evidence 3234222"
         }
       ],
-      "notes": "",
       "status": "Edit",
-      "created_at": "16 May 2025, 12:00"
+      "created_at": "16 Mei 2025, 09:00"
     }
   ],
   "total": 5,
@@ -1496,12 +1467,17 @@ Content-Type: application/json
 - `id`: Log entry unique identifier
 - `case_id`: Case identifier
 - `action`: Action performed (e.g., "Open", "Closed", "Re-open", "Edit")
-- `edit`: Array of edit details, each containing:
-  - `changed_by`: User who made the change (empty string if system-generated)
-  - `change_detail`: Detail of the change (e.g., "Adding person Nathalie", "Adding evidence 3234222")
-- `notes`: Additional notes (can be empty)
+- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
+  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
+  - `change_detail`: Detail of the change (e.g., "Adding person Nathalie", "Adding evidence 3234222", only populated if action is "Edit" and status matches current case status)
+- `notes`: (Optional) Additional notes, only included if notes has value (not empty)
 - `status`: Case status at the time of log creation
-- `created_at`: Date and time formatted as "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+- `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
+
+**Note on Conditional Fields:**
+- Field `edit` **tidak akan muncul** jika `changed_by` dan `change_detail` keduanya kosong
+- Field `notes` **tidak akan muncul** jika notes kosong atau tidak ada
+- Ini membuat response lebih clean dan hanya menampilkan field yang relevan
 
 **Error Responses:**
 
@@ -1540,7 +1516,7 @@ Authorization: Bearer {access_token}
 
 **Note:**
 - Logs are ordered by `created_at` in descending order (newest first)
-- Date format: "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+- Date format: Indonesian format "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
 - Case logs are automatically created when:
   - Case is created (initial "Open" log)
   - Case status is updated (via update-log endpoint)
@@ -1549,11 +1525,104 @@ Authorization: Bearer {access_token}
 
 ---
 
-### 10. Change Case Log (Update Case Status with Notes)
+### 10. Get Case Log Detail (Get Notes for Modal)
+
+**Endpoint:** `GET /api/v1/case-logs/log/{log_id}`
+
+**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. Returns all case log information including the notes field which can be empty or contain text.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `log_id` | integer | Yes | Unique case log identifier |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case log detail retrieved successfully",
+  "data": {
+    "id": 3,
+    "case_id": 1,
+    "action": "Closed",
+    "notes": "kasus sudah di tutup",
+    "status": "Closed",
+    "created_at": "16 Mei 2025, 12:00"
+  }
+}
+```
+
+**Response Fields:**
+- `id`: Log entry unique identifier
+- `case_id`: Case identifier
+- `action`: Action performed (e.g., "Open", "Closed", "Re-open", "Edit")
+- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
+  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
+  - `change_detail`: Detail of the change (only populated if action is "Edit" and status matches current case status)
+- `notes`: (Optional) Notes for the case log entry, only included if notes has value (not empty)
+- `status`: Case status at the time of log creation
+- `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
+
+**Note on Conditional Fields:**
+- Field `edit` **tidak akan muncul** jika `changed_by` dan `change_detail` keduanya kosong
+- Field `notes` **tidak akan muncul** jika notes kosong atau tidak ada
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Case log not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error, please try again later",
+  "data": null
+}
+```
+
+**Example Request:**
+```
+GET http://localhost:8000/api/v1/case-logs/log/3
+Authorization: Bearer {access_token}
+```
+
+**Note:**
+- **Primary Use Case:** This endpoint is used to display notes in a modal dialog when the "Notes" button is clicked on a case log entry in the UI
+- Returns a single case log entry with all its details including the `notes` field
+- The `notes` field can be empty string `""` if no notes have been added, or contain text if notes exist
+- The `changed_by` and `change_detail` fields in the `edit` array will only contain values if:
+  - `action` is "Edit" AND
+  - `status` matches the current case status (status terakhir)
+- Date format: Indonesian format "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
+- **UI Integration:** Frontend should call this endpoint when user clicks the "Notes" button on a case log entry to populate the modal with the notes content
+
+---
+
+### 11. Change Case Log (Update Case Status with Notes)
 
 **Endpoint:** `PUT /api/v1/case-logs/change-log/{case_id}`
 
-**Description:** Update case status and automatically create a new case log entry with optional notes. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
+**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1576,7 +1645,7 @@ Authorization: Bearer {access_token}
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `status` | string | Yes | Case status (Open, Closed, Re-open) |
-| `notes` | string | No | Optional notes for the case log entry |
+| `notes` | string | Yes | **Wajib** - Alasan/notes untuk perubahan status case log entry |
 
 **Valid Status Values:**
 - `"Open"`: Case is open and active
@@ -1592,15 +1661,9 @@ Authorization: Bearer {access_token}
     "id": 6,
     "case_id": 1,
     "action": "Closed",
-    "edit": [
-      {
-        "changed_by": "",
-        "change_detail": ""
-      }
-    ],
     "notes": "kasus sudah di tutup",
     "status": "Closed",
-    "created_at": "16 May 2025, 15:30"
+    "created_at": "16 Mei 2025, 15:30"
   }
 }
 ```
@@ -1609,12 +1672,12 @@ Authorization: Bearer {access_token}
 - `id`: New log entry unique identifier
 - `case_id`: Case identifier
 - `action`: Action performed (same as status value)
-- `edit`: Array of edit details, each containing:
-  - `changed_by`: User who made the change (empty string by default, only populated if action is "Edit" and status matches current case status)
-  - `change_detail`: Detail of the change (empty string by default, only populated if action is "Edit" and status matches current case status)
-- `notes`: Notes provided in the request body (empty string if not provided)
+- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
+  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
+  - `change_detail`: Detail of the change (only populated if action is "Edit" and status matches current case status)
+- `notes`: Notes/alasan yang wajib diisi ketika mengubah status (always included in change-log response since it's required)
 - `status`: New case status
-- `created_at`: Date and time formatted as "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+- `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
 
 **Error Responses:**
 
@@ -1623,6 +1686,15 @@ Authorization: Bearer {access_token}
 {
   "status": 400,
   "message": "Invalid status 'InvalidStatus'. Valid values are: ['Open', 'Closed', 'Re-open'] (case-sensitive)",
+  "data": null
+}
+```
+
+**400 Bad Request (Notes Required):**
+```json
+{
+  "status": 400,
+  "message": "Notes/alasan wajib diisi ketika mengubah status case",
   "data": null
 }
 ```
@@ -1666,17 +1738,6 @@ Content-Type: application/json
 }
 ```
 
-**Example Request (Without Notes):**
-```
-PUT http://localhost:8000/api/v1/case-logs/change-log/1
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "status": "Closed"
-}
-```
-
 **Example Request (Re-open with Notes):**
 ```
 PUT http://localhost:8000/api/v1/case-logs/change-log/1
@@ -1690,16 +1751,18 @@ Content-Type: application/json
 ```
 
 **Note:**
+- **Important:** Field `notes` adalah **WAJIB** ketika mengubah status case. User harus memberikan alasan untuk perubahan status.
 - This endpoint updates the case status in the `cases` table and creates a new log entry
 - The `action` field in the log entry will match the new status value (e.g., "Closed", "Open", "Re-open")
-- The `notes` field is optional. If provided, it will be saved in the case log entry
+- The `notes` field is **required** and cannot be empty. It must contain a reason/alasan for the status change
 - The notes will appear in the `case_log` array when retrieving case detail via `get-case-detail-comprehensive`
 - The `changed_by` and `change_detail` fields in the `edit` array will only contain values if:
   - `action` is "Edit" AND
   - `status` matches the current case status (status terakhir)
 - For status change actions (Open, Closed, Re-open), `changed_by` and `change_detail` will be empty strings
 - Status validation is case-insensitive for common variations (e.g., "reopen", "Re-open", "Re-open" all map to "Re-open")
-- Date format: "D Month YYYY, HH:MM" (e.g., "8 November 2025, 19:23")
+- Date format: Indonesian format "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
+- **UI Flow:** When user changes case status, the UI must require them to input notes/alasan before submitting
 
 ---
 

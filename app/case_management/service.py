@@ -9,6 +9,18 @@ from fastapi import HTTPException
 def get_wib_now():
     return datetime.now(WIB)
 
+def format_date_indonesian(date_value: datetime) -> str:
+    month_names = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+        5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+        9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    day = date_value.day
+    month = month_names[date_value.month]
+    year = date_value.year
+    time = date_value.strftime("%H:%M")
+    return f"{day} {month} {year}, {time}"
+
 def get_or_create_agency(db: Session, name: str):
     agency = db.query(Agency).filter(Agency.name == name).first()
     if not agency:
@@ -71,7 +83,7 @@ class CaseService:
 
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
-        case_dict.pop("summary", None)  # Remove summary from case_dict if present (summary is managed separately)
+        case_dict.pop("summary", None)
 
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
@@ -95,8 +107,6 @@ class CaseService:
             case_dict["case_number"] = case_number
         
         try:
-            # Remove any fields that don't exist in Case model to avoid errors
-            # Note: summary is managed separately via save-summary endpoint, not during case creation
             valid_case_fields = {
                 'case_number', 'title', 'description', 'status', 'main_investigator',
                 'agency_id', 'work_unit_id', 'created_at', 'updated_at'
@@ -120,7 +130,6 @@ class CaseService:
                     status_code=500, 
                     detail=f"Database schema error: {str(e)}. Please run database migration to add the 'summary' column."
                 )
-            # Log full error for debugging
             logger = __import__('logging').getLogger(__name__)
             logger.error(f"Error creating case: {str(e)}")
             logger.error(f"Error details: {error_details}")
@@ -450,53 +459,45 @@ class CaseService:
         current_case_status = case.status  # Get current case status
         
         for log in logs:
-            # Format created_at to "8 November 2025, 19:23"
             created_at_value = getattr(log, 'created_at', None)
             if created_at_value:
                 if isinstance(created_at_value, datetime):
-                    # Get day without leading zero
-                    day = created_at_value.day
-                    # Format: "8 November 2025, 19:23"
-                    formatted_date = f"{day} {created_at_value.strftime('%B %Y, %H:%M')}"
+                    formatted_date = format_date_indonesian(created_at_value)
                 else:
                     formatted_date = str(created_at_value)
             else:
                 formatted_date = None
             
-            # Get log action and status
             log_action = getattr(log, 'action', '')
             log_status = getattr(log, 'status', '')
             
-            # Only populate changed_by and change_detail if:
-            # 1. action is "Edit" AND
-            # 2. status matches current case status (status terakhir)
             if log_action == "Edit" and log_status == current_case_status:
-                # Get changed_by and change_detail from log
                 changed_by = getattr(log, 'changed_by', '') or ''
                 change_detail = getattr(log, 'change_detail', '') or ''
             else:
-                # Set to empty string if conditions not met
                 changed_by = ''
                 change_detail = ''
             
-            # Create edit array with changed_by and change_detail
-            edit_array = [{
-                "changed_by": changed_by,
-                "change_detail": change_detail
-            }]
-            
-            # Get notes, default to empty string if None
             notes = getattr(log, 'notes', '') or ''
             
             log_data = {
                 "id": log.id,
                 "case_id": log.case_id,
                 "action": log.action,
-                "edit": edit_array,
-                "notes": notes,
                 "status": log.status,
                 "created_at": formatted_date
             }
+            
+            if changed_by or change_detail:
+                edit_array = [{
+                    "changed_by": changed_by,
+                    "change_detail": change_detail
+                }]
+                log_data["edit"] = edit_array
+            
+            if notes:
+                log_data["notes"] = notes
+            
             case_log.append(log_data)
         
         case_notes_value = getattr(case, 'notes', None)
@@ -541,7 +542,6 @@ class CaseLogService:
         }
     
     def update_case_log(self, db: Session, case_id: int, log_data: dict) -> dict:
-        """Update case status and create case log entry"""
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail="Case not found")
@@ -553,8 +553,10 @@ class CaseLogService:
         db.commit()
         db.refresh(case)
         
-        # Get notes from request body, default to empty string if not provided
-        notes = log_data.get('notes', '') or ''
+        notes = log_data.get('notes', '')
+        if not notes or not notes.strip():
+            raise HTTPException(status_code=400, detail="Notes/alasan wajib diisi ketika mengubah status case")
+        notes = notes.strip()
         
         log_entry = CaseLog(
             case_id=case_id,
@@ -572,8 +574,7 @@ class CaseLogService:
         created_at_value = getattr(log_entry, 'created_at', None)
         if created_at_value:
             if isinstance(created_at_value, datetime):
-                day = created_at_value.day
-                formatted_date = f"{day} {created_at_value.strftime('%B %Y, %H:%M')}"
+                formatted_date = format_date_indonesian(created_at_value)
             else:
                 formatted_date = str(created_at_value)
         else:
@@ -621,8 +622,7 @@ class CaseLogService:
             created_at_value = getattr(log, 'created_at', None)
             if created_at_value:
                 if isinstance(created_at_value, datetime):
-                    day = created_at_value.day
-                    formatted_date = f"{day} {created_at_value.strftime('%B %Y, %H:%M')}"
+                    formatted_date = format_date_indonesian(created_at_value)
                 else:
                     formatted_date = str(created_at_value)
             else:
@@ -638,28 +638,83 @@ class CaseLogService:
                 changed_by = ''
                 change_detail = ''
             
-            edit_array = [{
-                "changed_by": changed_by,
-                "change_detail": change_detail
-            }]
-            
             notes = getattr(log, 'notes', '') or ''
             
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
                 "action": log.action,
-                "edit": edit_array,
-                "notes": notes,
                 "status": log.status,
                 "created_at": formatted_date
             }
+            
+            if changed_by or change_detail:
+                edit_array = [{
+                    "changed_by": changed_by,
+                    "change_detail": change_detail
+                }]
+                log_dict["edit"] = edit_array
+            
+            # Only add notes field if notes has value
+            if notes:
+                log_dict["notes"] = notes
+            
             result.append(log_dict)
         
         return result
     
     def get_log_count(self, db: Session, case_id: int) -> int:
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
+    
+    def get_case_log_detail(self, db: Session, log_id: int) -> dict:
+        log = db.query(CaseLog).filter(CaseLog.id == log_id).first()
+        if not log:
+            raise HTTPException(status_code=404, detail="Case log not found")
+        
+        case = db.query(Case).filter(Case.id == log.case_id).first()
+        current_case_status = case.status if case else None
+        
+        created_at_value = getattr(log, 'created_at', None)
+        if created_at_value:
+            if isinstance(created_at_value, datetime):
+                formatted_date = format_date_indonesian(created_at_value)
+            else:
+                formatted_date = str(created_at_value)
+        else:
+            formatted_date = None
+        
+        log_action = getattr(log, 'action', '')
+        log_status = getattr(log, 'status', '')
+        
+        if log_action == "Edit" and log_status == current_case_status:
+            changed_by = getattr(log, 'changed_by', '') or ''
+            change_detail = getattr(log, 'change_detail', '') or ''
+        else:
+            changed_by = ''
+            change_detail = ''
+        
+        notes_value = getattr(log, 'notes', '') or ''
+        
+
+        result = {
+            "id": log.id,
+            "case_id": log.case_id,
+            "action": log.action,
+            "status": log.status,
+            "created_at": formatted_date
+        }
+        
+        if changed_by or change_detail:
+            edit_array = [{
+                "changed_by": changed_by,
+                "change_detail": change_detail
+            }]
+            result["edit"] = edit_array
+        
+        if notes_value:
+            result["notes"] = notes_value
+        
+        return result
 
 class PersonService:
     def create_person(self, db: Session, person_data: PersonCreate, changed_by: str = "") -> dict:
