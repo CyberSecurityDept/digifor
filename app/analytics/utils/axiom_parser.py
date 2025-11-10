@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -6,10 +5,9 @@ from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
-import logging
 import warnings
 from pathlib import Path
-import re
+import re, traceback, logging
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +274,6 @@ class AxiomParser:
 
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error

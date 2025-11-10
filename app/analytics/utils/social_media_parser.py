@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -7,9 +6,7 @@ from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
 from .social_media_parsers_extended import SocialMediaParsersExtended
-
-import warnings
-import sys
+import io, sys, warnings, re, traceback, logging
 
 warnings.filterwarnings('ignore')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -22,7 +19,8 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
-import io
+
+
 class FilteredStderr(io.TextIOWrapper):
     def write(self, s):
         if isinstance(s, str):
@@ -188,7 +186,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -571,7 +569,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -1232,7 +1230,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         
                     except Exception as batch_error:
                         print(f"Error saving contacts batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1460,7 +1458,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             
                         except Exception as batch_error:
                             print(f"Error saving WhatsApp batch {i//batch_size + 1}: {batch_error}")
-                            import traceback
+                            
                             traceback.print_exc()
                             self.db.rollback()
                     
@@ -1547,7 +1545,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved TikTok batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {tiktok_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving TikTok batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1684,7 +1682,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved Telegram batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {telegram_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving Telegram batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1785,7 +1783,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved X (Twitter) batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {twitter_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving X (Twitter) batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1870,7 +1868,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved Facebook batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {facebook_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving Facebook batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1879,7 +1877,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
 
         except Exception as e:
             print(f"Error parsing Contacts sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2159,7 +2157,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing Instagram dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2302,7 +2300,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing WhatsApp Messenger dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2472,7 +2470,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing X (Twitter) dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results

@@ -18,7 +18,6 @@ class EvidenceBase(BaseModel):
     file_hash: Optional[str] = Field(None, description="File hash")
     file_type: Optional[str] = Field(None, description="File type")
     file_extension: Optional[str] = Field(None, description="File extension")
-    status: str = Field("collected", description="Evidence status")
     analysis_status: str = Field("pending", description="Analysis status")
     collected_by: Optional[str] = Field(None, description="Collected by")
     collected_date: Optional[datetime] = Field(None, description="Collection date")

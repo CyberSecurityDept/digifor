@@ -10,6 +10,7 @@ from app.case_management.schemas import (
     CaseNotesRequest
 )
 from fastapi.responses import JSONResponse
+import traceback
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -33,7 +34,6 @@ async def create_case(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         print(f"ERROR in create_case endpoint: {str(e)}")
         print(f"ERROR DETAILS: {error_details}")

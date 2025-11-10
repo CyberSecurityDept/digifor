@@ -8,8 +8,7 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
-import re
-import traceback
+import traceback, re
 
 router = APIRouter()
 
@@ -50,31 +49,23 @@ def clean_message_text(text: str) -> str:
     cleaned = cleaned.replace('\\\\n', '\n')
     cleaned = cleaned.replace('\\\\r', '\r')
     cleaned = cleaned.replace('\\\\t', ' ')
-    
     cleaned = cleaned.replace('\\n', '\n') 
     cleaned = cleaned.replace('\\r', '\r')
     cleaned = cleaned.replace('\\t', ' ')
-    
     cleaned = cleaned.replace('\r\n', '\n').replace('\r', '\n')
-    
     cleaned = cleaned.replace('\n', ' ')
-    
     cleaned = re.sub(r' {2,}', ' ', cleaned)
-    
     cleaned = cleaned.strip()
-    
+
     result = re.sub(r'\\(?![\'"nrtbfvxuU0-7\\])', '', cleaned)
-    
     if result.endswith('\\') and (len(result) < 2 or result[-2] != '\\'):
         result = result[:-1]
     
     return result
 
-
 def extract_time_from_timestamp(timestamp: str) -> str:
     if not timestamp:
         return ""
-    
     try:
         time_match = re.search(r'(\d{1,2}):(\d{2})(?::\d{2})?', timestamp)
         if time_match:
@@ -92,7 +83,6 @@ def extract_time_from_timestamp(timestamp: str) -> str:
         pass
     
     return ""
-
 
 def is_valid_person_name(name: str) -> bool:
     if not name:

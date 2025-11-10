@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys
+import sys, os, traceback
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -153,7 +153,6 @@ def check_hashfile_data(analytic_id: int = 1):
         
     except Exception as e:
         print(f"Error: {e}")
-        import traceback
         traceback.print_exc()
     finally:
         db.close()

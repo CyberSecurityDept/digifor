@@ -1,10 +1,9 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
-import warnings
+import warnings, traceback, re
 
 
 class ChatMessagesParser:
@@ -111,7 +110,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing chat messages: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -177,7 +176,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing TikTok messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -246,7 +245,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Instagram messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -345,7 +344,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing WhatsApp messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -421,7 +420,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Telegram messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -500,7 +499,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing X messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -589,7 +588,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Facebook messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -620,7 +619,7 @@ class ChatMessagesParser:
         except Exception as e:
             print(f"Error saving chat messages to database: {e}")
             self.db.rollback()
-            import traceback
+            
             traceback.print_exc()
             raise e
         

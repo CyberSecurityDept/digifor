@@ -54,7 +54,6 @@ class Case(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
-    persons = relationship("Person", back_populates="case", cascade="all, delete-orphan")
     evidence = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
     suspects = relationship("Suspect", back_populates="case", cascade="all, delete-orphan")
     
@@ -90,24 +89,3 @@ class CaseLog(Base):
             f"action='{self.action}', changed_by='{self.changed_by}')>"
         )
 
-class Person(Base):
-    __tablename__ = "persons"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    is_unknown = Column(Boolean, default=False)
-    custody_stage = Column(String(100))
-    evidence_id = Column(String(100))
-    evidence_source = Column(String(100))
-    evidence_summary = Column(Text)
-    investigator = Column(String(255))
-
-    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    created_by = Column(String(255), nullable=False)
-
-    case = relationship("Case", back_populates="persons")
-    
-    def __repr__(self):
-        return f"<Person(id={self.id}, name='{self.name}', case_id={self.case_id})>"

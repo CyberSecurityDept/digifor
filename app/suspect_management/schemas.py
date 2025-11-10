@@ -7,7 +7,7 @@ class SuspectBase(BaseModel):
     name: str = Field(..., description="Full name")
     case_name: Optional[str] = Field(None, description="Associated case name")
     investigator: Optional[str] = Field(None, description="Investigator name")
-    status: str = Field("Suspect", description="Suspect status")
+    status: Optional[str] = Field(None, description="Suspect status: Witness, Reported, Suspected, Suspect, Defendant (must be selected from UI, no default)")
     date_of_birth: Optional[date] = Field(None, description="Date of birth")
     place_of_birth: Optional[str] = Field(None, description="Place of birth")
     nationality: Optional[str] = Field(None, description="Nationality")

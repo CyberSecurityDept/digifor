@@ -157,9 +157,10 @@ class CasePerson(CasePersonBase):
 class PersonBase(BaseModel):
     name: str = Field(..., description="Person name")
     is_unknown: bool = Field(False, description="Is unknown person")
+    suspect_status: Optional[str] = Field(None, description="Suspect status: Witness, Reported, Suspected, Suspect, Defendant (must be selected from UI)")
     custody_stage: Optional[str] = Field(None, description="Custody stage")
     evidence_id: Optional[str] = Field(None, description="Evidence ID")
-    evidence_source: Optional[str] = Field(None, description="Evidence source")
+    evidence_source: Optional[str] = Field(None, description="Evidence source: Handphone, SSD, Harddisk, PC, Laptop, DVR")
     evidence_summary: Optional[str] = Field(None, description="Evidence summary")
     investigator: Optional[str] = Field(None, description="Investigator name")
     created_by: str = Field(..., description="User who created the person record")
@@ -218,7 +219,7 @@ class CaseLogBase(BaseModel):
     action: str = Field(..., description="Action performed")
     changed_by: str = Field(..., description="User who made the change")
     change_detail: Optional[str] = Field(None, description="Detail perubahan (misal 'Adding Evidence: 32342223; Description change')")
-    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa muncul saat tombol Notes diklik)")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa kosong saat create case, tapi wajib diisi saat update status)")
 
 class CaseLogCreate(CaseLogBase):
     case_id: int = Field(..., description="Case ID")
@@ -260,12 +261,13 @@ class CaseLog(BaseModel):
     case_id: int
     action: str = Field(..., description="Action performed")
     edit: Optional[List[CaseLogEditItem]] = Field(None, description="Array of edit details (only included if changed_by or change_detail has value)")
-    notes: Optional[str] = Field(None, description="Catatan tambahan (only included if notes has value, can be empty)")
+    notes: Optional[str] = Field(None, description="Catatan tambahan (bisa kosong saat create case, tapi wajib diisi saat update status via change-log endpoint)")
     status: Optional[str] = Field(None, description="Case status at the time of log creation")
     created_at: str
     
     class Config:
         exclude_unset = True
+        exclude_none = False
 
 class CaseLogResponse(BaseModel):
     status: int = Field(200, description="Response status")

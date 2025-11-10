@@ -46,7 +46,6 @@ class Evidence(Base):
     file_type = Column(String(50))
     file_extension = Column(String(10))
 
-    status = Column(String(20), default="collected")
     analysis_status = Column(String(20), default="pending")
     analysis_progress = Column(Integer, default=0)
 
@@ -72,7 +71,7 @@ class Evidence(Base):
     custody_reports = relationship("CustodyReport", back_populates="evidence", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Evidence(id={self.id}, evidence_number='{self.evidence_number}', status='{self.status}')>"
+        return f"<Evidence(id={self.id}, evidence_number='{self.evidence_number}')>"
 
 
 class CustodyLog(Base):

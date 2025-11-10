@@ -23,10 +23,7 @@ from app.api.v1.analytics_social_media_routes import social_media_correlation
 from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
 from datetime import datetime
 import dateutil.parser
-import os, json
-import gc
-import logging
-import time
+import os, json, gc, logging, time
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,3 @@
-import asyncio
-import os
 from pathlib import Path
 from typing import Any, Dict
 from fastapi import UploadFile
@@ -11,8 +9,6 @@ from app.analytics.utils.performance_optimizer import performance_optimizer
 from app.analytics.device_management.service import save_hashfiles_to_database
 from app.db.session import get_db
 from app.core.config import settings
-import tempfile
-import time
 from datetime import datetime
 from app.analytics.utils.social_media_parser import SocialMediaParser
 from app.analytics.device_management.models import SocialMedia, Contact, Call, HashFile, ChatMessage, Device
@@ -20,7 +16,7 @@ from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.contact_parser import ContactParser
 from app.analytics.utils.hashfile_parser import HashFileParser
 import pandas as pd
-import traceback
+import traceback, time, tempfile, os, asyncio
 
 sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
@@ -251,7 +247,21 @@ class UploadService:
                 "percent": 95
             })
 
-            parsed_data = tools_parser.parse_file(Path(original_path_abs), tools)
+            try:
+                loop = asyncio.get_event_loop()
+                parsed_data = await asyncio.wait_for(
+                    loop.run_in_executor(None, tools_parser.parse_file, Path(original_path_abs), tools),
+                    timeout=600.0
+                )
+            except asyncio.TimeoutError:
+                self._mark_done(upload_id, "Parsing timeout: Process took too long (exceeded 10 minutes)")
+                return {"status": 500, "message": "Parsing timeout: Process took too long", "data": None}
+            except Exception as e:
+                error_msg = f"Parsing error: {str(e)}"
+                print(f"[ERROR] {error_msg}")
+                traceback.print_exc()
+                self._mark_done(upload_id, error_msg)
+                return {"status": 500, "message": error_msg, "data": None}
             
             self._progress[upload_id].update({
                 "message": "Parsing completed. Starting data insertion...",

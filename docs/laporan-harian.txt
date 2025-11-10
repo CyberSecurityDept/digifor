@@ -92,3 +92,6 @@ CASE MANAGEMENT
     5. Update semua endpoint case log (get-case-detail-comprehensive, get-case-logs, get-case-log-detail, change-log) untuk konsistensi conditional fields
     6. Update schema CaseLog agar edit dan notes menjadi Optional untuk mendukung conditional fields
     7. Menambahkan dokumentasi lengkap untuk get case log detail endpoint
+
+
+

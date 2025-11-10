@@ -16,6 +16,14 @@ class Suspect(Base):
     
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True)
     
+    # Fields from Person model
+    is_unknown = Column(Boolean, default=False)
+    custody_stage = Column(String(100))
+    evidence_id = Column(String(100))
+    evidence_source = Column(String(100))
+    evidence_summary = Column(Text)
+    created_by = Column(String(255), nullable=True)
+    
     date_of_birth = Column(Date)
     place_of_birth = Column(String(100))
     nationality = Column(String(50))

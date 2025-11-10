@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-import sys
-import os
-
-# Add project root to path (go up one level from scripts/)
+import logging, os, sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from sqlalchemy import create_engine, text  # type: ignore
 from app.core.config import settings
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 def list_all_tables():
     try:
@@ -39,7 +34,6 @@ def list_all_tables():
             print(f"Total Tables: {len(tables)}\n")
             
             for i, (table_name, col_count) in enumerate(tables, 1):
-                # Get row count
                 try:
                     count_result = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
                     row_count = count_result.fetchone()[0]
@@ -54,7 +48,6 @@ def list_all_tables():
         return False
     
     return True
-
 
 if __name__ == "__main__":
     list_all_tables()

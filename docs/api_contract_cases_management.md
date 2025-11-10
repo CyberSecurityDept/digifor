@@ -478,9 +478,9 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 **Response (200 OK):**
 ```json
 {
-    "status": 200,
-    "message": "Statistics retrieved successfully",
-    "data": {
+  "status": 200,
+  "message": "Statistics retrieved successfully",
+  "data": {
         "open_cases": 2,
         "closed_cases": 0,
         "reopened_cases": 0
@@ -728,7 +728,39 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
           {
             "evidence_id": "342344442",
             "notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025...",
-            "status": "Analysis"
+            "status": "Analysis",
+            "file_path": "data/evidence/evidence_20250116_143022_342344442.jpg",
+            "source": "Handphone",
+            "chain_of_custody": {
+              "acquisition": {
+                "date": "16 Mei 2025, 12:00",
+                "investigator": "Solehun",
+                "location": "Bandara Soekarno Hatta Terminal 1",
+                "description": "Pengambilan bukti handphone dari tersangka",
+                "tools_used": []
+              },
+              "preparation": {
+                "date": "16 Mei 2025, 13:30",
+                "investigator": "Solehun",
+                "location": "Lab Forensik",
+                "description": "Persiapan bukti untuk ekstraksi",
+                "tools_used": ["Magnet Axiom", "Celebrate"]
+              },
+              "extraction": {
+                "date": "16 Mei 2025, 14:00",
+                "investigator": "Solehun",
+                "location": "Lab Forensik",
+                "description": "Ekstraksi data dari handphone",
+                "tools_used": ["Cellebrite UFED"]
+              },
+              "analysis": {
+                "date": "16 Mei 2025, 15:00",
+                "investigator": "Solehun",
+                "location": "Lab Forensik",
+                "description": "Analisis data yang diekstrak",
+                "tools_used": ["Oxygen Forensics"]
+              }
+            }
           }
         ]
       },
@@ -741,30 +773,74 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
     ],
     "case_log": [
       {
-        "id": 1,
+        "id": 5,
         "case_id": 1,
-        "action": "Open",
-        "status": "Open",
-        "created_at": "9 Mei 2025, 18:00"
+        "action": "Re-Open",
+        "notes": "Kasus dibuka kembali",
+        "status": "Re-Open",
+        "created_at": "16 Mei 2025, 12:00"
       },
       {
-        "id": 2,
+        "id": 4,
         "case_id": 1,
         "action": "Edit",
         "edit": [
           {
-            "changed_by": "Wisnu",
-            "change_detail": "Adding person Nathalie"
+            "changed_by": "By: Wisnu",
+            "change_detail": "Change: Adding person Nathalie"
           }
         ],
-        "status": "Open",
         "created_at": "16 Mei 2025, 12:00"
+      },
+      {
+        "id": 3,
+        "case_id": 1,
+        "action": "Edit",
+        "edit": [
+          {
+            "changed_by": "By: Wisnu",
+            "change_detail": "Change: Adding evidence 3234222"
+          }
+        ],
+        "created_at": "16 Mei 2025, 09:00"
+      },
+      {
+        "id": 2,
+        "case_id": 1,
+        "action": "Closed",
+        "notes": "Kasus ini ditutup",
+        "status": "Closed",
+        "created_at": "12 Mei 2025, 14:00"
+      },
+      {
+        "id": 1,
+        "case_id": 1,
+        "action": "Open",
+        "status": "Open",
+        "created_at": "9 Mei 2025, 10:00"
       }
     ],
     "case_notes": "Berdasarkan rekaman CCTV tanggal 10 September 2025, tersangka terlihat memasuki gedung pada pukul 14:30 WIB. Investigasi lebih lanjut diperlukan untuk mengidentifikasi aktivitas tersangka di dalam gedung."
   }
 }
 ```
+
+**Catatan tentang Struktur Case Log dalam Response:**
+- **Untuk action "Edit"**: Hanya menampilkan `id`, `case_id`, `action`, `edit` array, dan `created_at` (tidak ada field `notes` dan `status`)
+- **Untuk action lainnya** (Open, Closed, Re-Open): Menampilkan `id`, `case_id`, `action`, `status`, `created_at`, dan `notes` (jika ada nilai, tidak kosong)
+- **Field `notes` dalam `case_log`:**
+  - **Hanya ditampilkan** jika nilai notes tidak kosong (tidak `null` dan tidak string kosong `""`)
+  - **Tidak ditampilkan** jika nilai notes adalah string kosong `""` atau `null`
+  - Contoh: Jika `notes: ""`, field `notes` tidak akan muncul dalam response
+- Action "Edit" hanya muncul ketika user menambahkan person of interest atau evidence ke case
+- Format untuk `changed_by` dalam `edit` array: "By: {user_name}" (contoh: "By: Wisnu")
+- Format untuk `change_detail` dalam `edit` array: "Change: Adding {type} {name/id}" (contoh: "Change: Adding person Nathalie", "Change: Adding evidence 3234222")
+- Field `notes` wajib diisi saat update status via change-log endpoint, dan akan muncul dalam response jika tidak kosong
+- **Field `chain_of_custody` dalam `analysis` items:**
+  - Berisi tracking Chain of Custody untuk setiap evidence dengan 4 tahap: `acquisition`, `preparation`, `extraction`, `analysis`
+  - Setiap tahap berisi: `date` (format Indonesia), `investigator`, `location`, `description`, `tools_used` (array)
+  - Jika tahap belum ada data, nilai akan menjadi `null`
+  - Data diambil dari `CustodyLog` berdasarkan `event_type` dan diurutkan berdasarkan `event_date`
 
 **Error Responses:**
 
@@ -1221,7 +1297,7 @@ Authorization: Bearer {access_token}
 **Response (200 OK):**
 ```json
 {
-    "status": 200,
+  "status": 200,
     "message": "Case notes saved successfully",
     "data": {
         "case_id": 1,
@@ -1387,8 +1463,11 @@ Content-Type: application/json
 **Description:** Retrieve all log entries for a specific case with pagination support.
 
 **Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers** (optional):
+  - `Content-Type: application/json`
 
 **Path Parameters:**
 | Parameter | Type | Required | Description |
@@ -1408,22 +1487,7 @@ Content-Type: application/json
   "message": "Case logs retrieved successfully",
   "data": [
     {
-      "id": 1,
-      "case_id": 1,
-      "action": "Open",
-      "notes": "Kasus sudah ditutup",
-      "status": "Open",
-      "created_at": "9 Mei 2025, 10:00"
-    },
-    {
-      "id": 2,
-      "case_id": 1,
-      "action": "Closed",
-      "status": "Closed",
-      "created_at": "12 Mei 2025, 14:00"
-    },
-    {
-      "id": 3,
+      "id": 5,
       "case_id": 1,
       "action": "Re-Open",
       "notes": "Kasus dibuka kembali",
@@ -1436,25 +1500,38 @@ Content-Type: application/json
       "action": "Edit",
       "edit": [
         {
-          "changed_by": "Admin Forensic",
-          "change_detail": "Adding person Nathalie"
+          "changed_by": "By: Wisnu",
+          "change_detail": "Change: Adding person Nathalie"
         }
       ],
-      "status": "Edit",
       "created_at": "16 Mei 2025, 12:00"
     },
     {
-      "id": 5,
+      "id": 3,
       "case_id": 1,
       "action": "Edit",
       "edit": [
         {
-          "changed_by": "Admin Forensic",
-          "change_detail": "Adding evidence 3234222"
+          "changed_by": "By: Wisnu",
+          "change_detail": "Change: Adding evidence 3234222"
         }
       ],
-      "status": "Edit",
       "created_at": "16 Mei 2025, 09:00"
+    },
+    {
+      "id": 2,
+      "case_id": 1,
+      "action": "Closed",
+      "notes": "Kasus ini ditutup",
+      "status": "Closed",
+      "created_at": "12 Mei 2025, 14:00"
+    },
+    {
+      "id": 1,
+      "case_id": 1,
+      "action": "Open",
+      "status": "Open",
+      "created_at": "9 Mei 2025, 10:00"
     }
   ],
   "total": 5,
@@ -1467,17 +1544,18 @@ Content-Type: application/json
 - `id`: Log entry unique identifier
 - `case_id`: Case identifier
 - `action`: Action performed (e.g., "Open", "Closed", "Re-open", "Edit")
-- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
-  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
-  - `change_detail`: Detail of the change (e.g., "Adding person Nathalie", "Adding evidence 3234222", only populated if action is "Edit" and status matches current case status)
-- `notes`: (Optional) Additional notes, only included if notes has value (not empty)
-- `status`: Case status at the time of log creation
+- `edit`: (Optional) **Hanya muncul untuk action "Edit"** - Array of edit details when person or evidence is added. Each containing:
+  - `changed_by`: Format "By: {user_name}" - User who made the change (e.g., "By: Wisnu")
+  - `change_detail`: Format "Change: Adding {type} {name/id}" - Detail of the change (e.g., "Change: Adding person Nathalie", "Change: Adding evidence 3234222")
+- `notes`: (Optional) **Hanya muncul untuk action selain "Edit"** (Open, Closed, Re-Open) - Additional notes. Field ini **tidak muncul** jika kosong/null untuk initial log (action "Open"), tapi wajib diisi dan selalu muncul saat update status via change-log endpoint.
+- `status`: (Optional) **Hanya muncul untuk action selain "Edit"** (Open, Closed, Re-Open) - Case status at the time of log creation
 - `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
 
-**Note on Conditional Fields:**
-- Field `edit` **tidak akan muncul** jika `changed_by` dan `change_detail` keduanya kosong
-- Field `notes` **tidak akan muncul** jika notes kosong atau tidak ada
-- Ini membuat response lebih clean dan hanya menampilkan field yang relevan
+**Note on Response Structure:**
+- **Untuk action "Edit"**: Hanya menampilkan `id`, `case_id`, `action`, `edit` array, dan `created_at` (tidak ada `notes` dan `status`)
+- **Untuk action selain "Edit"** (Open, Closed, Re-Open): Menampilkan `id`, `case_id`, `action`, `status`, `notes` (jika ada), dan `created_at` (tidak ada `edit` array)
+- Action "Edit" hanya muncul ketika user melakukan adding person of interest atau adding evidence pada case detail
+- Field `notes` **tidak muncul** jika kosong/null untuk initial log (action "Open"), tapi wajib diisi dan selalu muncul saat update status via change-log endpoint
 
 **Error Responses:**
 
@@ -1508,10 +1586,31 @@ Content-Type: application/json
 }
 ```
 
-**Example Request:**
+**Example Request (Postman):**
+
+**Method:** `GET`
+
+**URL:**
 ```
-GET http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10
-Authorization: Bearer {access_token}
+http://localhost:8000/api/v1/case-logs/case/logs/1
+```
+
+**Headers:**
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers** (optional):
+  - `Content-Type: application/json`
+
+**Query Parameters (Tab Params):**
+- `skip`: `0` (optional, default: 0)
+- `limit`: `10` (optional, default: 10)
+
+**Example Request (cURL):**
+```bash
+curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json"
 ```
 
 **Note:**
@@ -1529,10 +1628,34 @@ Authorization: Bearer {access_token}
 
 **Endpoint:** `GET /api/v1/case-logs/log/{log_id}`
 
-**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. Returns all case log information including the notes field which can be empty or contain text.
+**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog.
+
+**Important:** Endpoint ini **HANYA** untuk action yang memiliki notes (Open, Closed, Re-Open). **TIDAK digunakan** untuk action "Edit" karena action "Edit" tidak memiliki notes field.
+
+**Use Case:**
+- Ketika user melihat list case logs dari endpoint `GET /api/v1/case-logs/case/logs/{case_id}`, mereka akan melihat semua log entries untuk case tersebut
+- Setiap log entry yang memiliki field `notes` (terlihat di response) akan menampilkan button "Notes"
+- **Button "Notes" hanya muncul untuk log entries dengan action: Open, Closed, atau Re-Open (yang memiliki notes)**
+- **Button "Notes" TIDAK muncul untuk action "Edit"** (karena tidak memiliki notes field)
+- Ketika user klik button "Notes" pada log entry tertentu, frontend akan memanggil endpoint ini dengan `log_id` dari log entry tersebut
+- Endpoint ini akan mengembalikan detail notes lengkap untuk ditampilkan di modal pop-up
+- Modal akan menampilkan: title "Notes", content notes, dan informasi tambahan (status, created_at)
+
+**Important:** 
+- **Endpoint ini HANYA untuk action yang memiliki notes** (Open, Closed, Re-Open)
+- **Endpoint ini TIDAK digunakan untuk action "Edit"** karena action "Edit" tidak memiliki notes field
+- **Button "Notes" hanya muncul di frontend** jika log entry memiliki field `notes` di response `get case logs`
+- Jika field `notes` **tidak ada** di response `get case logs`, maka button "Notes" **TIDAK ditampilkan** di frontend
+- "Notes" button **TIDAK** ditampilkan untuk action "Edit" (karena tidak memiliki notes field, dan endpoint ini tidak digunakan untuk action "Edit")
+- "Notes" button **TIDAK** ditampilkan untuk initial log "Open" jika notes kosong/null (field notes tidak muncul di response)
+- Endpoint ini mengembalikan notes lengkap berdasarkan `log_id` dalam `case_id` yang sama
+- **Frontend Logic:** Hanya tampilkan button "Notes" jika `log.hasOwnProperty('notes') && log.notes !== null && log.notes !== undefined && log.action !== "Edit"`
 
 **Headers:** 
-- `Authorization: Bearer <access_token>`
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers** (optional, biasanya otomatis):
 - `Content-Type: application/json`
 
 **Path Parameters:**
@@ -1540,14 +1663,14 @@ Authorization: Bearer {access_token}
 |-----------|------|----------|-------------|
 | `log_id` | integer | Yes | Unique case log identifier |
 
-**Response (200 OK):**
+**Response (200 OK) - For action with notes (Open, Closed, Re-Open):**
 ```json
 {
   "status": 200,
   "message": "Case log detail retrieved successfully",
   "data": {
     "id": 3,
-    "case_id": 1,
+  "case_id": 1,
     "action": "Closed",
     "notes": "kasus sudah di tutup",
     "status": "Closed",
@@ -1556,20 +1679,38 @@ Authorization: Bearer {access_token}
 }
 ```
 
+**Response (200 OK) - For initial log (Open without notes - notes field not included):**
+```json
+{
+  "status": 200,
+  "message": "Case log detail retrieved successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "action": "Open",
+    "status": "Open",
+    "created_at": "9 Mei 2025, 10:00"
+  }
+}
+```
+*Note: Field `notes` tidak muncul karena kosong/null. Frontend tidak akan menampilkan button "Notes" untuk log entry ini.*
+
+**Note:** Endpoint ini **TIDAK digunakan** untuk action "Edit". Action "Edit" tidak memiliki notes field, sehingga button "Notes" tidak akan muncul di frontend untuk log entries dengan action "Edit". Frontend seharusnya tidak memanggil endpoint ini untuk action "Edit" karena button "Notes" tidak ditampilkan.
+
 **Response Fields:**
 - `id`: Log entry unique identifier
 - `case_id`: Case identifier
-- `action`: Action performed (e.g., "Open", "Closed", "Re-open", "Edit")
-- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
-  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
-  - `change_detail`: Detail of the change (only populated if action is "Edit" and status matches current case status)
-- `notes`: (Optional) Notes for the case log entry, only included if notes has value (not empty)
-- `status`: Case status at the time of log creation
+- `action`: Action performed (e.g., "Open", "Closed", "Re-open")
+- `notes`: Notes for the case log entry. Field ini **tidak muncul** jika kosong/null untuk initial log (action "Open"), tapi wajib diisi dan selalu muncul saat update status via change-log endpoint.
+- `status`: Case status at the time of log creation (Open, Closed, Re-Open)
 - `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
 
-**Note on Conditional Fields:**
-- Field `edit` **tidak akan muncul** jika `changed_by` dan `change_detail` keduanya kosong
-- Field `notes` **tidak akan muncul** jika notes kosong atau tidak ada
+**Note on Response Structure:**
+- **Endpoint ini HANYA untuk action yang memiliki notes** (Open, Closed, Re-Open)
+- **Response selalu menampilkan:** `id`, `case_id`, `action`, `status`, `notes` (jika ada), dan `created_at`
+- **Field `edit` TIDAK muncul** karena endpoint ini tidak digunakan untuk action "Edit"
+- **Action "Edit" tidak menggunakan endpoint ini** karena tidak memiliki notes field, sehingga button "Notes" tidak muncul di frontend untuk action "Edit"
+- Button "Notes" hanya muncul untuk action yang memiliki notes (Open, Closed, Re-Open) dan akan memanggil endpoint ini untuk menampilkan notes di modal pop-up ketika diklik
 
 **Error Responses:**
 
@@ -1600,23 +1741,81 @@ Authorization: Bearer {access_token}
 }
 ```
 
-**Example Request:**
+**Example Request (Postman):**
+
+**Method:** `GET`
+
+**URL:**
 ```
-GET http://localhost:8000/api/v1/case-logs/log/3
-Authorization: Bearer {access_token}
+http://localhost:8000/api/v1/case-logs/log/5
+```
+*Note: Ganti `5` dengan `log_id` yang ingin dilihat detail notes-nya (ambil dari field `id` pada log entry di list case logs)*
+
+**Headers:**
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers** (optional, biasanya otomatis):
+  - `Content-Type: application/json`
+
+**Important Notes:**
+- `log_id` adalah **path parameter** di URL, bukan query parameter
+- **JANGAN** tambahkan Authorization atau Content-Type sebagai query parameter di tab "Params"
+- Gunakan tab "Authorization" untuk set Bearer Token
+- Contoh URL yang benar: `http://localhost:8000/api/v1/case-logs/log/5`
+- Contoh URL yang salah: `http://localhost:8000/api/v1/case-logs/log/5?Authorization=Bearer&Content-Type=application/json`
+
+**Example Request (cURL):**
+```bash
+curl -X GET "http://localhost:8000/api/v1/case-logs/log/5" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json"
 ```
 
-**Note:**
-- **Primary Use Case:** This endpoint is used to display notes in a modal dialog when the "Notes" button is clicked on a case log entry in the UI
-- Returns a single case log entry with all its details including the `notes` field
-- The `notes` field can be empty string `""` if no notes have been added, or contain text if notes exist
-- The `changed_by` and `change_detail` fields in the `edit` array will only contain values if:
-  - `action` is "Edit" AND
-  - `status` matches the current case status (status terakhir)
+**Additional Information:**
+- **Endpoint ini HANYA untuk action yang memiliki notes** (Open, Closed, Re-Open)
+- **Endpoint ini TIDAK digunakan untuk action "Edit"** karena action "Edit" tidak memiliki notes field
+- **Response structure:** Returns `id`, `case_id`, `action`, `status`, `notes` (jika ada), dan `created_at`
+- The `notes` field **tidak muncul** jika kosong/null untuk initial log (action "Open"), tapi wajib diisi dan selalu muncul saat update status via change-log endpoint
+- **Field `edit` TIDAK muncul** dalam response endpoint ini karena endpoint ini tidak digunakan untuk action "Edit"
 - Date format: Indonesian format "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
-- **UI Integration:** Frontend should call this endpoint when user clicks the "Notes" button on a case log entry to populate the modal with the notes content
+
+**Frontend Integration Guide:**
+
+**1. When to Show "Notes" Button:**
+- **Show "Notes" button** HANYA jika case log entry memiliki field `notes` di response `get case logs`
+  - Contoh: Log dengan action "Closed" yang memiliki `"notes": "kasus sudah di tutup"` → **Tampilkan button**
+  - Contoh: Log dengan action "Re-open" yang memiliki `"notes": "Kasus dibuka kembali..."` → **Tampilkan button**
+- **Do NOT show "Notes" button** untuk:
+  - Case log entries yang **tidak memiliki field `notes`** di response (field tidak muncul sama sekali) → **TIDAK tampilkan button**
+  - Case log entries dengan action "Edit" (tidak memiliki notes field) → **TIDAK tampilkan button**
+  - Case log entries dengan action "Open" yang tidak memiliki field `notes` di response (notes kosong/null) → **TIDAK tampilkan button**
+
+**Frontend Implementation Logic:**
+```javascript
+// Check if notes field exists in response from get case logs
+const hasNotes = log.hasOwnProperty('notes') && log.notes !== null && log.notes !== undefined;
+const isEditAction = log.action === "Edit";
+
+// Only show Notes button if notes field exists AND not Edit action
+const showNotesButton = hasNotes && !isEditAction;
+
+// In your render function:
+{showNotesButton && (
+  <button onClick={() => handleNotesClick(log.id)}>
+    Notes
+  </button>
+)}
+```
+
+**2. Error Handling:**
+- **404 Not Found**: Show message "Case log not found"
+- **401 Unauthorized**: Prompt user to re-login
+- **500 Server Error**: Show generic error message
+- **Network Error**: Show connection error message
 
 ---
+
 
 ### 11. Change Case Log (Update Case Status with Notes)
 
@@ -1625,8 +1824,11 @@ Authorization: Bearer {access_token}
 **Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
 
 **Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers**:
+  - `Content-Type: application/json`
 
 **Path Parameters:**
 | Parameter | Type | Required | Description |
@@ -1671,13 +1873,17 @@ Authorization: Bearer {access_token}
 **Response Fields:**
 - `id`: New log entry unique identifier
 - `case_id`: Case identifier
-- `action`: Action performed (same as status value)
-- `edit`: (Optional) Array of edit details, only included if `changed_by` or `change_detail` has value. Each containing:
-  - `changed_by`: User who made the change (only populated if action is "Edit" and status matches current case status)
-  - `change_detail`: Detail of the change (only populated if action is "Edit" and status matches current case status)
+- `action`: Action performed (same as status value - Open, Closed, or Re-Open)
+- `status`: New case status (always included since this is a status change)
 - `notes`: Notes/alasan yang wajib diisi ketika mengubah status (always included in change-log response since it's required)
-- `status`: New case status
 - `created_at`: Date and time formatted in Indonesian: "D Bulan YYYY, HH:MM" (e.g., "16 Mei 2025, 12:00")
+
+**Important Notes:**
+- Change-log endpoint does not create "Edit" action logs, so `edit` array is **never included** in the response
+- Change-log endpoint always creates a log entry with action matching the new status (Open, Closed, or Re-Open)
+- Response always includes `status` and `notes` fields (no `edit` array since this is not an "Edit" action)
+- Notes is required and cannot be empty when changing case status
+- Field `edit` tidak muncul karena endpoint ini hanya untuk mengubah status, bukan untuk action "Edit"
 
 **Error Responses:**
 
@@ -1726,12 +1932,24 @@ Authorization: Bearer {access_token}
 }
 ```
 
-**Example Request (With Notes):**
-```
-PUT http://localhost:8000/api/v1/case-logs/change-log/1
-Authorization: Bearer {access_token}
-Content-Type: application/json
+**Example Request (Postman):**
 
+**Method:** `PUT`
+
+**URL:**
+```
+http://localhost:8000/api/v1/case-logs/change-log/1
+```
+
+**Headers:**
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Headers**:
+  - `Content-Type: application/json`
+
+**Body (Tab Body → raw → JSON):**
+```json
 {
   "status": "Closed",
   "notes": "kasus sudah di tutup"
@@ -1739,15 +1957,31 @@ Content-Type: application/json
 ```
 
 **Example Request (Re-open with Notes):**
-```
-PUT http://localhost:8000/api/v1/case-logs/change-log/1
-Authorization: Bearer {access_token}
-Content-Type: application/json
 
+**Method:** `PUT`
+
+**URL:**
+```
+http://localhost:8000/api/v1/case-logs/change-log/1
+```
+
+**Body (Tab Body → raw → JSON):**
+```json
 {
   "status": "Re-open",
-  "notes": "Kasus dibuka kembali untuk investigasi lanjutan"
+  "notes": "Kasus dibuka kembali untuk investigasi lebih lanjut."
 }
+```
+
+**Example Request (cURL):**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "Closed",
+    "notes": "kasus sudah di tutup"
+  }'
 ```
 
 **Note:**
@@ -1775,7 +2009,7 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-list`
 
-**Description:** Get paginated list of evidences with search and filter support. **Results are sorted by newest first (descending order by ID).**
+**Description:** Get paginated list of evidences with search, filter, and sorting support.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1784,14 +2018,18 @@ Content-Type: application/json
 |-----------|------|----------|---------|-------------|
 | `skip` | integer | No | 0 | Number of records to skip (pagination) |
 | `limit` | integer | No | 10 | Number of records per page (max: 100) |
-| `search` | string | No | - | Search keyword (searches in evidence ID, case name, investigator, agency) |
-| `status` | string | No | - | Filter by status |
-| `evidence_type_id` | integer | No | - | Filter by evidence type ID |
+| `search` | string | No | - | Search keyword (searches in evidence_number, title, description) |
+| `sort_by` | string | No | - | Field to sort by. Valid values: `'created_at'`, `'id'` |
+| `sort_order` | string | No | `'desc'` | Sort order. Valid values: `'asc'` (oldest first), `'desc'` (newest first) |
 
 **Sorting:**
-- Results are sorted by **ID descending** (newest first, oldest last)
-- First item in the array is the most recently created evidence
-- Last item in the array is the oldest evidence
+- **Default sorting:** Results are sorted by **ID descending** (newest first, oldest last) if `sort_by` is not provided
+- **Sort by `created_at`:** 
+  - `sort_order='asc'`: Oldest first (terlama ke terbaru)
+  - `sort_order='desc'`: Newest first (terbaru ke terlama)
+- **Sort by `id`:** 
+  - `sort_order='asc'`: Lowest ID first
+  - `sort_order='desc'`: Highest ID first (default)
 
 **Response (200 OK):**
 ```json
@@ -1800,72 +2038,46 @@ Content-Type: application/json
   "message": "Evidence list retrieved successfully",
   "data": [
     {
-      "id": 5,
-      "evidence_id": "34569809",
-      "evidence_number": "EVID-005",
-      "case_name": "Data Leak",
-      "investigator": "Solehun",
-      "agency": "Trikora",
-      "title": "Evidence Title",
-      "status": "Collected",
-      "date_created": "12/12/2025",
-      "created_at": "2025-12-12T10:30:00Z"
-    },
-    {
-      "id": 4,
-      "evidence_id": "34569809",
-      "evidence_number": "EVID-004",
-      "case_name": "Data Leak",
-      "investigator": "Solehun",
-      "agency": "Trikora",
-      "title": "Evidence Title",
-      "status": "Collected",
-      "date_created": "12/12/2025",
-      "created_at": "2025-12-12T09:30:00Z"
+      "id": 1,
+      "case_id": 1,
+      "evidence_id": "EVID-1-20251110-0001",
+      "title": "Illegal Drone Flight",
+      "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+      "file_path": "data/evidence/evidence_20251110_154315_EVID-1-20251110-0001.jpg",
+      "created_at": "2025-11-10T15:43:15.553339+07:00"
     },
     {
       "id": 2,
-      "evidence_id": "12339813",
-      "evidence_number": "EVID-002",
-      "case_name": "Illegal Drone Flight",
-      "investigator": "Agus Smith",
-      "agency": "Police HQ",
-      "title": "Evidence Title",
-      "status": "Collected",
-      "date_created": "12/12/2025",
-      "created_at": "2025-12-12T08:30:00Z"
-    },
-    {
-      "id": 1,
-      "evidence_id": "12336728",
-      "evidence_number": "EVID-001",
-      "case_name": "Illegal Drone Flight",
-      "investigator": "Agus Smith",
-      "agency": "Police HQ",
-      "title": "Evidence Title",
-      "status": "Collected",
-      "date_created": "12/12/2025",
-      "created_at": "2025-12-12T07:30:00Z"
+      "case_id": 1,
+      "evidence_id": "EVID-1-20251110-0002",
+      "title": "Handphone A",
+      "description": "Smartphone dari tersangka",
+      "file_path": "data/evidence/evidence_20251110_160000_EVID-1-20251110-0002.jpg",
+      "created_at": "2025-11-10T16:00:00.123456+07:00"
     }
   ],
-  "total": 21,
+  "total": 2,
   "page": 1,
   "size": 10
 }
 ```
 
-**Note:** 
-- Data diurutkan dari **terbaru ke terlama** berdasarkan ID (ID terbesar = terbaru, ID terkecil = terlama)
-- Evidence dengan `id: 5` adalah yang terbaru (muncul pertama)
-- Evidence dengan `id: 1` adalah yang terlama (muncul terakhir)
-- Field `date_created` menggunakan format `DD/MM/YYYY` untuk tampilan UI
+**Catatan:** 
+- **Default sorting:** Data diurutkan dari **terbaru ke terlama** berdasarkan ID (ID terbesar = terbaru, ID terkecil = terlama) jika `sort_by` tidak disediakan
+- **Custom sorting:** Gunakan parameter `sort_by` dan `sort_order` untuk mengatur urutan data
+  - `sort_by=created_at&sort_order=asc`: Urutkan dari terlama ke terbaru berdasarkan tanggal dibuat
+  - `sort_by=created_at&sort_order=desc`: Urutkan dari terbaru ke terlama berdasarkan tanggal dibuat
+  - `sort_by=id&sort_order=asc`: Urutkan dari ID terkecil ke terbesar
+  - `sort_by=id&sort_order=desc`: Urutkan dari ID terbesar ke terkecil (default)
 
 **Example Requests:**
 ```
 GET /api/v1/evidence/get-evidence-list?skip=0&limit=10
 GET /api/v1/evidence/get-evidence-list?search=Data%20Leak
-GET /api/v1/evidence/get-evidence-list?status=Collected&limit=20
 GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
+GET /api/v1/evidence/get-evidence-list?sort_by=created_at&sort_order=asc
+GET /api/v1/evidence/get-evidence-list?sort_by=created_at&sort_order=desc
+GET /api/v1/evidence/get-evidence-list?search=Evidence&sort_by=created_at&sort_order=asc
 ```
 
 **Error Responses:**
@@ -1894,27 +2106,75 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 
 **Endpoint:** `POST /api/v1/evidence/create-evidence`
 
-**Description:** Create a new evidence item and associate it with a case.
+**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest.
 
 **Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Body**: 
+  - Select: `form-data`
 
-**Request Body:**
-```json
-{
-  "case_id": 1,
-  "evidence_id": "32342223",
-  "evidence_number": "EVID-001",
-  "title": "Handphone A",
-  "description": "Smartphone dari tersangka",
-  "evidence_type_id": 1,
-  "status": "Collected",
-  "source": "Handphone",
-  "hash_value": "sha256:abcdef12345...",
-  "file_path": "/data/evidence/evidence_001.zip"
-}
+**Request Body (form-data):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | integer | Yes | Case ID where evidence will be added |
+| `evidence_id` | string | No | Evidence ID (optional - can be generated automatically or manually input). **If provided manually, cannot be empty**. **Nilai ini akan digunakan sebagai `evidence_number` di database untuk linking dengan Person.evidence_id** |
+| `title` | string | No | Evidence title/name |
+| `type` | string | No | Evidence type name (text input dari form UI). **Jika disediakan, sistem akan mencari atau membuat EvidenceType baru secara otomatis** |
+| `source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_summary` | string | No | Evidence summary/description (disimpan ke field `description` di database) |
+| `investigator` | string | No | Investigator name (who collected/analyzed the evidence, used as `collected_by`) |
+| `person_name` | string | No | Person of interest name (for reference only, not stored in database) |
+| `is_unknown_person` | boolean | No | Whether the person is unknown (for reference only, not stored in database) |
+
+**Catatan:** Field `file_path`, `file_size`, `file_hash`, `file_type`, dan `file_extension` akan otomatis dibuat setelah file di-upload dan tidak perlu dikirim dalam request.
+
+**Format Auto-Generate Evidence ID:**
+Jika `evidence_id` tidak disediakan, sistem akan otomatis membuat evidence ID dengan format:
+- **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
+- **Sequence:** Nomor urut berdasarkan jumlah Evidence untuk case tersebut (4 digit dengan leading zeros)
+
+**Example Request (form-data) - Manual Evidence ID:**
 ```
+case_id: 1
+evidence_id: 32342223
+title: Handphone A
+type: Dokumen
+source: Handphone
+evidence_summary: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.
+investigator: Solehun
+person_name: Mandeep Singh
+is_unknown_person: false
+evidence_file: [file]
+```
+
+**Example Request (form-data) - Auto-Generate Evidence ID:**
+```
+case_id: 1
+title: Handphone A
+type: Dokumen
+source: Handphone
+evidence_summary: Smartphone dari tersangka
+evidence_file: [file]
+```
+
+**Catatan:** 
+- Field `evidence_file` bersifat opsional dan digunakan untuk upload file. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). Jika file type tidak didukung, akan mengembalikan error 400.
+- Jika disediakan, file akan disimpan ke direktori `data/evidence/` dengan format `evidence_{timestamp}_{evidence_id}.{extension}` dan perhitungan hash SHA256.
+- Field `evidence_id` bersifat **opsional**:
+  - **Jika TIDAK disediakan:** Sistem akan otomatis membuat evidence ID dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+  - **Jika disediakan secara manual:** Tidak boleh kosong (akan mengembalikan error 400 jika string kosong)
+  - **Validasi:** Jika `evidence_id` disediakan tapi kosong, akan mengembalikan error: `"evidence_id cannot be empty when provided manually"`
+- Field `evidence_number` akan menggunakan nilai `evidence_id` jika tidak disediakan (untuk mencocokkan dengan Person.evidence_id)
+- Field `title` default menjadi `"Evidence {evidence_id}"` jika tidak disediakan
+- Field `evidence_summary` akan disimpan ke field `description` di database
+- Field `person_name` dan `is_unknown_person` bersifat opsional dan hanya digunakan untuk referensi (tidak disimpan di database)
+- Field `investigator` bersifat opsional dan digunakan sebagai field `collected_by` dalam record evidence
+- Record evidence disimpan ke database dengan semua informasi yang disediakan
+- Endpoint ini selalu membuat record Evidence baru
 
 **Response (201 Created):**
 ```json
@@ -1922,22 +2182,49 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
   "status": 201,
   "message": "Evidence created successfully",
   "data": {
+    "id": 1,
     "case_id": 1,
-    "evidence_id": "32342223",
-    "evidence_number": "EVID-001",
-    "title": "Handphone A",
-    "description": "Smartphone dari tersangka",
-    "status": "Collected",
-    "source": "Handphone"
+    "evidence_id": "EVID-1-20251110-0001",
+    "source": "Handphone",
+    "file_path": "data/evidence/evidence_20251110_154315_EVID-1-20251110-0001.jpg",
+    "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+    "title": "Illegal Drone Flight",
+    "investigator": "Solehun",
+    "agency": "Trikora",
+    "person_name": "Mandeep Singh",
+    "created_at": "10/11/2025"
   }
 }
 ```
 
-**Note:** This endpoint automatically creates a case log entry when evidence is added.
+**Catatan:**
+- Field `title` berisi title dari case (bukan title evidence)
+- Field `investigator` berisi investigator yang diinput, atau `main_investigator` dari case jika tidak diinput
+- Field `agency` berisi nama agency dari `case.agency_id` (jika ada)
+- Field `person_name` berisi person_name yang diinput (jika ada)
+- Field `created_at` menggunakan format Indonesia (DD/MM/YYYY)
+
+**Catatan:** 
+- Endpoint ini secara otomatis membuat entry case log ketika evidence ditambahkan.
+- Record evidence disimpan ke database dengan semua informasi yang disediakan.
+- Upload file bersifat opsional - jika `evidence_file` disediakan, akan disimpan ke direktori `data/evidence/` dengan perhitungan hash SHA256.
+- Field `evidence_id` bersifat opsional:
+  - **Auto-generate:** Jika tidak disediakan, sistem akan membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+  - **Input manual:** Jika disediakan, tidak boleh kosong (mengembalikan error 400 jika kosong)
+- Field `evidence_number` akan menggunakan nilai `evidence_id` jika tidak disediakan (untuk mencocokkan dengan Person.evidence_id)
+- Field `title` default menjadi `"Evidence {evidence_id}"` jika tidak disediakan.
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (File Type Not Supported):**
+```json
+{
+  "status": 400,
+  "detail": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
+}
+```
+
+**400 Bad Request (Validation Error):**
 ```json
 {
   "status": 400,
@@ -1973,6 +2260,36 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 }
 ```
 
+**Postman Testing Guide:**
+
+1. **Set Request Method:** `POST`
+2. **Set URL:** `http://localhost:8000/api/v1/evidence/create-evidence`
+3. **Tab Authorization:**
+   - Type: `Bearer Token`
+   - Token: `{{access_token}}` (or paste your access token)
+4. **Tab Body:**
+   - Select: `form-data`
+   - Add the following key-value pairs:
+     - `case_id`: `1` (Text) - Required
+     - `evidence_id`: `32342223` (Text) - Optional (if provided, cannot be empty)
+     - `title`: `Handphone A` (Text) - Optional
+     - `type`: `Dokumen` (Text) - Optional (nama evidence type, akan auto-create jika belum ada)
+     - `source`: `Handphone` (Text) - Optional
+     - `evidence_file`: Select `File` type and choose file - Optional
+     - `evidence_summary`: `GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.` (Text) - Optional
+     - `investigator`: `Solehun` (Text) - Optional
+     - `person_name`: `Mandeep Singh` (Text) - Optional
+     - `is_unknown_person`: `false` (Text) - Optional
+5. **Click Send**
+
+**Catatan:** 
+- Untuk upload file, ubah tipe `evidence_file` dari "Text" ke "File" di Postman
+- Field `evidence_id` bersifat **opsional**:
+  - **Jika TIDAK disediakan:** Sistem akan otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+- Field `person_name` dan `is_unknown_person` digunakan untuk mengasosiasikan evidence dengan person of interest
+- Field `file_path` dan `hash_value` biasanya otomatis dibuat setelah file di-upload
+
 ---
 
 ### 3. Get Evidence Details by ID
@@ -1999,7 +2316,6 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
     "evidence_number": "EVID-001",
     "title": "Handphone A",
     "description": "Smartphone dari tersangka",
-    "status": "Collected",
     "source": "Handphone",
     "investigator": "Solehun",
     "date_created": "20/12/2025",
@@ -2087,6 +2403,14 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
   }
 }
 ```
+
+**Catatan:**
+- Field `chain_of_custody` berisi tracking Chain of Custody dengan 4 tahap: `acquisition`, `preparation`, `extraction`, `analysis`
+- Setiap tahap berisi: `date` (format Indonesia), `investigator`, `location`, `status` ("Recorded" jika ada data, `null` jika belum ada)
+- Data diambil dari `CustodyLog` berdasarkan `event_type` dan diurutkan berdasarkan `event_date`
+- Field `current_stage` berisi informasi tahap saat ini (Preparation, Extraction, Analysis) beserta investigation hypothesis, tools used, extraction results, analysis results, dan notes
+- Field `gallery` berisi array gambar evidence dengan thumbnail dan description
+- Field `notes` berisi object dengan `id`, `thumbnail`, dan `text` untuk menampilkan peta atau visualisasi
 
 **Error Responses:**
 
@@ -2452,19 +2776,23 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 
 ### 8. Generate Custody Report
 
-**Endpoint:** `POST /api/v1/evidence/custody-report`
+**Endpoint:** `POST /api/v1/evidence/{evidence_id}/custody-report`
 
-**Description:** Generate a custody report (PDF) for an evidence item.
+**Description:** Generate custody report untuk evidence item. Report akan menyimpan chain of custody lengkap dari evidence tersebut ke dalam database.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
 - `Content-Type: application/json`
 
-**Request Body (all fields required, including `evidence_id`):**
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
+
+**Request Body:**
 ```json
 {
-  "evidence_id": 1,
-  "report_type": "Full Chain of Custody",
+  "report_type": "standard",
   "report_title": "Evidence Custody Report - EVID-001",
   "report_description": "Complete chain of custody documentation",
   "compliance_standard": "ISO 27037",
@@ -2472,18 +2800,37 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 }
 ```
 
+**Request Body Fields:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_type` | string | No | Tipe report (default: "standard"). Opsi: "standard", "iso_27037", "nist" |
+| `report_title` | string | Yes | Judul report |
+| `report_description` | string | No | Deskripsi report |
+| `compliance_standard` | string | No | Standar compliance (contoh: "ISO 27037", "NIST", "custom") |
+| `generated_by` | string | Yes | User yang membuat report (jika tidak disediakan, akan menggunakan current_user) |
+
+**Catatan:**
+- Field `evidence_id` diambil dari path parameter, tidak perlu dikirim di request body
+- Field `generated_by` bersifat opsional - jika tidak disediakan, akan menggunakan `current_user.fullname` atau `current_user.email`
+- Report akan otomatis menyimpan chain of custody data dari evidence ke field `report_data`
+- Report disimpan ke database dengan status `is_verified: false` dan `is_active: true`
+
 **Response (201 Created):**
 ```json
 {
   "status": 201,
   "message": "Custody report generated successfully",
   "data": {
+    "id": 1,
     "evidence_id": 1,
-    "report_type": "Full Chain of Custody",
+    "report_type": "standard",
     "report_title": "Evidence Custody Report - EVID-001",
-    "report_file_path": "/data/reports/custody_evidence_1_20250115_143022.pdf",
+    "report_description": "Complete chain of custody documentation",
+    "generated_by": "admin@gmail.com",
+    "generated_date": "2025-01-15T14:30:22Z",
+    "report_file_path": null,
     "is_verified": false,
-    "generated_date": "2025-01-15T14:30:22Z"
+    "created_at": "2025-01-15T14:30:22Z"
   }
 }
 ```
@@ -2528,7 +2875,166 @@ GET /api/v1/evidence/get-evidence-list?skip=10&limit=5&search=Agus
 
 ---
 
-### 10. Get Evidence Types
+### 9. Get Custody Reports
+
+**Endpoint:** `GET /api/v1/evidence/{evidence_id}/custody-reports`
+
+**Description:** Get list of custody reports untuk evidence item dengan pagination dan filter.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
+
+**Query Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `skip` | integer | No | 0 | Number of records to skip |
+| `limit` | integer | No | 10 | Number of records per page (max: 50) |
+| `report_type` | string | No | - | Filter by report type (opsional) |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Custody reports retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "evidence_id": 1,
+      "report_type": "standard",
+      "report_title": "Evidence Custody Report - EVID-001",
+      "report_description": "Complete chain of custody documentation",
+      "generated_by": "admin@gmail.com",
+      "generated_date": "2025-01-15T14:30:22Z",
+      "report_file_path": null,
+      "is_verified": false,
+      "created_at": "2025-01-15T14:30:22Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10
+}
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Evidence with ID {evidence_id} not found",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error, please try again later",
+  "data": null
+}
+```
+
+---
+
+### 10. Get Custody Report by ID
+
+**Endpoint:** `GET /api/v1/evidence/{evidence_id}/custody-report/{report_id}`
+
+**Description:** Get detail custody report berdasarkan ID.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
+| `report_id` | integer | Yes | Unique custody report identifier (di URL path) |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Custody report retrieved successfully",
+  "data": {
+    "id": 1,
+    "evidence_id": 1,
+    "report_type": "standard",
+    "report_title": "Evidence Custody Report - EVID-001",
+    "report_description": "Complete chain of custody documentation",
+    "generated_by": "admin@gmail.com",
+    "generated_date": "2025-01-15T14:30:22Z",
+    "report_file_path": null,
+    "report_file_hash": null,
+    "report_data": {
+      "custody_chain": [...],
+      "chain_integrity": true
+    },
+    "compliance_standard": "ISO 27037",
+    "is_verified": false,
+    "verified_by": null,
+    "verification_date": null,
+    "created_at": "2025-01-15T14:30:22Z",
+    "is_active": true
+  }
+}
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Evidence with ID {evidence_id} not found",
+  "data": null
+}
+```
+
+**404 Not Found (Report):**
+```json
+{
+  "status": 404,
+  "message": "Custody report with ID {report_id} not found for evidence {evidence_id}",
+  "data": null
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error, please try again later",
+  "data": null
+}
+```
+
+---
+
+### 11. Get Evidence Types
 
 **Endpoint:** `GET /api/v1/evidence/types`
 
@@ -3112,45 +3618,186 @@ GET /api/v1/suspects/?skip=10&limit=5&search=Data%20Breach
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
-- `Content-Type: multipart/form-data` (when evidence file is included) or `application/json`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
-**Request Body (multipart/form-data or JSON):**
+**Request Body (form-data):**
 
-**Form Fields Mapping:**
+**Form Fields Mapping (sesuai dengan UI Form "Add Suspect"):**
+
+**Field Utama (Visible di Form):**
 | UI Field | API Field | Type | Required | Description |
 |----------|-----------|------|----------|-------------|
-| Case Name (dropdown) | `case_id` | integer | Yes | Case ID selected from dropdown |
-| Person of Interest (radio) | `is_unknown` | boolean | No | `true` for "Unknown Person", `false` for "Person Name" (default: `false`) |
-| Person Name | `name` | string | Yes | Full name of the suspect |
-| Status (dropdown) | `status` | string | Yes | Suspect status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
-| Evidence ID (radio: Generating) | `evidence_id_generating` | boolean | No | `true` if Evidence ID is auto-generated |
-| Evidence ID (radio: Manual Input) | `evidence_id_manual` | boolean | No | `true` if Evidence ID is manually input |
-| Evidence ID (text input) | `evidence_id` | string | No | Manual Evidence ID (required if `evidence_id_manual` is `true`) |
-| Evidence Source (dropdown) | `evidence_source` | string | Yes | Evidence source (e.g., "Handphone", "CCTV") |
-| Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload |
+| Case Name (dropdown) | `case_id` | integer | Yes | Case ID yang dipilih dari dropdown |
+| Person of Interest (radio) | `is_unknown` | boolean | No | `true` untuk "Unknown Person", `false` untuk "Person Name" (default: `false`) |
+| Person Name (text input) | `name` | string | Yes | Nama lengkap suspect (wajib jika `is_unknown = false`) |
+| Status (dropdown) | `status` | string | No | Status suspect: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` (default: `"Suspect"` jika tidak disediakan) |
+| Evidence ID (radio: Generating) | - | - | No | Jika dipilih, `evidence_id` TIDAK perlu disediakan (akan auto-generate) |
+| Evidence ID (radio: Manual Input) | - | - | No | Jika dipilih, `evidence_id` HARUS disediakan dan tidak boleh kosong |
+| Evidence ID (text input) | `evidence_id` | string | No | Evidence ID manual (wajib jika Manual Input dipilih, tidak boleh kosong) |
+| Evidence Source (dropdown) | `evidence_source` | string | No | Sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| Evidence (Upload button) | `evidence_file` | file | No | File evidence untuk di-upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
 
-**Example Request (multipart/form-data):**
+**Field Tambahan (Opsional, untuk detail lengkap suspect):**
+| UI Field | API Field | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Evidence Summary | `evidence_summary` | string | No | Ringkasan/deskripsi evidence |
+| Investigator | `investigator` | string | No | Nama investigator (jika tidak disediakan, akan menggunakan current user) |
+| Case Name | `case_name` | string | No | Nama case (jika tidak disediakan, akan menggunakan case.title) |
+| Date of Birth | `date_of_birth` | string | No | Tanggal lahir (format: YYYY-MM-DD) |
+| Place of Birth | `place_of_birth` | string | No | Tempat lahir |
+| Nationality | `nationality` | string | No | Kewarganegaraan |
+| Phone Number | `phone_number` | string | No | Nomor telepon |
+| Email | `email` | string | No | Alamat email |
+| Address | `address` | string | No | Alamat lengkap |
+| Height | `height` | integer | No | Tinggi badan (cm) |
+| Weight | `weight` | integer | No | Berat badan (kg) |
+| Eye Color | `eye_color` | string | No | Warna mata |
+| Hair Color | `hair_color` | string | No | Warna rambut |
+| Distinguishing Marks | `distinguishing_marks` | string | No | Tanda khusus/ciri fisik |
+| Has Criminal Record | `has_criminal_record` | boolean | No | Memiliki catatan kriminal (default: `false`) |
+| Criminal Record Details | `criminal_record_details` | string | No | Detail catatan kriminal |
+| Risk Level | `risk_level` | string | No | Level risiko: "low", "medium", "high" (default: `"medium"`) |
+| Risk Assessment Notes | `risk_assessment_notes` | string | No | Catatan penilaian risiko |
+| Is Confidential | `is_confidential` | boolean | No | Apakah bersifat rahasia (default: `false`) |
+| Notes | `notes` | string | No | Catatan tambahan |
+
+**Format Auto-Generate Evidence ID:**
+Jika radio "Generating" dipilih atau `evidence_id` tidak disediakan dan `evidence_file` ada:
+- **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
+
+**Perilaku Evidence ID:**
+- **Jika "Generating" dipilih atau `evidence_id` TIDAK disediakan:**
+  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_id` dan membuat record Evidence
+  - **Jika `evidence_file` TIDAK ada:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+- **Jika "Manual Input" dipilih dan `evidence_id` disediakan:**
+  - Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number = evidence_id`
+  - **Jika Evidence sudah ada:** Menghubungkan person ke record Evidence yang sudah ada (memperbarui file jika `evidence_file` disediakan)
+  - **Jika Evidence TIDAK ada:** Membuat record Evidence baru dengan `evidence_number = evidence_id` (dengan file jika disediakan, atau tanpa file)
+
+**Contoh Request (form-data) - Auto-Generate Evidence ID (sesuai dengan form UI):**
 ```
 case_id: 1
 is_unknown: false
 name: "John Doe"
 status: "Suspect"
-evidence_id_generating: true
 evidence_source: "Handphone"
 evidence_file: [file]
 ```
 
-**Example Request (JSON - without file upload):**
+**Catatan:** 
+- Radio "Generating" dipilih → `evidence_id` TIDAK perlu dikirim
+- Sistem akan otomatis membuat `evidence_id` dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- File evidence di-upload melalui field `evidence_file`
+
+**Contoh Request (form-data) - Manual Evidence ID (sesuai dengan form UI):**
+```
+case_id: 1
+is_unknown: false
+name: "John Doe"
+status: "Suspect"
+evidence_id: "32342223"
+evidence_source: "Handphone"
+evidence_file: [file]
+```
+
+**Catatan:**
+- Radio "Manual Input" dipilih → `evidence_id` HARUS dikirim dan tidak boleh kosong
+- Field `evidence_id` muncul di form ketika "Manual Input" dipilih
+- File evidence di-upload melalui field `evidence_file`
+
+**Contoh Request (form-data) - Manual Evidence ID dengan Field Tambahan:**
+```
+case_id: 1
+is_unknown: false
+name: "John Doe"
+status: "Suspect"
+evidence_id: "32342223"
+evidence_source: "Handphone"
+evidence_file: [file]
+evidence_summary: "Smartphone dari tersangka"
+investigator: "Solehun"
+date_of_birth: "1995-01-01"
+place_of_birth: "Medan"
+nationality: "Indonesian"
+phone_number: "+628123456785"
+email: "john@example.com"
+address: "Medan, Indonesia"
+height: 170
+weight: 65
+eye_color: "Brown"
+hair_color: "Black"
+risk_level: "high"
+```
+
+**Contoh Request (form-data) - Link to Existing Evidence (tanpa upload file baru):**
+```
+case_id: 1
+is_unknown: false
+name: "John Doe"
+status: "Witness"
+evidence_id: "32342223"
+evidence_source: "Handphone"
+```
+
+**Catatan:**
+- Radio "Manual Input" dipilih dan `evidence_id` mengacu ke Evidence yang sudah ada
+- Tidak ada `evidence_file` → hanya menghubungkan suspect ke Evidence yang sudah ada
+- Jika `evidence_file` disediakan, file akan memperbarui Evidence yang sudah ada
+
+**Catatan (sesuai dengan form UI "Add Suspect"):** 
+- Endpoint ini menggunakan `multipart/form-data` untuk mendukung upload file
+- **Field yang terlihat di form UI:**
+  - `case_id` (wajib): Dipilih dari dropdown "Case Name"
+  - `is_unknown` (opsional): Radio button "Person of Interest" - `false` untuk "Person Name", `true` untuk "Unknown Person"
+  - `name` (wajib jika `is_unknown = false`): Input text "Person Name"
+  - `status` (opsional): Dropdown "Status" - pilihan: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (default: "Suspect")
+  - `evidence_id` (opsional): 
+    - Jika radio "Generating" dipilih → TIDAK perlu dikirim (akan auto-generate)
+    - Jika radio "Manual Input" dipilih → HARUS dikirim dan tidak boleh kosong
+  - `evidence_source` (opsional): Dropdown "Evidence Source" - pilihan: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
+  - `evidence_file` (opsional): File upload melalui button "Upload" di section "Evidence"
+- **Perilaku Evidence ID:**
+  - **Radio "Generating" dipilih (atau `evidence_id` TIDAK disediakan):**
+    - **Jika `evidence_file` ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence baru
+    - **Jika `evidence_file` TIDAK ada:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+  - **Radio "Manual Input" dipilih dan `evidence_id` disediakan:**
+    - Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+    - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number = evidence_id`
+    - **Jika Evidence sudah ada:** Menghubungkan suspect ke Evidence yang sudah ada (memperbarui file jika `evidence_file` disediakan)
+    - **Jika Evidence TIDAK ada:** Membuat record Evidence baru dengan `evidence_number = evidence_id` (dengan file jika disediakan, atau tanpa file)
+- **Field tambahan (opsional, untuk detail lengkap):**
+  - `evidence_summary`, `investigator`, `case_name`, `date_of_birth`, `place_of_birth`, `nationality`, `phone_number`, `email`, `address`, `height`, `weight`, `eye_color`, `hair_color`, `distinguishing_marks`, `has_criminal_record`, `criminal_record_details`, `risk_level`, `risk_assessment_notes`, `is_confidential`, `notes`
+- **Default values:**
+  - `is_unknown`: `false` (Person Name)
+  - `status`: `"Suspect"` jika tidak disediakan
+  - `risk_level`: `"medium"` jika tidak disediakan
+  - `has_criminal_record`: `false` jika tidak disediakan
+  - `is_confidential`: `false` jika tidak disediakan
+- **Auto-fill:**
+  - `investigator`: Jika tidak disediakan, akan menggunakan current user (fullname atau email)
+  - `case_name`: Jika tidak disediakan, akan menggunakan `case.title` dari case yang dipilih
+- **Format:**
+  - `date_of_birth`: Format `YYYY-MM-DD` (contoh: "1995-01-01")
+- **Case Log:**
+  - Endpoint ini secara otomatis membuat case log entry ketika suspect ditambahkan
+  - Jika `evidence_id` disediakan dan Evidence record dibuat/dihubungkan, case log entry untuk evidence juga akan dibuat
+- **File Upload:**
+  - File disimpan ke direktori `data/evidence/` dengan format `evidence_{timestamp}_{evidence_id}.{extension}`
+  - Perhitungan hash SHA256 otomatis dilakukan
+
+**Response (201 Created):**
 ```json
 {
-  "case_id": 1,
-  "is_unknown": false,
+  "status": 201,
+  "message": "Suspect created successfully",
+  "data": {
+    "id": 6,
   "name": "John Doe",
   "case_name": "Data Breach",
   "investigator": "Solehun",
   "status": "Suspect",
-  "evidence_id": "32342223",
-  "evidence_source": "Handphone",
   "date_of_birth": "1995-01-01",
   "place_of_birth": "Medan",
   "nationality": "Indonesian",
@@ -3161,43 +3808,45 @@ evidence_file: [file]
   "weight": 65,
   "eye_color": "Brown",
   "hair_color": "Black",
+    "distinguishing_marks": null,
   "has_criminal_record": false,
-  "risk_level": "low"
-}
-```
-
-**Note:** 
-- If `evidence_file` is provided, use `multipart/form-data` content type
-- If `evidence_id_generating` is `true`, the system will auto-generate the Evidence ID
-- If `evidence_id_manual` is `true`, the `evidence_id` field must be provided
-- `case_id` is required and should be selected from the cases dropdown (use `GET /api/v1/cases/get-all-cases` to get available cases)
-- `evidence_source` should be selected from evidence sources dropdown (use `GET /api/v1/evidence/sources` to get available sources)
-- `status` should be selected from statuses dropdown (use `GET /api/v1/suspects/statuses` to get available statuses)
-
-**Response (201 Created):**
-```json
-{
-  "status": 201,
-  "message": "Suspect created successfully",
-  "data": {
-    "id": 6,
-    "name": "John Doe",
-    "case_name": "Data Breach",
-    "investigator": "Solehun",
-    "status": "Suspect",
+    "criminal_record_details": null,
+    "risk_level": "high",
+    "risk_assessment_notes": null,
+    "is_confidential": false,
+    "notes": null,
     "created_at": "2025-12-16T10:00:00Z",
-    "updated_at": "2025-12-16T10:00:00Z"
+    "updated_at": "2025-12-16T10:00:00Z",
+    "last_seen": null
   }
 }
 ```
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (Empty evidence_id when provided manually):**
+```json
+{
+  "status": 400,
+  "message": "evidence_id cannot be empty when provided manually",
+  "data": null
+}
+```
+
+**400 Bad Request (Other validation errors):**
 ```json
 {
   "status": 400,
   "message": "Validation error",
+  "data": null
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "message": "Case with ID {case_id} not found",
   "data": null
 }
 ```
@@ -3224,16 +3873,22 @@ evidence_file: [file]
 
 ### 3. Get Suspect by ID
 
-**Endpoint:** `GET /api/v1/suspects/get-suspect-by-id`
+**Endpoint:** `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`
 
-**Description:** Get details of a specific suspect.
+**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+**Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
+| `suspect_id` | integer | Yes | Unique suspect identifier (di URL path) |
+
+**Contoh Request:**
+```
+GET http://localhost:8000/api/v1/suspects/get-suspect-by-id/1
+Authorization: Bearer <access_token>
+```
 
 **Response (200 OK):**
 ```json
@@ -3244,8 +3899,15 @@ evidence_file: [file]
     "id": 1,
     "name": "John Doe",
     "case_name": "Data Breach",
+    "case_id": 1,
     "investigator": "Solehun",
     "status": "Witness",
+    "is_unknown": false,
+    "custody_stage": null,
+    "evidence_id": "32342223",
+    "evidence_source": "Handphone",
+    "evidence_summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+    "created_by": "admin@gmail.com",
     "date_of_birth": "1995-01-01",
     "place_of_birth": "Medan",
     "nationality": "Indonesian",
@@ -3258,13 +3920,24 @@ evidence_file: [file]
     "hair_color": "Black",
     "distinguishing_marks": null,
     "has_criminal_record": false,
+    "criminal_record_details": null,
     "risk_level": "low",
+    "risk_assessment_notes": null,
     "is_confidential": false,
+    "notes": null,
     "created_at": "2025-12-11T08:00:00Z",
-    "updated_at": "2025-12-11T08:00:00Z"
+    "updated_at": "2025-12-11T08:00:00Z",
+    "last_seen": null
   }
 }
 ```
+
+**Catatan:**
+- Field `status` tidak memiliki default value - harus dipilih dari UI (Witness, Reported, Suspected, Suspect, Defendant)
+- Field `evidence_id`, `evidence_source`, `evidence_summary` berasal dari Person model yang sudah digabung ke Suspect
+- Field `is_unknown` menunjukkan apakah suspect adalah "Unknown Person" atau memiliki nama
+- Field `custody_stage` menunjukkan tahap penahanan suspect
+- Field `created_by` menunjukkan user yang membuat record suspect
 
 **Error Responses:**
 
@@ -3316,11 +3989,11 @@ evidence_file: [file]
 | Person of Interest (radio) | `is_unknown` | boolean | No | `true` for "Unknown Person", `false` for "Person Name" |
 | Person Name | `name` | string | No | Full name of the suspect |
 | Status (dropdown) | `status` | string | No | Suspect status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
-| Evidence ID (radio: Generating) | `evidence_id_generating` | boolean | No | `true` if Evidence ID is auto-generated |
-| Evidence ID (radio: Manual Input) | `evidence_id_manual` | boolean | No | `true` if Evidence ID is manually input |
-| Evidence ID (text input) | `evidence_id` | string | No | Manual Evidence ID (required if `evidence_id_manual` is `true`) |
-| Evidence Source (dropdown) | `evidence_source` | string | No | Evidence source (e.g., "Handphone", "CCTV") |
-| Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload |
+| Evidence ID (radio: Generating) | - | - | No | If selected, `evidence_id` should NOT be provided (will auto-generate) |
+| Evidence ID (radio: Manual Input) | - | - | No | If selected, `evidence_id` MUST be provided and cannot be empty |
+| Evidence ID (text input) | `evidence_id` | string | No | Manual Evidence ID (required if Manual Input selected, cannot be empty) |
+| Evidence Source (dropdown) | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
 | Investigator | `investigator` | string | No | Investigator name |
 | Date of Birth | `date_of_birth` | date | No | Date of birth (YYYY-MM-DD) |
 | Place of Birth | `place_of_birth` | string | No | Place of birth |
@@ -3381,14 +4054,17 @@ notes: "Updated notes"
 }
 ```
 
-**Note:** 
-- If `evidence_file` is provided, use `multipart/form-data` content type
-- All fields are optional (partial update)
-- If `evidence_id_generating` is `true`, the system will auto-generate the Evidence ID
-- If `evidence_id_manual` is `true`, the `evidence_id` field must be provided
-- `case_id` should be selected from the cases dropdown (use `GET /api/v1/cases/get-all-cases` to get available cases)
-- `evidence_source` should be selected from evidence sources dropdown (use `GET /api/v1/evidence/sources` to get available sources)
-- `status` should be selected from statuses dropdown (use `GET /api/v1/suspects/statuses` to get available statuses)
+**Catatan:** 
+- Jika `evidence_file` disediakan, gunakan content type `multipart/form-data`
+- Semua field bersifat opsional (partial update)
+- Field `evidence_id` bersifat **opsional**:
+  - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
+  - **Jika TIDAK disediakan + tidak ada file:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada
+- `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
+- `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
+- `suspect_status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
 
 **Response (200 OK):**
 ```json
@@ -3689,7 +4365,6 @@ Authorization: Bearer {access_token}
       "thumbnail": "/data/thumbnails/evidence_1_map.png",
       "notes": "Notes 33242352",
       "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
-      "status": "Collected",
       "created_at": "2025-12-20T10:00:00Z"
     },
     {
@@ -3700,7 +4375,6 @@ Authorization: Bearer {access_token}
       "thumbnail": "/data/thumbnails/evidence_2_phone.png",
       "notes": "Notes 33242352",
       "description": "Terdapat dialog seputar pembakaran dengan suspect lain.",
-      "status": "Collected",
       "created_at": "2025-12-20T11:00:00Z"
     }
   ],
@@ -3755,7 +4429,7 @@ Authorization: Bearer {access_token}
 | `suspect_id` | integer | Yes | Unique suspect identifier |
 | `evidence_id` | string | No | Evidence ID (if manual input) |
 | `evidence_source` | string | Yes | Evidence source (e.g., "Handphone", "CCTV") |
-| `evidence_file` | file | Yes | Evidence file to upload |
+| `evidence_file` | file | Yes | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
 | `notes` | string | No | Evidence notes |
 | `description` | string | No | Evidence description |
 
@@ -4074,23 +4748,90 @@ Content-Type: application/json
 **Description:** Add a person of interest (suspect/witness) to a case. Can include initial evidence.
 
 **Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
+- Tab **Authorization**: 
+  - Type: `Bearer Token`
+  - Token: `{access_token}`
+- Tab **Body**: 
+  - Select: `form-data`
 
-**Request Body:**
-```json
-{
-  "case_id": 1,
-  "name": "Mandeep Singh",
-  "is_unknown": false,
-  "custody_stage": "In Custody",
-  "evidence_id": "342344442",
-  "evidence_source": "Handphone",
-  "evidence_summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
-  "investigator": "Solehun",
-  "created_by": "admin@gmail.com"
-}
+**Request Body (form-data):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | integer | Yes | Case ID where person will be added |
+| `name` | string | Yes | Person name (required if `is_unknown` is false) |
+| `is_unknown` | boolean | No | Whether person is unknown (default: false). Use "Person Name" = false, "Unknown Person" = true |
+| `suspect_status` | string | No | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default) |
+| `custody_stage` | string | No | Custody stage (e.g., "In Custody", "Released", etc.) |
+| `evidence_id` | string | No | Evidence ID (optional - can be generated automatically or manually input). **If provided manually, cannot be empty** |
+| `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_summary` | string | No | Evidence summary/description |
+| `investigator` | string | No | Investigator name |
+| `created_by` | string | No | User email who created the person (auto-filled from current user if not provided) |
+
+**Format Auto-Generate Evidence ID:**
+Jika `evidence_id` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence ID dengan format:
+- **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
+- **Sequence:** Nomor urut berdasarkan jumlah Evidence untuk case tersebut (4 digit dengan leading zeros)
+
+**Perilaku Evidence ID:**
+- **Jika `evidence_id` disediakan (input manual):**
+  - Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number = evidence_id`
+  - **Jika Evidence sudah ada:** Menghubungkan person ke record Evidence yang sudah ada (memperbarui file jika `evidence_file` disediakan)
+  - **Jika Evidence TIDAK ada:** Membuat record Evidence baru dengan `evidence_number = evidence_id` (dengan file jika disediakan, atau tanpa file)
+- **Jika `evidence_id` TIDAK disediakan:**
+  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_id` dan membuat record Evidence baru
+  - **Jika `evidence_file` TIDAK ada:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+
+**Example Request (form-data) - Manual Evidence ID:**
 ```
+case_id: 1
+name: Mandeep Singh
+is_unknown: false
+suspect_status: Suspect
+custody_stage: In Custody
+evidence_id: 342344442
+evidence_source: Handphone
+evidence_summary: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.
+investigator: Solehun
+evidence_file: [file]
+created_by: admin@gmail.com
+```
+
+**Example Request (form-data) - Auto-Generate Evidence ID:**
+```
+case_id: 1
+name: Mandeep Singh
+is_unknown: false
+suspect_status: Witness
+evidence_source: Handphone
+evidence_summary: Test evidence summary
+evidence_file: [file]
+```
+
+**Example Request (form-data) - Link to Existing Evidence:**
+```
+case_id: 1
+name: Nathalie
+is_unknown: false
+suspect_status: Witness
+evidence_id: 342344442
+evidence_source: Handphone
+evidence_summary: Link to existing evidence
+```
+
+**Catatan:** 
+- Field `evidence_file` bersifat opsional dan digunakan untuk upload file jika file evidence disediakan. Jika disediakan, file akan disimpan ke direktori `data/evidence/` dengan perhitungan hash SHA256.
+- Field `suspect_status` bersifat opsional dan disimpan di database. Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default).
+- Field `created_by` bersifat opsional dan otomatis diisi dari user yang sedang terautentikasi (email atau fullname) jika tidak disediakan.
+- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_id}.{extension}` di direktori `data/evidence/`.
+- Field `evidence_id` bersifat **opsional**:
+  - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
+  - **Jika TIDAK disediakan + tidak ada file:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400 jika kosong)
+  - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada
 
 **Response (201 Created):**
 ```json
@@ -4114,11 +4855,20 @@ Content-Type: application/json
 }
 ```
 
-**Note:** This endpoint automatically creates a case log entry when a person is added.
+**Catatan:** Endpoint ini secara otomatis membuat entry case log ketika person ditambahkan.
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (Empty evidence_id when provided manually):**
+```json
+{
+  "status": 400,
+  "message": "evidence_id cannot be empty when provided manually",
+  "data": null
+}
+```
+
+**400 Bad Request (Other validation errors):**
 ```json
 {
   "status": 400,
@@ -4153,6 +4903,41 @@ Content-Type: application/json
   "data": null
 }
 ```
+
+**Postman Testing Guide:**
+
+1. **Set Request Method:** `POST`
+2. **Set URL:** `http://localhost:8000/api/v1/persons/create-person`
+3. **Tab Authorization:**
+   - Type: `Bearer Token`
+   - Token: `{{access_token}}` (or paste your access token)
+4. **Tab Body:**
+   - Select: `form-data`
+   - Add the following key-value pairs:
+     - `case_id`: `1` (Text) - Required
+     - `name`: `Mandeep Singh` (Text) - Required
+     - `is_unknown`: `false` (Text) - Optional
+     - `suspect_status`: `Suspect` (Text) - Optional
+     - `custody_stage`: `In Custody` (Text) - Optional
+     - `evidence_id`: `342344442` (Text) - Optional (if provided, cannot be empty)
+     - `evidence_source`: `Handphone` (Text) - Optional
+     - `evidence_file`: Select `File` type and choose file - Optional (if provided, file will be saved to `data/evidence/` directory)
+     - `evidence_summary`: `GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.` (Text) - Optional
+     - `investigator`: `Solehun` (Text) - Optional
+     - `created_by`: `admin@gmail.com` (Text) - Optional (auto-filled from current user if not provided)
+5. **Click Send**
+
+**Catatan:** 
+- Untuk upload file, ubah tipe `evidence_file` dari "Text" ke "File" di Postman
+- Field `created_by` bersifat opsional dan otomatis diisi dari user yang sedang terautentikasi (email atau fullname) jika tidak disediakan
+- Semua field kecuali `case_id` dan `name` bersifat opsional
+- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_id}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256
+- Field `suspect_status` bersifat opsional dan disimpan di database. Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default)
+- Field `evidence_id` bersifat **opsional**:
+  - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
+  - **Jika TIDAK disediakan + tidak ada file:** `evidence_id = null` (opsional, tidak membuat record Evidence)
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada (memperbarui file jika disediakan)
 
 ---
 

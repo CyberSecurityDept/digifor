@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script untuk test upload-progress endpoint secara full
-- Upload file
-- Polling progress endpoint
-- Track semua status changes
-"""
-import sys
-import os
-import requests
-import json
-import time
+import sys, os, requests, json, time, datetime, traceback
 from datetime import datetime
 
 # Add project root to path
@@ -78,7 +68,7 @@ def test_upload_progress_full():
     
     except Exception as e:
         print(f"Upload error: {e}")
-        import traceback
+        
         traceback.print_exc()
         return False
     
@@ -266,7 +256,7 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         print(f"\nest failed: {e}")
-        import traceback
+        
         traceback.print_exc()
         sys.exit(1)
 

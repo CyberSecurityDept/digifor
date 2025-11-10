@@ -1,12 +1,10 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
-import logging
 from datetime import datetime
-import pytz
+import pytz, traceback, logging, re
 
 logger = logging.getLogger(__name__)
 
@@ -513,7 +511,7 @@ class ChatMessagesParserExtended:
                 except Exception as e:
                     logger.error(f"[OXYGEN CHAT PARSER] Error parsing Messages sheet: {e}", exc_info=True)
                     print(f"[OXYGEN CHAT PARSER] ERROR parsing Messages sheet: {e}")
-                    import traceback
+                    
                     traceback.print_exc()
             else:
                 logger.warning(f"[OXYGEN CHAT PARSER] Messages sheet not found! Will NOT parse from individual platform sheets.")
@@ -1115,7 +1113,7 @@ class ChatMessagesParserExtended:
         except Exception as e:
             logger.error(f"[OXYGEN MESSAGES PARSER] Error parsing Messages sheet: {e}", exc_info=True)
             print(f"[OXYGEN MESSAGES PARSER] Error parsing Messages sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -1325,7 +1323,7 @@ class ChatMessagesParserExtended:
         except Exception as e:
             logger.error(f"[OXYGEN WHATSAPP PARSER] Error parsing WhatsApp messages from {sheet_name}: {e}", exc_info=True)
             print(f"Error parsing Oxygen WhatsApp messages: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -1616,7 +1614,7 @@ class ChatMessagesParserExtended:
         except Exception as e:
             logger.error(f"[OXYGEN TELEGRAM PARSER] Error parsing Telegram messages from {sheet_name}: {e}", exc_info=True)
             print(f"[OXYGEN TELEGRAM PARSER] Error: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -1815,7 +1813,7 @@ class ChatMessagesParserExtended:
         except Exception as e:
             logger.error(f"[OXYGEN INSTAGRAM PARSER] Error parsing Instagram messages from {sheet_name}: {e}", exc_info=True)
             print(f"[OXYGEN INSTAGRAM PARSER] Error: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2002,7 +2000,7 @@ class ChatMessagesParserExtended:
         except Exception as e:
             logger.error(f"[OXYGEN TWITTER PARSER] Error parsing Twitter messages from {sheet_name}: {e}", exc_info=True)
             print(f"[OXYGEN TWITTER PARSER] Error: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results

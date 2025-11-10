@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -6,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from sqlalchemy import or_
 from app.analytics.utils.chat_messages_parser_extended import ChatMessagesParserExtended
-import logging
+import logging, re, traceback
 
 logger = logging.getLogger(__name__)
 
@@ -486,7 +485,7 @@ class SocialMediaParsersExtended:
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -679,7 +678,7 @@ class SocialMediaParsersExtended:
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -1232,7 +1231,7 @@ class SocialMediaParsersExtended:
             
         except Exception as e:
             print(f"Error parsing {sheet_name} sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results

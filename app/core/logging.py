@@ -1,6 +1,4 @@
-import logging
-import sys
-import socket
+import logging, sys, socket
 from datetime import datetime
 from pathlib import Path
 from app.core.config import settings
@@ -36,11 +34,8 @@ class ColoredFormatter(logging.Formatter):
     def format(self, record):
         color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
         reset = self.COLORS['RESET']
-        
         server_ip = get_server_ip()
-        
         formatted_message = f"| {color}{record.levelname}{reset}| {settings.PROJECT_NAME} |{server_ip}| {record.getMessage()}"
-        
         return formatted_message
 
 def setup_logging():

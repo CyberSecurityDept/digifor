@@ -62,7 +62,6 @@ async def lifespan(app: FastAPI):
     
     logger.info("Server shutting down")
 
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -156,7 +155,6 @@ app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags
 
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if isinstance(exc.detail, dict) and "status" in exc.detail and "message" in exc.detail:
@@ -173,7 +171,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             }
         )
 
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global exception: {exc}")
@@ -186,7 +183,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-
 @app.get("/")
 async def root():
     return {
@@ -195,11 +191,9 @@ async def root():
         "version": settings.VERSION
     }
 
-
 @app.get("/favicon.ico")
 async def favicon():
     return Response(status_code=204)
-
 
 if __name__ == "__main__":
     uvicorn.run(

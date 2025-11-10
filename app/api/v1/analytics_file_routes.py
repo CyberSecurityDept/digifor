@@ -69,6 +69,8 @@ async def run_real_upload_and_finalize(
         max_wait = 300
         wait_count = 0
         upload_service_done = False
+        last_percent = 0
+        stuck_count = 0
         
         while wait_count < max_wait:
             svc_resp, code = upload_service.get_progress(upload_id)
@@ -77,6 +79,18 @@ async def run_real_upload_and_finalize(
                 if upload_id in UPLOAD_PROGRESS:
                     percent = int((svc_data.get("percent") or 0))
                     progress_size = svc_data.get("progress_size") or "0 MB"
+                    
+                    if percent == last_percent and percent > 0:
+                        stuck_count += 1
+                        if stuck_count >= 30:
+                            print(f"[WARNING] Upload {upload_id} stuck at {percent}% for {stuck_count * 0.5} seconds")
+                            if percent >= 75:
+                                if svc_data.get("done") or percent >= 100:
+                                    upload_service_done = True
+                                    break
+                    else:
+                        stuck_count = 0
+                        last_percent = percent
                     
                     UPLOAD_PROGRESS[upload_id]["percentage"] = percent
                     message = svc_resp.get("message", "Preparing...")
@@ -106,7 +120,8 @@ async def run_real_upload_and_finalize(
                     UPLOAD_PROGRESS[upload_id]["status"] = "Progress"
                     UPLOAD_PROGRESS[upload_id]["upload_status"] = "Progress"
                 
-                if svc_data.get("done"):
+                # Check if done flag is set or percent is 100
+                if svc_data.get("done") or (percent >= 100 and code == 200):
                     upload_service_done = True
                     await asyncio.sleep(2)
                     break
