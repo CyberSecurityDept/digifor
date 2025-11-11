@@ -119,7 +119,7 @@ class UploadService:
         upload_id: str,
         file: UploadFile,
         file_name: str,
-        notes: str,
+        notes: str | None,
         type: str,
         tools: str,
         file_bytes: bytes,

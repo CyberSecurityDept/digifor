@@ -33,7 +33,7 @@ async def run_real_upload_and_finalize(
     upload_id: str,
     file: UploadFile,
     file_name: str,
-    notes: str,
+    notes: Optional[str],
     type: str,
     tools: str,
     file_bytes: bytes,
@@ -182,7 +182,7 @@ async def upload_data(
     background_tasks: BackgroundTasks,
     file: UploadFile = FastAPIFile(...),
     file_name: str = Form(...),
-    notes: str = Form(...),
+    notes: Optional[str] = Form(None),
     type: str = Form(...),
     tools: str = Form(...),
     method: str = Form(...),
@@ -190,7 +190,6 @@ async def upload_data(
     try:
         required_fields = {
             "file_name": file_name,
-            "notes": notes,
             "type": type,
             "tools": tools,
             "method": method,
