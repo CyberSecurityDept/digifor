@@ -69,7 +69,7 @@ def get_analytic_devices(db: Session, analytic_id: int):
     devices = db.query(Device).filter(Device.analytic_id == analytic_id).all()
     return devices
 
-MOBSF_URL="http://172.15.2.105:5001"
+MOBSF_URL="http://172.15.2.160:5001"
 def classify_permissions(permissions, suspicious_set=None):
     if not permissions:
         print("[!] No permissions found in report.")

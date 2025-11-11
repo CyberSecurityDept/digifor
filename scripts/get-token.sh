@@ -1,7 +1,7 @@
 #!/bin/bash
 # Script untuk mendapatkan token dan menyimpan ke variable
 
-API_URL="${1:-http://172.15.2.105:8000}"
+API_URL="${1:-http://172.15.2.160:8000}"
 EMAIL="${2:-admin@gmail.com}"
 PASSWORD="${3:-admin.admin}"
 

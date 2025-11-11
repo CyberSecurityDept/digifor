@@ -15,7 +15,7 @@ def test_upload_progress_full():
     print("UPLOAD PROGRESS FULL TEST")
     print("="*80)
     
-    api_url = "http://172.15.2.105:8000"
+    api_url = "http://172.15.2.160:8000"
     
     # Step 1: Upload file
     print(f"\n[{format_timestamp()}] Step 1: Uploading file...")

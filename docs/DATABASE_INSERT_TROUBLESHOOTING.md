@@ -119,7 +119,7 @@ except Exception as e:
 
 ```bash
 # Test query langsung
-psql -h 172.15.2.105 -U digifor -d db_forensics -c "SELECT COUNT(*) FROM cases;"
+psql -h 172.15.2.160 -U digifor -d db_forensics -c "SELECT COUNT(*) FROM cases;"
 
 # Atau dengan script
 python3 scripts/list-tables.py
