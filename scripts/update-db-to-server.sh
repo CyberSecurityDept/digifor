@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$PROJECT_ROOT/.env"
 
 # Default values
-SERVER_IP="${1:-172.15.2.160}"
+SERVER_IP="${1:-172.15.2.105}"
 PORT="${2:-5432}"
 USER="${3:-digifor}"
 PASSWORD="${4:-passwordD*8}"

@@ -43,7 +43,7 @@ Script ini akan menampilkan:
 Pastikan file `.env` memiliki konfigurasi yang benar:
 
 ```env
-POSTGRES_HOST=localhost          # atau IP server (contoh: 172.15.2.160)
+POSTGRES_HOST=localhost          # atau IP server (contoh: 172.15.2.105)
 POSTGRES_PORT=5432
 POSTGRES_USER=digifor
 POSTGRES_PASSWORD=passwordD*8
@@ -92,7 +92,7 @@ DATABASE_URL=postgresql://digifor:passwordD*8@localhost:5432/db_forensics
 psql -h localhost -U digifor -d db_forensics
 
 # Atau jika ke IP server:
-psql -h 172.15.2.160 -U digifor -d db_forensics
+psql -h 172.15.2.105 -U digifor -d db_forensics
 
 # List semua tabel
 \dt
@@ -122,8 +122,8 @@ vim .env
 
 Ubah:
 ```env
-POSTGRES_HOST=172.15.2.160  # ganti dengan IP server Anda
-DATABASE_URL=postgresql://digifor:passwordD*8@172.15.2.160:5432/db_forensics
+POSTGRES_HOST=172.15.2.105  # ganti dengan IP server Anda
+DATABASE_URL=postgresql://digifor:passwordD*8@172.15.2.105:5432/db_forensics
 ```
 
 **Cara Otomatis (Script):**

@@ -20,7 +20,7 @@ def test_upload_progress():
     # Test dengan upload_id yang tidak ada (should return 404)
     print("\n1. Testing with non-existent upload_id...")
     test_upload_id = "test_upload_12345"
-    api_url = "http://172.15.2.160:8000"
+    api_url = "http://172.15.2.105:8000"
     
     try:
         response = requests.get(
@@ -35,7 +35,7 @@ def test_upload_progress():
             print(f"   Response: {response.json()}")
     except requests.exceptions.ConnectionError:
         print("Cannot connect to API server")
-        print("Make sure the service is running on http://172.15.2.160:8000")
+        print("Make sure the service is running on http://172.15.2.105:8000")
         return False
     except Exception as e:
         print(f"Error: {e}")
