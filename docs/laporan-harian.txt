@@ -1,97 +1,19 @@
-Laporan Pekerjaan Sabtu 8 November 2025
+
+Laporan Pekerjaan Senin 10 November 2025
 
 PIC : Imanuel Zagoto
 
-CASE MANAGEMENT
+1. Perbaikan Response Endpoint Create Evidence
+   - Menambahkan query untuk mendapatkan agency name dari case.agency_id
+   - Response sekarang menggunakan title dari case (bukan evidence.title)
+   - Response menambahkan field: investigator, agency, person_name
+   - Format created_at menggunakan format Indonesia (DD/MM/YYYY)
+   - Dokumentasi API diperbarui sesuai perubahan response
 
-## Authentication & Security
-
-### [AUTH] Unified Authentication System
-    1. Implementasi Unified Authentication System dengan 1 token JWT untuk multi aplikasi (Analytics & Case Management)
-    2. Implementasi AuthMiddleware dan role-based access control (require_role, require_admin, require_active_user)
-
-### [AUTH] Refresh Token
-    1. Aktifkan refresh token endpoint dengan token rotation (token lama di-revoke saat refresh)
-    2. Update login endpoint untuk mengembalikan access_token dan refresh_token
-
-### [AUTH] Token Expiration Fix
-    1. Perbaikan token expiration untuk memastikan access token valid selama 24 jam (1440 menit)
-
-## Case Management 
-    ### [CASE] Statistics Summary
-    1. Membuat endpoint GET /api/v1/cases/statistics/summary untuk mendapatkan statistik case berdasarkan status
-    2. Implementasi perhitungan statistik: total cases, open cases, closed cases, dan reopened cases
-
-    ### [CASE] Get All Cases
-    1. Perbaikan endpoint get-all-cases dengan format tanggal DD/MM/YYYY dan perhitungan total count yang benar
-    2. Menambahkan parameter sorting (sort_by dan sort_order) untuk sorting berdasarkan created_at (ascending/descending)
-    3. Menambahkan filter status untuk get-all-cases dengan nilai valid: "Open", "Closed", "Re-open" atau "Reopen"
-    
-    ### [CASE] Get Case Detail Comprehensive
-    1. Membuat endpoint GET /api/v1/cases/get-case-detail-comprehensive/{case_id} dengan path parameter case_id
-    2. Implementasi comprehensive case detail termasuk case info, persons of interest dengan analysis, dan case logs
-    3. Menambahkan field case_notes untuk mengembalikan notes dari model Case (bukan dari tabel case_notes)
-    4. Error handling untuk case not found dan server error
-    
-    ### [CASE] Create Case
-    1. Membuat endpoint POST /api/v1/cases/create-case dengan support auto-generation dan manual case number
-    2. Auto-generation case number dengan format {PREFIX}-{DATE}-{UNIQUE_NUMBER} dari 3 kata pertama title
-    3. Support input agency dan work unit sebagai free text dengan auto-create jika belum ada di database
-    4. Error handling untuk duplicate case number dan auto-create initial case log dengan status "Open"
-    
-    ### [CASE] Update Case
-    1. Membuat endpoint PUT /api/v1/cases/update-case/{case_id} dengan path parameter case_id
-    2. Implementasi partial update (semua field di request body optional)
-    3. Support update agency dan work unit dengan ID atau nama (auto-create jika belum ada)
-    4. Memformat created_at dan updated_at menjadi "DD/MM/YYYY" agar konsisten dengan endpoint lain
-    5. Error handling untuk case not found dan validation error
-    
-    ### [CASE] Notes Management
-    1. Mengganti field summary menjadi notes di model Case (Text, nullable)
-    2. Membuat endpoint POST /api/v1/cases/save-notes dan PUT /api/v1/cases/edit-notes
-    3. Implementasi service method untuk save dan edit case notes
-    4. Update get-case-detail-comprehensive untuk mengembalikan case_notes dari field notes di model Case
-    5. Menghapus model CaseNote dan semua referensinya (tabel case_notes tidak digunakan lagi)
-    
-    ### [CASE] Case Log Management
-    1. Membuat endpoint GET /api/v1/case-logs/case/logs/{case_id} untuk mendapatkan daftar case logs dengan pagination
-    2. Mengubah endpoint PUT /api/v1/case-logs/update-log/{case_id} menjadi PUT /api/v1/case-logs/change-log/{case_id}
-    3. Menambahkan field notes ke request body untuk change-log endpoint
-    4. Mengubah format response case log dari changed_by dan change_detail langsung menjadi array edit
-    5. Implementasi logika: changed_by dan change_detail hanya berisi value jika action == "Edit" dan status == current_case_status
-    6. Memperbarui changed_by untuk menggunakan current user (fullname atau email) saat add person dan add evidence (bukan hardcoded)
-    7. Memformat created_at di case log menjadi "D Month YYYY, HH:MM" (contoh: "8 November 2025, 19:23")
-
-## Evidence Management
-    ### [EVIDENCE] Notes Management
-    1. Mengganti field summary menjadi notes di model Evidence (JSON, nullable) untuk menyimpan object dengan id, thumbnail, dan text
-    2. Membuat endpoint POST /api/v1/evidence/save-notes dan PUT /api/v1/evidence/edit-notes
-    3. Implementasi validasi notes sebagai JSON object dengan struktur yang sesuai
-    4. Error handling untuk evidence not found dan validation error
-
-## Suspect Management
-    ### [SUSPECT] Notes Management
-    1. Mengganti field summary menjadi notes di model Suspect (Text, nullable)
-    2. Membuat endpoint POST /api/v1/suspects/save-notes dan PUT /api/v1/suspects/edit-notes
-    3. Implementasi service method untuk save dan edit suspect notes
-    4. Error handling untuk suspect not found dan validation error
-
----
-
-Laporan Pekerjaan Senin 11 November 2025
-
-PIC : Imanuel Zagoto
-
-CASE MANAGEMENT
-
-    ### [CASE] Case Log Management (Update)
-    1. Memformat created_at di case log menjadi bahasa Indonesia "D Bulan YYYY, HH:MM" (contoh: "16 Mei 2025, 12:00")
-    2. Membuat endpoint GET /api/v1/case-logs/log/{log_id} untuk mendapatkan detail case log termasuk notes (untuk modal)
-    3. Membuat field notes menjadi wajib (required) pada endpoint PUT /api/v1/case-logs/change-log/{case_id}
-    4. Implementasi conditional fields: field edit dan notes hanya muncul di response jika memiliki value (tidak kosong)
-    5. Update semua endpoint case log (get-case-detail-comprehensive, get-case-logs, get-case-log-detail, change-log) untuk konsistensi conditional fields
-    6. Update schema CaseLog agar edit dan notes menjadi Optional untuk mendukung conditional fields
-    7. Menambahkan dokumentasi lengkap untuk get case log detail endpoint
-
-
+2. Perbaikan Upload Progress Stuck di 75%
+   - Menambahkan timeout untuk parse_file (10 menit) untuk mencegah hang
+   - Menambahkan stuck detection (deteksi jika progress tidak berubah selama 15 detik)
+   - Auto-completion detection jika percent >= 100%
+   - Menambahkan error handling yang lebih baik untuk parse_file
+   - Logging untuk debugging upload progress
 

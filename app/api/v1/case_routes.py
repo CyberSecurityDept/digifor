@@ -57,6 +57,11 @@ async def get_case_detail_comprehensive(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in get_case_detail_comprehensive: {str(e)}")
+        logger.error(traceback.format_exc())
         error_message = str(e).lower()
         if "not found" in error_message:
             raise HTTPException(
@@ -66,7 +71,7 @@ async def get_case_detail_comprehensive(
         else:
             raise HTTPException(
                 status_code=500, 
-                detail="Unexpected server error, please try again later"
+                detail=f"Unexpected server error: {str(e)}"
             )
 
 @router.get("/get-all-cases", response_model=CaseListResponse)

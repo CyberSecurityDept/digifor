@@ -39,7 +39,6 @@ class ColoredFormatter(logging.Formatter):
         return formatted_message
 
 def setup_logging():
-    
     log_dir = Path(settings.LOG_FILE).parent
     log_dir.mkdir(parents=True, exist_ok=True)
     
@@ -57,6 +56,11 @@ def setup_logging():
     root_logger.handlers.clear()
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
+    
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.setLevel(logging.WARNING)
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_access_logger.setLevel(logging.WARNING)
     
     return logging.getLogger(__name__)
 

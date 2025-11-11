@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from typing import Optional
 import hashlib
@@ -38,8 +38,7 @@ async def get_evidence_list(
     db: Session = Depends(get_database)
 ):
     try:
-        query = db.query(Evidence)
-        
+        query = db.query(Evidence).options(joinedload(Evidence.case))
         if search:
             search_pattern = f"%{search.strip()}%"
             query = query.filter(
@@ -68,17 +67,37 @@ async def get_evidence_list(
             created_at_str = None
             if created_at_value:
                 if isinstance(created_at_value, datetime):
-                    created_at_str = created_at_value.isoformat()
+                    created_at_str = created_at_value.strftime("%d/%m/%Y")
                 else:
-                    created_at_str = str(created_at_value)
+                    try:
+                        created_at_dt = datetime.fromisoformat(str(created_at_value).replace('Z', '+00:00'))
+                        created_at_str = created_at_dt.strftime("%d/%m/%Y")
+                    except:
+                        created_at_str = str(created_at_value)
+            
+            case_title = None
+            investigator_name = None
+            agency_name = None
+            
+            if evidence.case:
+                case_title = evidence.case.title
+                investigator_name = evidence.case.main_investigator
+                
+                if evidence.case.agency_id:
+                    agency = db.query(Agency).filter(Agency.id == evidence.case.agency_id).first()
+                    if agency:
+                        agency_name = agency.name
+            
+            if not investigator_name:
+                investigator_name = getattr(evidence, 'investigator', None) or investigator_name
             
             evidence_data.append({
                 "id": evidence.id,
                 "case_id": evidence.case_id,
                 "evidence_id": evidence.evidence_number,
-                "title": evidence.title,
-                "description": evidence.description,
-                "file_path": evidence.file_path,
+                "title": case_title,
+                "investigator": investigator_name,
+                "agency": agency_name,
                 "created_at": created_at_str
             })
         
@@ -109,7 +128,7 @@ async def create_evidence(
     source: Optional[str] = Form(None),
     evidence_file: Optional[UploadFile] = File(None),
     evidence_summary: Optional[str] = Form(None),
-    investigator: Optional[str] = Form(None),
+    investigator: str = Form(...),
     person_name: Optional[str] = Form(None),
     is_unknown_person: Optional[bool] = Form(False),
     db: Session = Depends(get_database),
@@ -131,10 +150,7 @@ async def create_evidence(
             evidence_id = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
 
         evidence_number = evidence_id
-        
-        if not title:
-            title = f"Evidence {evidence_id}"
-        
+        evidence_title = case.title if case else evidence_number
         evidence_type_id = None
         if type:
             type_name = type.strip()
@@ -171,11 +187,9 @@ async def create_evidence(
             
             upload_dir = "data/evidence"
             os.makedirs(upload_dir, exist_ok=True)
-            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"evidence_{timestamp}_{evidence_id}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_id}"
             file_path = os.path.join(upload_dir, filename)
-            
             file_content = await evidence_file.read()
             file_size = len(file_content)
             with open(file_path, "wb") as f:
@@ -187,7 +201,7 @@ async def create_evidence(
         
         evidence_dict = {
             "evidence_number": evidence_number,
-            "title": title,
+            "title": evidence_title,
             "description": evidence_summary,
             "evidence_type_id": evidence_type_id,
             "case_id": case_id,
@@ -196,7 +210,7 @@ async def create_evidence(
             "file_hash": file_hash,
             "file_type": file_type,
             "file_extension": file_extension,
-            "collected_by": investigator or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User'),
+            "investigator": investigator,
             "collected_date": datetime.now(timezone.utc),
         }
         
@@ -205,7 +219,10 @@ async def create_evidence(
         db.commit()
         db.refresh(evidence)
     
-        if person_name and person_name.strip():
+        if is_unknown_person:
+            # Jika is_unknown_person = true, tidak perlu create suspect
+            pass
+        elif person_name and person_name.strip():
             person_name_clean = person_name.strip()
             existing_suspect = db.query(Suspect).filter(
                 Suspect.case_id == case_id,
@@ -215,7 +232,42 @@ async def create_evidence(
             if existing_suspect:
                 setattr(existing_suspect, 'evidence_id', evidence_number)
                 db.commit()
-        
+            else:
+                investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                
+                # Jika is_unknown_person = false (radio person_name), status bisa diisi atau null
+                # Tapi karena ini auto-create dari create-evidence, status tetap None
+                new_suspect = Suspect(
+                    name=person_name_clean,
+                    case_id=case_id,
+                    case_name=case.title if case else None,
+                    evidence_id=evidence_number,
+                    evidence_source=source,
+                    evidence_summary=evidence_summary,
+                    investigator=investigator_name,
+                    status=None,  # Auto-created suspect dari create-evidence selalu status = null
+                    is_unknown=False,
+                    created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                )
+                db.add(new_suspect)
+                db.commit()
+                db.refresh(new_suspect)
+                
+                try:
+                    current_status = case.status if case else "Open"
+                    changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                    case_log = CaseLog(
+                        case_id=case_id,
+                        action="Edit",
+                        changed_by=f"By: {changed_by}",
+                        change_detail=f"Change: Adding person {person_name_clean}",
+                        notes="",
+                        status=current_status
+                    )
+                    db.add(case_log)
+                    db.commit()
+                except Exception as e:
+                    print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
         try:
             current_status = case.status if case else "Open"
             changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
@@ -233,10 +285,8 @@ async def create_evidence(
         except Exception as e:
             print(f"Warning: Could not create case log for evidence: {str(e)}")
         
-        # Get case title and agency name
         case_title = case.title if case else None
         
-        # Get agency name from case
         agency_name = None
         if case:
             case_agency_id = getattr(case, 'agency_id', None)
@@ -245,7 +295,6 @@ async def create_evidence(
                 if agency:
                     agency_name = agency.name
         
-        # Format created_at to Indonesian date format (DD/MM/YYYY)
         created_at_value = getattr(evidence, 'created_at', None)
         created_at_str = None
         if created_at_value:
@@ -258,7 +307,6 @@ async def create_evidence(
                 except:
                     created_at_str = str(created_at_value)
         
-        # Get investigator (use input or case main_investigator)
         investigator_name = investigator or (case.main_investigator if case else None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         
         response_data = {
@@ -268,7 +316,7 @@ async def create_evidence(
             "source": source,
             "file_path": evidence.file_path,
             "description": evidence.description,
-            "title": case_title,  # Use case title instead of evidence title
+            "title": case_title,
             "investigator": investigator_name,
             "agency": agency_name,
             "person_name": person_name if person_name and person_name.strip() else None,
@@ -419,12 +467,9 @@ async def get_custody_events(
             )
         
         query = db.query(CustodyLog).filter(CustodyLog.evidence_id == evidence_id)
-    
         if event_type:
             query = query.filter(CustodyLog.event_type == event_type)
-        
         total = query.count()
-        
         events_query = query.order_by(CustodyLog.event_date.desc()).offset(skip).limit(limit)
         events = events_query.all()
         

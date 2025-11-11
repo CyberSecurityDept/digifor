@@ -48,19 +48,20 @@ logger = setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
-    logger.info(f"API: {settings.API_V1_STR}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"API Base: {settings.API_V1_STR}")
+    logger.info(f"Debug Mode: {settings.DEBUG}")
     
     try:
         init_db()
-        logger.info("Database connected")
+        logger.info("Database connected successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
     
     yield
     
-    logger.info("Server shutting down")
+    # Shutdown
+    logger.info("Server shutting down...")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -201,6 +202,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower(),
+        log_level="warning",
         access_log=False
     )

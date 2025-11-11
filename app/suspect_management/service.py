@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
@@ -19,26 +19,14 @@ class SuspectService:
             "case_name": suspect.case_name,
             "investigator": suspect.investigator,
             "status": suspect.status,
-            "date_of_birth": suspect.date_of_birth,
-            "place_of_birth": suspect.place_of_birth,
-            "nationality": suspect.nationality,
-            "phone_number": suspect.phone_number,
-            "email": suspect.email,
-            "address": suspect.address,
-            "height": suspect.height,
-            "weight": suspect.weight,
-            "eye_color": suspect.eye_color,
-            "hair_color": suspect.hair_color,
-            "distinguishing_marks": suspect.distinguishing_marks,
-            "has_criminal_record": suspect.has_criminal_record,
-            "criminal_record_details": suspect.criminal_record_details,
-            "risk_level": suspect.risk_level,
-            "risk_assessment_notes": suspect.risk_assessment_notes,
-            "is_confidential": suspect.is_confidential,
-            "notes": suspect.notes,
+            "is_unknown": suspect.is_unknown,
+            "evidence_id": suspect.evidence_id,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "created_by": suspect.created_by,
+            "case_id": suspect.case_id,
             "created_at": suspect.created_at,
-            "updated_at": suspect.updated_at,
-            "last_seen": suspect.last_seen
+            "updated_at": suspect.updated_at
         }
     
     def get_suspect(self, db: Session, suspect_id: int) -> dict:
@@ -52,31 +40,18 @@ class SuspectService:
             "case_name": suspect.case_name,
             "investigator": suspect.investigator,
             "status": suspect.status,
-            "date_of_birth": suspect.date_of_birth,
-            "place_of_birth": suspect.place_of_birth,
-            "nationality": suspect.nationality,
-            "phone_number": suspect.phone_number,
-            "email": suspect.email,
-            "address": suspect.address,
-            "height": suspect.height,
-            "weight": suspect.weight,
-            "eye_color": suspect.eye_color,
-            "hair_color": suspect.hair_color,
-            "distinguishing_marks": suspect.distinguishing_marks,
-            "has_criminal_record": suspect.has_criminal_record,
-            "criminal_record_details": suspect.criminal_record_details,
-            "risk_level": suspect.risk_level,
-            "risk_assessment_notes": suspect.risk_assessment_notes,
-            "is_confidential": suspect.is_confidential,
-            "notes": suspect.notes,
+            "is_unknown": suspect.is_unknown,
+            "evidence_id": suspect.evidence_id,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "created_by": suspect.created_by,
+            "case_id": suspect.case_id,
             "created_at": suspect.created_at,
-            "updated_at": suspect.updated_at,
-            "last_seen": suspect.last_seen
+            "updated_at": suspect.updated_at
         }
     
-    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None) -> List[dict]:
+    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> Tuple[List[dict], int]:
         query = db.query(Suspect)
-        
         if search:
             search_filter = or_(
                 Suspect.name.ilike(f"%{search}%"),
@@ -84,12 +59,17 @@ class SuspectService:
                 Suspect.investigator.ilike(f"%{search}%")
             )
             query = query.filter(search_filter)
-        
         if status:
             query = query.filter(Suspect.status == status)
-        
+        if sort_by == "created_at":
+            if sort_order and sort_order.lower() == "asc":
+                query = query.order_by(Suspect.created_at.asc())
+            else:
+                query = query.order_by(Suspect.created_at.desc())
+        else:
+            query = query.order_by(Suspect.id.desc())
+        total = query.count()
         suspects = query.offset(skip).limit(limit).all()
-        
         result = []
         for suspect in suspects:
             suspect_dict = {
@@ -98,71 +78,43 @@ class SuspectService:
                 "case_name": suspect.case_name,
                 "investigator": suspect.investigator,
                 "status": suspect.status,
-                "date_of_birth": suspect.date_of_birth,
-                "place_of_birth": suspect.place_of_birth,
-                "nationality": suspect.nationality,
-                "phone_number": suspect.phone_number,
-                "email": suspect.email,
-                "address": suspect.address,
-                "height": suspect.height,
-                "weight": suspect.weight,
-                "eye_color": suspect.eye_color,
-                "hair_color": suspect.hair_color,
-                "distinguishing_marks": suspect.distinguishing_marks,
-                "has_criminal_record": suspect.has_criminal_record,
-                "criminal_record_details": suspect.criminal_record_details,
-                "risk_level": suspect.risk_level,
-                "risk_assessment_notes": suspect.risk_assessment_notes,
-                "is_confidential": suspect.is_confidential,
-                "notes": suspect.notes,
+                "is_unknown": suspect.is_unknown,
+                "evidence_id": suspect.evidence_id,
+                "evidence_source": suspect.evidence_source,
+                "evidence_summary": suspect.evidence_summary,
+                "created_by": suspect.created_by,
+                "case_id": suspect.case_id,
                 "created_at": suspect.created_at,
-                "updated_at": suspect.updated_at,
-                "last_seen": suspect.last_seen
+                "updated_at": suspect.updated_at
             }
             result.append(suspect_dict)
-        
-        return result
+        return result, total
     
     def update_suspect(self, db: Session, suspect_id: int, suspect_data: SuspectUpdate) -> dict:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             raise Exception(f"Suspect with ID {suspect_id} not found")
-        
         update_data = suspect_data.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(suspect, field, value)
-        
         db.commit()
         db.refresh(suspect)
-        
         return {
             "id": suspect.id,
             "name": suspect.name,
             "case_name": suspect.case_name,
             "investigator": suspect.investigator,
             "status": suspect.status,
-            "date_of_birth": suspect.date_of_birth,
-            "place_of_birth": suspect.place_of_birth,
-            "nationality": suspect.nationality,
-            "phone_number": suspect.phone_number,
-            "email": suspect.email,
-            "address": suspect.address,
-            "height": suspect.height,
-            "weight": suspect.weight,
-            "eye_color": suspect.eye_color,
-            "hair_color": suspect.hair_color,
-            "distinguishing_marks": suspect.distinguishing_marks,
-            "has_criminal_record": suspect.has_criminal_record,
-            "criminal_record_details": suspect.criminal_record_details,
-            "risk_level": suspect.risk_level,
-            "risk_assessment_notes": suspect.risk_assessment_notes,
-            "is_confidential": suspect.is_confidential,
-            "notes": suspect.notes,
+            "is_unknown": suspect.is_unknown,
+            "evidence_id": suspect.evidence_id,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "created_by": suspect.created_by,
+            "case_id": suspect.case_id,
             "created_at": suspect.created_at,
-            "updated_at": suspect.updated_at,
-            "last_seen": suspect.last_seen
+            "updated_at": suspect.updated_at
         }
-    
+
     def delete_suspect(self, db: Session, suspect_id: int) -> bool:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
@@ -172,48 +124,5 @@ class SuspectService:
         db.commit()
         return True
     
-    def save_suspect_notes(self, db: Session, suspect_id: int, notes: str) -> dict:
-        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
-        if not suspect:
-            raise Exception(f"Suspect with ID {suspect_id} not found")
-        
-        if not notes or not notes.strip():
-            raise ValueError("Notes cannot be empty")
-        
-        setattr(suspect, 'notes', notes.strip())
-        db.commit()
-        db.refresh(suspect)
-        
-        updated_at_value = getattr(suspect, 'updated_at', None)
-        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
-        return {
-            "suspect_id": suspect.id,
-            "suspect_name": suspect.name,
-            "notes": getattr(suspect, 'notes', None),
-            "updated_at": updated_at_str
-        }
-    
-    def edit_suspect_notes(self, db: Session, suspect_id: int, notes: str) -> dict:
-        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
-        if not suspect:
-            raise Exception(f"Suspect with ID {suspect_id} not found")
-        
-        if not notes or not notes.strip():
-            raise ValueError("Notes cannot be empty")
-        
-        setattr(suspect, 'notes', notes.strip())
-        db.commit()
-        db.refresh(suspect)
-        
-        updated_at_value = getattr(suspect, 'updated_at', None)
-        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
-        return {
-            "suspect_id": suspect.id,
-            "suspect_name": suspect.name,
-            "notes": getattr(suspect, 'notes', None),
-            "updated_at": updated_at_str
-        }
 
 suspect_service = SuspectService()

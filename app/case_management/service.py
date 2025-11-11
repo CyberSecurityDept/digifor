@@ -87,10 +87,8 @@ class CaseService:
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
         case_dict.pop("summary", None)
-
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
-            
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
@@ -105,17 +103,14 @@ class CaseService:
             today_count = db.query(Case).filter(
                 cast(Case.created_at, String).like(f"%{today_str}%")
             ).count() + 1
-
             case_number = f"{initials}-{date_part}-{str(today_count).zfill(4)}"
             case_dict["case_number"] = case_number
-        
         try:
             valid_case_fields = {
                 'case_number', 'title', 'description', 'status', 'main_investigator',
                 'agency_id', 'work_unit_id', 'created_at', 'updated_at'
             }
             filtered_case_dict = {k: v for k, v in case_dict.items() if k in valid_case_fields}
-            
             case = Case(**filtered_case_dict)
             db.add(case)
             db.commit()
@@ -169,7 +164,7 @@ class CaseService:
                 date_updated = str(updated_at_value)
         else:
             date_updated = get_wib_now().strftime("%d/%m/%Y")
-        
+            
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
@@ -211,9 +206,7 @@ class CaseService:
 
         if search:
             search_pattern = f"%{search}%"
-
             normalized_status = status_mapping.get(search, search)
-
             search_conditions = [
                     Case.title.ilike(search_pattern),
                     Case.main_investigator.ilike(search_pattern),
@@ -226,44 +219,33 @@ class CaseService:
             
             if normalized_status in ['Open', 'Closed', 'Re-open']:
                 search_conditions.append(Case.status == normalized_status)
-
             query = query.filter(or_(*search_conditions))
-
         if status:
             normalized_status = status_mapping.get(status, status)
             query = query.filter(Case.status == normalized_status)
-
         total_count = query.count()
-        
         if sort_by == "created_at":
             if sort_order and sort_order.lower() == "asc":
                 query = query.order_by(Case.created_at.asc())
             else:
                 query = query.order_by(Case.created_at.desc())
         else:
-
             query = query.order_by(Case.id.desc())
-        
         cases = query.offset(skip).limit(limit).all()
-        
         result = []
         for case in cases:
             agency_name = None
             work_unit_name = None
-            
             if case.agency_id is not None:
                 agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
                 if agency:
                     agency_name = agency.name
-            
             if case.work_unit_id is not None:
                 work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
                 if work_unit:
                     work_unit_name = work_unit.name
-            
             date_created = case.created_at.strftime("%d/%m/%Y")
             date_updated = case.updated_at.strftime("%d/%m/%Y")
-            
             case_dict = {
                 "id": case.id,
                 "case_number": case.case_number,
@@ -291,7 +273,6 @@ class CaseService:
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
             if manual_case_number and manual_case_number.strip():
-
                 existing_case = db.query(Case).filter(
                     Case.case_number == manual_case_number.strip(),
                     Case.id != case_id
@@ -310,19 +291,14 @@ class CaseService:
                 date_part = get_wib_now().strftime("%d%m%y")
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
-        
         old_status = case.status
         old_title = case.title
-        
         for field, value in update_data.items():
             setattr(case, field, value)
-        
         db.commit()
         db.refresh(case)
-
         agency_name = None
         work_unit_name = None
-        
         if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
@@ -335,7 +311,7 @@ class CaseService:
 
         date_created = case.created_at.strftime("%d/%m/%Y")
         date_updated = case.updated_at.strftime("%d/%m/%Y")
-        
+
         case_dict = {
             "id": case.id,
             "case_number": case.case_number,
@@ -411,7 +387,6 @@ class CaseService:
         }
     
     def _get_chain_of_custody(self, db: Session, evidence_id: int) -> dict:
-        """Get chain of custody for evidence, grouped by event_type"""
         custody_logs = db.query(CustodyLog).filter(
             CustodyLog.evidence_id == evidence_id
         ).order_by(CustodyLog.event_date.asc()).all()
@@ -432,7 +407,6 @@ class CaseService:
             tools_used = getattr(log, 'tools_used', None)
             notes = getattr(log, 'notes', '')
             
-            # Format date
             formatted_date = None
             if event_date:
                 if isinstance(event_date, datetime):
@@ -448,7 +422,6 @@ class CaseService:
                 "tools_used": tools_used if isinstance(tools_used, list) else ([tools_used] if tools_used else [])
             }
             
-            # Map event_type to chain of custody stages
             if event_type_lower == "acquisition":
                 chain_of_custody["acquisition"] = custody_data
             elif event_type_lower == "preparation":
@@ -492,20 +465,22 @@ class CaseService:
             suspect_evidence_id = getattr(suspect, 'evidence_id', None)
             suspect_status = getattr(suspect, 'status', None)
             
+            person_type = suspect_status if suspect_status else None
+            
             if suspect_name not in suspects_by_name:
                 suspects_by_name[suspect_name] = {
                     "id": suspect.id,
                     "name": suspect_name,
-                    "person_type": suspect_status if suspect_status else None,
-                    "analysis": []
+                    "person_type": person_type,
+                    "evidence": []
                 }
             
-            analysis_items = suspects_by_name[suspect_name]["analysis"]
+            evidence_items = suspects_by_name[suspect_name]["evidence"]
             
             if suspect_evidence_id is not None:
                 evidence_query = db.query(Evidence).filter(Evidence.case_id == case_id)
                 filters = [Evidence.evidence_number == suspect_evidence_id]
-                if suspect_evidence_id.isdigit():
+                if isinstance(suspect_evidence_id, str) and suspect_evidence_id.isdigit():
                     try:
                         evidence_id_int = int(suspect_evidence_id)
                         filters.append(Evidence.id == evidence_id_int)
@@ -516,7 +491,9 @@ class CaseService:
                 
                 if evidence_records:
                     for evidence in evidence_records:
-                        evidence_linked_to_suspects.add(evidence.evidence_number)
+                        evidence_num = getattr(evidence, 'evidence_number', None)
+                        if evidence_num:
+                            evidence_linked_to_suspects.add(evidence_num)
                         
                         notes_text = None
                         evidence_notes = getattr(evidence, 'notes', None)
@@ -534,40 +511,38 @@ class CaseService:
                         if suspect_summary:
                             notes_text = suspect_summary
                         
-                        analysis_item = {
-                            "evidence_id": evidence.evidence_number,
-                            "notes": notes_text or "No description available",
-                            "status": "Analysis"
+                        evidence_num = getattr(evidence, 'evidence_number', None)
+                        evidence_item = {
+                            "evidence_id": evidence_num or "",
+                            "evidence_summary": notes_text or "No description available"
                         }
                         
                         evidence_file_path = getattr(evidence, 'file_path', None)
                         if evidence_file_path:
-                            analysis_item["file_path"] = evidence_file_path
+                            evidence_item["file_path"] = evidence_file_path
                         
                         suspect_source = getattr(suspect, 'evidence_source', None)
                         if suspect_source:
-                            analysis_item["source"] = suspect_source
+                            evidence_item["source"] = suspect_source
                         
-                        # Add chain of custody
                         chain_of_custody = self._get_chain_of_custody(db, evidence.id)
-                        analysis_item["chain_of_custody"] = chain_of_custody
+                        evidence_item["chain_of_custody"] = chain_of_custody
                         
-                        if not any(item.get("evidence_id") == evidence.evidence_number for item in analysis_items):
-                            analysis_items.append(analysis_item)
+                        if evidence_num and not any(item.get("evidence_id") == evidence_num for item in evidence_items):
+                            evidence_items.append(evidence_item)
                 else:
                     suspect_summary = getattr(suspect, 'evidence_summary', None)
                     if suspect_summary is not None:
                         summaries = suspect_summary.split('\n') if '\n' in suspect_summary else [suspect_summary]
                         for summary in summaries:
                             if summary.strip():
-                                analysis_item = {
+                                evidence_item = {
                                     "evidence_id": suspect_evidence_id,
-                                    "notes": summary.strip(),
-                                    "status": "Analysis"
+                                    "evidence_summary": summary.strip()
                                 }
                                 suspect_source = getattr(suspect, 'evidence_source', None)
                                 if suspect_source:
-                                    analysis_item["source"] = suspect_source
+                                    evidence_item["source"] = suspect_source
                                 
                                 if suspect_evidence_id:
                                     evidence_file = db.query(Evidence).filter(
@@ -577,34 +552,32 @@ class CaseService:
                                     if evidence_file:
                                         evidence_file_path = getattr(evidence_file, 'file_path', None)
                                         if evidence_file_path:
-                                            analysis_item["file_path"] = evidence_file_path
+                                            evidence_item["file_path"] = evidence_file_path
                                         
-                                        # Add chain of custody
                                         chain_of_custody = self._get_chain_of_custody(db, evidence_file.id)
-                                        analysis_item["chain_of_custody"] = chain_of_custody
+                                        evidence_item["chain_of_custody"] = chain_of_custody
                                         
-                                        evidence_linked_to_suspects.add(evidence_file.evidence_number)
+                                        evidence_file_num = getattr(evidence_file, 'evidence_number', None)
+                                        if evidence_file_num:
+                                            evidence_linked_to_suspects.add(evidence_file_num)
                                 
-                                if not any(item.get("evidence_id") == suspect_evidence_id for item in analysis_items):
-                                    analysis_items.append(analysis_item)
+                                if not any(item.get("evidence_id") == suspect_evidence_id for item in evidence_items):
+                                    evidence_items.append(evidence_item)
         
         for suspect_name, suspect_data in suspects_by_name.items():
-            analysis_items = suspect_data["analysis"]
-            
+            evidence_items = suspect_data["evidence"]
             for evidence in all_evidence:
                 suspect_with_evidence = db.query(Suspect).filter(
                     Suspect.case_id == case_id,
                     Suspect.name == suspect_name,
                     Suspect.evidence_id == evidence.evidence_number
                 ).first()
-                
-                if suspect_with_evidence and evidence.evidence_number not in evidence_linked_to_suspects:
-                    evidence_linked_to_suspects.add(evidence.evidence_number)
-                    
+                evidence_num = getattr(evidence, 'evidence_number', None)
+                if suspect_with_evidence and evidence_num and evidence_num not in evidence_linked_to_suspects:
+                    evidence_linked_to_suspects.add(evidence_num)
                     notes_text = None
                     evidence_notes = getattr(evidence, 'notes', None)
                     evidence_desc = getattr(evidence, 'description', None) or ''
-                    
                     if evidence_notes:
                         if isinstance(evidence_notes, dict):
                             notes_text = evidence_notes.get('text', '') or evidence_desc
@@ -612,122 +585,30 @@ class CaseService:
                             notes_text = evidence_notes
                     else:
                         notes_text = evidence_desc
-                    
                     suspect_summary = getattr(suspect_with_evidence, 'evidence_summary', None)
                     if suspect_summary:
                         notes_text = suspect_summary
-                    
-                    analysis_item = {
-                        "evidence_id": evidence.evidence_number,
-                        "notes": notes_text or "No description available",
-                        "status": "Analysis"
+                    evidence_item = {
+                        "evidence_id": evidence.evidence_number or "",
+                        "evidence_summary": notes_text or "No description available"
                     }
                     
                     evidence_file_path = getattr(evidence, 'file_path', None)
                     if evidence_file_path:
-                        analysis_item["file_path"] = evidence_file_path
+                        evidence_item["file_path"] = evidence_file_path
                     
                     suspect_source = getattr(suspect_with_evidence, 'evidence_source', None)
                     if suspect_source:
-                        analysis_item["source"] = suspect_source
+                        evidence_item["source"] = suspect_source
                     
-                    # Add chain of custody
                     chain_of_custody = self._get_chain_of_custody(db, evidence.id)
-                    analysis_item["chain_of_custody"] = chain_of_custody
+                    evidence_item["chain_of_custody"] = chain_of_custody
                     
-                    if not any(item.get("evidence_id") == evidence.evidence_number for item in analysis_items):
-                        analysis_items.append(analysis_item)
+                    evidence_num = getattr(evidence, 'evidence_number', None)
+                    if evidence_num and not any(item.get("evidence_id") == evidence_num for item in evidence_items):
+                        evidence_items.append(evidence_item)
         
         persons_of_interest = list(suspects_by_name.values())
-        
-        for evidence in all_evidence:
-            if evidence.evidence_number not in evidence_linked_to_suspects:
-                notes_text = None
-                evidence_notes = getattr(evidence, 'notes', None)
-                evidence_desc = getattr(evidence, 'description', None) or ''
-                
-                if evidence_notes:
-                    if isinstance(evidence_notes, dict):
-                        notes_text = evidence_notes.get('text', '') or evidence_desc
-                    elif isinstance(evidence_notes, str):
-                        notes_text = evidence_notes
-                else:
-                    notes_text = evidence_desc
-                
-                analysis_item = {
-                    "evidence_id": evidence.evidence_number,
-                    "notes": notes_text or "No description available",
-                    "status": "Analysis"
-                }
-                
-                evidence_file_path = getattr(evidence, 'file_path', None)
-                if evidence_file_path:
-                    analysis_item["file_path"] = evidence_file_path
-                
-                # Add chain of custody
-                chain_of_custody = self._get_chain_of_custody(db, evidence.id)
-                analysis_item["chain_of_custody"] = chain_of_custody
-                
-                evidence_title = getattr(evidence, 'title', None) or ''
-                if evidence_title and evidence_title.lower().startswith('evidence'):
-                    person_name = "Unknown Person"
-                else:
-                    person_name = evidence_title or "Unknown Person"
-                
-                person_data = {
-                    "id": None,
-                    "name": person_name,
-                    "person_type": None,
-                    "analysis": [analysis_item]
-                }
-                persons_of_interest.append(person_data)
-        
-        logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
-            .order_by(CaseLog.created_at.desc()).all()
-        
-        case_log = []
-        current_case_status = case.status
-        
-        for log in logs:
-            created_at_value = getattr(log, 'created_at', None)
-            if created_at_value:
-                if isinstance(created_at_value, datetime):
-                    formatted_date = format_date_indonesian(created_at_value)
-                else:
-                    formatted_date = str(created_at_value)
-            else:
-                formatted_date = None
-            
-            log_action = getattr(log, 'action', '')
-            log_status = getattr(log, 'status', '')
-            
-            log_data = {
-                "id": log.id,
-                "case_id": log.case_id,
-                "action": log.action,
-                "created_at": formatted_date
-            }
-            
-            if log_action == "Edit" and log_status == current_case_status:
-                changed_by = getattr(log, 'changed_by', '') or ''
-                change_detail = getattr(log, 'change_detail', '') or ''
-                if changed_by or change_detail:
-                    edit_array = [{
-                        "changed_by": changed_by,
-                        "change_detail": change_detail
-                    }]
-                    log_data["edit"] = edit_array
-                notes_value = getattr(log, 'notes', None)
-                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip():
-                    log_data["notes"] = notes_value.strip()
-            else:
-                log_data["status"] = log.status
-                notes_value = getattr(log, 'notes', None)
-                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip():
-                    log_data["notes"] = notes_value.strip()
-            
-            case_log.append(log_data)
-        
         case_notes_value = getattr(case, 'notes', None)
         
         case_data = {
@@ -743,7 +624,6 @@ class CaseService:
                 "created_date": created_date
             },
             "persons_of_interest": persons_of_interest,
-            "case_log": case_log,
             "case_notes": case_notes_value
         }
         
@@ -899,7 +779,7 @@ class CaseLogService:
     
     def get_log_count(self, db: Session, case_id: int) -> int:
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
-    
+
     def get_case_log_detail(self, db: Session, log_id: int) -> dict:
         try:
             log = db.query(CaseLog).filter(CaseLog.id == log_id).first()
@@ -962,7 +842,6 @@ class PersonService:
             "investigator": person_dict.get("investigator"),
             "status": person_dict.get("suspect_status") or "Suspect",
             "is_unknown": person_dict.get("is_unknown", False),
-            "custody_stage": person_dict.get("custody_stage"),
             "evidence_id": person_dict.get("evidence_id"),
             "evidence_source": person_dict.get("evidence_source"),
             "evidence_summary": person_dict.get("evidence_summary"),
@@ -984,7 +863,7 @@ class PersonService:
                     case_id=suspect.case_id,
                     action="Edit",
                     changed_by=f"By: {changed_by_value}",
-                    change_detail=f"Change: Adding suspect {suspect.name}",
+                    change_detail=f"Change: Adding person {suspect.name}",
                     notes="",
                     status=current_status
                 )
@@ -1005,7 +884,6 @@ class PersonService:
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
             "suspect_status": suspect.status,
-            "custody_stage": suspect.custody_stage,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
@@ -1025,7 +903,6 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "custody_stage": suspect.custody_stage,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
@@ -1047,7 +924,6 @@ class PersonService:
                 "id": suspect.id,
                 "name": suspect.name,
                 "is_unknown": suspect.is_unknown,
-                "custody_stage": suspect.custody_stage,
                 "evidence_id": suspect.evidence_id,
                 "evidence_source": suspect.evidence_source,
                 "evidence_summary": suspect.evidence_summary,
@@ -1084,7 +960,6 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "custody_stage": suspect.custody_stage,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
