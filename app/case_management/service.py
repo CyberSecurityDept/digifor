@@ -180,7 +180,6 @@ class CaseService:
         
         assert isinstance(case_response["created_at"], str), f"created_at must be string, got {type(case_response['created_at'])}"
         assert isinstance(case_response["updated_at"], str), f"updated_at must be string, got {type(case_response['updated_at'])}"
-        
         return case_response
     
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
@@ -452,132 +451,38 @@ class CaseService:
                 work_unit_name = work_unit.name
         
         created_date = case.created_at.strftime("%d/%m/%Y")
-        
-        suspects = db.query(Suspect).filter(Suspect.case_id == case_id).all()
+        suspects = db.query(Suspect).filter(Suspect.case_id == case_id).order_by(Suspect.id.asc()).all()
         all_evidence = db.query(Evidence).filter(Evidence.case_id == case_id).all()
-        
         evidence_linked_to_suspects = set()
-        
-        suspects_by_name = {}
+        suspects_by_id = {}
+        suspect_map = {suspect.id: suspect for suspect in suspects}
         
         for suspect in suspects:
-            suspect_name = suspect.name
-            suspect_evidence_id = getattr(suspect, 'evidence_id', None)
             suspect_status = getattr(suspect, 'status', None)
-            
             person_type = suspect_status if suspect_status else None
             
-            if suspect_name not in suspects_by_name:
-                suspects_by_name[suspect_name] = {
-                    "id": suspect.id,
-                    "name": suspect_name,
-                    "person_type": person_type,
-                    "evidence": []
-                }
+            suspects_by_id[suspect.id] = {
+                "suspect_id": suspect.id,
+                "name": suspect.name,
+                "person_type": person_type,
+                "evidence": []
+            }
             
-            evidence_items = suspects_by_name[suspect_name]["evidence"]
-            
-            if suspect_evidence_id is not None:
-                evidence_query = db.query(Evidence).filter(Evidence.case_id == case_id)
-                filters = [Evidence.evidence_number == suspect_evidence_id]
-                if isinstance(suspect_evidence_id, str) and suspect_evidence_id.isdigit():
-                    try:
-                        evidence_id_int = int(suspect_evidence_id)
-                        filters.append(Evidence.id == evidence_id_int)
-                    except ValueError:
-                        pass
+        for evidence in all_evidence:
+            evidence_suspect_id = getattr(evidence, 'suspect_id', None)
+            if evidence_suspect_id and evidence_suspect_id in suspect_map:
+                suspect = suspect_map[evidence_suspect_id]
                 
-                evidence_records = evidence_query.filter(or_(*filters)).all()
-                
-                if evidence_records:
-                    for evidence in evidence_records:
-                        evidence_num = getattr(evidence, 'evidence_number', None)
-                        if evidence_num:
-                            evidence_linked_to_suspects.add(evidence_num)
-                        
-                        notes_text = None
-                        evidence_notes = getattr(evidence, 'notes', None)
-                        evidence_desc = getattr(evidence, 'description', None) or ''
-                        
-                        if evidence_notes:
-                            if isinstance(evidence_notes, dict):
-                                notes_text = evidence_notes.get('text', '') or evidence_desc
-                            elif isinstance(evidence_notes, str):
-                                notes_text = evidence_notes
-                        else:
-                            notes_text = evidence_desc
-                        
-                        suspect_summary = getattr(suspect, 'evidence_summary', None)
-                        if suspect_summary:
-                            notes_text = suspect_summary
-                        
-                        evidence_num = getattr(evidence, 'evidence_number', None)
-                        evidence_item = {
-                            "evidence_id": evidence_num or "",
-                            "evidence_summary": notes_text or "No description available"
-                        }
-                        
-                        evidence_file_path = getattr(evidence, 'file_path', None)
-                        if evidence_file_path:
-                            evidence_item["file_path"] = evidence_file_path
-                        
-                        suspect_source = getattr(suspect, 'evidence_source', None)
-                        if suspect_source:
-                            evidence_item["source"] = suspect_source
-                        
-                        chain_of_custody = self._get_chain_of_custody(db, evidence.id)
-                        evidence_item["chain_of_custody"] = chain_of_custody
-                        
-                        if evidence_num and not any(item.get("evidence_id") == evidence_num for item in evidence_items):
-                            evidence_items.append(evidence_item)
-                else:
-                    suspect_summary = getattr(suspect, 'evidence_summary', None)
-                    if suspect_summary is not None:
-                        summaries = suspect_summary.split('\n') if '\n' in suspect_summary else [suspect_summary]
-                        for summary in summaries:
-                            if summary.strip():
-                                evidence_item = {
-                                    "evidence_id": suspect_evidence_id,
-                                    "evidence_summary": summary.strip()
-                                }
-                                suspect_source = getattr(suspect, 'evidence_source', None)
-                                if suspect_source:
-                                    evidence_item["source"] = suspect_source
-                                
-                                if suspect_evidence_id:
-                                    evidence_file = db.query(Evidence).filter(
-                                        Evidence.case_id == case_id,
-                                        Evidence.evidence_number == suspect_evidence_id
-                                    ).first()
-                                    if evidence_file:
-                                        evidence_file_path = getattr(evidence_file, 'file_path', None)
-                                        if evidence_file_path:
-                                            evidence_item["file_path"] = evidence_file_path
-                                        
-                                        chain_of_custody = self._get_chain_of_custody(db, evidence_file.id)
-                                        evidence_item["chain_of_custody"] = chain_of_custody
-                                        
-                                        evidence_file_num = getattr(evidence_file, 'evidence_number', None)
-                                        if evidence_file_num:
-                                            evidence_linked_to_suspects.add(evidence_file_num)
-                                
-                                if not any(item.get("evidence_id") == suspect_evidence_id for item in evidence_items):
-                                    evidence_items.append(evidence_item)
-        
-        for suspect_name, suspect_data in suspects_by_name.items():
-            evidence_items = suspect_data["evidence"]
-            for evidence in all_evidence:
-                suspect_with_evidence = db.query(Suspect).filter(
-                    Suspect.case_id == case_id,
-                    Suspect.name == suspect_name,
-                    Suspect.evidence_id == evidence.evidence_number
-                ).first()
-                evidence_num = getattr(evidence, 'evidence_number', None)
-                if suspect_with_evidence and evidence_num and evidence_num not in evidence_linked_to_suspects:
-                    evidence_linked_to_suspects.add(evidence_num)
+                if evidence_suspect_id in suspects_by_id:
+                    evidence_items = suspects_by_id[evidence_suspect_id]["evidence"]
+                    evidence_num = getattr(evidence, 'evidence_number', None)
+                    if evidence_num:
+                        evidence_linked_to_suspects.add(evidence_num)
+                    
                     notes_text = None
                     evidence_notes = getattr(evidence, 'notes', None)
                     evidence_desc = getattr(evidence, 'description', None) or ''
+                    
                     if evidence_notes:
                         if isinstance(evidence_notes, dict):
                             notes_text = evidence_notes.get('text', '') or evidence_desc
@@ -585,11 +490,11 @@ class CaseService:
                             notes_text = evidence_notes
                     else:
                         notes_text = evidence_desc
-                    suspect_summary = getattr(suspect_with_evidence, 'evidence_summary', None)
-                    if suspect_summary:
-                        notes_text = suspect_summary
+                    
+                    evidence_num = getattr(evidence, 'evidence_number', None)
                     evidence_item = {
-                        "evidence_id": evidence.evidence_number or "",
+                        "id": evidence.id,
+                        "evidence_id": evidence_num or "",
                         "evidence_summary": notes_text or "No description available"
                     }
                     
@@ -597,20 +502,72 @@ class CaseService:
                     if evidence_file_path:
                         evidence_item["file_path"] = evidence_file_path
                     
-                    suspect_source = getattr(suspect_with_evidence, 'evidence_source', None)
+                    suspect_source = getattr(suspect, 'evidence_source', None)
                     if suspect_source:
                         evidence_item["source"] = suspect_source
                     
-                    chain_of_custody = self._get_chain_of_custody(db, evidence.id)
-                    evidence_item["chain_of_custody"] = chain_of_custody
-                    
-                    evidence_num = getattr(evidence, 'evidence_number', None)
                     if evidence_num and not any(item.get("evidence_id") == evidence_num for item in evidence_items):
                         evidence_items.append(evidence_item)
         
-        persons_of_interest = list(suspects_by_name.values())
-        case_notes_value = getattr(case, 'notes', None)
+        for evidence in all_evidence:
+            evidence_suspect_id = getattr(evidence, 'suspect_id', None)
+            evidence_num = getattr(evidence, 'evidence_number', None)
+            if evidence_suspect_id is None and evidence_num and evidence_num not in evidence_linked_to_suspects:
+                evidence_linked_to_suspects.add(evidence_num)
+                notes_text = None
+                evidence_notes = getattr(evidence, 'notes', None)
+                evidence_desc = getattr(evidence, 'description', None) or ''
+                if evidence_notes:
+                    if isinstance(evidence_notes, dict):
+                        notes_text = evidence_notes.get('text', '') or evidence_desc
+                    elif isinstance(evidence_notes, str):
+                        notes_text = evidence_notes
+                else:
+                    notes_text = evidence_desc
+                evidence_item = {
+                    "id": evidence.id,
+                    "evidence_id": evidence_num or "",
+                    "evidence_summary": notes_text or "No description available"
+                }
+                evidence_file_path = getattr(evidence, 'file_path', None)
+                if evidence_file_path:
+                    evidence_item["file_path"] = evidence_file_path
+                
+                evidence_source = getattr(evidence, 'source', None)
+                if not evidence_source:
+                    suspect_with_evidence = db.query(Suspect).filter(
+                        Suspect.case_id == case_id,
+                        Suspect.evidence_id == evidence_num
+                    ).first()
+                    if suspect_with_evidence:
+                        evidence_source = getattr(suspect_with_evidence, 'evidence_source', None)
+                
+                if evidence_source:
+                    evidence_item["source"] = evidence_source
+                
+                unknown_key = "unknown_unlinked"
+                if unknown_key not in suspects_by_id:
+                    suspects_by_id[unknown_key] = {
+                        "suspect_id": None,
+                        "name": "Unknown",
+                        "person_type": None,
+                        "evidence": []
+                    }
+                
+                unknown_person_evidence = suspects_by_id[unknown_key]["evidence"]
+                if evidence_num and not any(item.get("evidence_id") == evidence_num for item in unknown_person_evidence):
+                    unknown_person_evidence.append(evidence_item)
         
+        for suspect_id, suspect_data in suspects_by_id.items():
+            evidence_items = suspect_data["evidence"]
+            evidence_items.sort(key=lambda x: x.get("id") or 0)
+        
+        persons_of_interest = list(suspects_by_id.values())
+        # Urutkan dari terlama ke terbaru (suspect_id ascending)
+        # Unknown unlinked (suspect_id = None) akan muncul terakhir
+        persons_of_interest.sort(key=lambda x: (x.get("suspect_id") is None, x.get("suspect_id") or 0), reverse=False)
+        case_notes_value = getattr(case, 'notes', None)
+        person_count = len(persons_of_interest)
         case_data = {
             "case": {
                 "id": case.id,
@@ -624,6 +581,7 @@ class CaseService:
                 "created_date": created_date
             },
             "persons_of_interest": persons_of_interest,
+            "person_count": person_count,
             "case_notes": case_notes_value
         }
         
@@ -633,7 +591,6 @@ class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
         notes = log_data.get('notes', '') or ''
         log_data['notes'] = notes
-        
         case = db.query(Case).filter(Case.id == log_data['case_id']).first()
         case_status = case.status if case else None
         log = CaseLog(**log_data)
@@ -657,10 +614,8 @@ class CaseLogService:
             case = db.query(Case).filter(Case.id == case_id).first()
             if not case:
                 raise HTTPException(status_code=404, detail="Case not found")
-            
             new_status = log_data['status']
             old_status = case.status
-            
             case.status = new_status
             db.commit()
             db.refresh(case)
@@ -732,7 +687,6 @@ class CaseLogService:
     def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
         case = db.query(Case).filter(Case.id == case_id).first()
         current_case_status = case.status if case else None
-        
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
             .order_by(CaseLog.created_at.desc())\
             .offset(skip).limit(limit).all()
@@ -774,7 +728,6 @@ class CaseLogService:
                     log_dict["notes"] = notes_value
             
             result.append(log_dict)
-        
         return result
     
     def get_log_count(self, db: Session, case_id: int) -> int:
@@ -834,7 +787,6 @@ class CaseLogService:
 class PersonService:
     def create_person(self, db: Session, person_data: PersonCreate, changed_by: str = "") -> dict:
         person_dict = person_data.dict()
-        
         suspect_dict = {
             "name": person_dict.get("name", ""),
             "case_id": person_dict.get("case_id"),
@@ -856,9 +808,7 @@ class PersonService:
             try:
                 case = db.query(Case).filter(Case.id == suspect.case_id).first()
                 current_status = case.status if case else "Open"
-                
                 changed_by_value = changed_by if changed_by else ""
-                
                 case_log = CaseLog(
                     case_id=suspect.case_id,
                     action="Edit",
@@ -978,7 +928,6 @@ class PersonService:
         db.delete(suspect)
         db.commit()
         return True
-
 
 case_service = CaseService()
 case_log_service = CaseLogService()

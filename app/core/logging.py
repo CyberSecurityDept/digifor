@@ -41,27 +41,21 @@ class ColoredFormatter(logging.Formatter):
 def setup_logging():
     log_dir = Path(settings.LOG_FILE).parent
     log_dir.mkdir(parents=True, exist_ok=True)
-    
     colored_formatter = ColoredFormatter()
     file_formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
-    
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(colored_formatter)
-    
     file_handler = logging.FileHandler(settings.LOG_FILE)
     file_handler.setFormatter(file_formatter)
-    
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
     root_logger.handlers.clear()
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
-    
     uvicorn_logger = logging.getLogger("uvicorn")
     uvicorn_logger.setLevel(logging.WARNING)
     uvicorn_access_logger = logging.getLogger("uvicorn.access")
     uvicorn_access_logger.setLevel(logging.WARNING)
-    
     return logging.getLogger(__name__)
 
 def log_startup_info(logger):
@@ -69,10 +63,8 @@ def log_startup_info(logger):
     logger.info(f"API: {settings.API_V1_STR}")
     logger.info(f"Debug: {settings.DEBUG}")
 
-
 def log_database_info(logger):
     logger.info("Database connected")
-
 
 def log_shutdown(logger):
     logger.info("Server shutting down")

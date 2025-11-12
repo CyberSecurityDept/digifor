@@ -58,9 +58,7 @@ async def get_evidence_list(
             query = query.order_by(Evidence.id.desc())
         
         total = query.count()
-        
         evidence_list = query.offset(skip).limit(limit).all()
-        
         evidence_data = []
         for evidence in evidence_list:
             created_at_value = getattr(evidence, 'created_at', None)
@@ -104,14 +102,93 @@ async def get_evidence_list(
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
-                "message": "Evidence list retrieved successfully",
+        "status": 200,
+        "message": "Evidence list retrieved successfully",
                 "data": evidence_data,
                 "total": total,
                 "page": skip // limit + 1 if limit > 0 else 1,
-                "size": limit
+        "size": limit
+    }
+        )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected server error: {str(e)}"
+        )
+
+@router.get("/get-evidence-summary")
+async def get_evidence_summary(
+    db: Session = Depends(get_database)
+):
+    try:
+        total_cases = db.query(Case).count()
+        total_evidence = db.query(Evidence).count()
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "message": "Evidence summary retrieved successfully",
+                "data": {
+                    "total_case": total_cases,
+                    "total_evidence": total_evidence
+                }
             }
         )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected server error: {str(e)}"
+        )
+
+@router.get("/get-unknown-suspects/{case_id}")
+async def get_unknown_suspects(
+    case_id: int,
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        unknown_suspects = db.query(Suspect).filter(
+            Suspect.case_id == case_id,
+            Suspect.name == "Unknown",
+            Suspect.is_unknown == True
+        ).order_by(Suspect.id.asc()).all()
+        
+        suspects_list = []
+        for suspect in unknown_suspects:
+            evidence_count = db.query(Evidence).filter(Evidence.suspect_id == suspect.id).count()
+            
+            created_at_str = None
+            try:
+                created_at_value = getattr(suspect, 'created_at', None)
+                if created_at_value is not None:
+                    created_at_str = created_at_value.isoformat()
+            except (AttributeError, TypeError):
+                pass
+            
+            suspects_list.append({
+                "suspect_id": suspect.id,
+                "name": suspect.name,
+                "evidence_count": evidence_count,
+                "created_at": created_at_str
+            })
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "message": "Unknown suspects retrieved successfully",
+                "data": suspects_list
+            }
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(
@@ -131,6 +208,7 @@ async def create_evidence(
     investigator: str = Form(...),
     person_name: Optional[str] = Form(None),
     is_unknown_person: Optional[bool] = Form(False),
+    suspect_id: Optional[int] = Form(None),
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
@@ -138,6 +216,13 @@ async def create_evidence(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        if is_unknown_person:
+            pass
+        elif not is_unknown_person and (not person_name or not person_name.strip()):
+            raise HTTPException(
+                status_code=400,
+                detail="person_name is required when is_unknown_person is false"
+            )
         
         if evidence_id is not None:
             evidence_id = evidence_id.strip() if isinstance(evidence_id, str) else str(evidence_id).strip()
@@ -196,7 +281,6 @@ async def create_evidence(
                 f.write(file_content)
             
             file_hash = hashlib.sha256(file_content).hexdigest()
-            
             file_type = evidence_file.content_type or 'application/octet-stream'
         
         evidence_dict = {
@@ -214,14 +298,65 @@ async def create_evidence(
             "collected_date": datetime.now(timezone.utc),
         }
         
-        evidence = Evidence(**evidence_dict)
-        db.add(evidence)
-        db.commit()
-        db.refresh(evidence)
-    
+        suspect_id_value = None
+        
         if is_unknown_person:
-            # Jika is_unknown_person = true, tidak perlu create suspect
-            pass
+            if suspect_id is not None:
+                selected_suspect = db.query(Suspect).filter(
+                    Suspect.id == suspect_id,
+                    Suspect.case_id == case_id,
+                    Suspect.name == "Unknown",
+                    Suspect.is_unknown == True
+                ).first()
+                
+                if not selected_suspect:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Suspect with ID {suspect_id} not found or is not an Unknown person for this case"
+                    )
+                
+                suspect_id_value = selected_suspect.id
+            else:
+                existing_unknown_suspect = db.query(Suspect).filter(
+                    Suspect.case_id == case_id,
+                    Suspect.name == "Unknown",
+                    Suspect.is_unknown == True
+                ).order_by(Suspect.id.desc()).first()
+                
+                if existing_unknown_suspect:
+                    suspect_id_value = existing_unknown_suspect.id
+                else:
+                    investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                    new_suspect = Suspect(
+                        name="Unknown",
+                        case_id=case_id,
+                        case_name=case.title if case else None,
+                        evidence_id=evidence_number,
+                        evidence_source=source,
+                        investigator=investigator_name,
+                        status=None,
+                        is_unknown=True,
+                        created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                    )
+                    db.add(new_suspect)
+                    db.commit()
+                    db.refresh(new_suspect)
+                    suspect_id_value = new_suspect.id
+                    try:
+                        current_status = case.status if case else "Open"
+                        changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                        case_log = CaseLog(
+                            case_id=case_id,
+                            action="Edit",
+                            changed_by=f"By: {changed_by}",
+                            change_detail=f"Change: Adding person Unknown",
+                            notes="",
+                            status=current_status
+                        )
+                        db.add(case_log)
+                        db.commit()
+                    except Exception as e:
+                        print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
         elif person_name and person_name.strip():
             person_name_clean = person_name.strip()
             existing_suspect = db.query(Suspect).filter(
@@ -230,29 +365,24 @@ async def create_evidence(
             ).first()
             
             if existing_suspect:
-                setattr(existing_suspect, 'evidence_id', evidence_number)
-                db.commit()
+                suspect_id_value = existing_suspect.id
             else:
                 investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                
-                # Jika is_unknown_person = false (radio person_name), status bisa diisi atau null
-                # Tapi karena ini auto-create dari create-evidence, status tetap None
                 new_suspect = Suspect(
                     name=person_name_clean,
                     case_id=case_id,
                     case_name=case.title if case else None,
                     evidence_id=evidence_number,
                     evidence_source=source,
-                    evidence_summary=evidence_summary,
                     investigator=investigator_name,
-                    status=None,  # Auto-created suspect dari create-evidence selalu status = null
+                    status=None,
                     is_unknown=False,
                     created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
                 )
                 db.add(new_suspect)
                 db.commit()
                 db.refresh(new_suspect)
-                
+                suspect_id_value = new_suspect.id
                 try:
                     current_status = case.status if case else "Open"
                     changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
@@ -268,6 +398,14 @@ async def create_evidence(
                     db.commit()
                 except Exception as e:
                     print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
+        
+        evidence_dict["suspect_id"] = suspect_id_value
+        
+        evidence = Evidence(**evidence_dict)
+        db.add(evidence)
+        db.commit()
+        db.refresh(evidence)
+        
         try:
             current_status = case.status if case else "Open"
             changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
@@ -286,7 +424,6 @@ async def create_evidence(
             print(f"Warning: Could not create case log for evidence: {str(e)}")
         
         case_title = case.title if case else None
-        
         agency_name = None
         if case:
             case_agency_id = getattr(case, 'agency_id', None)
@@ -326,10 +463,10 @@ async def create_evidence(
         return JSONResponse(
             status_code=201,
             content={
-                "status": 201,
-                "message": "Evidence created successfully",
+            "status": 201,
+            "message": "Evidence created successfully",
                 "data": response_data
-            }
+        }
         )
     except HTTPException:
         raise
@@ -361,7 +498,6 @@ async def log_custody_event(
     try:
         log_data = f"{evidence_id}_{custody_data.event_type}_{custody_data.event_date}_{custody_data.person_name}_{custody_data.location}"
         log_hash = hashlib.sha256(log_data.encode()).hexdigest()
-
         custody_log = {
             "evidence_id": evidence_id,
             "event_type": custody_data.event_type,
@@ -472,7 +608,6 @@ async def get_custody_events(
         total = query.count()
         events_query = query.order_by(CustodyLog.event_date.desc()).offset(skip).limit(limit)
         events = events_query.all()
-        
         events_data = []
         for event in events:
             events_data.append({
@@ -539,19 +674,16 @@ async def generate_custody_report(
         evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
         if not evidence:
             raise HTTPException(status_code=404, detail=f"Evidence with ID {evidence_id} not found")
-        
         report_data.evidence_id = evidence_id
         if not report_data.generated_by:
             report_data.generated_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-        
         custody_service = CustodyService(db)
         report = custody_service.create_custody_report(report_data)
-        
         return JSONResponse(
             status_code=201,
             content={
-                "status": 201,
-                "message": "Custody report generated successfully",
+            "status": 201,
+            "message": "Custody report generated successfully",
                 "data": {
                     "id": report.id,
                     "evidence_id": report.evidence_id,
@@ -587,10 +719,8 @@ async def get_custody_reports(
         evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
         if not evidence:
             raise HTTPException(status_code=404, detail=f"Evidence with ID {evidence_id} not found")
-        
         custody_service = CustodyService(db)
         result = custody_service.get_custody_reports(evidence_id, skip, limit, report_type)
-    
         reports_data = []
         for report in result.get("reports", []):
             reports_data.append({
@@ -609,8 +739,8 @@ async def get_custody_reports(
         return JSONResponse(
             status_code=200,
             content={
-                "status": 200,
-                "message": "Custody reports retrieved successfully",
+            "status": 200,
+            "message": "Custody reports retrieved successfully",
                 "data": reports_data,
                 "total": result.get("total", 0),
                 "page": result.get("page", 1),
@@ -636,10 +766,8 @@ async def get_custody_report(
         evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
         if not evidence:
             raise HTTPException(status_code=404, detail=f"Evidence with ID {evidence_id} not found")
-        
         custody_service = CustodyService(db)
         report = custody_service.get_custody_report(report_id)
-        
         report_evidence_id = getattr(report, 'evidence_id', None)
         if report_evidence_id != evidence_id:
             raise HTTPException(
@@ -648,7 +776,6 @@ async def get_custody_report(
             )
         
         report_dict = custody_service._custody_report_to_dict(report)
-        
         return JSONResponse(
             status_code=200,
             content={
@@ -713,10 +840,8 @@ async def save_evidence_notes(
         setattr(evidence, 'notes', request.notes)
         db.commit()
         db.refresh(evidence)
-        
         updated_at_value = getattr(evidence, 'updated_at', None)
         updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
         return JSONResponse(
             content={
                 "status": 200,
@@ -783,10 +908,8 @@ async def edit_evidence_notes(
         setattr(evidence, 'notes', request.notes)
         db.commit()
         db.refresh(evidence)
-        
         updated_at_value = getattr(evidence, 'updated_at', None)
         updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
         return JSONResponse(
             content={
                 "status": 200,
@@ -821,4 +944,4 @@ async def edit_evidence_notes(
                     "data": None
                 },
                 status_code=500
-            )
+        )

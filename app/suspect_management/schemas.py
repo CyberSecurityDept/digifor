@@ -58,7 +58,6 @@ class Suspect(SuspectBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime]
-    last_seen: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -70,10 +69,25 @@ class SuspectResponse(BaseModel):
     data: Suspect
 
 
+class SuspectListItem(BaseModel):
+    id: int
+    case_id: Optional[int]
+    person_name: str = Field(..., description="Person name (alias for name)")
+    case_name: Optional[str] = Field(None, description="Associated case name")
+    investigator: Optional[str] = Field(None, description="Investigator name")
+    agency: Optional[str] = Field(None, description="Agency name from case")
+    status: Optional[str] = Field(None, description="Suspect status")
+    created_at: Optional[str] = Field(None, description="Created at timestamp (ISO format)")
+    updated_at: Optional[str] = Field(None, description="Updated at timestamp (ISO format)")
+
+    class Config:
+        from_attributes = True
+
+
 class SuspectListResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
-    data: List[Suspect]
+    data: List[SuspectListItem]
     total: int = Field(..., description="Total number of suspects")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")

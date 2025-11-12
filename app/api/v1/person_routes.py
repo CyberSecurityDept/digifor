@@ -15,7 +15,7 @@ router = APIRouter(prefix="/persons", tags=["Person Management"])
 @router.post("/create-person")
 async def create_person(
     case_id: int = Form(...),
-    person_name: str = Form(...),
+    person_name: Optional[str] = Form(None),
     suspect_status: Optional[str] = Form(None),
     evidence_id: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
@@ -29,6 +29,10 @@ async def create_person(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if not is_unknown_person:
+            if not person_name or not person_name.strip():
+                raise HTTPException(status_code=400, detail="person_name wajib diisi jika is_unknown_person = false")
         
         if evidence_id is not None:
             evidence_id = evidence_id.strip() if isinstance(evidence_id, str) else str(evidence_id).strip()
@@ -80,19 +84,15 @@ async def create_person(
         
         evidence_number = evidence_id
         evidence_title = case.title if case else evidence_number
-        
         investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-        
         existing_evidence = db.query(Evidence).filter(
             Evidence.evidence_number == evidence_number,
             Evidence.case_id == case_id
         ).first()
-        
-        # Jika evidence_id ada dan evidence_summary tidak diisi, ambil dari evidence yang ada
+    
         if existing_evidence and (not evidence_summary or not evidence_summary.strip()):
             evidence_desc = getattr(existing_evidence, 'description', None) or ''
             evidence_notes = getattr(existing_evidence, 'notes', None)
-            
             if evidence_notes:
                 if isinstance(evidence_notes, dict):
                     notes_text = evidence_notes.get('text', '') or evidence_desc
@@ -106,6 +106,81 @@ async def create_person(
             if notes_text and notes_text.strip():
                 evidence_summary = notes_text.strip()
         
+        suspect_id_value = None
+        if is_unknown_person:
+            suspect_dict = {
+                "name": "Unknown",
+                "case_id": case_id,
+                "case_name": case.title if case else None,
+                "investigator": investigator_name,
+                "status": None,
+                "is_unknown": True,
+                "evidence_id": evidence_number,
+                "evidence_source": evidence_source,
+                "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
+            }
+            
+            suspect = Suspect(**suspect_dict)
+            db.add(suspect)
+            db.commit()
+            db.refresh(suspect)
+            suspect_id_value = suspect.id
+            
+            try:
+                current_status = case.status if case else "Open"
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                
+                case_log = CaseLog(
+                    case_id=case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Adding person Unknown",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+                db.commit()
+            except Exception as e:
+                print(f"Warning: Could not create case log for suspect: {str(e)}")
+        else:
+            person_name_clean = person_name.strip() if person_name else None
+            final_suspect_status = suspect_status if suspect_status else None
+            
+            suspect_dict = {
+                "name": person_name_clean,
+                "case_id": case_id,
+                "case_name": case.title if case else None,
+                "investigator": investigator_name,
+                "status": final_suspect_status,
+                "is_unknown": False,
+                "evidence_id": evidence_number,
+                "evidence_source": evidence_source,
+                "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
+            }
+            
+            suspect = Suspect(**suspect_dict)
+            db.add(suspect)
+            db.commit()
+            db.refresh(suspect)
+            suspect_id_value = suspect.id
+            
+            try:
+                current_status = case.status if case else "Open"
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                
+                case_log = CaseLog(
+                    case_id=case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Adding person {person_name_clean}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+                db.commit()
+            except Exception as e:
+                print(f"Warning: Could not create case log for suspect: {str(e)}")
+        
         if existing_evidence:
             if file_path:
                 setattr(existing_evidence, 'file_path', file_path)
@@ -113,13 +188,16 @@ async def create_person(
                 setattr(existing_evidence, 'file_hash', file_hash)
                 setattr(existing_evidence, 'file_type', file_type)
                 setattr(existing_evidence, 'file_extension', file_extension)
-                db.commit()
+            setattr(existing_evidence, 'suspect_id', suspect_id_value)
+            db.commit()
+            evidence = existing_evidence
         else:
             evidence_dict = {
                 "evidence_number": evidence_number,
                 "title": evidence_title,
                 "description": evidence_summary,
                 "case_id": case_id,
+                "suspect_id": suspect_id_value,
                 "file_path": file_path,
                 "file_size": file_size,
                 "file_hash": file_hash,
@@ -151,43 +229,6 @@ async def create_person(
             except Exception as e:
                 print(f"Warning: Could not create case log for evidence: {str(e)}")
         
-        final_suspect_status = None if is_unknown_person else suspect_status
-        
-        suspect_dict = {
-            "name": "Unknown Person" if is_unknown_person else person_name,
-            "case_id": case_id,
-            "case_name": case.title if case else None,
-            "investigator": investigator_name,
-            "status": final_suspect_status,
-            "is_unknown": is_unknown_person,
-            "evidence_id": evidence_number,
-            "evidence_source": evidence_source,
-            "evidence_summary": evidence_summary,
-            "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
-        }
-        
-        suspect = Suspect(**suspect_dict)
-        db.add(suspect)
-        db.commit()
-        db.refresh(suspect)
-        
-        try:
-            current_status = case.status if case else "Open"
-            changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-            
-            case_log = CaseLog(
-                case_id=case_id,
-                action="Edit",
-                changed_by=f"By: {changed_by}",
-                change_detail=f"Change: Adding person {person_name}",
-                notes="",
-                status=current_status
-            )
-            db.add(case_log)
-            db.commit()
-        except Exception as e:
-            print(f"Warning: Could not create case log for suspect: {str(e)}")
-    
         created_at_str = None
         updated_at_str = None
         try:
@@ -206,7 +247,6 @@ async def create_person(
             "suspect_status": suspect.status,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
-            "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,
             "created_at": created_at_str,
@@ -244,35 +284,39 @@ async def update_person(
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
         
-        if person_name is not None:
-            if is_unknown_person:
-                setattr(suspect, 'name', "Unknown Person")
-            else:
-                setattr(suspect, 'name', person_name)
-        
         if is_unknown_person is not None:
             setattr(suspect, 'is_unknown', is_unknown_person)
+            
             if is_unknown_person:
-                setattr(suspect, 'name', "Unknown Person")
-                # Jika is_unknown_person = true, suspect_status harus null
+                setattr(suspect, 'name', "Unknown")
                 setattr(suspect, 'status', None)
             else:
-                # Jika is_unknown_person = false, update status sesuai input user
+                if not person_name or not person_name.strip():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="person_name is required when is_unknown_person is false"
+                    )
+                setattr(suspect, 'name', person_name.strip())
                 if suspect_status is not None:
                     setattr(suspect, 'status', suspect_status)
         else:
-            # Jika is_unknown_person tidak diubah, update status sesuai input user
+            if person_name is not None:
+                if not person_name.strip():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="person_name cannot be empty"
+                    )
+                setattr(suspect, 'name', person_name.strip())
+            
             if suspect_status is not None:
                 setattr(suspect, 'status', suspect_status)
         
         db.commit()
         db.refresh(suspect)
-        
         try:
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             current_status = case.status if case else "Open"
             changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-            
             case_log = CaseLog(
                 case_id=suspect.case_id,
                 action="Edit",
@@ -304,7 +348,6 @@ async def update_person(
             "suspect_status": suspect.status,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
-            "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,
             "created_at": created_at_str,
@@ -326,7 +369,7 @@ async def update_person(
         raise HTTPException(
             status_code=500, 
             detail=f"Unexpected server error: {str(e)}"
-        )
+            )
 
 @router.delete("/delete-person/{person_id}")
 async def delete_person(
@@ -338,9 +381,12 @@ async def delete_person(
         suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
-        
         suspect_name = suspect.name
         case_id = suspect.case_id
+        evidence_list = db.query(Evidence).filter(Evidence.suspect_id == person_id).all()
+        for evidence in evidence_list:
+            setattr(evidence, 'suspect_id', None)
+        db.commit()
         
         db.delete(suspect)
         db.commit()
@@ -354,7 +400,7 @@ async def delete_person(
                 case_id=case_id,
                 action="Edit",
                 changed_by=f"By: {changed_by}",
-                change_detail=f"Change: Deleting suspect {suspect_name}",
+                change_detail=f"Change: Deleting person {suspect_name}",
                 notes="",
                 status=current_status
             )

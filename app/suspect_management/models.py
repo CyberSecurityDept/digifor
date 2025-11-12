@@ -17,7 +17,6 @@ class Suspect(Base):
     is_unknown = Column(Boolean, default=False)
     evidence_id = Column(String(100))
     evidence_source = Column(String(100))
-    evidence_summary = Column(Text)
     created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -32,6 +32,7 @@ class Evidence(Base):
     description = Column(Text)
     evidence_type_id = Column(Integer, ForeignKey("evidence_types.id"))
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    suspect_id = Column(Integer, ForeignKey("suspects.id"), nullable=True)
     file_path = Column(String(500))
     file_size = Column(Integer)
     file_hash = Column(String(64))

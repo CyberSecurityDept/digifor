@@ -1,9 +1,9 @@
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-
 from app.suspect_management.models import Suspect
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate
+from app.case_management.models import Case, Agency
 
 
 class SuspectService:
@@ -22,7 +22,6 @@ class SuspectService:
             "is_unknown": suspect.is_unknown,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
-            "evidence_summary": suspect.evidence_summary,
             "created_by": suspect.created_by,
             "case_id": suspect.case_id,
             "created_at": suspect.created_at,
@@ -43,14 +42,13 @@ class SuspectService:
             "is_unknown": suspect.is_unknown,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
-            "evidence_summary": suspect.evidence_summary,
             "created_by": suspect.created_by,
             "case_id": suspect.case_id,
             "created_at": suspect.created_at,
             "updated_at": suspect.updated_at
         }
     
-    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> Tuple[List[dict], int]:
+    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None) -> Tuple[List[dict], int]:
         query = db.query(Suspect)
         if search:
             search_filter = or_(
@@ -61,31 +59,48 @@ class SuspectService:
             query = query.filter(search_filter)
         if status:
             query = query.filter(Suspect.status == status)
-        if sort_by == "created_at":
-            if sort_order and sort_order.lower() == "asc":
-                query = query.order_by(Suspect.created_at.asc())
-            else:
-                query = query.order_by(Suspect.created_at.desc())
-        else:
-            query = query.order_by(Suspect.id.desc())
+        
+        query = query.order_by(Suspect.id.desc())
         total = query.count()
         suspects = query.offset(skip).limit(limit).all()
         result = []
         for suspect in suspects:
+            created_at_str = None
+            updated_at_str = None
+            try:
+                created_at_value = getattr(suspect, 'created_at', None)
+                if created_at_value is not None:
+                    created_at_str = created_at_value.isoformat() if hasattr(created_at_value, 'isoformat') else str(created_at_value)
+            except (AttributeError, TypeError):
+                pass
+            try:
+                updated_at_value = getattr(suspect, 'updated_at', None)
+                if updated_at_value is not None:
+                    updated_at_str = updated_at_value.isoformat() if hasattr(updated_at_value, 'isoformat') else str(updated_at_value)
+            except (AttributeError, TypeError):
+                pass
+            
+            agency_name = None
+            case_id_value = getattr(suspect, 'case_id', None)
+            if case_id_value is not None:
+                case = db.query(Case).filter(Case.id == case_id_value).first()
+                if case:
+                    agency_id_value = getattr(case, 'agency_id', None)
+                    if agency_id_value is not None:
+                        agency = db.query(Agency).filter(Agency.id == agency_id_value).first()
+                        if agency:
+                            agency_name = getattr(agency, 'name', None)
+            
             suspect_dict = {
                 "id": suspect.id,
-                "name": suspect.name,
+                "case_id": suspect.case_id,
+                "person_name": suspect.name,
                 "case_name": suspect.case_name,
                 "investigator": suspect.investigator,
+                "agency": agency_name,
                 "status": suspect.status,
-                "is_unknown": suspect.is_unknown,
-                "evidence_id": suspect.evidence_id,
-                "evidence_source": suspect.evidence_source,
-                "evidence_summary": suspect.evidence_summary,
-                "created_by": suspect.created_by,
-                "case_id": suspect.case_id,
-                "created_at": suspect.created_at,
-                "updated_at": suspect.updated_at
+                "created_at": created_at_str,
+                "updated_at": updated_at_str
             }
             result.append(suspect_dict)
         return result, total
@@ -108,7 +123,6 @@ class SuspectService:
             "is_unknown": suspect.is_unknown,
             "evidence_id": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
-            "evidence_summary": suspect.evidence_summary,
             "created_by": suspect.created_by,
             "case_id": suspect.case_id,
             "created_at": suspect.created_at,
