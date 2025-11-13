@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ANALYSIS_DIR: str = "./data/analysis"
     REPORTS_DIR: str = "./data/reports"
     APK_DIR: str = "./data/apks"
+    LOGO_PATH: str = "./assets/logo.png"
     MAX_FILE_SIZE: int = 104857600
 
     LOG_LEVEL: str = "INFO"

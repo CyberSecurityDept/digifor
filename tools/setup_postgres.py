@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
-import os
-import sys
-import subprocess
-import sqlite3
-import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-import logging
+import logging, os, sys, sqlite3, psycopg2, subprocess
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.case_management.models import Case, Person, Agency, WorkUnit
+from app.case_management.models import Case, Agency, WorkUnit
 from app.evidence_management.models import Evidence
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 def check_postgres_connection():
     try:
@@ -41,7 +35,6 @@ def check_postgres_connection():
         logger.error(f"   Check your .env file configuration")
         logger.error(f"   Current settings: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}")
         return False
-
 
 def create_database():
     try:
@@ -72,7 +65,6 @@ def create_database():
         logger.error(f" Failed to create database: {e}")
         return False
 
-
 def create_tables():
     try:
         Base.metadata.create_all(bind=engine)
@@ -82,14 +74,12 @@ def create_tables():
         logger.error(f" Failed to create tables: {e}")
         return False
 
-
 def migrate_data_from_sqlite():
     sqlite_path = "./data/Digital Forensics.db"
     
     if not os.path.exists(sqlite_path):
         logger.warning(f"  SQLite database not found at {sqlite_path}")
         return True
-    
     try:
         sqlite_conn = sqlite3.connect(sqlite_path)
         sqlite_cursor = sqlite_conn.cursor()
@@ -105,14 +95,10 @@ def migrate_data_from_sqlite():
         for table in tables:
             if table == 'sqlite_sequence':
                 continue
-                
             logger.info(f"Migrating table: {table}")
-            
             sqlite_cursor.execute(f"SELECT * FROM {table}")
             rows = sqlite_cursor.fetchall()
-            
             column_names = [description[0] for description in sqlite_cursor.description]
-            
             if rows:
                 for row in rows:
                     try:
@@ -137,39 +123,29 @@ def migrate_data_from_sqlite():
         logger.error(f" Data migration failed: {e}")
         return False
 
-
 def create_admin_user():
     try:
-        
         pg_engine = create_engine(settings.DATABASE_URL)
         pg_session = sessionmaker(bind=pg_engine)()
-        
         logger.info("ℹ User management not yet implemented - skipping admin user creation")
         return True
-        
         pg_session.close()
         return True
-        
     except Exception as e:
         logger.error(f" Failed to create admin user: {e}")
         return False
 
-
 def main():
     logger.info(" Starting PostgreSQL setup for Digital Forensics...")
-    
     if not check_postgres_connection():
         logger.error(" Cannot connect to PostgreSQL. Please ensure PostgreSQL is running.")
         return False
-    
     if not create_database():
         logger.error(" Failed to create database")
         return False
-    
     if not create_tables():
         logger.error(" Failed to create tables")
         return False
-    
     migrate_data_from_sqlite()
     
     if not create_admin_user():
@@ -183,7 +159,6 @@ def main():
     logger.info("   3. Start your application")
     
     return True
-
 
 if __name__ == "__main__":
     success = main()

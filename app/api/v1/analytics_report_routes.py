@@ -1,48 +1,102 @@
 from fastapi import APIRouter, Depends, Query 
 from fastapi.responses import JSONResponse, FileResponse  
 from sqlalchemy.orm import Session  
+from sqlalchemy import func
 from app.db.session import get_db
 from app.analytics.shared.models import Device, Analytic, AnalyticDevice, File, Contact
 from app.analytics.analytics_management.models import ApkAnalytic
-from typing import List, Optional
+from typing import List, Optional, Iterator, Generator
 from pydantic import BaseModel
 from collections import defaultdict
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
 from reportlab.lib.pagesizes import A4  
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,Image,PageBreak 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, KeepTogether 
 from reportlab.lib import colors  
 from reportlab.lib.enums import TA_CENTER, TA_LEFT,TA_RIGHT,TA_JUSTIFY 
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
-from app.api.v1.analytics_contact_routes import get_contact_correlation
-from app.api.v1.analytics_management_routes import get_hashfile_analytics
+from app.api.v1.analytics_contact_routes import _get_contact_correlation_data
+from app.api.v1.analytics_management_routes import _get_hashfile_analytics_data
 from app.api.v1.analytics_social_media_routes import social_media_correlation
 from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
 from datetime import datetime
 import dateutil.parser
-import os, json
+import os, json, gc, logging, time
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+
+logger = logging.getLogger(__name__)
+
 class SummaryRequest(BaseModel):
     summary: str
 
 router = APIRouter()
 
-@router.get("/analytic/{analytic_id}/export-pdf")
+PDF_EXPORT_BATCH_SIZE = 10000
+
+def stream_query_in_batches(query, batch_size: int = PDF_EXPORT_BATCH_SIZE) -> Generator:
+    offset = 0
+    batch_number = 0
+    total_processed = 0
+    start_time = time.time()
+    
+    logger.info(f"Starting streaming query with batch_size={batch_size}")
+    
+    while True:
+        batch_start_time = time.time()
+        batch = query.offset(offset).limit(batch_size).all()
+        if not batch:
+            elapsed = time.time() - start_time
+            logger.info(f"Streaming query completed. Total batches: {batch_number}, Total records: {total_processed}, Time: {elapsed:.2f}s")
+            break
+        
+        batch_number += 1
+        batch_size_actual = len(batch)
+        total_processed += batch_size_actual
+        batch_time = time.time() - batch_start_time
+        
+        logger.debug(f"Batch {batch_number}: {batch_size_actual} records (offset {offset}), processed in {batch_time:.2f}s, total: {total_processed}")
+        
+        # Log progress every 10 batches
+        if batch_number % 10 == 0:
+            elapsed = time.time() - start_time
+            logger.info(f"Progress: {batch_number} batches, {total_processed} records processed in {elapsed:.2f}s")
+        
+        yield batch
+        offset += batch_size
+        
+        if offset % (batch_size * 10) == 0:
+            gc.collect()
+            logger.debug(f"Garbage collection triggered at offset {offset}")
+
+def get_total_count(query) -> int:
+    return query.count()
+
+@router.get("/analytic/export-pdf", 
+            summary="Export analytics report to PDF",
+            description="Export analytics report to PDF. This endpoint is optimized for large datasets (millions of records) and uses streaming/chunking to avoid timeout and memory issues.")
 def export_analytics_pdf(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db),
     person_name: Optional[str] = Query(None, description="if method = Deep Communication Analytics"),
     device_id: Optional[int] = Query(None, description="if method = Deep Communication Analytics"),
     source: Optional[str] = Query(None, description="if method = Social Media Correlation or Deep Communication Analytics")
 ):
+    export_start_time = time.time()
+    logger.info(f"PDF Export started - analytic_id={analytic_id}, person_name={person_name}, device_id={device_id}, source={source}")
+    
     try:
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
+            logger.warning(f"Analytic not found - analytic_id={analytic_id}")
             return JSONResponse(
                 content={"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
             )
+        
+        logger.info(f"Analytic found - id={analytic.id}, name={analytic.analytic_name}, method={analytic.method}")
 
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
@@ -52,36 +106,50 @@ def export_analytics_pdf(
         for link in device_links:
             device_ids.extend(link.device_ids)
         device_ids = list(set(device_ids))
-        if not device_ids:
-            return JSONResponse(
-                content={"status": 400, "message": "No devices linked to this analytic", "data": None},
-                status_code=400,
-            )
-
         method = analytic.method
+        
+        logger.info(f"Found {len(device_ids)} device(s) linked to analytic {analytic_id}")
+        
+        if "APK" not in method or "apk" not in method.lower():
+            if not device_ids:
+                logger.warning(f"No devices linked to analytic {analytic_id}")
+                return JSONResponse(
+                    content={"status": 400, "message": "No devices linked to this analytic", "data": None},
+                    status_code=400,
+                )
+
+        logger.info(f"Routing to PDF export function based on method: {method}")
+        
         if "Contact" in method or "contact" in method.lower():
-            return _export_contact_correlation_pdf(analytic, db)
+            result = _export_contact_correlation_pdf(analytic, db)
         elif "APK" in method or "apk" in method.lower():
-            return _export_apk_analytics_pdf(analytic, db)
+            result = _export_apk_analytics_pdf(analytic, db)
         elif "Communication" in method or "communication" in method.lower():
-            return _export_communication_analytics_pdf(analytic, db, source=source,person_name=person_name,device_id=device_id)
+            result = _export_communication_analytics_pdf(analytic, db, source=source,person_name=person_name,device_id=device_id)
         elif "Social" in method or "social" in method.lower():
-            return _export_social_media_analytics_pdf(analytic, db, source=source)
+            result = _export_social_media_analytics_pdf(analytic, db, source=source)
         elif "Hashfile" in method or "hashfile" in method.lower():
-            return _export_hashfile_analytic_pdf(analytic, db)
+            result = _export_hashfile_analytic_pdf(analytic, db)
         else:
-            return _export_generic_analytics_pdf(analytic, db)
+            result = _export_generic_analytics_pdf(analytic, db)
+        
+        elapsed_time = time.time() - export_start_time
+        logger.info(f"PDF Export completed successfully - analytic_id={analytic_id}, method={method}, elapsed_time={elapsed_time:.2f}s")
+        
+        return result
 
     except Exception as e:
+        elapsed_time = time.time() - export_start_time
+        logger.error(f"PDF Export failed - analytic_id={analytic_id}, error={str(e)}, elapsed_time={elapsed_time:.2f}s", exc_info=True)
         return JSONResponse(
             content={"status": 500, "message": f"Failed to generate PDF: {str(e)}", "data": None},
             status_code=500,
         )
 
-@router.post("/analytic/{analytic_id}/save-summary")
+@router.post("/analytic/save-summary")
 def save_analytic_summary(
-    analytic_id: int,
     request: SummaryRequest,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -128,10 +196,10 @@ def save_analytic_summary(
         )
 
 
-@router.put("/analytic/{analytic_id}/edit-summary")
+@router.put("/analytic/edit-summary")
 def edit_analytic_summary(
-    analytic_id: int,
     request: SummaryRequest,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -177,134 +245,20 @@ def edit_analytic_summary(
             status_code=500,
         )
 
-# def _export_contact_correlation_pdf(analytic, device_ids, db):
-#     devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-#     file_ids = [d.file_id for d in devices]
-    
-#     contacts = (
-#         db.query(Contact)
-#         .filter(Contact.file_id.in_(file_ids))
-#         .order_by(Contact.id)
-#         .all()
-#     )
-
-#     device_contacts = defaultdict(dict)
-
-#     phone_patterns = [
-#         re.compile(r"(\+?\d{7,15})"),
-#         re.compile(r"Mobile:\s*(\+?\d{7,15})", re.IGNORECASE),
-#         re.compile(r"Phone number:\s*(\+?\d{7,15})", re.IGNORECASE),
-#     ]
-
-#     name_patterns = [
-#         re.compile(r"First name:\s*(.*)", re.IGNORECASE),
-#         re.compile(r"Display Name:\s*(.*)", re.IGNORECASE),
-#         re.compile(r"Contact:\s*(.*)", re.IGNORECASE),
-#     ]
-
-#     for contact in contacts:
-#         phones_found = []
-#         names_found = []
-
-#         contact_text = contact.display_name or ""
-#         phones_emails_text = contact.phone_number or ""
-
-#         for pattern in phone_patterns:
-#             phones_found.extend(pattern.findall(contact_text))
-#             phones_found.extend(pattern.findall(phones_emails_text))
-
-#         for pattern in name_patterns:
-#             match = pattern.search(contact_text)
-#             if match:
-#                 name = match.group(1).strip()
-#                 if name and name not in names_found:
-#                     names_found.append(name)
-
-#         if not names_found and contact_text and not re.search(r"\d{7,15}", contact_text):
-#             potential_name = contact_text.strip()
-#             if potential_name and potential_name != "(Unknown)":
-#                 names_found.append(potential_name)
-
-#         for phone in phones_found:
-#             if not phone:
-#                 continue
-
-#             phone = re.sub(r"\D", "", phone)
-#             if len(phone) < 7:
-#                 continue
-
-#             if not phone.startswith("62") and not phone.startswith("+62"):
-#                 if phone.startswith("0"):
-#                     phone = "62" + phone[1:]
-#                 else:
-#                     phone = "62" + phone
-
-#             name = names_found[0] if names_found else phone
-#             name = re.sub(r"\s+", " ", name).strip()
-
-#             # Find device_id from contact's file_id
-#             contact_device_id = None
-#             for d in devices:
-#                 if d.file_id == contact.file_id:
-#                     contact_device_id = d.id
-#                     break
-#             if contact_device_id:
-#                 if contact_device_id not in device_contacts:
-#                     device_contacts[contact_device_id] = {}
-#                 device_contacts[contact_device_id][phone] = name
-
-#     correlation = defaultdict(dict)
-#     for device_id, phone_dict in device_contacts.items():
-#         for phone, name in phone_dict.items():
-#             correlation[phone][device_id] = name
-
-#     correlation = {
-#         phone: devices for phone, devices in correlation.items()
-#         if len(devices) >= 2
-#     }
-
-#     sorted_correlation = dict(
-#         sorted(correlation.items(), key=lambda x: len(x[1]), reverse=True)
-#     )
-
-#     return _generate_pdf_report(
-#         analytic=analytic,
-#         device_ids=device_ids,
-#         db=db,
-#         report_type="Contact Correlation Analysis",
-#         filename_prefix="contact_correlation_report",
-#         data={
-#             "contacts": contacts,
-#             "correlation": sorted_correlation,
-#             "total_contacts": len(contacts),
-#             "cross_device_contacts": len(sorted_correlation)
-#         }
-#     )
-
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
 
 class GlobalPageCanvas(canvas.Canvas):
-    """
-    Canvas global dengan footer text + nomor halaman normal (Page X of Y).
-    """
 
     def __init__(self, *args, footer_text="Generated Report", **kwargs):
-        """
-        Args:
-            footer_text (str): teks footer kiri bawah.
-        """
         self.footer_text = footer_text
         super().__init__(*args, **kwargs)
         self.pages = []
 
     def showPage(self):
-        """Simpan semua halaman sementara sebelum disave."""
+
         self.pages.append(dict(self.__dict__))
-        self._startPage()
+        self._startPage()  # type: ignore[reportAttributeAccessIssue]
 
     def save(self):
-        """Render semua halaman dengan footer Page X of Y."""
         total_pages = len(self.pages)
 
         for page_number, page_dict in enumerate(self.pages, start=1):
@@ -315,29 +269,21 @@ class GlobalPageCanvas(canvas.Canvas):
         super().save()
 
     def _draw_footer(self, current_page, total_pages):
-        """Footer global + nomor halaman bawah normal."""
         self.setFont("Helvetica", 9)
         self.setFillColor(colors.gray)
 
-        # Garis atas footer
         self.setStrokeColor(colors.HexColor("#B0B0B0"))
         self.setLineWidth(0.5)
         self.line(40, 40, 575, 40)
 
         padding_y = 25
-        # Kiri = teks footer
         self.drawString(40, padding_y, self.footer_text)
 
-        # Kanan = nomor halaman
         page_label = f"Page {current_page} of {total_pages}"
         self.drawRightString(575, padding_y, page_label)
 
 
 def build_report_header(analytic, timestamp_now, usable_width):
-    """
-    Generate header elemen (logo, exported time, title, method info)
-    Return: list elemen story (Table + Spacer)
-    """
     styles = getSampleStyleSheet()
     story = []
 
@@ -349,7 +295,6 @@ def build_report_header(analytic, timestamp_now, usable_width):
         "ExportStyle", fontSize=10, alignment=TA_RIGHT, textColor=colors.HexColor("#4b4b4b")
     )
 
-    # === Logo dan waktu export ===
     logo_path = os.path.join(os.getcwd(), "assets", "logo.png")
     if not os.path.exists(logo_path):
         raise FileNotFoundError(f"Logo tidak ditemukan di {logo_path}")
@@ -373,11 +318,9 @@ def build_report_header(analytic, timestamp_now, usable_width):
     story.append(header_table)
     story.append(Spacer(1, 10))
 
-    # === Title ===
     story.append(Paragraph(f"<b>{analytic.analytic_name}</b>", title_style))
     story.append(Spacer(1, 10))
 
-    # === Subheader Method dan File Uploaded ===
     subheader_data = [[
         Paragraph(f"<b>Method:</b> {analytic.method.replace('_', ' ').title()}", subtitle_style),
         Paragraph(f"<b>File Uploaded:</b> {timestamp_now.strftime('%d/%m/%Y %H:%M')}", subtitle_style),
@@ -387,48 +330,77 @@ def build_report_header(analytic, timestamp_now, usable_width):
         ("LINEABOVE", (0, 0), (-1, 0), 1, colors.HexColor("#466086")),
         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#466086")),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("ALIGN", (1, 0), (1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (0, -1), 6),
+        ("RIGHTPADDING", (0, 0), (0, -1), 6),
+        ("LEFTPADDING", (1, 0), (1, -1), 94),
+        ("RIGHTPADDING", (1, 0), (1, -1), 6),
     ]))
     story.append(subheader_table)
     story.append(Spacer(1, 20))
 
     return story
 
-# ===============================================================
-# 🧩 EXPORT IMPLEMENTATIONS (tanpa device_ids)
-# ===============================================================
 def _export_contact_correlation_pdf(analytic, db):
-    contacts = db.query(Contact).order_by(Contact.id).all()
-    return _generate_pdf_report(
+    logger.info(f"Starting Contact Correlation PDF export for analytic_id={analytic.id}")
+    start_time = time.time()
+    
+    total_contacts = db.query(Contact).count()
+    logger.info(f"Total contacts to process: {total_contacts}")
+    
+    result = _generate_pdf_report(
         analytic, db,
         report_type="Contact Correlation Analysis",
         filename_prefix="contact_correlation_report",
-        data={"total_contacts": len(contacts)},
+        data={"total_contacts": total_contacts},
         method="contact_correlation"
     )
+    
+    elapsed = time.time() - start_time
+    logger.info(f"Contact Correlation PDF export completed - analytic_id={analytic.id}, total_contacts={total_contacts}, elapsed_time={elapsed:.2f}s")
+    
+    return result
 def _export_hashfile_analytic_pdf(analytic, db):
-    contacts = db.query(Contact).order_by(Contact.id).all()
-    return _generate_pdf_report(
+    logger.info(f"Starting Hashfile Analytics PDF export for analytic_id={analytic.id}")
+    start_time = time.time()
+    
+    total_contacts = db.query(Contact).count()
+    logger.info(f"Total contacts to process: {total_contacts}")
+    
+    result = _generate_pdf_report(
         analytic, db,
         report_type="Hashfile Analytics",
         filename_prefix="hashfile_analytics_report",
-        data={"total_contacts": len(contacts)},
+        data={"total_contacts": total_contacts},
         method="hashfile_analytics"
     )
+    
+    elapsed = time.time() - start_time
+    logger.info(f"Hashfile Analytics PDF export completed - analytic_id={analytic.id}, total_contacts={total_contacts}, elapsed_time={elapsed:.2f}s")
+    
+    return result
 
 
 def _export_apk_analytics_pdf(analytic, db):
-    apk_analytics = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).all()
-    return _generate_pdf_report(
+    logger.info(f"Starting APK Analytics PDF export for analytic_id={analytic.id}")
+    start_time = time.time()
+    
+    total_apks = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).count()
+    logger.info(f"Total APK analytics to process: {total_apks}")
+    
+    result = _generate_pdf_report(
         analytic, db,
         report_type="APK Analytics Report",
         filename_prefix="apk_analytics_report",
-        data={"total_apks": len(apk_analytics)},
+        data={"total_apks": total_apks},
         method="apk_analytics"
     )
+    
+    elapsed = time.time() - start_time
+    logger.info(f"APK Analytics PDF export completed - analytic_id={analytic.id}, total_apks={total_apks}, elapsed_time={elapsed:.2f}s")
+    
+    return result
 
 
 def _export_communication_analytics_pdf(analytic, db,source,person_name,device_id):
@@ -465,10 +437,6 @@ def _export_generic_analytics_pdf(analytic, db):
         method="generic"
     )
 
-
-# ===============================================================
-# 🧱 ROUTER GENERATOR
-# ===============================================================
 def _generate_pdf_report(
         analytic, db, report_type, filename_prefix, data, method,source:Optional[str] = None,
         person_name:Optional[str] = None, device_id:Optional[int] = None,
@@ -485,9 +453,6 @@ def _generate_pdf_report(
         return _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data)
 
 
-# ===============================================================
-# Utility Functions for Reports
-# ===============================================================
 def _build_table_header_style():
     return TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -505,16 +470,12 @@ def _build_table_header_style():
     ])
 
 def _build_summary_section(usable_width, summary_text):
-    """
-    Build summary box with single text string instead of list.
-    """
-    # === Styles ===
     summary_title_style = ParagraphStyle(
         "SummaryTitle",
-        fontSize=13,
-        leading=16,
+        fontSize=14,
+        leading=18,
         textColor=colors.black,
-        spaceAfter=6,
+        spaceAfter=0,
         fontName="Helvetica-Bold"
     )
 
@@ -522,48 +483,58 @@ def _build_summary_section(usable_width, summary_text):
         "Normal",
         fontSize=11,
         alignment=TA_JUSTIFY,
-        leading=15,
-        spaceAfter=4
+        leading=16,
+        spaceAfter=0,
+        textColor=colors.black
     )
 
-    # Handle None summary
-    if summary_text is None:
-        summary_text = "No summary."
+    if summary_text is None or not summary_text or not summary_text.strip():
+        summary_text = "No summary available."
+    else:
+        summary_text = summary_text.strip()
 
-    # === Build content ===
-    summary_elements = [
-        Paragraph("<b>Summary</b>", summary_title_style),
-        Paragraph(summary_text, normal_style)
-    ]
-
+    title_paragraph = Paragraph("<b>Summary</b>", summary_title_style)
+    summary_content = Paragraph(summary_text, normal_style)
+    
     summary_table = Table(
-        [[elem] for elem in summary_elements],
-        colWidths=[usable_width - 4]
+        [
+            [title_paragraph],
+            [summary_content]
+        ],
+        colWidths=[usable_width]
     )
 
     summary_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#466086")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("BOX", (0, 0), (-1, -1), 1, colors.black),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F5F5")),
+        
+        ("LEFTPADDING", (0, 0), (-1, 0), 12),
+        ("RIGHTPADDING", (0, 0), (-1, 0), 12),
+        ("TOPPADDING", (0, 0), (-1, 0), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+        
+        ("LEFTPADDING", (0, 1), (-1, 1), 12),
+        ("RIGHTPADDING", (0, 1), (-1, 1), 12),
+        ("TOPPADDING", (0, 1), (-1, 1), 0),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
 
-    return summary_table
+    return [KeepTogether(summary_table)]
 
-
-# ===============================================================
-# 🧩 Deep Communication Report Example
-# ===============================================================
 def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
+    logger.info(f"Starting Deep Communication PDF generation - analytic_id={analytic.id}, source={source}, person_name={person_name}, device_id={device_id}")
+    report_start_time = time.time()
+    
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
 
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
+    
+    logger.info(f"PDF file path: {file_path}")
 
-    # === Setup halaman ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -576,9 +547,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         bottomMargin=50,
     )
 
-    # ======================================================
-    # 🔹 Ambil data chat real dari get_chat_detail()
-    # ======================================================
     response = get_chat_detail(
         analytic_id=analytic.id,
         person_name=person_name,
@@ -588,29 +556,32 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         db=db
     )
 
+    logger.info("Fetching chat detail data...")
+    chat_data = {}
+    chat_messages = []
     try:
-        response_data = json.loads(response.body.decode("utf-8"))
-        chat_data = response_data.get("data", {})
-        chat_messages = chat_data.get("chat_messages", [])
+        if response is not None and hasattr(response, "body") and response.body is not None:
+            response_data = json.loads(response.body.decode("utf-8"))
+            chat_data = response_data.get("data", {}) if isinstance(response_data, dict) else {}
+            chat_messages = chat_data.get("chat_messages", []) if isinstance(chat_data, dict) else {}
+            logger.info(f"Retrieved {len(chat_messages)} chat messages")
     except Exception as e:
-        print(f"⚠️ Gagal parse chat_detail: {e}")
+        logger.error(f"Failed to parse chat_detail: {e}", exc_info=True)
         chat_messages = []
+        chat_data = {}
 
-    # === Styles ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=11, leading=14, alignment=TA_LEFT)
     wrap_style = ParagraphStyle("Wrap", fontSize=11, leading=14, wordWrap="CJK", alignment=TA_JUSTIFY)
 
-    # === Build content ===
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Example Metadata Table ===
-    sender_name = chat_messages[0]["sender"] if chat_messages else "Unknown"
-    receiver_name = chat_messages[0]["recipient"] if chat_messages else "Unknown"
+    sender_name = chat_messages[0].get("sender", "Unknown") if chat_messages and isinstance(chat_messages[0], dict) else "Unknown"
+    receiver_name = chat_messages[0].get("recipient", "Unknown") if chat_messages and isinstance(chat_messages[0], dict) else "Unknown"
     total_messages = len(chat_messages)
-    platform_name = chat_data.get("platform", source or "Unknown")
+    platform_name = chat_data.get("platform", source or "Unknown") if isinstance(chat_data, dict) else (source or "Unknown")
 
     info_data = [
         ["Source", f": {platform_name}", "Sender", f": {sender_name}"],
@@ -627,74 +598,106 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # ======================================================
-    # 🔹 Chat data dinamis dari get_chat_detail()
-    # ======================================================
-    chat_records = []
-    for msg in chat_messages:
-        # Gunakan timestamp lengkap + format jadi YYYY-MM-DD HH:MM
-        timestamp_raw = msg.get("timestamp")
-        time_display = msg.get("times") or ""
-
-        if timestamp_raw:
-            try:
-                dt = dateutil.parser.isoparse(timestamp_raw)
-                # Format tanggal + jam lokal
-                time_val = dt.strftime("%Y-%m-%d %H:%M")
-            except Exception:
-                # fallback jika parsing gagal
-                time_val = time_display or timestamp_raw
-        else:
-            time_val = time_display
-
-        sender = msg.get("sender", "Unknown")
-        text = msg.get("message_text", "")
-        chat_records.append({
-            "time": time_val,
-            "chat": f"{sender}: {text}"
-        })
-
-    # === Header dan isi tabel chat ===
-    col_time = 140  # diperlebar sedikit biar muat tanggal
+    col_time = 140
     col_chat = usable_width - col_time
     chat_data = [["Time", "Chat"]]
-    for row in chat_records:
-        chat_data.append([
-            Paragraph(row["time"], wrap_style),
-            Paragraph(row["chat"], wrap_style)
-        ])
+    
+    batch_size = 5000
+    total_messages = len(chat_messages)
+    
+    logger.info(f"Processing {total_messages} chat messages in batches of {batch_size}")
+    batch_processing_start = time.time()
+    
+    for batch_start in range(0, total_messages, batch_size):
+        batch_end = min(batch_start + batch_size, total_messages)
+        batch_messages = chat_messages[batch_start:batch_end]
+        batch_num = (batch_start // batch_size) + 1
+        total_batches = (total_messages + batch_size - 1) // batch_size
+        
+        batch_start_time = time.time()
+        
+        for msg in batch_messages:
+            timestamp_raw = msg.get("timestamp")
+            time_display = msg.get("times") or ""
 
-    # === Buat tabel chat ===
-    chat_table = Table(chat_data, colWidths=[col_time, col_chat])
-    chat_table.setStyle(TableStyle([
-        # Header
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-        ("FONTSIZE", (0, 0), (-1, 0), 10.5),
-        ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+            if timestamp_raw:
+                try:
+                    dt = dateutil.parser.isoparse(timestamp_raw)
+                    time_val = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    time_val = time_display or timestamp_raw
+            else:
+                time_val = time_display
 
-        # Body
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 10.5),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-        ("VALIGN", (0, 1), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    story.append(chat_table)
+            sender = msg.get("sender", "Unknown")
+            text = msg.get("message_text", "")
+            chat_data.append([
+                Paragraph(time_val, wrap_style),
+                Paragraph(f"{sender}: {text}", wrap_style)
+            ])
+        
+        batch_time = time.time() - batch_start_time
+        progress_pct = (batch_end / total_messages * 100) if total_messages > 0 else 0
+        
+        logger.info(f"Batch {batch_num}/{total_batches}: Processed {len(batch_messages)} messages ({batch_start+1}-{batch_end}), "
+                   f"progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
+        
+        if batch_end < total_messages:
+            gc.collect()
+            logger.debug(f"Garbage collection after batch {batch_num}")
+    
+    batch_processing_time = time.time() - batch_processing_start
+    logger.info(f"Chat messages processing completed: {total_messages} messages in {batch_processing_time:.2f}s")
+
+    table_chunk_size = 2000
+    total_chat_rows = len(chat_data) - 1
+    
+    logger.info(f"Creating chat table chunks: {total_chat_rows} chat rows will be split into chunks of {table_chunk_size} rows")
+    table_chunk_start = time.time()
+    
+    header_row = chat_data[0]
+    data_rows = chat_data[1:]
+    
+    for chunk_start in range(0, len(data_rows), table_chunk_size):
+        chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
+        chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
+        chunk_num = (chunk_start // table_chunk_size) + 1
+        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
+        
+        chunk_table = Table(chunk_data, colWidths=[col_time, col_chat])
+        chunk_table.setStyle(TableStyle([
+            # Header
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10.5),
+            ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+
+            # Body
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 10.5),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+            ("VALIGN", (0, 1), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(chunk_table)
+        
+        if chunk_end < len(data_rows):
+            story.append(Spacer(1, 6))
+            logger.debug(f"Chat table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")
+    
+    table_chunk_time = time.time() - table_chunk_start
+    logger.info(f"Created {total_chunks} chat table chunks in {table_chunk_time:.2f}s")
     story.append(Spacer(1, 20))
 
-    # === Summary ===
     summary_points = analytic.summary
-    summary_table = _build_summary_section(usable_width, summary_points)
-    story.append(summary_table)
+    story.extend(_build_summary_section(usable_width, summary_points))
 
-    # === Build PDF ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -712,9 +715,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     )
 
 
-# ===============================================================
-# 3️⃣ APK Analytics Report
-# ===============================================================
 def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, data):
 
     reports_dir = settings.REPORTS_DIR
@@ -723,7 +723,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === Setup halaman ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -736,14 +735,12 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         bottomMargin=60
     )
 
-    # === Styles ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=10.5, leading=14, alignment=TA_LEFT)
     wrap_desc = ParagraphStyle("WrapDesc", fontSize=10.5, leading=14, alignment=TA_JUSTIFY)
     title_box_style = ParagraphStyle("TitleBox", fontSize=11.5, leading=14, fontName="Helvetica-Bold", textColor=colors.black)
 
-    # === Ambil data real dari DB ===
     apk_analytics = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).all()
 
     malicious_items = []
@@ -757,11 +754,9 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         else:
             common_items.append([item, desc])
 
-    # === Build content ===
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Ringkasan umum (jumlah & scoring rata-rata) ===
     total_apks = len(apk_analytics)
     total_malicious = len(malicious_items)
     total_common = len(common_items)
@@ -787,7 +782,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     story.append(info_table)
     story.append(Spacer(1, 20))
 
-    # === Section: Malicious ===
     story.append(Paragraph("<b>Malicious</b>", heading_style))
     story.append(Spacer(1, 4))
     if malicious_items:
@@ -803,7 +797,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ditemukan entri berstatus <b>dangerous</b>.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === Section: Common ===
     story.append(Paragraph("<b>Common</b>", heading_style))
     story.append(Spacer(1, 4))
     if common_items:
@@ -817,12 +810,9 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ada entri common terdeteksi.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === Summary ===
     summary_points = analytic.summary
-    summary_table = _build_summary_section(usable_width, summary_points)
-    story.append(summary_table)
+    story.extend(_build_summary_section(usable_width, summary_points))
 
-    # === Build PDF ===
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -838,17 +828,19 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-# ===============================================================
-# 4️⃣ Social Media Correlations Report (Fixed spacing & padding)
-# ===============================================================
+
 def _generate_social_media_correlation_report(analytic, db, report_type, filename_prefix, data, source):
+    logger.info(f"Starting Social Media PDF generation - analytic_id={analytic.id}, source={source}")
+    report_start_time = time.time()
+    
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
+    
+    logger.info(f"PDF file path: {file_path}")
 
-    # === Setup layout PDF ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -868,13 +860,20 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story = []
     story.extend(build_report_header(analytic, timestamp_now, usable_width))
 
-    # === Ambil data langsung dari endpoint correlation ===
-    response = social_media_correlation(analytic.id, source, db)
-    if hasattr(response, "body"):
-        body = json.loads(response.body)
-        response_data = body.get("data", {})
-    else:
-        response_data = response.get("data", {}) if isinstance(response, dict) else {}
+    logger.info("Fetching social media correlation data...")
+    from app.api.v1.analytics_social_media_routes import _get_social_media_correlation_data
+    response = _get_social_media_correlation_data(analytic.id, db, source or "Instagram")
+    response_data = {}
+    if response is not None:
+        if hasattr(response, "body") and response.body is not None:
+            try:
+                body = json.loads(response.body)
+                response_data = body.get("data", {}) if isinstance(body, dict) else {}
+            except Exception as e:
+                logger.error(f"Error parsing social media correlation response: {e}", exc_info=True)
+                response_data = {}
+        elif isinstance(response, dict):
+            response_data = response.get("data", {}) if isinstance(response, dict) else {}
 
     platform_name = list(response_data.get("correlations", {}).keys())[0] if response_data.get("correlations") else source.capitalize()
     correlation_data = response_data.get("correlations", {}).get(platform_name, {})
@@ -882,8 +881,9 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     devices = response_data.get("devices", [])
     total_devices = response_data.get("total_devices", len(devices))
     total_accounts = sum(len(bucket.get("devices", [])) for bucket in buckets)
+    
+    logger.info(f"Retrieved {total_devices} devices and {total_accounts} social media accounts for platform {platform_name}")
 
-    # === Info Summary ===
     info_data = [
         ["Source", f": {platform_name}"],
         ["Total Device", f": {total_devices} Devices"],
@@ -899,7 +899,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # === Device Identification Summary ===
     story.append(Paragraph("<b>Device Identification Summary</b>", bold_style))
     story.append(Spacer(1, 4))
 
@@ -923,7 +922,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     story.append(device_table)
     story.append(Spacer(1, 20))
 
-    # === Device Account Correlation ===
     story.append(Paragraph("<b>Device Account Correlation</b>", bold_style))
     story.append(Spacer(1, 6))
 
@@ -938,7 +936,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
 
             first_row = True
             for accounts in devices_rows:
-                # Format daftar akun jadi bullet list
                 accounts_clean = [a for a in accounts if a]
                 acc_formatted = [
                     Paragraph(f"• {a}", normal_style) for a in accounts_clean
@@ -979,11 +976,12 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
         story.append(corr_table)
     story.append(Spacer(1, 20))
 
-    # === Summary ===
-    story.append(_build_summary_section(usable_width, analytic.summary))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
     story.append(Spacer(1, 10))
 
-    # === Build PDF ===
+    logger.info(f"Building PDF document with {len(story)} story elements...")
+    pdf_build_start = time.time()
+    
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -992,6 +990,14 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
             **kw
         ),
     )
+    
+    pdf_build_time = time.time() - pdf_build_start
+    file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+    file_size_mb = file_size / (1024 * 1024)
+    
+    total_time = time.time() - report_start_time
+    logger.info(f"Social Media PDF generation completed - file: {filename}, size: {file_size_mb:.2f} MB, "
+               f"pdf_build_time: {pdf_build_time:.2f}s, total_time: {total_time:.2f}s")
 
     return FileResponse(
         path=file_path,
@@ -1002,16 +1008,17 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
 
 
 def _generate_contact_correlation_report(analytic, db, report_type, filename_prefix, data):
-    """
-    Generate PDF report for Contact Correlation analytic
-    """
+    logger.info(f"Starting Contact Correlation PDF generation - analytic_id={analytic.id}")
+    report_start_time = time.time()
+    
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
+    
+    logger.info(f"PDF file path: {file_path}")
 
-    # === PDF Setup ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -1024,7 +1031,8 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         bottomMargin=50,
     )
 
-    result = get_contact_correlation(analytic.id,db)
+    logger.info("Fetching contact correlation data...")
+    result = _get_contact_correlation_data(analytic.id, db)
     if isinstance(result, JSONResponse):
         result = result.body
     if isinstance(result, (bytes, bytearray)):
@@ -1042,6 +1050,8 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     devices = api_data.get("devices", [])
     correlations = api_data.get("correlations", [])
     summary = api_data.get("summary")
+    
+    logger.info(f"Retrieved {len(devices)} devices and {len(correlations)} correlations")
 
     styles = getSampleStyleSheet()
     normal_center = ParagraphStyle("NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER)
@@ -1078,38 +1088,95 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
         table_data = [header_row]
 
-        for corr in correlations:
-            contact_num = corr.get("contact_number", "-")
-            row = [Paragraph(contact_num, normal_left)]
+        # Optimize: Process correlations in batches for large datasets
+        batch_size = 10000  # Process 10k correlations at a time
+        total_correlations = len(correlations)
+        
+        logger.info(f"Processing {total_correlations} correlations in batches of {batch_size} for group {group_index}")
+        correlation_processing_start = time.time()
+        
+        for batch_start in range(0, total_correlations, batch_size):
+            batch_end = min(batch_start + batch_size, total_correlations)
+            batch_correlations = correlations[batch_start:batch_end]
+            batch_num = (batch_start // batch_size) + 1
+            total_batches = (total_correlations + batch_size - 1) // batch_size
+            
+            batch_start_time = time.time()
+            
+            for corr in batch_correlations:
+                contact_num = corr.get("contact_number", "-")
+                row = [Paragraph(contact_num, normal_left)]
 
-            dev_map = {d["device_label"]: d["contact_name"] for d in corr.get("devices_found_in", [])}
+                dev_map = {d["device_label"]: d["contact_name"] for d in corr.get("devices_found_in", [])}
 
-            for dev in group:
-                device_label = dev["device_label"]
-                cell_value = dev_map.get(device_label, "—")
-                row.append(Paragraph(cell_value, normal_center))
+                for dev in group:
+                    device_label = dev["device_label"]
+                    cell_value = dev_map.get(device_label, "—")
+                    row.append(Paragraph(cell_value, normal_center))
 
-            table_data.append(row)
+                table_data.append(row)
+            
+            batch_time = time.time() - batch_start_time
+            progress_pct = (batch_end / total_correlations * 100) if total_correlations > 0 else 0
+            
+            logger.info(f"Group {group_index} - Batch {batch_num}/{total_batches}: Processed {len(batch_correlations)} correlations "
+                       f"({batch_start+1}-{batch_end}), progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
 
+            if batch_end < total_correlations:
+                gc.collect()
+                logger.debug(f"Garbage collection after batch {batch_num}")
+        
+        correlation_processing_time = time.time() - correlation_processing_start
+        logger.info(f"Group {group_index} correlations processing completed: {total_correlations} correlations in {correlation_processing_time:.2f}s")
+
+        table_chunk_size = 2000
+        total_rows = len(table_data) - 1
         col_widths = [usable_width * 0.25] + [((usable_width * 0.75) / len(group)) for _ in group]
-        table = Table(table_data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-        story.append(table)
+        
+        logger.info(f"Creating table chunks: {total_rows} data rows will be split into chunks of {table_chunk_size} rows")
+        table_chunk_start = time.time()
+        
+        header_row = table_data[0]
+        data_rows = table_data[1:]
+        
+        for chunk_start in range(0, len(data_rows), table_chunk_size):
+            chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
+            chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
+            chunk_num = (chunk_start // table_chunk_size) + 1
+            total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
+            
+            chunk_table = Table(
+                chunk_data,
+                colWidths=col_widths,
+                repeatRows=1,
+            )
+            chunk_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            story.append(chunk_table)
+            
+            if chunk_end < len(data_rows):
+                story.append(Spacer(1, 6))
+                logger.debug(f"Group {group_index} - Table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")
+        
+        table_chunk_time = time.time() - table_chunk_start
+        logger.info(f"Group {group_index} - Created {total_chunks} table chunks in {table_chunk_time:.2f}s")
 
         if group_index < total_groups:
             story.append(PageBreak())
 
     story.append(Spacer(1, 20))
-    story.append(_build_summary_section(usable_width, summary))
+    story.extend(_build_summary_section(usable_width, summary))
 
+    logger.info(f"Building PDF document with {len(story)} story elements, {total_groups} device groups...")
+    pdf_build_start = time.time()
+    
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -1118,16 +1185,28 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             **kw
         ),
     )
+    
+    pdf_build_time = time.time() - pdf_build_start
+    file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+    file_size_mb = file_size / (1024 * 1024)
+    
+    total_time = time.time() - report_start_time
+    logger.info(f"Contact Correlation PDF generation completed - file: {filename}, size: {file_size_mb:.2f} MB, "
+               f"pdf_build_time: {pdf_build_time:.2f}s, total_time: {total_time:.2f}s")
 
     return FileResponse(path=file_path, filename=filename, media_type="application/pdf")
 
 def _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data):
-    # === Setup path dan file ===
+    logger.info(f"Starting Hashfile Analytics PDF generation - analytic_id={analytic.id}")
+    report_start_time = time.time()
+    
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
+    
+    logger.info(f"PDF file path: {file_path}")
 
     page_width, _ = A4
     left_margin, right_margin = 30, 30
@@ -1145,16 +1224,25 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     normal_style = ParagraphStyle("Normal", fontSize=10, leading=13, alignment=TA_CENTER)
     header_style = ParagraphStyle("HeaderDevice", alignment=TA_CENTER, textColor=colors.white, fontName="Helvetica-Bold", fontSize=9)
 
-    response = get_hashfile_analytics(analytic.id, db)
-    if hasattr(response, "body"):
-        body = json.loads(response.body)
-        data = body.get("data", {})
-    elif isinstance(response, dict):
-        data = response.get("data", {})
-    else:
-        data = {}
+    logger.info("Fetching hashfile analytics data...")
+    response = _get_hashfile_analytics_data(analytic.id, db)
+    data = {}
+    if response is not None:
+        if hasattr(response, "body") and response.body is not None:
+            try:
+                if isinstance(response.body, bytes):
+                    body = json.loads(response.body.decode("utf-8"))
+                else:
+                    body = json.loads(response.body)
+                data = body.get("data", {}) if isinstance(body, dict) else {}
+            except Exception as e:
+                logger.error(f"Error parsing hashfile analytics response: {e}", exc_info=True)
+                data = {}
+        elif isinstance(response, dict):
+            data = response.get("data", {}) if isinstance(response, dict) else {}
 
     devices = data.get("devices", [])
+    logger.info(f"Retrieved {len(devices)} devices for hashfile analytics")
     hashfiles = data.get("correlations") or []
 
     group_size = 4
@@ -1177,43 +1265,98 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         header_row = ["Filename"]
         for dev in group:
-            device_label = dev.get("device_label", "Unknown")
+            owner_name = dev.get("owner_name", "Unknown")
             phone_number = dev.get("phone_number", "-") or "-"
-            header_html = f"<b>{device_label}</b><br/><font size=9>{phone_number}</font>"
+            # Format: "Owner Name (Phone Number)" like in the example image
+            header_html = f"<b>{owner_name}</b><br/><font size=9>({phone_number})</font>"
             header_row.append(Paragraph(header_html, header_style))
 
         table_data = [header_row]
 
-        for h in hashfiles:
-            file_name = h.get("file_name", "Unknown")
-            row = [Paragraph(file_name, normal_style)]
-            for dev in group:
-                symbol = "✔" if dev.get("device_label") in h.get("devices", []) else "✘"
-                row.append(Paragraph(symbol, normal_style))
-            table_data.append(row)
+        # Optimize: Process hashfiles in batches for large datasets
+        batch_size = 10000  # Process 10k hashfiles at a time
+        total_hashfiles = len(hashfiles)
+        
+        logger.info(f"Processing {total_hashfiles} hashfiles in batches of {batch_size} for group {group_index}")
+        hashfile_processing_start = time.time()
+        
+        for batch_start in range(0, total_hashfiles, batch_size):
+            batch_end = min(batch_start + batch_size, total_hashfiles)
+            batch_hashfiles = hashfiles[batch_start:batch_end]
+            batch_num = (batch_start // batch_size) + 1
+            total_batches = (total_hashfiles + batch_size - 1) // batch_size
+            
+            batch_start_time = time.time()
+            
+            for h in batch_hashfiles:
+                file_name = h.get("file_name", "Unknown")
+                row = [Paragraph(file_name, normal_style)]
+                for dev in group:
+                    symbol = "✔" if dev.get("device_label") in h.get("devices", []) else "✘"
+                    row.append(Paragraph(symbol, normal_style))
+                table_data.append(row)
+            
+            batch_time = time.time() - batch_start_time
+            progress_pct = (batch_end / total_hashfiles * 100) if total_hashfiles > 0 else 0
+            
+            logger.info(f"Group {group_index} - Batch {batch_num}/{total_batches}: Processed {len(batch_hashfiles)} hashfiles "
+                       f"({batch_start+1}-{batch_end}), progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
+            
+            if batch_end < total_hashfiles:
+                gc.collect()
+                logger.debug(f"Garbage collection after batch {batch_num}")
+        
+        hashfile_processing_time = time.time() - hashfile_processing_start
+        logger.info(f"Group {group_index} hashfiles processing completed: {total_hashfiles} hashfiles in {hashfile_processing_time:.2f}s")
 
-        table = Table(
-            table_data,
-            colWidths=[usable_width * 0.25] +
-                      [((usable_width * 0.75) / len(group)) for _ in group],
-        )
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-        story.append(table)
+        table_chunk_size = 2000
+        total_rows = len(table_data) - 1
+        col_widths = [usable_width * 0.25] + [((usable_width * 0.75) / len(group)) for _ in group]
+        
+        logger.info(f"Creating table chunks: {total_rows} data rows will be split into chunks of {table_chunk_size} rows")
+        table_chunk_start = time.time()
+        
+        header_row = table_data[0]
+        data_rows = table_data[1:]
+        
+        for chunk_start in range(0, len(data_rows), table_chunk_size):
+            chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
+            chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
+            chunk_num = (chunk_start // table_chunk_size) + 1
+            total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
+            
+            chunk_table = Table(
+                chunk_data,
+                colWidths=col_widths,
+                repeatRows=1,
+            )
+            chunk_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            story.append(chunk_table)
+            
+            if chunk_end < len(data_rows):
+                story.append(Spacer(1, 6))
+                logger.debug(f"Group {group_index} - Table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")
+        
+        table_chunk_time = time.time() - table_chunk_start
+        logger.info(f"Group {group_index} - Created {total_chunks} table chunks in {table_chunk_time:.2f}s")
 
         if group_index < total_groups:
             story.append(PageBreak())
 
     story.append(Spacer(1, 20))
-    story.append(_build_summary_section(usable_width, analytic.summary))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
 
+    logger.info(f"Building PDF document with {len(story)} story elements, {total_groups} device groups...")
+    pdf_build_start = time.time()
+    
     doc.build(
         story,
         canvasmaker=lambda *a, **kw: GlobalPageCanvas(
@@ -1222,5 +1365,13 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             **kw
         ),
     )
+    
+    pdf_build_time = time.time() - pdf_build_start
+    file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+    file_size_mb = file_size / (1024 * 1024)
+    
+    total_time = time.time() - report_start_time
+    logger.info(f"Hashfile Analytics PDF generation completed - file: {filename}, size: {file_size_mb:.2f} MB, "
+               f"pdf_build_time: {pdf_build_time:.2f}s, total_time: {total_time:.2f}s")
 
     return FileResponse(path=file_path, filename=filename, media_type="application/pdf")

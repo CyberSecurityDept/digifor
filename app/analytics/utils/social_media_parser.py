@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -7,9 +6,7 @@ from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
 from .social_media_parsers_extended import SocialMediaParsersExtended
-
-import warnings
-import sys
+import io, sys, warnings, re, traceback, logging
 
 warnings.filterwarnings('ignore')
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -22,7 +19,8 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
-import io
+
+
 class FilteredStderr(io.TextIOWrapper):
     def write(self, s):
         if isinstance(s, str):
@@ -141,7 +139,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             results.append(acc)
                         else:
                             if len(results) < 5:
-                                print(f"⚠️  Skipping invalid record: {error_msg}")
+                                print(f" Skipping invalid record: {error_msg}")
             
             batch_size = 50
             saved_count = 0
@@ -169,7 +167,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                                 if log_acc.get('X_id'):
                                     platform_info.append(f"X:{log_acc['X_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
                             continue
 
                         if "platform" in acc:
@@ -188,7 +186,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -552,7 +550,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                                 if log_acc.get('X_id'):
                                     platform_info.append(f"X:{log_acc['X_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
                             continue
                         
                         if "platform" in acc:
@@ -571,7 +569,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -1197,10 +1195,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     if is_valid:
                         results.append(acc)
                     else:
-                        print(f"⚠️  Skipping invalid Instagram record: {error_msg}")
+                        print(f" Skipping invalid Instagram record: {error_msg}")
                         print(f"   Details: account_name={account_name}, instagram_id={instagram_id}, full_name={full_name}, type={type_field}")
                 else:
-                    print(f"⚠️  Skipping row: No account_name and no instagram_id")
+                    print(f" Skipping row: No account_name and no instagram_id")
                     print(f"   Details: Type={type_field}, Source={source_clean}, Contact={contact_field[:50] if contact_field else 'None'}, Internet={internet_field[:50] if internet_field else 'None'}")
                     for col in df.columns:
                         col_val = self._clean(row.get(col))
@@ -1232,7 +1230,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         
                     except Exception as batch_error:
                         print(f"Error saving contacts batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1405,10 +1403,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if is_valid:
                             whatsapp_results.append(acc)
                         else:
-                            print(f"⚠️  Skipping invalid WhatsApp record: {error_msg}")
+                            print(f" Skipping invalid WhatsApp record: {error_msg}")
                             print(f"   Details: whatsapp_id={whatsapp_id}, phone_number={phone_number}, type={type_field}")
                     else:
-                        print(f"⚠️  Skipping WhatsApp row: No whatsapp_id or phone_number")
+                        print(f" Skipping WhatsApp row: No whatsapp_id or phone_number")
                         print(f"   Details: Type={type_field}, Source={source_field}")
                         print(f"   Contact: {contact_field[:80] if contact_field else 'None'}")
                         print(f"   Internet: {internet_field[:80] if internet_field else 'None'}")
@@ -1460,7 +1458,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             
                         except Exception as batch_error:
                             print(f"Error saving WhatsApp batch {i//batch_size + 1}: {batch_error}")
-                            import traceback
+                            
                             traceback.print_exc()
                             self.db.rollback()
                     
@@ -1531,7 +1529,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if is_valid:
                             tiktok_results.append(acc)
                         else:
-                            print(f"⚠️  Skipping invalid TikTok record: {error_msg}")
+                            print(f" Skipping invalid TikTok record: {error_msg}")
             
             if tiktok_results:
                 print(f"  Found {len(tiktok_results)} valid TikTok records from Contacts sheet")
@@ -1547,7 +1545,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved TikTok batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {tiktok_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving TikTok batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1575,7 +1573,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     
                     if not (is_account_type or is_contact_type or is_group_type):
                         if len(telegram_results) < 5:
-                            print(f"⚠️  Skipping Telegram row {row.name}: Type='{type_field}' (not Account/Contact/Group)")
+                            print(f" Skipping Telegram row {row.name}: Type='{type_field}' (not Account/Contact/Group)")
                         continue
                     
                     contact_field = self._clean(row.get("Contact"))
@@ -1664,10 +1662,10 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if is_valid:
                             telegram_results.append(acc)
                         else:
-                            print(f"⚠️  Skipping invalid Telegram record: {error_msg}")
+                            print(f" Skipping invalid Telegram record: {error_msg}")
                             print(f"   Details: Type={type_field}, account_name={account_name}, telegram_id={telegram_id}, Contact={contact_field[:80] if contact_field else 'None'}")
                     else:
-                        print(f"⚠️  Skipping Telegram row: No account_name and no telegram_id")
+                        print(f" Skipping Telegram row: No account_name and no telegram_id")
                         print(f"   Details: Type={type_field}, Source={source_field}, Contact={contact_field[:80] if contact_field else 'None'}, Internet={internet_field[:80] if internet_field else 'None'}")
             
             if telegram_results:
@@ -1684,7 +1682,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved Telegram batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {telegram_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving Telegram batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1769,7 +1767,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if is_valid:
                             twitter_results.append(acc)
                         else:
-                            print(f"⚠️  Skipping invalid X (Twitter) record: {error_msg}")
+                            print(f" Skipping invalid X (Twitter) record: {error_msg}")
             
             if twitter_results:
                 print(f"  Found {len(twitter_results)} valid X (Twitter) records from Contacts sheet")
@@ -1785,7 +1783,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved X (Twitter) batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {twitter_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving X (Twitter) batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1854,7 +1852,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if is_valid:
                             facebook_results.append(acc)
                         else:
-                            print(f"⚠️  Skipping invalid Facebook record: {error_msg}")
+                            print(f" Skipping invalid Facebook record: {error_msg}")
             
             if facebook_results:
                 print(f"  Found {len(facebook_results)} valid Facebook records from Contacts sheet")
@@ -1870,7 +1868,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         print(f"  Saved Facebook batch {i//batch_size + 1}: {len(batch)}/{len(batch)} records inserted (Total saved: {facebook_saved_count}, Skipped: 0)")
                     except Exception as batch_error:
                         print(f"  Error saving Facebook batch {i//batch_size + 1}: {batch_error}")
-                        import traceback
+                        
                         traceback.print_exc()
                         self.db.rollback()
                 
@@ -1879,7 +1877,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
 
         except Exception as e:
             print(f"Error parsing Contacts sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -1951,7 +1949,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                         if tiktok_id_val is not None and str(tiktok_id_val).strip():
                             existing_info.append(f"TT:{tiktok_id_val}")
                         existing_str = ', '.join(existing_info) if existing_info else 'N/A'
-                        print(f"⚠️  Duplicate detected: Platform IDs: {', '.join(platform_info)}, Account: {acc.get('account_name', 'N/A')}")
+                        print(f" Duplicate detected: Platform IDs: {', '.join(platform_info)}, Account: {acc.get('account_name', 'N/A')}")
                         print(f"    → Already exists in DB: {existing_str}, Account: {existing.account_name or 'N/A'}, Sheet: {existing.sheet_name or 'N/A'}")
                         self._dup_log_count += 1
                 return existing is not None
@@ -1962,7 +1960,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 if not hasattr(self, '_dup_log_count'):
                     self._dup_log_count = 0
                 if self._dup_log_count < 5:
-                    print(f"⚠️  Duplicate detected: Account name: {acc['account_name']} (no platform ID)")
+                    print(f" Duplicate detected: Account name: {acc['account_name']} (no platform ID)")
                     self._dup_log_count += 1
             return existing is not None
         
@@ -2159,7 +2157,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing Instagram dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2302,7 +2300,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing WhatsApp Messenger dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -2472,7 +2470,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         except Exception as e:
             print(f"Error parsing X (Twitter) dedicated sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results

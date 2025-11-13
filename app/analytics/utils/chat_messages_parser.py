@@ -1,10 +1,9 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.analytics.device_management.models import ChatMessage
-import warnings
+import warnings, traceback, re
 
 
 class ChatMessagesParser:
@@ -12,11 +11,30 @@ class ChatMessagesParser:
     def __init__(self, db: Session):
         self.db = db
     
+    def _is_na(self, value: Any) -> bool:
+
+        if value is None:
+            return True
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return True
+            na_result = value.isna().all()
+            return bool(na_result) if isinstance(na_result, (pd.Series, pd.DataFrame)) else bool(na_result)
+        try:
+            na_result = pd.isna(value)
+            if isinstance(na_result, (pd.Series, pd.DataFrame)):
+                return bool(na_result.all())
+            return bool(na_result)
+        except (TypeError, ValueError):
+            return False
+    
+    def _not_na(self, value: Any) -> bool:
+        return not self._is_na(value)
+    
     def _clean(self, text: Any) -> Optional[str]:
-        """Clean dan normalize text value"""
         if text is None:
             return None
-        if isinstance(text, float) and pd.isna(text):
+        if self._is_na(text):
             return None
         text_str = str(text).strip()
         if text_str.lower() in ['nan', 'none', 'null', '', 'n/a']:
@@ -26,7 +44,7 @@ class ChatMessagesParser:
     def _generate_message_id(self, platform: str, row: pd.Series, file_id: int, index: int) -> str:
         message_id_fields = ['Message ID', 'Item ID', 'Record', 'message_id', 'id']
         for field in message_id_fields:
-            if field in row.index and pd.notna(row.get(field)):
+            if field in row.index and self._not_na(row.get(field)):
                 msg_id = str(row.get(field)).strip()
                 if msg_id and msg_id.lower() not in ['nan', 'none', '']:
                     return f"{platform}_{file_id}_{msg_id}"
@@ -58,32 +76,32 @@ class ChatMessagesParser:
                 
                 print(f"Parsing chat messages from {len(xls.sheet_names)} sheets...")
                 
-                tiktok_sheets = [s for s in xls.sheet_names if 'tiktok' in s.lower() and 'message' in s.lower()]
+                tiktok_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'tiktok' in str(s).lower() and 'message' in str(s).lower()]
                 for sheet in tiktok_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_tiktok_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                instagram_sheets = [s for s in xls.sheet_names if 'instagram' in s.lower() and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
+                instagram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'instagram' in str(s).lower() and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
                 for sheet in instagram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_instagram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                whatsapp_sheets = [s for s in xls.sheet_names if 'whatsapp' in s.lower() and ('message' in s.lower() or 'chat' in s.lower())]
+                whatsapp_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'whatsapp' in str(s).lower() and ('message' in str(s).lower() or 'chat' in str(s).lower())]
                 for sheet in whatsapp_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_whatsapp_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                telegram_sheets = [s for s in xls.sheet_names if 'telegram' in s.lower() and 'message' in s.lower()]
+                telegram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'telegram' in str(s).lower() and 'message' in str(s).lower()]
                 for sheet in telegram_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_telegram_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                x_sheets = [s for s in xls.sheet_names if ('twitter' in s.lower() or 'x ' in s.lower()) and ('message' in s.lower() or 'dm' in s.lower() or 'direct' in s.lower())]
+                x_sheets = [s for s in xls.sheet_names if isinstance(s, str) and ('twitter' in str(s).lower() or 'x ' in str(s).lower()) and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
                 for sheet in x_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_x_messages(file_path, sheet, file_id, source_tool, engine))
                 
-                facebook_sheets = [s for s in xls.sheet_names if 'facebook' in s.lower() and ('message' in s.lower() or 'messenger' in s.lower() or 'chat' in s.lower())]
+                facebook_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'facebook' in str(s).lower() and ('message' in str(s).lower() or 'messenger' in str(s).lower() or 'chat' in str(s).lower())]
                 for sheet in facebook_sheets:
                     print(f"  Parsing {sheet}...")
                     results.extend(self._parse_facebook_messages(file_path, sheet, file_id, source_tool, engine))
@@ -92,7 +110,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing chat messages: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -107,7 +125,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -158,7 +176,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing TikTok messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -173,7 +191,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -227,7 +245,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Instagram messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -242,7 +260,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'from', 'message', 'record', 'timestamp']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'from', 'message', 'record', 'timestamp']):
                         header_row = idx
                         break
                 
@@ -326,7 +344,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing WhatsApp messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -341,7 +359,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record']):
                         header_row = idx
                         break
                 
@@ -402,7 +420,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Telegram messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -417,7 +435,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'text', 'record']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'text', 'record']):
                         header_row = idx
                         break
                 
@@ -481,7 +499,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing X messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -496,7 +514,7 @@ class ChatMessagesParser:
                 first_col = df.iloc[:, 0].astype(str)
                 header_row = None
                 for idx, val in enumerate(first_col):
-                    if pd.notna(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record', 'content']):
+                    if self._not_na(val) and any(keyword in str(val).lower() for keyword in ['sender', 'recipient', 'message', 'record', 'content']):
                         header_row = idx
                         break
                 
@@ -570,7 +588,7 @@ class ChatMessagesParser:
                 
         except Exception as e:
             print(f"Error parsing Facebook messages from {sheet_name}: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -601,7 +619,7 @@ class ChatMessagesParser:
         except Exception as e:
             print(f"Error saving chat messages to database: {e}")
             self.db.rollback()
-            import traceback
+            
             traceback.print_exc()
             raise e
         

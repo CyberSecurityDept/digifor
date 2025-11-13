@@ -1,13 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-
+from datetime import datetime
 from app.api.deps import get_database
 from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
-    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse
+    Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse,
+    CaseNotesRequest
 )
+from fastapi.responses import JSONResponse, FileResponse
+import traceback
+import os
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -17,18 +21,26 @@ async def create_case(
     db: Session = Depends(get_database)
 ):
     try:
-        case = case_service.create_case(db, case_data)
+        case_dict = case_service.create_case(db, case_data)
+        if isinstance(case_dict.get("created_at"), datetime):
+            case_dict["created_at"] = case_dict["created_at"].strftime("%d/%m/%Y")
+        if isinstance(case_dict.get("updated_at"), datetime):
+            case_dict["updated_at"] = case_dict["updated_at"].strftime("%d/%m/%Y")
+        
         return CaseResponse(
             status=201,
             message="Case created successfully",
-            data=case
+            data=case_dict
         )
     except HTTPException:
         raise
     except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"ERROR in create_case endpoint: {str(e)}")
+        print(f"ERROR DETAILS: {error_details}")
         raise HTTPException(
             status_code=500, 
-            detail="Unexpected server error, please try again later"
+            detail=f"Unexpected server error: {str(e)}"
         )
 
 @router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
@@ -43,11 +55,25 @@ async def get_case_detail_comprehensive(
             message="Case detail retrieved successfully",
             data=case_data
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Case with ID {case_id} not found"
-        )
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in get_case_detail_comprehensive: {str(e)}")
+        logger.error(traceback.format_exc())
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Case with ID {case_id} not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Unexpected server error: {str(e)}"
+            )
 
 @router.get("/get-all-cases", response_model=CaseListResponse)
 async def get_cases(
@@ -55,16 +81,18 @@ async def get_cases(
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
+    sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),
     db: Session = Depends(get_database)
 ):
     try:
-        cases = case_service.get_cases(db, skip, limit, search, status)
+        result = case_service.get_cases(db, skip, limit, search, status, sort_by, sort_order)
         return CaseListResponse(
             status=200,
             message="Cases retrieved successfully",
-            data=cases,
-            total=len(cases),
-            page=skip // limit + 1,
+            data=result["cases"],
+            total=result["total"],
+            page=skip // limit + 1 if limit > 0 else 1,
             size=limit
         )
     except Exception as e:
@@ -85,32 +113,6 @@ async def update_case(
             status=200,
             message="Case updated successfully",
             data=case
-        )
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Case with ID {case_id} not found"
-            )
-        else:
-            raise HTTPException(
-                status_code=500, 
-                detail="Unexpected server error, please try again later"
-            )
-
-@router.delete("/delete-case/{case_id}")
-async def delete_case(
-    case_id: int,
-    db: Session = Depends(get_database)
-):
-    try:
-        success = case_service.delete_case(db, case_id)
-        if success:
-            return {"status": 200, "message": "Case deleted successfully"}
-        else:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Case with ID {case_id} not found"
             )
     except Exception as e:
         if "not found" in str(e).lower():
@@ -144,4 +146,143 @@ async def get_case_statistics(
         raise HTTPException(
             status_code=500, 
             detail="Unexpected server error, please try again later"
+        )
+
+@router.post("/save-notes")
+async def save_case_notes(
+    request: CaseNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = case_service.save_case_notes(db, request.case_id, request.notes)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Case notes saved successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Case with ID {request.case_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to save case notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )
+
+@router.put("/edit-notes")
+async def edit_case_notes(
+    request: CaseNotesRequest,
+    db: Session = Depends(get_database)
+):
+    try:
+        result = case_service.edit_case_notes(db, request.case_id, request.notes)
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Case notes updated successfully",
+                "data": result
+            },
+            status_code=200
+        )
+    except ValueError as e:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": str(e),
+                "data": None
+            },
+            status_code=400
+        )
+    except Exception as e:
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": f"Case with ID {request.case_id} not found",
+                    "data": None
+                },
+                status_code=404
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": 500,
+                    "message": f"Failed to edit case notes: {str(e)}",
+                    "data": None
+                },
+                status_code=500
+            )
+
+@router.get("/export-case-details-pdf/{case_id}")
+async def export_case_details_pdf(
+    case_id: int,
+    db: Session = Depends(get_database)
+):
+    """
+    Export case detail to PDF document
+    
+    Returns PDF file with case information, persons of interest, and evidence
+    """
+    try:
+        # Check if case exists
+        from app.case_management.models import Case
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Case with ID {case_id} not found"
+            )
+        
+        # Generate PDF
+        from app.core.config import settings
+        pdf_path = case_service.export_case_detail_pdf(db, case_id, settings.REPORTS_DIR)
+        
+        if not os.path.exists(pdf_path):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate PDF file"
+            )
+        
+        # Get filename for download
+        filename = os.path.basename(pdf_path)
+        
+        return FileResponse(
+            path=pdf_path,
+            filename=filename,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export case detail PDF: {str(e)}"
         )

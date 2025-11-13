@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-
-import sys
-import os
+import os, sys, logging
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from sqlalchemy import create_engine, text  # type: ignore
 from app.core.config import settings
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,13 +19,11 @@ def check_database_connection():
         logger.info(f"Host: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}")
         logger.info(f"Database: {settings.POSTGRES_DB}")
         logger.info(f"User: {settings.POSTGRES_USER}")
-        
         engine = create_engine(
             settings.DATABASE_URL,
             pool_pre_ping=True,
             connect_args={"connect_timeout": 10}
         )
-        
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
             result.fetchone()
@@ -41,7 +36,6 @@ def check_database_connection():
         logger.error(f"  Please check your database configuration in .env file")
         logger.error(f"  Make sure PostgreSQL is running and accessible")
         return False
-
 
 if __name__ == "__main__":
     success = check_database_connection()

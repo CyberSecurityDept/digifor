@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import sys
-import os
-
+import logging, os, sys
 # Add project root to path (go up one level from scripts/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -9,7 +7,6 @@ sys.path.insert(0, project_root)
 from sqlalchemy import create_engine, text  # type: ignore
 from app.core.config import settings
 import psycopg2  # type: ignore
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

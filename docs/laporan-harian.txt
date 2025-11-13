@@ -1,0 +1,50 @@
+
+Senin 13 November 2025
+
+Case Management
+
+1. Implementasi Endpoint Create Person
+   - Membuat endpoint untuk membuat person baru dalam case
+   - Validasi input data person (name, person_type, dll)
+   - Integrasi dengan case management system
+   - Response mengembalikan data person yang baru dibuat
+
+2. Implementasi Endpoint Create Suspect
+   - Membuat endpoint untuk membuat suspect baru dalam case
+   - Validasi input data suspect
+   - Relasi dengan person dan evidence
+   - Response mengembalikan data suspect yang baru dibuat
+
+3. Implementasi Endpoint Create Evidence
+   - Endpoint untuk membuat evidence baru dalam case
+   - Support upload file evidence dengan progress tracking
+   - Validasi file dan metadata evidence
+   - Relasi dengan suspect dan person
+   - Response yang informatif dengan data case terkait
+
+4. Implementasi Export PDF Case Detail
+   - Membuat endpoint untuk export case detail ke PDF
+   - Template PDF dengan header dan footer kustom
+   - Menampilkan informasi case lengkap (title, case ID, status, investigator, dll)
+   - Menampilkan case description
+   - Menampilkan person of interest dengan evidence terkait
+   - Menampilkan notes case
+   - Penomoran halaman yang akurat (Page X of Y)
+   - Header kustom untuk halaman 2+ dengan informasi case
+   - Footer dengan informasi case dan nomor halaman
+
+5. Perbaikan Template PDF Case Detail
+   - Menggunakan pendekatan GlobalPageCanvas untuk penomoran halaman yang akurat
+   - Menyimpan state setiap halaman untuk redraw header/footer dengan total pages yang benar
+   - Perbaikan handling page break untuk subtitle (Person of Interest, Notes)
+   - Menggunakan CondPageBreak untuk mencegah page break yang tidak perlu
+   - Alignment kolom tabel evidence (Picture, Evidence ID, Summary) rata kiri
+   - Penyesuaian posisi investigator dan date created di halaman 2+
+   - Penyesuaian spacing untuk Person of Interest di halaman 2+
+   - Template PDF langsung mengambil data dari case detail (comprehensive data)
+   - Support untuk multiple persons of interest dengan evidence masing-masing
+   - Support untuk case notes dengan formatting yang baik
+
+
+
+

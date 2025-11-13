@@ -47,6 +47,7 @@ logs/
 
 # Data Files
 data/uploads/*
+data/evidence/*
 data/analysis/*
 data/reports/*
 data/apks/apk/*
@@ -58,6 +59,7 @@ data/**/.gitkeep
 
 # IDE
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.swo
@@ -228,6 +230,7 @@ sample_file/
 sample_data/
 sample_social_mediaa/
 sample_file_encryptor/
+
 
 # Systemd service files
 digifor-v2.service 

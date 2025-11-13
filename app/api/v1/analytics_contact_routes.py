@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -25,22 +25,22 @@ def normalize_phone_number(phone: str) -> str:
     
     return phone
 
-@router.get("/analytic/{analytic_id}/contact-correlation")
-def get_contact_correlation(
-    analytic_id: int,
-    db: Session = Depends(get_db)
-):
+def _get_contact_correlation_data(analytic_id: int, db: Session):
     min_devices = 2
     
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
-        raise HTTPException(status_code=404, detail="Analytic not found")
+        return JSONResponse(
+            content={"status": 404, "message": "Analytic not found", "data": None},
+            status_code=404,
+        )
     
-    if analytic.method != "Contact Correlation":
+    method_value = analytic.method
+    if method_value is None or str(method_value) != "Contact Correlation":
         return JSONResponse(
             content={
                 "status": 400, 
-                "message": f"This endpoint is only for Contact Correlation. Current analytic method is '{analytic.method}'", 
+                "message": f"This endpoint is only for Contact Correlation. Current analytic method is '{method_value}'", 
                 "data": None
             },
             status_code=400,
@@ -56,7 +56,7 @@ def get_contact_correlation(
     device_ids = list(set(device_ids)) 
     if not device_ids:
         return JSONResponse(
-            content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": []}},
+            content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": [], "total_correlations": 0}},
             status_code=200
         )
 
@@ -97,16 +97,17 @@ def get_contact_correlation(
     correlation_map = defaultdict(dict)
 
     for contact in contacts:
-        # Skip contact jika type mengandung "account"
-        if contact.type and "account" in contact.type.lower():
-            print(f"🚫 Skipped contact (account type): {contact.display_name} — {contact.type}")
+        contact_type = contact.type
+        if contact_type is not None and "account" in str(contact_type).lower():
+            display_name = contact.display_name if contact.display_name is not None else "Unknown"
+            print(f"Skipped contact (account type): {display_name} — {contact_type}")
             continue
 
         phones_found = []
         names_found = []
 
-        contact_text = contact.display_name or ""
-        phones_emails_text = contact.phone_number or ""
+        contact_text = str(contact.display_name) if contact.display_name is not None else ""
+        phones_emails_text = str(contact.phone_number) if contact.phone_number is not None else ""
 
         for pattern in phone_patterns:
             phones_found.extend(pattern.findall(contact_text))
@@ -146,11 +147,17 @@ def get_contact_correlation(
                 contact_name = "Unknown"
 
             contact_device_id = None
+            contact_file_id = contact.file_id
+            contact_file_id_int = int(contact_file_id) if contact_file_id is not None else None
             for d in devices:
-                if d.file_id == contact.file_id:
-                    contact_device_id = d.id
+                device_file_id = d.file_id
+                device_file_id_int = int(device_file_id) if device_file_id is not None else None
+                if device_file_id_int is not None and contact_file_id_int is not None and device_file_id_int == contact_file_id_int:
+                    device_id_value = d.id
+                    if device_id_value is not None:
+                        contact_device_id = int(device_id_value)
                     break
-            if contact_device_id:
+            if contact_device_id is not None:
                 correlation_map[normalized_phone][contact_device_id] = contact_name
 
     filtered_correlations = {
@@ -179,7 +186,9 @@ def get_contact_correlation(
     if not correlations:
         correlations = []
 
-    summary = analytic.summary if analytic.summary else None
+    total_correlations = len(correlations)
+    summary_value = analytic.summary
+    summary = summary_value if summary_value is not None else None
 
     return JSONResponse(
         content={
@@ -188,8 +197,16 @@ def get_contact_correlation(
             "data": {
                 "devices": list(device_info.values()),
                 "correlations": correlations,
-                "summary": summary
+                "summary": summary,
+                "total_correlations": total_correlations
             }
         },
         status_code=200
     )
+
+@router.get("/analytic/contact-correlation")
+def get_contact_correlation(
+    analytic_id: int = Query(..., description="Analytic ID"),
+    db: Session = Depends(get_db)
+):
+    return _get_contact_correlation_data(analytic_id, db)

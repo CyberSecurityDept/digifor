@@ -3,9 +3,6 @@ import sys
 import os
 import re
 
-# =====================================================
-# 🔹 Permission Classifier (safe & updated)
-# =====================================================
 def classify_permissions(permissions, suspicious_set=None):
     """Classify app based on permissions only."""
     if not permissions:
@@ -44,21 +41,19 @@ def classify_permissions(permissions, suspicious_set=None):
         else:
             info_count += 1
 
-    # === Hitung skor keseluruhan ===
     risk_weight = (dangerous_count * 3) + (normal_count * 1) + (info_count * 0.5)
     max_possible_risk = total_perms * 3
     safety_score = int((1 - (risk_weight / max_possible_risk)) * 100)
     safety_score = max(0, min(100, safety_score))
 
     print(f"[*] Total permissions: {total_perms}")
-    print(f"    - Dangerous: {dangerous_count}")
-    print(f"    - Normal: {normal_count}")
-    print(f"    - Info/Other: {info_count}")
-    print(f"    → Computed Safety Score: {safety_score}")
+    print(f"- Dangerous: {dangerous_count}")
+    print(f"- Normal: {normal_count}")
+    print(f"- Info/Other: {info_count}")
+    print(f"→ Computed Safety Score: {safety_score}")
 
-    # === Classification rules ===
     if any(p in ("android.permission.REQUEST_INSTALL_PACKAGES", "REQUEST_INSTALL_PACKAGES") for p in perm_list):
-        print("[⚠️] Critical permission REQUEST_INSTALL_PACKAGES detected.")
+        print("Critical permission REQUEST_INSTALL_PACKAGES detected.")
         return (
             min(40, safety_score),
             "Dangerous",
@@ -85,10 +80,6 @@ def classify_permissions(permissions, suspicious_set=None):
         risk_weight,
     )
 
-
-# =====================================================
-# 🔹 Load suspicious indicator list
-# =====================================================
 def load_suspicious_indicators(script_dir):
     indicators_file = os.path.join(script_dir, "suspicious_indicators.json")
     if not os.path.exists(indicators_file):
@@ -109,10 +100,6 @@ def load_suspicious_indicators(script_dir):
         print(f"[!] Failed to load suspicious_indicators.json: {e}")
         return set()
 
-
-# =====================================================
-# 🔹 Main function for CLI analysis
-# =====================================================
 def main():
     if len(sys.argv) != 2:
         print("Usage: python scan_apk.py <report.json>", file=sys.stderr)
@@ -121,11 +108,9 @@ def main():
     json_path = sys.argv[1]
     script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    # === Load MobSF JSON report ===
     with open(json_path, "r", encoding="utf-8") as f:
         report_json = json.load(f)
 
-    # === Extract permissions from manifest_analysis ===
     permissions = report_json.get('permissions', {})
     if not permissions:
         print("[!] No permissions found in manifest_analysis.")
@@ -133,7 +118,6 @@ def main():
 
     suspicious_set = load_suspicious_indicators(script_dir)
 
-    # === Classify ===
     safety_score, classification, reason, dangerous_list, risk_weight = classify_permissions(
         permissions, suspicious_set
     )
@@ -156,9 +140,5 @@ def main():
     print("\n===================== FINAL ANALYSIS =====================")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-
-# =====================================================
-# 🔹 Run as CLI
-# =====================================================
 if __name__ == "__main__":
     main()

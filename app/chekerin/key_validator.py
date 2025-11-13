@@ -14,7 +14,6 @@ def validate_private_key(key_path):
         if len(key_data) != 32:
             print(f"INVALID: Key must be 32 bytes, got {len(key_data)} bytes")
             return False
-        
         try:
             private_key = x25519.X25519PrivateKey.from_private_bytes(key_data)
             print("Private key format: VALID (X25519)")

@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -6,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from sqlalchemy import or_
 from app.analytics.utils.chat_messages_parser_extended import ChatMessagesParserExtended
-import logging
+import logging, re, traceback
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +15,27 @@ class SocialMediaParsersExtended:
         self.db = db
         self._chat_messages_parser = ChatMessagesParserExtended(db)
     
+    def _is_na(self, value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return True
+            na_result = value.isna().all()
+            return bool(na_result) if isinstance(na_result, (pd.Series, pd.DataFrame)) else bool(na_result)
+        try:
+            na_result = pd.isna(value)
+            if isinstance(na_result, (pd.Series, pd.DataFrame)):
+                return bool(na_result.all())
+            return bool(na_result)
+        except (TypeError, ValueError):
+            return False
+    
+    def _not_na(self, value: Any) -> bool:
+        return not self._is_na(value)
+    
     def _clean(self, text: Any) -> Optional[str]:
-        if text is None or pd.isna(text):
+        if text is None or self._is_na(text):
             return None
         text = str(text).strip()
         if text.lower() in ["", "nan", "none", "null", "n/a", "none"]:
@@ -342,54 +360,55 @@ class SocialMediaParsersExtended:
             
             for sheet_name in xls.sheet_names:
                 print(f"Processing sheet: {sheet_name}")
+                sheet_name_str = str(sheet_name)
                 
-                if 'Instagram Profiles' in sheet_name:
+                if 'Instagram Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_profiles(file_path, sheet_name, file_id))
-                elif 'Android Instagram Following' in sheet_name:
+                elif 'Android Instagram Following' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_following(file_path, sheet_name, file_id))
-                elif 'Android Instagram Users' in sheet_name:
+                elif 'Android Instagram Users' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_users(file_path, sheet_name, file_id))
                 
-                elif 'Twitter Users' in sheet_name:
+                elif 'Twitter Users' in sheet_name_str:
                     results.extend(self._parse_axiom_twitter_users(file_path, sheet_name, file_id))
                 
-                elif 'Telegram Accounts' in sheet_name:
+                elif 'Telegram Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_accounts(file_path, sheet_name, file_id))
-                elif 'User Accounts' in sheet_name:
+                elif 'User Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_user_accounts(file_path, sheet_name, file_id))
                 
-                elif 'TikTok Contacts' in sheet_name:
+                elif 'TikTok Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_tiktok_contacts(file_path, sheet_name, file_id))
                 
-                elif 'Facebook Contacts' in sheet_name:
+                elif 'Facebook Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_contacts(file_path, sheet_name, file_id))
-                elif 'Facebook User-Friends' in sheet_name:
+                elif 'Facebook User-Friends' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_users(file_path, sheet_name, file_id))
                 
-                elif 'WhatsApp Contacts - Android' in sheet_name:
+                elif 'WhatsApp Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts(file_path, sheet_name, file_id))
-                elif 'WhatsApp User Profiles - Androi' in sheet_name:
+                elif 'WhatsApp User Profiles - Androi' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_users(file_path, sheet_name, file_id))
-                elif 'WhatsApp Accounts Information' in sheet_name:
+                elif 'WhatsApp Accounts Information' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts(file_path, sheet_name, file_id))
                 
-                elif 'Android WhatsApp Accounts Infor' in sheet_name:
+                elif 'Android WhatsApp Accounts Infor' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts_info(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Chats' in sheet_name:
+                elif 'Android WhatsApp Chats' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_chats(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Contacts' in sheet_name:
+                elif 'Android WhatsApp Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts_android(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Messages' in sheet_name:
+                elif 'Android WhatsApp Messages' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_messages(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp User Profiles' in sheet_name:
+                elif 'Android WhatsApp User Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_user_profiles(file_path, sheet_name, file_id))
-                elif 'Telegram Chats - Android' in sheet_name:
+                elif 'Telegram Chats - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_chats(file_path, sheet_name, file_id))
-                elif 'Telegram Contacts - Android' in sheet_name:
+                elif 'Telegram Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_contacts_android(file_path, sheet_name, file_id))
-                elif 'Telegram Messages - Android' in sheet_name:
+                elif 'Telegram Messages - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_messages(file_path, sheet_name, file_id))
-                elif 'Telegram Users - Android' in sheet_name:
+                elif 'Telegram Users - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_users_android(file_path, sheet_name, file_id))
 
             unique_results = []
@@ -450,7 +469,7 @@ class SocialMediaParsersExtended:
                                 if acc.get('tiktok_id'):
                                     platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
                         
                         if self._check_existing_social_media(acc):
@@ -466,7 +485,7 @@ class SocialMediaParsersExtended:
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -500,35 +519,36 @@ class SocialMediaParsersExtended:
             
             for sheet_name in xls.sheet_names:
                 try:
-                    if 'Instagram Profiles' in sheet_name:
+                    sheet_name_str = str(sheet_name)
+                    if 'Instagram Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Twitter Users' in sheet_name:
+                    elif 'Twitter Users' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Telegram Accounts' in sheet_name:
+                    elif 'Telegram Accounts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Account ID' in df.columns:
                             total_count += len(df[df['Account ID'].notna()])
-                    elif 'TikTok Contacts' in sheet_name:
+                    elif 'TikTok Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'Facebook Contacts' in sheet_name:
+                    elif 'Facebook Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Profile ID' in df.columns:
                             total_count += len(df[df['Profile ID'].notna()])
-                    elif 'Facebook User-Friends' in sheet_name:
+                    elif 'Facebook User-Friends' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'WhatsApp Contacts' in sheet_name:
+                    elif 'WhatsApp Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'WhatsApp User Profiles' in sheet_name:
+                    elif 'WhatsApp User Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Phone Number' in df.columns:
                             total_count += len(df[df['Phone Number'].notna()])
@@ -576,7 +596,7 @@ class SocialMediaParsersExtended:
             
             elif any(keyword in ' '.join(xls.sheet_names).lower() for keyword in ['instagram', 'facebook', 'twitter', 'whatsapp', 'telegram', 'tiktok']):
                 print("Detected Oxygen format - parsing dedicated social media sheets")
-                results.extend(self.parse_oxygen_social_media(file_path, file_id))
+                results.extend(self.parse_oxygen_social_media(file_path, file_id))  # type: ignore[reportAttributeAccessIssue]
             
             else:
                 print("Unknown format - attempting generic parsing")
@@ -642,7 +662,7 @@ class SocialMediaParsersExtended:
                                 if acc.get('tiktok_id'):
                                     platform_info.append(f"TT:{acc['tiktok_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {acc.get('account_name', 'N/A')}")
                             continue
                         
                         if self._check_existing_social_media(acc):
@@ -658,7 +678,7 @@ class SocialMediaParsersExtended:
                     
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
+                    
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -690,7 +710,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
+                if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
                 
                 source = self._clean(row.get('Source', ''))
@@ -782,7 +802,7 @@ class SocialMediaParsersExtended:
             
             for _, row in df.iterrows():
                 for col_name, col_value in row.items():
-                    if pd.isna(col_value) or not isinstance(col_value, str):
+                    if self._is_na(col_value) or not isinstance(col_value, str):
                         continue
                     
                     col_value_lower = col_value.lower()
@@ -925,7 +945,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
+                if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
                 
                 username = self._clean(row.get('Username', ''))
@@ -1065,7 +1085,7 @@ class SocialMediaParsersExtended:
             social_media_keywords = ['Instagram', 'WhatsApp', 'Twitter', 'Facebook', 'Telegram', 'Tiktok', 'X']
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
+                if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
                 
                 source = self._clean(row.get('Source', ''))
@@ -1211,7 +1231,7 @@ class SocialMediaParsersExtended:
             
         except Exception as e:
             print(f"Error parsing {sheet_name} sheet: {e}")
-            import traceback
+            
             traceback.print_exc()
         
         return results
@@ -1228,7 +1248,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
+                if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
                 
                 source = self._clean(row.get('Source', ''))
@@ -1393,13 +1413,19 @@ class SocialMediaParsersExtended:
             if 'Contacts' in xls.sheet_names:
                 df = pd.read_excel(file_path, sheet_name='Contacts', engine='openpyxl', dtype=str)
                 telegram_contacts = df[df['Unnamed: 20'] == 'Telegram']
-                telegram_count = len(telegram_contacts[telegram_contacts['Unnamed: 8'].notna()])
+                if isinstance(telegram_contacts, pd.DataFrame) and not telegram_contacts.empty:
+                    telegram_count = len(telegram_contacts[telegram_contacts['Unnamed: 8'].notna()])
+                else:
+                    telegram_count = 0
                 total_count += telegram_count
             
             if 'Chats' in xls.sheet_names:
                 df = pd.read_excel(file_path, sheet_name='Chats', engine='openpyxl', dtype=str)
                 telegram_chats = df[df['Unnamed: 15'] == 'Telegram']
-                chat_count = len(telegram_chats[telegram_chats['Unnamed: 13'].notna()])
+                if isinstance(telegram_chats, pd.DataFrame) and not telegram_chats.empty:
+                    chat_count = len(telegram_chats[telegram_chats['Unnamed: 13'].notna()])
+                else:
+                    chat_count = 0
                 total_count += chat_count
             
             return total_count
@@ -1415,7 +1441,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
                     
                 following_value = self._clean(row.get('Following'))
@@ -1457,7 +1483,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
                 
                 following_value = self._clean(row.get('Status'))
@@ -1495,7 +1521,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
                 
                 user_id_value = self._clean(row.get('ID'))
@@ -1602,7 +1628,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
                     
                 user_id_value = self._clean(row.get('User ID'))
@@ -1638,7 +1664,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
+                if self._is_na(row.get('User ID')):
                     continue
                     
                 first_name = self._clean(row.get('First Name', ''))
@@ -1680,7 +1706,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get("ID")):
+                if self._is_na(row.get("ID")):
                     continue
                 
                 nickname = self._clean(row.get("Nickname"))
@@ -1715,7 +1741,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Profile ID')):
+                if self._is_na(row.get('Profile ID')):
                     continue
                     
                 acc = {
@@ -1746,7 +1772,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
+                if self._is_na(row.get('User ID')):
                     continue
                     
                 acc = {
@@ -1777,7 +1803,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('ID')):
+                if self._is_na(row.get('ID')):
                     continue
                     
                 acc = {
@@ -1808,7 +1834,7 @@ class SocialMediaParsersExtended:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Phone Number')):
+                if self._is_na(row.get('Phone Number')):
                     continue
                     
                 acc = {
@@ -1833,7 +1859,7 @@ class SocialMediaParsersExtended:
         return results
 
     def _safe_int(self, value) -> Optional[int]:
-        if pd.isna(value) or value is None:
+        if self._is_na(value) or value is None:
             return None
         try:
             return int(float(str(value)))
@@ -1841,7 +1867,7 @@ class SocialMediaParsersExtended:
             return None
 
     def _safe_bool(self, value) -> Optional[bool]:
-        if pd.isna(value) or value is None:
+        if self._is_na(value) or value is None:
             return None
         if isinstance(value, bool):
             return value
@@ -1890,7 +1916,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Axiom file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Axiom file {excel_file.name}: {e}")
@@ -1906,7 +1932,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Cellebrite file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Cellebrite file {excel_file.name}: {e}")
@@ -1921,7 +1947,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Oxygen file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Oxygen file {excel_file.name}: {e}")
@@ -1949,7 +1975,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
@@ -1986,7 +2012,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 individual_chat_name = self._clean(row.get('Individual Chat Name', ''))
@@ -2033,7 +2059,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 contact_id = self._clean(row.get('ID', ''))
@@ -2079,7 +2105,7 @@ class SocialMediaParsersExtended:
             seen_accounts = set()
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 sender = self._clean(row.get('Sender', ''))
@@ -2123,7 +2149,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
@@ -2160,7 +2186,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 chat_name = self._clean(row.get('Chat Name', ''))
@@ -2197,7 +2223,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 user_id = self._clean(row.get('User ID', ''))
@@ -2240,7 +2266,7 @@ class SocialMediaParsersExtended:
             seen_accounts = set()
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 partner = self._clean(row.get('Partner', ''))
@@ -2276,7 +2302,7 @@ class SocialMediaParsersExtended:
                 df = df.reset_index(drop=True)
             
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
                 
                 user_id = self._clean(row.get('User ID', ''))

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -9,23 +9,14 @@ class EvidenceBase(BaseModel):
     description: Optional[str] = Field(None, description="Evidence description")
     evidence_type_id: Optional[int] = Field(None, description="Evidence type ID")
     case_id: int = Field(..., description="Case ID")
-    weight: Optional[float] = Field(None, description="Weight in grams")
-    dimensions: Optional[str] = Field(None, description="Dimensions")
-    color: Optional[str] = Field(None, description="Color")
-    material: Optional[str] = Field(None, description="Material")
     file_path: Optional[str] = Field(None, description="File path")
     file_size: Optional[int] = Field(None, description="File size in bytes")
     file_hash: Optional[str] = Field(None, description="File hash")
     file_type: Optional[str] = Field(None, description="File type")
     file_extension: Optional[str] = Field(None, description="File extension")
-    status: str = Field("collected", description="Evidence status")
     analysis_status: str = Field("pending", description="Analysis status")
-    collected_by: Optional[str] = Field(None, description="Collected by")
+    investigator: Optional[str] = Field(None, description="Investigator name")
     collected_date: Optional[datetime] = Field(None, description="Collection date")
-    collected_location: Optional[str] = Field(None, description="Collection location")
-    collection_method: Optional[str] = Field(None, description="Collection method")
-    storage_location: Optional[str] = Field(None, description="Storage location")
-    storage_conditions: Optional[str] = Field(None, description="Storage conditions")
     is_confidential: bool = Field(False, description="Is confidential")
     notes: Optional[str] = Field(None, description="Evidence notes")
 
@@ -38,23 +29,14 @@ class EvidenceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     evidence_type_id: Optional[int] = None
-    weight: Optional[float] = None
-    dimensions: Optional[str] = None
-    color: Optional[str] = None
-    material: Optional[str] = None
     file_path: Optional[str] = None
     file_size: Optional[int] = None
     file_hash: Optional[str] = None
     file_type: Optional[str] = None
     file_extension: Optional[str] = None
-    status: Optional[str] = None
     analysis_status: Optional[str] = None
-    collected_by: Optional[str] = None
+    investigator: Optional[str] = None
     collected_date: Optional[datetime] = None
-    collected_location: Optional[str] = None
-    collection_method: Optional[str] = None
-    storage_location: Optional[str] = None
-    storage_conditions: Optional[str] = None
     is_confidential: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -64,7 +46,6 @@ class Evidence(EvidenceBase):
     analysis_progress: int
     created_at: datetime
     updated_at: Optional[datetime]
-    archived_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -201,3 +182,8 @@ class CustodyReportListResponse(BaseModel):
     total: int = Field(..., description="Total number of reports")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+
+class EvidenceNotesRequest(BaseModel):
+    evidence_id: int = Field(..., description="Evidence ID")
+    notes: Dict[str, Any] = Field(..., description="Evidence notes as JSON object with id, thumbnail, and text")

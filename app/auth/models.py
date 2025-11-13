@@ -11,7 +11,7 @@ class User(Base):
     fullname = Column(String(255), nullable=False)
     tag = Column(String(255), nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    role = Column(String(50), default="user", nullable=False)  # role langsung di sini
+    role = Column(String(50), default="user", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

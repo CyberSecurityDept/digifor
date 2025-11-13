@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import sys
-import os
+import logging, sys, os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
@@ -8,14 +7,13 @@ from sqlalchemy import create_engine, inspect  # type: ignore
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-import logging
-from app.auth.models import *  # noqa: F401, F403
-from app.analytics.shared.models import *  # noqa: F401, F403
-from app.case_management.models import *  # noqa: F401, F403
-from app.evidence_management.models import *  # noqa: F401, F403
-from app.suspect_management.models import *  # noqa: F401, F403
-from app.analytics.device_management.models import *  # noqa: F401, F403
-from app.analytics.analytics_management.models import *  # noqa: F401, F403
+from app.auth.models import *
+from app.analytics.shared.models import *
+from app.case_management.models import *
+from app.evidence_management.models import *
+from app.suspect_management.models import *
+from app.analytics.device_management.models import *
+from app.analytics.analytics_management.models import *
 
 logging.basicConfig(
     level=logging.INFO,

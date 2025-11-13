@@ -1,13 +1,4 @@
-#!/bin/bash
 
-# =============================================================================
-# FORENLYTIC ANALYTICS - COMPLETE ANALYSIS SCRIPT
-# =============================================================================
-# Script ini menjalankan analisis forensik lengkap dari awal sampai selesai
-# Menggunakan file dari contoh_dataset dan contoh_hashfile
-# =============================================================================
-
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

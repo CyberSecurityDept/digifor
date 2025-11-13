@@ -1,7 +1,6 @@
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
-from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 
@@ -56,7 +55,7 @@ class CustodyService:
             self.db.rollback()
             raise e
     
-    def get_custody_chain(self, evidence_id: UUID) -> Dict[str, Any]:
+    def get_custody_chain(self, evidence_id: int) -> Dict[str, Any]:
         try:
             custody_logs = self.db.query(CustodyLog).filter(
                 CustodyLog.evidence_id == evidence_id
@@ -85,7 +84,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def get_custody_events(self, evidence_id: UUID, skip: int = 0, limit: int = 50, event_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_custody_events(self, evidence_id: int, skip: int = 0, limit: int = 50, event_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             query = self.db.query(CustodyLog).filter(
                 CustodyLog.evidence_id == evidence_id
@@ -107,7 +106,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def update_custody_log(self, custody_id: UUID, custody_update: CustodyLogUpdate) -> CustodyLog:
+    def update_custody_log(self, custody_id: int, custody_update: CustodyLogUpdate) -> CustodyLog:
         try:
             custody_log = self.db.query(CustodyLog).filter(
                 CustodyLog.id == custody_id
@@ -158,7 +157,7 @@ class CustodyService:
             self.db.rollback()
             raise e
     
-    def get_custody_reports(self, evidence_id: UUID, skip: int = 0, limit: int = 10, report_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_custody_reports(self, evidence_id: int, skip: int = 0, limit: int = 10, report_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             query = self.db.query(CustodyReport).filter(
                 CustodyReport.evidence_id == evidence_id
@@ -180,7 +179,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def get_custody_report(self, report_id: UUID) -> CustodyReport:
+    def get_custody_report(self, report_id: int) -> CustodyReport:
         try:
             report = self.db.query(CustodyReport).filter(
                 CustodyReport.id == report_id
@@ -194,7 +193,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def verify_custody_log(self, custody_id: UUID, verified_by: str) -> CustodyLog:
+    def verify_custody_log(self, custody_id: int, verified_by: str) -> CustodyLog:
         try:
             custody_log = self.db.query(CustodyLog).filter(
                 CustodyLog.id == custody_id

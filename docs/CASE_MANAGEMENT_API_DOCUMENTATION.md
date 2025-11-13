@@ -1,19 +1,15 @@
 # Case Management API Documentation
 
 ## Overview
-
 This document provides comprehensive API documentation for the Case Management system endpoints. The API is built with FastAPI and follows RESTful conventions.
 
 ## Base URL
-
 ```
 /api/v1
 ```
 
 ## Authentication
-
 All endpoints require Bearer token authentication:
-
 ```
 Authorization: Bearer <access_token>
 ```
@@ -23,15 +19,12 @@ Authorization: Bearer <access_token>
 ## Available Endpoints
 
 ### 1. Create Case
-
 **Endpoint:** `POST /api/v1/cases/create-case`
 
 **Description:** Create a new case with agency and work unit information. Supports both auto-generated and manual case numbers. **Automatically creates an initial case log entry with status "Open".**
 
 #### Option 1: Auto-Generate Case Number (Recommended)
-
 **Request Body:**
-
 ```json
 {
   "title": "Buronan Maroko Interpol",
@@ -45,9 +38,7 @@ Authorization: Bearer <access_token>
 ```
 
 #### Option 2: Manual Case Number
-
 **Request Body:**
-
 ```json
 {
   "title": "Buronan Maroko Interpol",
@@ -61,7 +52,6 @@ Authorization: Bearer <access_token>
 ```
 
 **Response (201 Created):**
-
 ```json
 {
   "status": 201,
@@ -83,7 +73,6 @@ Authorization: Bearer <access_token>
 ```
 
 **Error Responses:**
-
 - **400 Bad Request:** Invalid input data
 - **409 Conflict:** Case number already exists (for manual case numbers)
 - **500 Internal Server Error:** Database error
@@ -91,13 +80,11 @@ Authorization: Bearer <access_token>
 ---
 
 ### 2. Get All Cases
-
 **Endpoint:** `GET /api/v1/cases/`
 
 **Description:** Retrieve all cases with optional filtering and pagination.
 
 **Query Parameters:**
-
 - `skip` (optional): Number of records to skip (default: 0)
 - `limit` (optional): Number of records to return (default: 100)
 - `status` (optional): Filter by case status
@@ -106,13 +93,11 @@ Authorization: Bearer <access_token>
 - `agency` (optional): Filter by agency
 
 **Example Request:**
-
 ```
 GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "status": 200,
@@ -143,17 +128,14 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ---
 
 ### 3. Get Case by ID
-
 **Endpoint:** `GET /api/v1/cases/{case_id}`
 
 **Description:** Retrieve a specific case by its ID.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Response (200 OK):**
-
 ```json
 {
   "status": 200,
@@ -175,24 +157,20 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Error Responses:**
-
 - **404 Not Found:** Case not found
 - **500 Internal Server Error:** Database error
 
 ---
 
 ### 4. Update Case
-
 **Endpoint:** `PUT /api/v1/cases/{case_id}`
 
 **Description:** Update an existing case. Only provided fields will be updated.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Request Body:**
-
 ```json
 {
   "title": "Buronan Maroko Interpol - Updated",
@@ -203,7 +181,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "status": 200,
@@ -225,35 +202,8 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Error Responses:**
-
 - **404 Not Found:** Case not found
 - **400 Bad Request:** Invalid input data
-- **500 Internal Server Error:** Database error
-
----
-
-### 5. Delete Case
-
-**Endpoint:** `DELETE /api/v1/cases/{case_id}`
-
-**Description:** Delete a case by its ID. This will also delete all associated case logs and notes.
-
-**Path Parameters:**
-
-- `case_id` (required): The unique identifier of the case
-
-**Response (200 OK):**
-
-```json
-{
-  "status": 200,
-  "message": "Case deleted successfully"
-}
-```
-
-**Error Responses:**
-
-- **404 Not Found:** Case not found
 - **500 Internal Server Error:** Database error
 
 ---
@@ -261,17 +211,14 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ## Case Log Endpoints
 
 ### 6. Create Case Log
-
 **Endpoint:** `POST /api/v1/cases/{case_id}/logs`
 
 **Description:** Create a new log entry for a specific case.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Request Body:**
-
 ```json
 {
   "status": "In Progress",
@@ -281,7 +228,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Response (201 Created):**
-
 ```json
 {
   "status": 201,
@@ -300,22 +246,18 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ---
 
 ### 7. Get Case Logs
-
 **Endpoint:** `GET /api/v1/cases/{case_id}/logs`
 
 **Description:** Retrieve all log entries for a specific case.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Query Parameters:**
-
 - `skip` (optional): Number of records to skip (default: 0)
 - `limit` (optional): Number of records to return (default: 100)
 
 **Response (200 OK):**
-
 ```json
 {
   "status": 200,
@@ -351,17 +293,14 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ## Case Note Endpoints
 
 ### 8. Create Case Note
-
 **Endpoint:** `POST /api/v1/cases/{case_id}/notes`
 
 **Description:** Create a new note for a specific case.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Request Body:**
-
 ```json
 {
   "title": "Temuan Forensik Digital",
@@ -371,7 +310,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 **Response (201 Created):**
-
 ```json
 {
   "status": 201,
@@ -390,23 +328,19 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ---
 
 ### 9. Get Case Notes
-
 **Endpoint:** `GET /api/v1/cases/{case_id}/notes`
 
 **Description:** Retrieve all notes for a specific case.
 
 **Path Parameters:**
-
 - `case_id` (required): The unique identifier of the case
 
 **Query Parameters:**
-
 - `skip` (optional): Number of records to skip (default: 0)
 - `limit` (optional): Number of records to return (default: 100)
 - `note_type` (optional): Filter by note type
 
 **Response (200 OK):**
-
 ```json
 {
   "status": 200,
@@ -434,7 +368,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ## Data Models
 
 ### Case Model
-
 ```json
 {
   "case_id": "integer",
@@ -452,7 +385,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 ### Case Log Model
-
 ```json
 {
   "log_id": "integer",
@@ -465,7 +397,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 ### Case Note Model
-
 ```json
 {
   "note_id": "integer",
@@ -482,7 +413,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ## Enums
 
 ### Case Status
-
 - `Open` - Case baru dibuat
 - `In Progress` - Case sedang dalam investigasi
 - `Under Review` - Case sedang direview
@@ -490,28 +420,24 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 - `Archived` - Case telah diarsipkan
 
 ### Case Type
-
 - `Criminal` - Kasus kriminal
 - `Civil` - Kasus perdata
 - `Administrative` - Kasus administratif
 - `Intelligence` - Kasus intelijen
 
 ### Priority
-
 - `Low` - Prioritas rendah
 - `Medium` - Prioritas sedang
 - `High` - Prioritas tinggi
 - `Critical` - Prioritas kritis
 
 ### Log Type
-
 - `System` - Log sistem otomatis
 - `Status Update` - Update status
 - `Note` - Catatan manual
 - `Evidence` - Bukti
 
 ### Note Type
-
 - `Evidence` - Bukti
 - `Observation` - Observasi
 - `Analysis` - Analisis
@@ -522,7 +448,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ## Error Handling
 
 ### Standard Error Response Format
-
 ```json
 {
   "status": "integer",
@@ -535,7 +460,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ```
 
 ### Common Error Codes
-
 - `CASE_NOT_FOUND` - Case tidak ditemukan
 - `INVALID_CASE_NUMBER` - Nomor kasus tidak valid
 - `CASE_NUMBER_EXISTS` - Nomor kasus sudah ada
@@ -551,7 +475,6 @@ GET /api/v1/cases/?skip=0&limit=10&status=Open&priority=High
 ### Complete Case Workflow
 
 #### 1. Create Case
-
 ```bash
 curl -X POST "http://localhost:8000/api/v1/cases/create-case" \
      -H "Authorization: Bearer <token>" \
@@ -568,7 +491,6 @@ curl -X POST "http://localhost:8000/api/v1/cases/create-case" \
 ```
 
 #### 2. Add Case Log
-
 ```bash
 curl -X POST "http://localhost:8000/api/v1/cases/1/logs" \
      -H "Authorization: Bearer <token>" \
@@ -581,7 +503,6 @@ curl -X POST "http://localhost:8000/api/v1/cases/1/logs" \
 ```
 
 #### 3. Add Case Note
-
 ```bash
 curl -X POST "http://localhost:8000/api/v1/cases/1/notes" \
      -H "Authorization: Bearer <token>" \
@@ -594,7 +515,6 @@ curl -X POST "http://localhost:8000/api/v1/cases/1/notes" \
 ```
 
 #### 4. Update Case Status
-
 ```bash
 curl -X PUT "http://localhost:8000/api/v1/cases/1" \
      -H "Authorization: Bearer <token>" \
@@ -606,7 +526,6 @@ curl -X PUT "http://localhost:8000/api/v1/cases/1" \
 ```
 
 #### 5. Get Case with Logs and Notes
-
 ```bash
 curl -X GET "http://localhost:8000/api/v1/cases/1" \
      -H "Authorization: Bearer <token>"

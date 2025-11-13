@@ -34,7 +34,7 @@ def remove_name_column_from_hash_files():
                 print("Column 'name' does not exist in hash_files table. Migration not needed.")
                 return
             
-            print("⚠️ Column 'name' found. Removing it...")
+            print("Column 'name' found. Removing it...")
             
             # Remove the column
             alter_query = text("""

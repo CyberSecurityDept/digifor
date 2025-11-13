@@ -51,7 +51,6 @@ class SDPHeader:
 class SDPFile:
     @staticmethod
     def write_header(f, header_json):
-        """Write header dengan format [4 bytes length][json]"""
         header_bytes = header_json.encode('utf-8')
         header_len = len(header_bytes)
         
@@ -60,7 +59,6 @@ class SDPFile:
     
     @staticmethod
     def read_header(f):
-        """Read dan parse header dari file"""
         header_len_bytes = f.read(4)
         if len(header_len_bytes) != 4:
             raise ValueError("Invalid SDP file: missing header length")
@@ -75,12 +73,10 @@ class SDPFile:
     
     @staticmethod
     def write_chunk(f, encrypted_chunk):
-        """Write encrypted chunk dengan format [4 bytes size][data]"""
         chunk_size = len(encrypted_chunk)
         f.write(chunk_size.to_bytes(4, 'big'))
         f.write(encrypted_chunk)
     
     @staticmethod
     def write_footer(f, original_hash):
-        """Write original SHA256 hash sebagai footer"""
         f.write(original_hash)

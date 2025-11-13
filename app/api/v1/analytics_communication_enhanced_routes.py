@@ -8,8 +8,7 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
-import re
-import traceback
+import traceback, re
 
 router = APIRouter()
 
@@ -21,7 +20,6 @@ PLATFORM_MAPPING = {
     'x': ['X', 'x', 'Twitter', 'twitter'],
     'tiktok': ['TikTok', 'tiktok', 'TikTok']
 }
-
 
 def normalize_platform_name(platform: str) -> str:
     if not platform:
@@ -51,31 +49,23 @@ def clean_message_text(text: str) -> str:
     cleaned = cleaned.replace('\\\\n', '\n')
     cleaned = cleaned.replace('\\\\r', '\r')
     cleaned = cleaned.replace('\\\\t', ' ')
-    
     cleaned = cleaned.replace('\\n', '\n') 
     cleaned = cleaned.replace('\\r', '\r')
     cleaned = cleaned.replace('\\t', ' ')
-    
     cleaned = cleaned.replace('\r\n', '\n').replace('\r', '\n')
-    
     cleaned = cleaned.replace('\n', ' ')
-    
     cleaned = re.sub(r' {2,}', ' ', cleaned)
-    
     cleaned = cleaned.strip()
-    
+
     result = re.sub(r'\\(?![\'"nrtbfvxuU0-7\\])', '', cleaned)
-    
     if result.endswith('\\') and (len(result) < 2 or result[-2] != '\\'):
         result = result[:-1]
     
     return result
 
-
 def extract_time_from_timestamp(timestamp: str) -> str:
     if not timestamp:
         return ""
-    
     try:
         time_match = re.search(r'(\d{1,2}):(\d{2})(?::\d{2})?', timestamp)
         if time_match:
@@ -93,7 +83,6 @@ def extract_time_from_timestamp(timestamp: str) -> str:
         pass
     
     return ""
-
 
 def is_valid_person_name(name: str) -> bool:
     if not name:
@@ -118,7 +107,6 @@ def is_valid_person_name(name: str) -> bool:
     
     return True
 
-
 def get_chat_messages_for_analytic(
     db: Session,
     analytic_id: int,
@@ -142,10 +130,9 @@ def get_chat_messages_for_analytic(
     
     return query.all()
 
-
-@router.get("/analytic/{analytic_id}/deep-communication-analytics")
+@router.get("/analytic/deep-communication-analytics")
 def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     db: Session = Depends(get_db)
 ):
@@ -543,10 +530,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             status_code=500
         )
 
-
-@router.get("/analytic/{analytic_id}/platform-cards/intensity")
+@router.get("/analytic/platform-cards/intensity")
 def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     platform: str = Query(..., description="Platform name (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     db: Session = Depends(get_db)
@@ -1055,10 +1041,9 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             status_code=500
         )
 
-
-@router.get("/analytic/{analytic_id}/chat-detail")
+@router.get("/analytic/chat-detail")
 def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     person_name: Optional[str] = Query(None, description="Person name to filter chat details (optional if using search only)"),
     platform: Optional[str] = Query(None, description="Platform name (optional, can filter by search only)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),

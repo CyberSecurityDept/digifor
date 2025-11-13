@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Script untuk test insert data ke database
-Membantu diagnose masalah insert
-"""
 import sys
 import os
 
@@ -25,23 +21,19 @@ def test_database_insert():
     db: Session = SessionLocal()
     
     try:
-        # Test 1: Check connection
         print("\n1. Testing database connection...")
         result = db.execute(text("SELECT 1"))
         result.fetchone()
         print("Connection OK")
         
-        # Test 2: Check permissions
         print("\n2. Testing permissions...")
         db.execute(text("SELECT has_table_privilege('digifor', 'cases', 'INSERT')"))
         print("Permissions OK")
-        
-        # Test 3: Check current data
+    
         print("\n3. Checking existing data...")
         count_before = db.query(Case).count()
         print(f"Current cases count: {count_before}")
         
-        # Test 4: Test insert
         print("\n4. Testing INSERT...")
         test_case = Case(
             title='TEST INSERT',
@@ -54,29 +46,24 @@ def test_database_insert():
         db.add(test_case)
         print("db.add() successful")
         
-        # Flush to test if insert would work
         db.flush()
         print(f"db.flush() successful - ID: {test_case.id}")
         
-        # Commit
         db.commit()
         print(f"db.commit() successful - ID: {test_case.id}")
         
-        # Verify
         saved = db.query(Case).filter(Case.id == test_case.id).first()
         if saved:
             print(f"Data verified in database!")
             print(f"Title: {saved.title}")
             print(f"Case Number: {saved.case_number}")
             
-            # Cleanup
             db.delete(saved)
             db.commit()
             print(f"Cleanup successful")
         else:
             print(f"Data NOT found in database after commit!")
             
-        # Test 5: Check count after
         count_after = db.query(Case).count()
         print(f"\n5. Cases count after test: {count_after}")
         if count_after == count_before:

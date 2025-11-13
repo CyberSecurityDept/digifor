@@ -29,7 +29,6 @@ async def get_case_summary_report(
         }
     }
 
-
 @router.get("/evidence-chain/{evidence_id}")
 async def get_evidence_chain_report(
     evidence_id: str,

@@ -22,13 +22,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/api/v1/file-encryptor/convert-to-sdp",
             "/api/v1/file-encryptor/list-sdp",
             "/api/v1/file-encryptor/download-sdp",
+            "/api/v1/file-encryptor/progress",
             '/health/health',
             '/health/health/ready',
             '/health/health/live',
         ]
 
         public_patterns = [
-            r"^/api/v1/file-encryptor/progress/[^/]+$",
+            r"^/data/.*$",
         ]
 
         path = request.url.path

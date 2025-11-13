@@ -12,8 +12,10 @@ from pydantic import BaseModel
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
 from datetime import datetime, date, time
-import os
+import logging, os
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 def parse_date_string(date_str: str) -> datetime:
     try:
@@ -127,14 +129,12 @@ def create_analytic_with_devices(
             "data": []
         }
     
-@hashfile_router.get("/analytic/{analytic_id}/hashfile-analytics")
-def get_hashfile_analytics(
+def _get_hashfile_analytics_data(
     analytic_id: int,
-    db: Session = Depends(get_db)
+    db: Session
 ):
     try:
         min_devices = 2
-
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
@@ -202,13 +202,25 @@ def get_hashfile_analytics(
 
         if not hashfiles:
             return JSONResponse(
-                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "hashfiles": []}},
+                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "correlations": [], "total_correlations": 0}},
                 status_code=200,
             )
 
         print(f"[DEBUG] Found {len(hashfiles)} hashfiles for file_ids: {file_ids}")
         print(f"[DEBUG] Devices: {[{'id': d.id, 'file_id': d.file_id, 'owner': d.owner_name} for d in devices]}")
 
+        # Hashfile Analytics Logic:
+        # 1. Group hashfiles by combination of HASH + FILENAME (case-insensitive)
+        # 2. Key format: "hash_value::filename" (e.g., "f349834340dkfdfdkkk::contoh.png")
+        # 3. Track which devices contain each hash+filename combination
+        # 4. Only files that appear in >= 2 devices are considered "correlated"
+        # 
+        # Example: If "contoh.png" with hash "f349834340dkfdfdkkk" appears in:
+        #   - Device A (file_id=1)
+        #   - Device B (file_id=2)
+        #   - Device C (file_id=3)
+        # Then this file is correlated and will be shown in the report
+        
         correlation_map: dict[str, dict[str, list | set]] = defaultdict(lambda: {"records": [], "devices": set()})
 
         for hf in hashfiles:
@@ -219,28 +231,47 @@ def get_hashfile_analytics(
             if not hf.file_name:
                 continue
             
-            key = f"{hash_value}::{hf.file_name.strip().lower()}"  # kombinasi hash + file_name
+            # Create unique key from hash + filename (case-insensitive, trimmed)
+            # This ensures we match files with same hash AND same filename
+            key = f"{hash_value}::{hf.file_name.strip().lower()}"
             device_id = file_to_device.get(hf.file_id)
             if device_id is None:
                 continue
 
+            # Add this hashfile record to the correlation map
             records_list = correlation_map[key]["records"]
             if isinstance(records_list, list):
                 records_list.append(hf)
+            # Track which devices contain this hash+filename combination
             devices_set = correlation_map[key]["devices"]
             if isinstance(devices_set, set):
                 devices_set.add(device_id)
 
-        print(f"[DEBUG] Total correlation keys: {len(correlation_map)}")
-        for key, data in list(correlation_map.items())[:5]:  # Print first 5
-            print(f"[DEBUG] Key: {key[:50]}..., Devices: {len(data['devices'])}, Records: {len(data['records'])}")
+        logger.info(f"Total correlation keys (unique hash+filename combinations): {len(correlation_map)}")
+        
+        # Log sample correlations for verification
+        sample_keys = list(correlation_map.items())[:5]
+        for key, data in sample_keys:
+            hash_part, filename_part = key.split("::", 1) if "::" in key else (key[:20], "unknown")
+            logger.debug(f"Sample correlation key - Hash: {hash_part[:20]}..., Filename: {filename_part[:30]}..., "
+                        f"Devices: {len(data['devices'])}, Records: {len(data['records'])}")
 
         correlated = {
             key: data for key, data in correlation_map.items()
             if len(data["devices"]) >= min_devices
         }
         
-        print(f"[DEBUG] Correlated items (>= {min_devices} devices): {len(correlated)}")
+        logger.info(f"Correlated items (appearing in >= {min_devices} devices): {len(correlated)}")
+        
+        # Log statistics
+        total_hashfiles_before_filter = len(hashfiles)
+        total_unique_keys = len(correlation_map)
+        total_correlated_keys = len(correlated)
+        logger.info(f"Hashfile Analytics Statistics:")
+        logger.info(f"  - Total hashfiles found: {total_hashfiles_before_filter}")
+        logger.info(f"  - Unique hash+filename combinations: {total_unique_keys}")
+        logger.info(f"  - Correlated (>= {min_devices} devices): {total_correlated_keys}")
+        logger.info(f"  - Filtered out (single device only): {total_unique_keys - total_correlated_keys}")
 
         hashfile_list = []
         for key, info in correlated.items():
@@ -263,8 +294,6 @@ def get_hashfile_analytics(
             file_path = first.path_original or "Unknown"
             file_name = os.path.basename(file_path) if file_path != "Unknown" else (first.file_name or "Unknown")
             file_type = first.file_type or "Unknown"
-            if first.file_extension:
-                file_type = f"{file_type} ({first.file_extension.upper()})"
 
             device_labels_found = [
                 device_labels[i]
@@ -281,6 +310,16 @@ def get_hashfile_analytics(
             })
 
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
+        
+        total_correlations = len(hashfile_list)
+        logger.info(f"Returning {total_correlations} correlated hashfiles (sorted by number of devices)")
+        
+        # Log sample correlations for verification
+        if hashfile_list:
+            sample = hashfile_list[0]
+            logger.info(f"Sample correlation - Filename: {sample.get('file_name', 'Unknown')[:50]}, "
+                       f"Hash: {sample.get('hash_value', 'Unknown')[:20]}..., "
+                       f"Devices: {sample.get('devices', [])}")
 
         devices_list = [
             {
@@ -301,6 +340,7 @@ def get_hashfile_analytics(
                     "devices": devices_list,
                     "correlations": hashfile_list,
                     "summary": summary,
+                    "total_correlations": total_correlations
                 },
             },
             status_code=200,
@@ -316,10 +356,17 @@ def get_hashfile_analytics(
             status_code=500,
         )
 
+@hashfile_router.get("/analytics/hashfile-analytics")
+def get_hashfile_analytics(
+    analytic_id: int = Query(..., description="Analytic ID"),
+    db: Session = Depends(get_db)
+):
+    return _get_hashfile_analytics_data(analytic_id, db)
 
-@router.post("/analytics/{analytic_id}/start-extraction")
+
+@router.post("/analytics/start-extraction")
 def start_data_extraction(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -395,7 +442,7 @@ def start_data_extraction(
                         "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
-                        "next_step": f"GET /api/v1/analytic/{analytic_id}/deep-communication-analytics"
+                        "next_step": f"GET /api/v1/analytic/deep-communication-analytics?analytic_id={analytic_id}"
                     }
                 },
                 status_code=200
@@ -410,7 +457,7 @@ def start_data_extraction(
                         "method": method_str,
                         "device_count": len(device_ids),
                         "status": "completed",
-                        "next_step": f"GET /api/v1/analytic/{analytic_id}/social-media-correlation"
+                        "next_step": f"GET /api/v1/analytics/social-media-correlation?analytic_id={analytic_id}"
                     }
                 },
                 status_code=200
@@ -475,7 +522,6 @@ def get_all_analytic(
             },
             status_code=500
         )
-
 
 __all__ = ["router", "hashfile_router"]
 

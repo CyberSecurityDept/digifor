@@ -80,8 +80,8 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
             status_code=500
         )
 
-@router.get("/file-encryptor/progress/{upload_id}")
-async def get_convert_progress(upload_id: str):
+@router.get("/file-encryptor/progress")
+async def get_convert_progress(upload_id: str = Query(..., description="Upload ID")):
     try:
         progress = CONVERT_PROGRESS.get(upload_id)
         if not progress:
@@ -93,7 +93,7 @@ async def get_convert_progress(upload_id: str):
         if progress["status"] == "waiting":
             CONVERT_PROGRESS[upload_id]["status"] = "converting"
             CONVERT_PROGRESS[upload_id]["message"] = "Starting conversion..."
-            asyncio.create_task(run_conversion(upload_id))  # background task
+            asyncio.create_task(run_conversion(upload_id))
 
         return JSONResponse(
             {
@@ -116,7 +116,6 @@ async def run_conversion(upload_id: str):
         converted_dir = os.path.join(base_dir, "data", "uploads", "converted")
         os.makedirs(converted_dir, exist_ok=True)
 
-        # Load public key
         pub_path = os.path.join(base_dir, "keys", "public.key")
         with open(pub_path, "rb") as f:
             pub_key = f.read()
@@ -155,7 +154,6 @@ async def run_conversion(upload_id: str):
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        # Mark as finished
         CONVERT_PROGRESS[upload_id].update({
             "status": "converted",
             "progress": 100,
@@ -188,10 +186,10 @@ def list_sdp_files():
             try:
                 data.sort(
                     key=lambda x: x.get("timestamp", ""),
-                    reverse=True  # terbaru di atas
+                    reverse=True
                 )
             except Exception as e:
-                print(f"⚠️ Warning: failed to sort data by timestamp: {e}")
+                print(f"Warning: failed to sort data by timestamp: {e}")
 
         return JSONResponse(
             {"status": 200, "message": "Successfully retrieved SDP file list.", "data": data},

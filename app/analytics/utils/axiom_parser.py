@@ -1,4 +1,3 @@
-import re
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -6,10 +5,9 @@ from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
-import logging
 import warnings
 from pathlib import Path
-import re
+import re, traceback, logging
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +25,22 @@ class AxiomParser:
         if text_str.lower() in ['nan', 'none', 'null', '', 'n/a']:
             return None
         return text_str
+    
+    def _is_na(self, value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, (pd.Series, pd.DataFrame)):
+            if value.empty:
+                return True
+            na_result = value.isna().all()
+            return bool(na_result) if isinstance(na_result, (pd.Series, pd.DataFrame)) else bool(na_result)
+        try:
+            na_result = pd.isna(value)
+            if isinstance(na_result, (pd.Series, pd.DataFrame)):
+                return bool(na_result.all())
+            return bool(na_result)
+        except (TypeError, ValueError):
+            return False
     
     def _validate_social_media_data(self, acc: Dict[str, Any]) -> tuple[bool, str]:
         if not acc.get("file_id"):
@@ -85,6 +99,45 @@ class AxiomParser:
             new_acc["tiktok_id"] = account_id
         
         return new_acc
+    
+    def _check_existing_social_media(self, acc: Dict[str, Any]) -> bool:
+        query = self.db.query(SocialMedia).filter(
+            SocialMedia.file_id == acc.get("file_id")
+        )
+        
+        if acc.get("instagram_id"):
+            query = query.filter(SocialMedia.instagram_id == acc.get("instagram_id"))
+        elif acc.get("facebook_id"):
+            query = query.filter(SocialMedia.facebook_id == acc.get("facebook_id"))
+        elif acc.get("whatsapp_id"):
+            query = query.filter(SocialMedia.whatsapp_id == acc.get("whatsapp_id"))
+        elif acc.get("telegram_id"):
+            query = query.filter(SocialMedia.telegram_id == acc.get("telegram_id"))
+        elif acc.get("X_id"):
+            query = query.filter(SocialMedia.X_id == acc.get("X_id"))
+        elif acc.get("tiktok_id"):
+            query = query.filter(SocialMedia.tiktok_id == acc.get("tiktok_id"))
+        elif acc.get("account_name"):
+            query = query.filter(SocialMedia.account_name == acc.get("account_name"))
+        else:
+            return False
+        
+        return query.first() is not None
+    
+    def _safe_int(self, value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        if isinstance(value, float) and pd.isna(value):
+            return None
+        try:
+            if isinstance(value, str):
+                value = value.strip()
+                if value.lower() in ['nan', 'none', 'null', '', 'n/a']:
+                    return None
+                return int(float(value))
+            return int(value)
+        except (ValueError, TypeError):
+            return None
 
     def parse_axiom_social_media(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -95,55 +148,56 @@ class AxiomParser:
             print(f" Total sheets available: {len(xls.sheet_names)}")
 
             for sheet_name in xls.sheet_names:
-                print(f"Processing sheet: {sheet_name}")
+                sheet_name_str = str(sheet_name)
+                print(f"Processing sheet: {sheet_name_str}")
 
-                if 'Instagram Profiles' in sheet_name:
+                if 'Instagram Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_profiles(file_path, sheet_name, file_id))
-                elif 'Android Instagram Following' in sheet_name:
+                elif 'Android Instagram Following' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_following(file_path, sheet_name, file_id))
-                elif 'Android Instagram Users' in sheet_name:
+                elif 'Android Instagram Users' in sheet_name_str:
                     results.extend(self._parse_axiom_instagram_users(file_path, sheet_name, file_id))
 
-                elif 'Twitter Users' in sheet_name:
+                elif 'Twitter Users' in sheet_name_str:
                     results.extend(self._parse_axiom_twitter_users(file_path, sheet_name, file_id))
 
-                elif 'Telegram Accounts' in sheet_name:
+                elif 'Telegram Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_accounts(file_path, sheet_name, file_id))
-                elif 'User Accounts' in sheet_name:
+                elif 'User Accounts' in sheet_name_str:
                     results.extend(self._parse_axiom_user_accounts(file_path, sheet_name, file_id))
 
-                elif 'TikTok Contacts' in sheet_name:
+                elif 'TikTok Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_tiktok_contacts(file_path, sheet_name, file_id))
 
-                elif 'Facebook Contacts' in sheet_name:
+                elif 'Facebook Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_contacts(file_path, sheet_name, file_id))
-                elif 'Facebook User-Friends' in sheet_name:
+                elif 'Facebook User-Friends' in sheet_name_str:
                     results.extend(self._parse_axiom_facebook_users(file_path, sheet_name, file_id))
 
-                elif 'WhatsApp Contacts - Android' in sheet_name:
+                elif 'WhatsApp Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts(file_path, sheet_name, file_id))
-                elif 'WhatsApp User Profiles - Androi' in sheet_name:
+                elif 'WhatsApp User Profiles - Androi' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_users(file_path, sheet_name, file_id))
-                elif 'WhatsApp Accounts Information' in sheet_name:
+                elif 'WhatsApp Accounts Information' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts(file_path, sheet_name, file_id))
 
-                elif 'Android WhatsApp Accounts Infor' in sheet_name:
+                elif 'Android WhatsApp Accounts Infor' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_accounts_info(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Chats' in sheet_name:
+                elif 'Android WhatsApp Chats' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_chats(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Contacts' in sheet_name:
+                elif 'Android WhatsApp Contacts' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_contacts_android(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp Messages' in sheet_name:
+                elif 'Android WhatsApp Messages' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_messages(file_path, sheet_name, file_id))
-                elif 'Android WhatsApp User Profiles' in sheet_name:
+                elif 'Android WhatsApp User Profiles' in sheet_name_str:
                     results.extend(self._parse_axiom_whatsapp_user_profiles(file_path, sheet_name, file_id))
-                elif 'Telegram Chats - Android' in sheet_name:
+                elif 'Telegram Chats - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_chats(file_path, sheet_name, file_id))
-                elif 'Telegram Contacts - Android' in sheet_name:
+                elif 'Telegram Contacts - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_contacts_android(file_path, sheet_name, file_id))
-                elif 'Telegram Messages - Android' in sheet_name:
+                elif 'Telegram Messages - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_messages(file_path, sheet_name, file_id))
-                elif 'Telegram Users - Android' in sheet_name:
+                elif 'Telegram Users - Android' in sheet_name_str:
                     results.extend(self._parse_axiom_telegram_users_android(file_path, sheet_name, file_id))
 
             unique_results = []
@@ -201,7 +255,7 @@ class AxiomParser:
                                 if log_acc.get('X_id'):
                                     platform_info.append(f"X:{log_acc['X_id']}")
                                 platform_str = ', '.join(platform_info) if platform_info else 'Unknown'
-                                print(f"⚠️  Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
+                                print(f" Skipping invalid record: {error_msg} - Platform IDs: {platform_str}, Account: {log_acc.get('account_name', 'N/A')}")
                             continue
 
                         if "platform" in acc:
@@ -220,7 +274,6 @@ class AxiomParser:
 
                 except Exception as batch_error:
                     print(f"Error saving batch {i//batch_size + 1}: {batch_error}")
-                    import traceback
                     traceback.print_exc()
                     self.db.rollback()
                     raise batch_error
@@ -255,35 +308,36 @@ class AxiomParser:
 
             for sheet_name in xls.sheet_names:
                 try:
-                    if 'Instagram Profiles' in sheet_name:
+                    sheet_name_str = str(sheet_name)
+                    if 'Instagram Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Twitter Users' in sheet_name:
+                    elif 'Twitter Users' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'Telegram Accounts' in sheet_name:
+                    elif 'Telegram Accounts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Account ID' in df.columns:
                             total_count += len(df[df['Account ID'].notna()])
-                    elif 'TikTok Contacts' in sheet_name:
+                    elif 'TikTok Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'Facebook Contacts' in sheet_name:
+                    elif 'Facebook Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Profile ID' in df.columns:
                             total_count += len(df[df['Profile ID'].notna()])
-                    elif 'Facebook User-Friends' in sheet_name:
+                    elif 'Facebook User-Friends' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'User ID' in df.columns:
                             total_count += len(df[df['User ID'].notna()])
-                    elif 'WhatsApp Contacts' in sheet_name:
+                    elif 'WhatsApp Contacts' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'ID' in df.columns:
                             total_count += len(df[df['ID'].notna()])
-                    elif 'WhatsApp User Profiles' in sheet_name:
+                    elif 'WhatsApp User Profiles' in sheet_name_str:
                         df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str)
                         if 'Phone Number' in df.columns:
                             total_count += len(df[df['Phone Number'].notna()])
@@ -303,7 +357,7 @@ class AxiomParser:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
 
                 following_value = self._clean(row.get('Following'))
@@ -345,7 +399,7 @@ class AxiomParser:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
 
                 following_value = self._clean(row.get('Status'))
@@ -379,19 +433,16 @@ class AxiomParser:
 
     def _parse_axiom_instagram_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
 
                 user_id_value = self._clean(row.get('ID'))
                 user_name_value = self._clean(row.get('User Name'))
-
                 account_id_value = user_id_value if user_id_value else user_name_value
-
                 acc = {
                     "platform": "Instagram",
                     "account_name": user_name_value,
@@ -406,27 +457,20 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing Android Instagram Users: {e}")
-
         return results
-
 
     def _parse_axiom_user_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-
             for _, row in df.iterrows():
                 service_name = self._clean(row.get('Service Name', ''))
                 user_name = self._clean(row.get('User Name', ''))
                 user_id = self._clean(row.get('User ID', ''))
-
                 if not service_name or 'telegram' not in service_name.lower():
                     continue
-
                 if not user_name and not user_id:
                     continue
 
@@ -447,20 +491,15 @@ class AxiomParser:
 
         except Exception as e:
             print(f"Error parsing User Accounts: {e}")
-
         return results
-
 
     def _parse_axiom_whatsapp_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-
             for _, row in df.iterrows():
                 whatsapp_name = self._clean(row.get('WhatsApp Name'))
                 phone_number = self._clean(row.get('Phone Number'))
-
                 if not whatsapp_name and not phone_number:
                     continue
 
@@ -478,21 +517,16 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing WhatsApp Accounts Information: {e}")
-
         return results
-
 
     def _parse_axiom_twitter_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-
             for _, row in df.iterrows():
-                if pd.isna(row.get('User Name')):
+                if self._is_na(row.get('User Name')):
                     continue
 
                 user_id_value = self._clean(row.get('User ID'))
@@ -514,34 +548,28 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing Twitter Users: {e}")
-
         return results
 
 
     def _parse_axiom_telegram_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
+                if self._is_na(row.get('User ID')):
                     continue
 
                 first_name = self._clean(row.get('First Name', ''))
                 last_name = self._clean(row.get('Last Name', ''))
                 full_name = f"{first_name} {last_name}".strip()
                 user_name = self._clean(row.get('User Name'))
-
                 account_id_value = self._clean(row.get('Account ID'))
                 user_id_value = self._clean(row.get('User ID'))
-
                 account_name_value = user_name or full_name or str(user_id_value) if user_id_value else None
                 account_id_final = account_id_value if account_id_value else user_id_value
-
                 acc = {
                     "platform": "Telegram",
                     "account_name": account_name_value,
@@ -554,23 +582,18 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing Telegram Accounts: {e}")
-
         return results
 
 
     def _parse_axiom_tiktok_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
-
             for _, row in df.iterrows():
-                if pd.isna(row.get("ID")):
+                if self._is_na(row.get("ID")):
                     continue
-
                 nickname = self._clean(row.get("Nickname"))
                 user_name = self._clean(row.get("User Name"))
                 account_name = nickname or user_name
@@ -589,23 +612,17 @@ class AxiomParser:
                 }
 
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing TikTok Contacts: {e}")
-
         return results
-
 
     def _parse_axiom_facebook_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-
             for _, row in df.iterrows():
-                if pd.isna(row.get('Profile ID')):
+                if self._is_na(row.get('Profile ID')):
                     continue
-
                 acc = {
                     "platform": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
@@ -617,23 +634,19 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing Facebook Contacts: {e}")
-
         return results
 
 
     def _parse_axiom_facebook_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('User ID')):
+                if self._is_na(row.get('User ID')):
                     continue
-
                 acc = {
                     "platform": "Facebook",
                     "account_name": self._clean(row.get('Display Name')),
@@ -645,23 +658,19 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing Facebook Users: {e}")
-
         return results
 
 
     def _parse_axiom_whatsapp_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('ID')):
+                if self._is_na(row.get('ID')):
                     continue
-
                 acc = {
                     "platform": "WhatsApp",
                     "account_name": self._clean(row.get('WhatsApp Name')),
@@ -673,21 +682,17 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing WhatsApp Contacts: {e}")
-
         return results
 
 
     def _parse_axiom_whatsapp_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-
             for _, row in df.iterrows():
-                if pd.isna(row.get('Phone Number')):
+                if self._is_na(row.get('Phone Number')):
                     continue
 
                 acc = {
@@ -701,32 +706,26 @@ class AxiomParser:
                     "file_id": file_id,
                 }
                 results.append(acc)
-
         except Exception as e:
             print(f"Error parsing WhatsApp Users: {e}")
-
         return results
 
 
     def _parse_axiom_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
-
         for excel_file in excel_files:
             print(f"Parsing Axiom file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)
+                file_results = self.parse_axiom_social_media(str(excel_file), file_id)
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Axiom file {excel_file.name}: {e}")
-
         return results
 
 
     def parse_axiom_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             logger.info(f"[CHAT PARSER] Starting to parse chat messages from file_id={file_id}, file_path={file_path}")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
@@ -809,17 +808,14 @@ class AxiomParser:
 
     def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-
         try:
             logger.debug(f"[TELEGRAM PARSER] Reading sheet: {sheet_name}")
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             logger.debug(f"[TELEGRAM PARSER] Sheet loaded: {len(df)} rows, columns: {list(df.columns)[:10]}")
-            
             processed_count = 0
             skipped_count = 0
-
             for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                if self._is_na(row.get('Message')) or not str(row.get('Message')).strip():
                     skipped_count += 1
                     continue
 
@@ -879,7 +875,7 @@ class AxiomParser:
             skipped_count = 0
 
             for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                if self._is_na(row.get('Message')) or not str(row.get('Message')).strip():
                     skipped_count += 1
                     continue
 
@@ -929,7 +925,7 @@ class AxiomParser:
             skipped_count = 0
 
             for idx, row in df.iterrows():
-                if pd.isna(row.get('Message')) or not str(row.get('Message')).strip():
+                if self._is_na(row.get('Message')) or not str(row.get('Message')).strip():
                     skipped_count += 1
                     continue
 
@@ -978,7 +974,7 @@ class AxiomParser:
             skipped_count = 0
 
             for idx, row in df.iterrows():
-                if pd.isna(row.get('Text')) or not str(row.get('Text')).strip():
+                if self._is_na(row.get('Text')) or not str(row.get('Text')).strip():
                     skipped_count += 1
                     continue
 
@@ -1027,7 +1023,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
@@ -1065,7 +1061,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 individual_chat_name = self._clean(row.get('Individual Chat Name', ''))
@@ -1113,7 +1109,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 contact_id = self._clean(row.get('ID', ''))
@@ -1160,7 +1156,7 @@ class AxiomParser:
             seen_accounts = set()
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 sender = self._clean(row.get('Sender', ''))
@@ -1205,7 +1201,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 whatsapp_name = self._clean(row.get('WhatsApp Name', ''))
@@ -1243,7 +1239,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 chat_name = self._clean(row.get('Chat Name', ''))
@@ -1281,7 +1277,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 user_id = self._clean(row.get('User ID', ''))
@@ -1325,7 +1321,7 @@ class AxiomParser:
             seen_accounts = set()
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 partner = self._clean(row.get('Partner', ''))
@@ -1362,7 +1358,7 @@ class AxiomParser:
                 df = df.reset_index(drop=True)
 
             for _, row in df.iterrows():
-                if pd.isna(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
+                if self._is_na(row.get('Record', '')) or str(row.get('Record', '')).strip() == 'Record':
                     continue
 
                 user_id = self._clean(row.get('User ID', ''))
