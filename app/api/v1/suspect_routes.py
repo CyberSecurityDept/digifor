@@ -72,7 +72,7 @@ async def create_suspect(
     is_unknown: bool = Form(False),
     is_unknown_person: Optional[bool] = Form(None),
     status: Optional[str] = Form(None),
-    evidence_id: Optional[str] = Form(None),
+    evidence_number: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_file: Optional[UploadFile] = File(None),
     evidence_summary: Optional[str] = Form(None),
@@ -84,26 +84,29 @@ async def create_suspect(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
         is_unknown_flag = is_unknown_person if is_unknown_person is not None else is_unknown
-        
         if is_unknown_flag:
             pass
-        elif not is_unknown_flag and (not name or not name.strip()):
-            raise HTTPException(
-                status_code=400,
-                detail="name is required when is_unknown_person is false"
-            )
+        elif not is_unknown_flag:
+            if not name or not name.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="name is required when is_unknown_person is false"
+                )
+            if not status or not status.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="status is required when is_unknown_person is false"
+                )
         
-        if evidence_id is not None:
-            evidence_id = evidence_id.strip() if isinstance(evidence_id, str) else str(evidence_id).strip()
-            if not evidence_id:
-                raise HTTPException(status_code=400, detail="evidence_id cannot be empty when provided manually")
-        
-        if not evidence_id and evidence_file:
+        if evidence_number is not None:
+            evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
+            if not evidence_number:
+                raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
+        if not evidence_number and evidence_file:
             date_str = datetime.now().strftime("%Y%m%d")
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_id).count()
-            evidence_id = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
+            evidence_number = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
         
         file_path = None
         file_size = None
@@ -130,30 +133,25 @@ async def create_suspect(
             os.makedirs(upload_dir, exist_ok=True)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"evidence_{timestamp}_{evidence_id or 'unknown'}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_id or 'unknown'}"
+            filename = f"evidence_{timestamp}_{evidence_number or 'unknown'}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_number or 'unknown'}"
             file_path = os.path.join(upload_dir, filename)
-            
             file_content = await evidence_file.read()
             file_size = len(file_content)
             with open(file_path, "wb") as f:
                 f.write(file_content)
-            
             file_hash = hashlib.sha256(file_content).hexdigest()
             file_type = evidence_file.content_type or 'application/octet-stream'
 
         investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-        
-        evidence_number = None
-        if evidence_id:
+        if evidence_number:
             existing_evidence = db.query(Evidence).filter(
-                Evidence.evidence_number == evidence_id,
+                Evidence.evidence_number == evidence_number,
                 Evidence.case_id == case_id
             ).first()
             
             if existing_evidence and (not evidence_summary or not evidence_summary.strip()):
                 evidence_desc = getattr(existing_evidence, 'description', None) or ''
                 evidence_notes = getattr(existing_evidence, 'notes', None)
-                
                 if evidence_notes:
                     if isinstance(evidence_notes, dict):
                         notes_text = evidence_notes.get('text', '') or evidence_desc
@@ -168,7 +166,6 @@ async def create_suspect(
                     evidence_summary = notes_text.strip()
             
             if existing_evidence:
-                evidence_number = evidence_id
                 if file_path:
                     setattr(existing_evidence, 'file_path', file_path)
                     setattr(existing_evidence, 'file_size', file_size)
@@ -178,7 +175,6 @@ async def create_suspect(
                     db.commit()
             else:
                 if evidence_file:
-                    evidence_number = evidence_id
                     evidence_title = case.title if case else evidence_number
                     evidence_dict = {
                         "evidence_number": evidence_number,
@@ -205,7 +201,7 @@ async def create_suspect(
                             case_id=case_id,
                             action="Edit",
                             changed_by=f"By: {changed_by}",
-                            change_detail=f"Change: Adding evidence {evidence_id}",
+                            change_detail=f"Change: Adding evidence {evidence_number}",
                             notes="",
                             status=current_status
                         )
@@ -213,8 +209,6 @@ async def create_suspect(
                         db.commit()
                     except Exception as e:
                         print(f"Warning: Could not create case log for evidence: {str(e)}")
-                else:
-                    evidence_number = evidence_id
 
         final_status = None if is_unknown_flag else status
         suspect_dict = {
@@ -224,7 +218,7 @@ async def create_suspect(
             "investigator": investigator_name,
             "status": final_status,
             "is_unknown": is_unknown_flag,
-            "evidence_id": evidence_number,
+            "evidence_number": evidence_number,
             "evidence_source": evidence_source,
             "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User'),
         }

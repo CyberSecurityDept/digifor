@@ -727,7 +727,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "evidence": [
           {
             "id": 1,
-            "evidence_id": "98459845459",
+            "evidence_number": "98459845459",
             "evidence_summary": "Evidence dari unknown person 1",
             "file_path": "data/evidence/evidence_20251112_094100_98459845459.png",
             "source": "Handphone"
@@ -741,7 +741,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
         "evidence": [
       {
         "id": 2,
-            "evidence_id": "4380458334",
+            "evidence_number": "4380458334",
             "evidence_summary": "Evidence dari unknown person 2",
             "file_path": "data/evidence/evidence_20251112_094223_4380458334.jpeg",
             "source": "Handphone"
@@ -1159,22 +1159,62 @@ Body (raw JSON):
 
 ### 6. Export Case Details PDF
 
-**Endpoint:** `GET /api/v1/cases/export-case-details-pdf`
+**Endpoint:** `GET /api/v1/cases/export-case-details-pdf/{case_id}`
 
-**Description:** Export comprehensive case details as PDF document. Includes case information, persons of interest, case logs, and notes.
+**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+**Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `case_id` | integer | Yes | Unique case identifier |
 
 **Response (200 OK):**
 - **Content-Type:** `application/pdf`
-- **Content-Disposition:** `attachment; filename="case_details_{case_id}_{timestamp}.pdf"`
+- **Content-Disposition:** `attachment; filename="case_detail_{case_number}_{timestamp}.pdf"`
 
-The response is a PDF file that can be downloaded directly.
+Response berupa file PDF yang dapat diunduh langsung.
+
+**Struktur Dokumen PDF:**
+
+1. **Header (muncul di setiap halaman):**
+   - **Halaman 1:** 
+     - Kiri: Logo CYBER SENTINEL (atau teks jika logo tidak tersedia)
+     - Kanan: Waktu export dalam format "Exported: DD/MM/YYYY HH:MM WIB"
+   - **Halaman 2+ (Header Kustom):**
+     - Kiri: Logo CYBER SENTINEL
+     - Kanan: Waktu export
+     - Informasi Case: Judul kasus, Case ID, Status (dalam box), Investigator, Date Created
+     - Header ini tidak muncul di halaman terakhir kecuali ada Notes atau Person of Interest
+
+2. **Footer (muncul di setiap halaman):**
+   - Kiri: Judul kasus dan ID kasus (format: "{Judul Kasus} - {ID Kasus}")
+   - Kanan: Nomor halaman (format: "Page X of Y" dengan total halaman yang akurat)
+
+3. **Bagian Konten:**
+   - **Judul Kasus:** Judul besar dengan format tebal di bagian atas
+   - **Informasi Kasus:** ID Kasus, Investigator, Tanggal Dibuat
+   - **Deskripsi Kasus:** Teks deskripsi kasus lengkap
+   - **Bagian Person of Interest:** Untuk setiap person:
+     - Header person: Nama, Status, Jumlah Total Evidence
+     - Tabel evidence dengan kolom:
+       - **Picture:** Gambar thumbnail (80x80px) atau placeholder "No image"
+       - **Evidence Number:** Nomor evidence (string)
+       - **Summary:** Ringkasan/deskripsi evidence
+   - **Bagian Notes:** Catatan kasus (jika tersedia)
+
+**Fitur PDF:**
+- Formatting profesional dengan styling yang konsisten
+- Pagination otomatis dengan penomoran halaman yang akurat (format "Page X of Y")
+- Header kustom untuk halaman 2+ dengan informasi case lengkap (judul, case ID, status, investigator, date created)
+- Header tabel diulang di setiap halaman ketika tabel evidence memanjang ke beberapa halaman
+- Gambar otomatis di-resize agar sesuai (thumbnail 80x80px)
+- Bagian person dijaga agar tetap bersama untuk mencegah pemisahan halaman yang tidak rapi
+- Smart page break handling: menggunakan CondPageBreak untuk mencegah page break yang tidak perlu ketika subtitle (Person of Interest, Notes) sudah muncul di halaman sebelumnya
+- Alignment kolom tabel evidence: semua kolom (Picture, Evidence ID, Summary) rata kiri
+- Penanganan data yang hilang dengan baik (menampilkan placeholder ketika data tidak tersedia)
+- Template PDF langsung mengambil data dari case detail comprehensive (termasuk semua persons of interest dengan evidence mereka)
 
 **Error Responses:**
 
@@ -1200,16 +1240,26 @@ The response is a PDF file that can be downloaded directly.
 ```json
 {
   "status": 500,
-  "message": "Unexpected server error, please try again later",
+  "message": "Failed to export case detail PDF: {error_message}",
   "data": null
 }
 ```
 
 **Example Request:**
 ```
-GET /api/v1/cases/export-case-details-pdf?case_id=1
+GET /api/v1/cases/export-case-details-pdf/1
 Authorization: Bearer {access_token}
 ```
+
+**Example Response:**
+The response is a binary PDF file. When saved, it will be named like:
+- `case_detail_34124325_20251231_090000.pdf`
+
+**Notes:**
+- The PDF is generated using the same data structure as `get-case-detail-comprehensive` endpoint
+- Large cases with many persons of interest and evidence will automatically span multiple pages
+- Images from evidence files are included as thumbnails if available
+- The document maintains professional appearance suitable for official reports
 
 ---
 
@@ -1977,7 +2027,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
     {
       "id": 1,
       "case_id": 1,
-      "evidence_id": "EVID-1-20251110-0001",
+      "evidence_number": "EVID-1-20251110-0001",
       "title": "Buronan Maroko Interpol",
       "investigator": "Solehun",
       "agency": "Trikora",
@@ -1986,7 +2036,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
     {
       "id": 2,
       "case_id": 1,
-      "evidence_id": "EVID-1-20251110-0002",
+      "evidence_number": "EVID-1-20251110-0002",
       "title": "Buronan Maroko Interpol",
       "investigator": "Solehun",
       "agency": "Trikora",
@@ -2087,96 +2137,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 3. Get Unknown Suspects for Case
-
-**Endpoint:** `GET /api/v1/evidence/get-unknown-suspects/{case_id}`
-
-**Description:** Get list of suspects with name "Unknown" for a specific case. **Endpoint ini digunakan untuk menampilkan dropdown pilihan suspect_id ketika user memilih "Unknown Person" di form Add Evidence**.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-
-**Path Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `case_id` | integer | **Yes** | Case ID untuk mendapatkan list suspect "Unknown" |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Unknown suspects retrieved successfully",
-  "data": [
-    {
-      "suspect_id": 2,
-      "name": "Unknown",
-      "evidence_count": 2,
-      "created_at": "2025-11-12T09:41:00.916466+07:00"
-    },
-    {
-      "suspect_id": 5,
-      "name": "Unknown",
-      "evidence_count": 0,
-      "created_at": "2025-11-12T10:20:15.123456+07:00"
-    }
-  ]
-}
-```
-
-**Response Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `suspect_id` | integer | Suspect ID yang bisa digunakan di parameter `suspect_id` saat create-evidence |
-| `name` | string | Nama suspect (selalu "Unknown") |
-| `evidence_count` | integer | Jumlah evidence yang sudah ter-link ke suspect ini |
-| `created_at` | string | Timestamp ketika suspect dibuat (ISO 8601 format) |
-
-**Error Responses:**
-
-**404 Not Found (Case not found):**
-```json
-{
-  "status": 404,
-  "message": "Case with ID {case_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
-**Catatan:**
-- Endpoint ini mengembalikan semua suspect dengan `name = "Unknown"` dan `is_unknown = true` untuk case tertentu
-- Suspect diurutkan berdasarkan `id` ascending (terlama ke terbaru)
-- `evidence_count` menunjukkan berapa banyak evidence yang sudah ter-link ke suspect tersebut
-- Gunakan `suspect_id` dari response ini sebagai nilai parameter `suspect_id` saat create-evidence dengan `is_unknown_person = true`
-
-**Postman Testing Guide:**
-1. Set method ke `GET`
-2. Set URL ke `http://localhost:8000/api/v1/evidence/get-unknown-suspects/{case_id}` (ganti `{case_id}` dengan case ID yang valid)
-3. Di tab **Headers**, tambahkan:
-   - Key: `Authorization`, Value: `Bearer <your_access_token>`
-4. Klik **Send**
-5. Response akan menampilkan list suspect "Unknown" untuk case tersebut
-
----
-
-### 4. Create Evidence
+### 3. Create Evidence
 
 **Endpoint:** `POST /api/v1/evidence/create-evidence`
 
@@ -2200,28 +2161,29 @@ Authorization: Bearer <access_token>
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `case_id` | integer | Yes | Case ID where evidence will be added |
-| `evidence_id` | string | No | Evidence ID (optional - can be generated automatically or manually input). **If provided manually, cannot be empty**. **Nilai ini akan digunakan sebagai `evidence_number` di database untuk linking dengan Person.evidence_id** |
+| `evidence_number` | string | No | Evidence number (optional - can be generated automatically or manually input). **If provided manually, cannot be empty**. **Nilai ini akan digunakan sebagai `evidence_number` di database untuk linking dengan Person.evidence_id** |
 | `type` | string | No | Evidence type name (text input dari form UI). **Jika disediakan, sistem akan mencari atau membuat EvidenceType baru secara otomatis** |
 | `source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
 | `evidence_summary` | string | No | Evidence summary/description (disimpan ke field `description` di database) |
 | `investigator` | string | **Yes** | Investigator name (who collected/analyzed the evidence, used as `investigator`). **WAJIB diisi** |
-| `person_name` | string | Conditional | Person of interest name. **Wajib jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih. Jika disediakan dan `is_unknown_person = false`, sistem akan mencari existing suspect dengan nama tersebut. Jika tidak ditemukan, sistem akan otomatis membuat suspect baru dengan nama tersebut dan link evidence_id ke suspect tersebut |
+| `person_name` | string | Conditional | Person of interest name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih. **Jika `suspect_id` disediakan, `person_name` dapat digunakan untuk update name suspect tersebut**. Jika disediakan dan `is_unknown_person = false` dan `suspect_id` tidak disediakan, sistem akan mencari existing suspect dengan nama tersebut. Jika tidak ditemukan, sistem akan otomatis membuat suspect baru dengan nama tersebut dan link evidence_number ke suspect tersebut |
+| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`**. **Jika `suspect_id` disediakan, `suspect_status` dapat digunakan untuk update status suspect tersebut** |
 | `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak akan ditampilkan di UI (tidak perlu diisi). Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama. Jika `suspect_id` disediakan, evidence akan ter-link ke suspect "Unknown" dengan `suspect_id` tersebut. Jika `suspect_id` tidak disediakan, evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru) atau membuat suspect "Unknown" baru jika belum ada |
-| `suspect_id` | integer | No | Suspect ID untuk memilih suspect "Unknown" tertentu. **Hanya digunakan jika `is_unknown_person = true`. Untuk mendapatkan list suspect "Unknown" yang tersedia, gunakan endpoint `GET /api/v1/evidence/get-unknown-suspects/{case_id}`. Jika `suspect_id` disediakan, evidence akan ter-link ke suspect dengan `suspect_id` tersebut (harus merupakan suspect "Unknown" dengan `case_id` yang sama). Jika tidak disediakan, akan menggunakan logika default (yang paling baru atau buat baru)** |
+| `suspect_id` | integer | No | Suspect ID untuk memilih suspect tertentu. **Jika `suspect_id` disediakan, evidence akan ter-link ke suspect dengan `suspect_id` tersebut (harus merupakan suspect dengan `case_id` yang sama). Jika `person_name` dan/atau `suspect_status` juga disediakan, suspect tersebut akan di-update dengan nilai baru (tidak membuat suspect baru)**. Jika tidak disediakan, akan menggunakan logika berdasarkan `is_unknown_person` atau `person_name` |
 
 **Catatan:** Field `file_path`, `file_size`, `file_hash`, `file_type`, dan `file_extension` akan otomatis dibuat setelah file di-upload dan tidak perlu dikirim dalam request.
 
-**Format Auto-Generate Evidence ID:**
-Jika `evidence_id` tidak disediakan, sistem akan otomatis membuat evidence ID dengan format:
+**Format Auto-Generate Evidence Number:**
+Jika `evidence_number` tidak disediakan, sistem akan otomatis membuat evidence number dengan format:
 - **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
 - **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
 - **Sequence:** Nomor urut berdasarkan jumlah Evidence untuk case tersebut (4 digit dengan leading zeros)
 
-**Example Request (form-data) - Manual Evidence ID:**
+**Example Request (form-data) - Manual Evidence Number:**
 ```
 case_id: 1
-evidence_id: 32342223
+evidence_number: 32342223
 title: Handphone A
 type: Dokumen
 source: Handphone
@@ -2232,7 +2194,7 @@ is_unknown_person: false
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Auto-Generate Evidence ID:**
+**Example Request (form-data) - Auto-Generate Evidence Number:**
 ```
 case_id: 1
 type: Dokumen
@@ -2245,7 +2207,7 @@ evidence_file: [file]
 **Example Request (form-data) - Unknown Person dengan suspect_id:**
 ```
 case_id: 1
-evidence_id: 32342223
+evidence_number: 32342223
 type: Dokumen
 source: Handphone
 evidence_summary: Evidence untuk unknown person yang sudah ada
@@ -2255,47 +2217,41 @@ suspect_id: 2
 evidence_file: [file]
 ```
 **Catatan:** 
-- Untuk mendapatkan list suspect "Unknown" yang tersedia, panggil endpoint `GET /api/v1/evidence/get-unknown-suspects/{case_id}` terlebih dahulu
-- Pilih `suspect_id` dari response endpoint tersebut (contoh: `suspect_id: 2` dari response `get-unknown-suspects`)
-- Masukkan `suspect_id` yang dipilih ke form Add Evidence
-- Evidence akan ter-link ke suspect "Unknown" dengan `suspect_id` yang dipilih
+- **Jika `suspect_id` disediakan:** Evidence akan ter-link ke suspect dengan `suspect_id` tersebut. Jika `person_name` dan/atau `suspect_status` juga disediakan, suspect tersebut akan di-update (tidak membuat suspect baru)
+- **Jika `suspect_id` tidak disediakan:** Evidence akan ter-link berdasarkan `is_unknown_person` atau `person_name` sesuai logika yang ada
 
 **Workflow Create Evidence:**
 1. **Create Evidence baru** (selalu membuat record Evidence baru)
-2. **Link ke Suspect (jika `person_name` disediakan dan `is_unknown_person = false`):**
-   - **Cek person_name berdasarkan case_id:**
-     - Cek apakah sudah ada suspect dengan `case_id` dan `name` yang sama
-     - Cek apakah sudah ada suspect dengan `case_id`, `name`, dan `evidence_id` yang sama
-   - **Jika sudah ada suspect dengan `evidence_id` yang sama:** Tidak perlu membuat suspect baru
-   - **Jika person_name dan case_id sudah ada tapi `evidence_id` berbeda:**
-     - Buat suspect record baru untuk evidence ini dengan `evidence_id` yang berbeda
-     - Gunakan `status` dari suspect yang sudah ada (jika ada)
-     - **Ini memungkinkan satu person memiliki multiple evidence dengan evidence_id berbeda**
-     - Semua evidence dari person yang sama akan dikumpulkan di case-detail response
-     - **Person_count tidak akan bertambah** karena semua suspect records dengan `name` dan `case_id` yang sama dikumpulkan menjadi satu person
-   - **Jika person_name dan case_id belum ada:**
-     - Buat suspect baru dengan `status = null`
-     - Case log akan dibuat untuk mencatat penambahan person baru
-3. **Jika `is_unknown_person = true`:**
-   - **Jika `suspect_id` disediakan:**
-     - Sistem akan cek apakah suspect dengan `suspect_id` tersebut ada dan merupakan suspect "Unknown" dengan `case_id` yang sama
-     - **Jika ada:** Evidence akan ter-link ke suspect dengan `suspect_id` tersebut
-     - **Jika tidak ada:** Akan mengembalikan error 404: "Suspect with ID {suspect_id} not found or is not an Unknown person for this case"
-     - **Cara mendapatkan list suspect "Unknown" yang tersedia:** Panggil endpoint `GET /api/v1/evidence/get-unknown-suspects/{case_id}` untuk mendapatkan list suspect "Unknown" dengan `suspect_id` yang bisa dipilih
-   - **Jika `suspect_id` tidak disediakan:**
+2. **Link ke Suspect (prioritas dari tertinggi ke terendah):**
+   - **Jika `suspect_id` disediakan (prioritas tertinggi):**
+     - Evidence akan ter-link ke suspect dengan `suspect_id` tersebut (harus merupakan suspect dengan `case_id` yang sama)
+     - Jika `person_name` disediakan, suspect tersebut akan di-update: `name = person_name`, `is_unknown = False`
+     - Jika `suspect_status` disediakan, suspect tersebut akan di-update: `status = suspect_status`
+     - **Tidak membuat suspect baru** - hanya update suspect yang sudah ada
+   - **Jika `is_unknown_person = true` dan `suspect_id` tidak disediakan:**
      - Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama dan `is_unknown = true`
      - **Jika sudah ada:** Evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru berdasarkan `id` descending)
      - **Jika belum ada:** Sistem akan membuat suspect "Unknown" baru dengan `name = "Unknown"`, `status = null`, dan `is_unknown = true`. Evidence akan ter-link ke suspect tersebut. Case log akan dibuat untuk mencatat penambahan person "Unknown" baru
-   - Di case-detail, setiap suspect "Unknown" akan muncul sebagai person terpisah (menggunakan `suspect_id` sebagai key, bukan `name`)
+   - **Jika `person_name` disediakan dan `is_unknown_person = false` dan `suspect_id` tidak disediakan:**
+     - **Cek person_name berdasarkan case_id:**
+       - Cek apakah sudah ada suspect dengan `case_id` dan `name` yang sama
+     - **Jika person_name dan case_id sudah ada:**
+       - Evidence akan ter-link ke suspect yang sudah ada
+       - Jika `suspect_status` disediakan, suspect tersebut akan di-update: `status = suspect_status`
+       - **Person_count tidak akan bertambah** karena semua suspect records dengan `name` dan `case_id` yang sama dikumpulkan menjadi satu person
+     - **Jika person_name dan case_id belum ada:**
+       - Buat suspect baru dengan `name = person_name`, `status = suspect_status` (jika disediakan) atau `null`
+       - Case log akan dibuat untuk mencatat penambahan person baru
+   - Di case-detail, setiap suspect akan muncul sebagai person terpisah (menggunakan `suspect_id` sebagai key)
 
 **Catatan:** 
 - Field `evidence_file` bersifat opsional dan digunakan untuk upload file. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). Jika file type tidak didukung, akan mengembalikan error 400.
-- Jika disediakan, file akan disimpan ke direktori `data/evidence/` dengan format `evidence_{timestamp}_{evidence_id}.{extension}` dan perhitungan hash SHA256.
-- Field `evidence_id` bersifat **opsional**:
-  - **Jika TIDAK disediakan:** Sistem akan otomatis membuat evidence ID dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- Jika disediakan, file akan disimpan ke direktori `data/evidence/` dengan format `evidence_{timestamp}_{evidence_number}.{extension}` dan perhitungan hash SHA256.
+- Field `evidence_number` bersifat **opsional**:
+  - **Jika TIDAK disediakan:** Sistem akan otomatis membuat evidence number dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
   - **Jika disediakan secara manual:** Tidak boleh kosong (akan mengembalikan error 400 jika string kosong)
-  - **Validasi:** Jika `evidence_id` disediakan tapi kosong, akan mengembalikan error: `"evidence_id cannot be empty when provided manually"`
-- Field `evidence_number` akan menggunakan nilai `evidence_id` (untuk linking dengan Suspect.evidence_id)
+  - **Validasi:** Jika `evidence_number` disediakan tapi kosong, akan mengembalikan error: `"evidence_number cannot be empty when provided manually"`
+- Field `evidence_number` akan digunakan untuk linking dengan Suspect.evidence_id
 - Field `title` diambil dari `case.title` (tidak perlu diinput, otomatis dari case)
 - Field `evidence_summary` akan disimpan ke field `description` di database
 - Field `investigator` **WAJIB diisi** dan digunakan sebagai field `investigator` dalam record evidence
@@ -2303,14 +2259,14 @@ evidence_file: [file]
   - **Jika `person_name` disediakan dan `is_unknown_person = false`:** 
     - Sistem akan cek apakah `person_name` sudah ada berdasarkan `case_id`
     - **Jika person_name dan case_id sudah ada:**
-      - Jika `evidence_id` sudah ada, tidak perlu membuat suspect baru
-      - Jika `evidence_id` berbeda, buat suspect record baru untuk evidence ini
+      - Jika `evidence_number` sudah ada, tidak perlu membuat suspect baru
+      - Jika `evidence_number` berbeda, buat suspect record baru untuk evidence ini
       - `status` akan diambil dari suspect yang sudah ada (jika ada)
       - **Person_count tidak akan bertambah** karena semua suspect records dengan `name` dan `case_id` yang sama dikumpulkan menjadi satu person di case-detail
     - **Jika person_name dan case_id belum ada:**
       - Buat suspect baru dengan `status = null`
       - Case log akan dibuat untuk mencatat penambahan person baru
-    - **Satu person dapat memiliki multiple evidence dengan evidence_id berbeda** - semua evidence akan dikumpulkan di case-detail response
+    - **Satu person dapat memiliki multiple evidence dengan evidence_number berbeda** - semua evidence akan dikumpulkan di case-detail response
   - **Jika `is_unknown_person = true`:** 
     - Field `person_name` dan `suspect_status` tidak akan ditampilkan di UI (tidak perlu diisi)
     - **Jika `suspect_id` disediakan:**
@@ -2324,7 +2280,7 @@ evidence_file: [file]
 - Endpoint ini selalu membuat record Evidence baru
 - **Catatan tentang Auto-Create Suspect:** Ketika suspect baru dibuat secara otomatis dari `create-evidence`:
   - **Jika person_name dan case_id sudah ada:**
-    - Suspect record baru dibuat untuk `evidence_id` yang berbeda
+    - Suspect record baru dibuat untuk `evidence_number` yang berbeda
     - `status`: Diambil dari suspect yang sudah ada
     - `name`: `person_name` yang diinput
     - `case_id`: Case ID yang sama
@@ -2353,7 +2309,7 @@ evidence_file: [file]
   "data": {
     "id": 1,
     "case_id": 1,
-    "evidence_id": "EVID-1-20251110-0001",
+    "evidence_number": "EVID-1-20251110-0001",
     "source": "Handphone",
     "file_path": "data/evidence/evidence_20251110_154315_EVID-1-20251110-0001.jpg",
     "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
@@ -2377,15 +2333,36 @@ evidence_file: [file]
 - Endpoint ini secara otomatis membuat entry case log ketika evidence ditambahkan.
 - Record evidence disimpan ke database dengan semua informasi yang disediakan.
 - Upload file bersifat opsional - jika `evidence_file` disediakan, akan disimpan ke direktori `data/evidence/` dengan perhitungan hash SHA256.
-- Field `evidence_id` bersifat opsional:
+- Field `evidence_number` bersifat opsional:
   - **Auto-generate:** Jika tidak disediakan, sistem akan membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
   - **Input manual:** Jika disediakan, tidak boleh kosong (mengembalikan error 400 jika kosong)
-- Field `evidence_number` akan menggunakan nilai `evidence_id` jika tidak disediakan (untuk mencocokkan dengan Person.evidence_id)
+- Field `evidence_number` akan digunakan untuk mencocokkan dengan Person.evidence_id
 - Field `title` diambil dari `case.title` (tidak perlu diinput, otomatis dari case).
 
-**Error Responses:**
+**Frontend Validation & Error Handling:**
 
-**400 Bad Request (File Type Not Supported):**
+Sebelum mengirim request ke API, frontend akan melakukan validasi required fields. Jika ada required fields yang belum diisi, akan muncul dialog error:
+
+**1. Dialog "Incomplete Form" (Saat Submit):**
+- **Trigger:** User mengklik tombol submit/confirm, tetapi ada required fields yang belum diisi
+- **Message:** "Please complete required fields before submitting"
+- **Actions:**
+  - **Continue Editing:** Menutup dialog dan kembali ke form untuk melengkapi required fields
+
+**Required Fields untuk Create Evidence:**
+- `case_id` (selalu required)
+- `investigator` (selalu required)
+- `person_name` (required jika `is_unknown_person = false`)
+- `suspect_status` (required jika `is_unknown_person = false`)
+
+**2. Dialog "Unsaved Changes" (Saat Cancel/Close):**
+- **Trigger:** User mengklik tombol cancel/close atau menutup form, tetapi ada perubahan yang belum disimpan
+- **Message:** "If you leave this form, your data will not be saved"
+- **Actions:**
+  - **Leave Anyway:** Menutup form tanpa menyimpan perubahan
+  - **Continue Editing:** Kembali ke form untuk melanjutkan editing
+
+**Error Responses:**
 ```json
 {
   "status": 400,
@@ -2440,7 +2417,7 @@ evidence_file: [file]
    - Select: `form-data`
    - Add the following key-value pairs:
      - `case_id`: `1` (Text) - Required
-     - `evidence_id`: `32342223` (Text) - Optional (if provided, cannot be empty)
+     - `evidence_number`: `32342223` (Text) - Optional (if provided, cannot be empty)
      - `title`: `Handphone A` (Text) - Optional
      - `type`: `Dokumen` (Text) - Optional (nama evidence type, akan auto-create jika belum ada)
      - `source`: `Handphone` (Text) - Optional
@@ -2453,9 +2430,9 @@ evidence_file: [file]
 
 **Catatan:** 
 - Untuk upload file, ubah tipe `evidence_file` dari "Text" ke "File" di Postman
-- Field `evidence_id` bersifat **opsional**:
+- Field `evidence_number` bersifat **opsional**:
   - **Jika TIDAK disediakan:** Sistem akan otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
-  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
 - Field `person_name` dan `is_unknown_person` digunakan untuk linking evidence ke suspect:
   - **Jika `person_name` disediakan dan `is_unknown_person = false`:** Sistem akan mencari existing suspect dengan nama tersebut. Jika ditemukan, evidence di-link ke suspect. Jika tidak ditemukan, auto-create suspect baru.
   - **Jika `is_unknown_person = true`:** Field `person_name` dan `suspect_status` tidak akan ditampilkan di UI (tidak perlu diisi). Evidence akan ter-link ke suspect "Unknown" (yang sudah ada atau dibuat baru). Jika `suspect_id` disediakan, evidence akan ter-link ke suspect "Unknown" dengan `suspect_id` tersebut
@@ -2483,7 +2460,6 @@ evidence_file: [file]
   "message": "Evidence retrieved successfully",
   "data": {
     "id": 1,
-    "evidence_id": "32342223",
     "evidence_number": "EVID-001",
     "title": "Handphone A",
     "description": "Smartphone dari tersangka",
@@ -3722,7 +3698,7 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/suspects/create-suspect`
 
-**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_id` disediakan, sistem akan mencari existing evidence dengan `evidence_id` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru.
+**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -3734,8 +3710,8 @@ Authorization: Bearer <access_token>
 | `case_id` | integer | **Yes** | Case ID where suspect will be added |
 | `person_name` | string | Conditional | Person name. **Wajib jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih |
 | `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
-| `evidence_id` | string | **Conditional** | Evidence ID (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
-| `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_id` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_number` | string | **Conditional** | Evidence number (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
+| `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_number` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
 | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | `evidence_summary` | string | No | Evidence summary/description |
 | `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan dibuat dengan nama "Unknown", dan `suspect_status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` wajib diisi, `suspect_status` optional (default: `false`) |
@@ -3743,8 +3719,9 @@ Authorization: Bearer <access_token>
 **Catatan Field Required:**
 - **Required (Wajib):** `case_id`
 - **Conditional Required:** `person_name` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
-- **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_id` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create suspect"
-- **Optional (Opsional):** `suspect_status` (hanya digunakan jika `is_unknown_person = false`), `evidence_source`, `evidence_summary`, `is_unknown_person`
+- **Conditional Required:** `suspect_status` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
+- **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_number` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create suspect"
+- **Optional (Opsional):** `evidence_source`, `evidence_summary`, `is_unknown_person`
 
 **Catatan tentang `is_unknown_person` dan `suspect_status`:**
 - **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
@@ -3756,45 +3733,46 @@ Authorization: Bearer <access_token>
 - **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
   - Di UI menampilkan kolom `person_name` dan `suspect_status`
   - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
-  - `suspect_status` optional (bisa diisi atau `null`, jika disediakan)
+  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
   - `name` di database = `person_name` (wajib)
+  - `status` di database = `suspect_status` (wajib)
 
-**Format Auto-Generate Evidence ID:**
-Jika radio "Generating" dipilih atau `evidence_id` tidak disediakan dan `evidence_file` ada:
+**Format Auto-Generate Evidence Number:**
+Jika radio "Generating" dipilih atau `evidence_number` tidak disediakan dan `evidence_file` ada:
 - **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
 - **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
 
 **Workflow Create Suspect:**
 1. **Create Suspect baru** (selalu membuat suspect baru)
-2. **Link ke Evidence (jika `evidence_id` disediakan):**
-   - Cari existing evidence dengan `evidence_number = evidence_id` di case tersebut
-   - **Jika ditemukan:** Link suspect ke evidence (update `suspect.evidence_id = evidence_id`)
-   - **Jika tidak ditemukan dan ada `evidence_file`:** Create evidence baru dengan `evidence_number = evidence_id`
-   - **Jika tidak ditemukan dan tidak ada `evidence_file`:** Gunakan `evidence_id` yang diberikan (suspect.evidence_id = evidence_id, tapi evidence record tidak dibuat)
+2. **Link ke Evidence (jika `evidence_number` disediakan):**
+   - Cari existing evidence dengan `evidence_number` yang sama di case tersebut
+   - **Jika ditemukan:** Link suspect ke evidence (update `suspect.evidence_id` dengan `evidence_number` dari evidence yang ditemukan)
+   - **Jika tidak ditemukan dan ada `evidence_file`:** Create evidence baru dengan `evidence_number` yang diberikan
+   - **Jika tidak ditemukan dan tidak ada `evidence_file`:** Gunakan `evidence_number` yang diberikan (suspect.evidence_id = evidence_number, tapi evidence record tidak dibuat)
 
-**Perilaku Evidence ID:**
-- **Jika "Generating" dipilih atau `evidence_id` TIDAK disediakan:**
-  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_id` dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence baru
-  - **Jika `evidence_file` TIDAK ada:** `evidence_id = null` (opsional, tidak membuat record Evidence)
-- **Jika "Manual Input" dipilih dan `evidence_id` disediakan:**
-  - Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
-  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number = evidence_id`
+**Perilaku Evidence Number:**
+- **Jika "Generating" dipilih atau `evidence_number` TIDAK disediakan:**
+  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_number` dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence baru
+  - **Jika `evidence_file` TIDAK ada:** `evidence_number = null` (opsional, tidak membuat record Evidence)
+- **Jika "Manual Input" dipilih dan `evidence_number` disediakan:**
+  - Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
+  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number` yang sama
   - **Jika Evidence sudah ada:** Link suspect ke evidence yang sudah ada (update file jika `evidence_file` disediakan)
-  - **Jika Evidence TIDAK ada dan ada `evidence_file`:** Membuat record Evidence baru dengan `evidence_number = evidence_id`
-  - **Jika Evidence TIDAK ada dan tidak ada `evidence_file`:** Gunakan `evidence_id` yang diberikan (suspect.evidence_id = evidence_id, tapi evidence record tidak dibuat)
+  - **Jika Evidence TIDAK ada dan ada `evidence_file`:** Membuat record Evidence baru dengan `evidence_number` yang diberikan
+  - **Jika Evidence TIDAK ada dan tidak ada `evidence_file`:** Gunakan `evidence_number` yang diberikan (suspect.evidence_id = evidence_number, tapi evidence record tidak dibuat)
 
-**Example Request (form-data) - Manual Evidence ID:**
+**Example Request (form-data) - Manual Evidence Number:**
 ```
 case_id: 1
 person_name: John Doe
 suspect_status: Suspect
-evidence_id: 32342223
+evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Smartphone dari tersangka
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Auto-Generate Evidence ID:**
+**Example Request (form-data) - Auto-Generate Evidence Number:**
 ```
 case_id: 1
 person_name: John Doe
@@ -3809,7 +3787,7 @@ evidence_file: [file]
 case_id: 1
 person_name: Nathalie
 suspect_status: Witness
-evidence_id: 32342223
+evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Link to existing evidence
 ```
@@ -3817,22 +3795,22 @@ evidence_summary: Link to existing evidence
 
 **Catatan:**
 - **Selalu create suspect baru** (tidak mengecek existing suspect dengan nama yang sama)
-- Field `evidence_file` atau `evidence_id` **WAJIB** disediakan (minimal salah satu)
+- Field `evidence_file` atau `evidence_number` **WAJIB** disediakan (minimal salah satu)
 - Field `suspect_status` bersifat opsional dan disimpan di database. **Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default)**. Di case detail, `person_type` akan `null` jika `suspect_status = null`. **PENTING: Jika `is_unknown_person = true`, `suspect_status` akan di-set ke `null` (override jika ada value)**.
 - Field `is_unknown_person`: 
   - **Jika `true` (radio button "Unknown" dipilih di UI):** `person_name` akan diabaikan, suspect akan dibuat dengan nama "Unknown", dan `suspect_status` akan di-set ke `null` (override jika ada value)
   - **Jika `false` (radio button "Person Name" dipilih di UI):** `person_name` dan `suspect_status` dapat diisi sesuai input user
-- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_id}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256.
-- Field `evidence_id` bersifat **opsional**:
+- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_number}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256.
+- Field `evidence_number` bersifat **opsional**:
   - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create suspect"
+  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create suspect"
   - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400 jika kosong)
   - **Linking:** Suspect dan Evidence ter-link via `evidence_id` (suspect.evidence_id = evidence.evidence_number)
 - **Auto-fill:**
   - `investigator`: **TIDAK ada di form**. Otomatis diambil dari `case.main_investigator` berdasarkan `case_id`. Jika `case.main_investigator` tidak ada, fallback ke `current_user` (fullname atau email)
 - **Case Log:**
   - Endpoint ini secara otomatis membuat case log entry ketika suspect ditambahkan
-  - Jika `evidence_id` disediakan dan Evidence record dibuat/dihubungkan, case log entry untuk evidence juga akan dibuat
+  - Jika `evidence_number` disediakan dan Evidence record dibuat/dihubungkan, case log entry untuk evidence juga akan dibuat
 
 **Response (201 Created):**
 ```json
@@ -3847,7 +3825,7 @@ evidence_summary: Link to existing evidence
     "investigator": "Solehun",
     "status": "Suspect",
     "is_unknown": false,
-    "evidence_id": "32342223",
+    "evidence_number": "32342223",
     "evidence_source": "Handphone",
     "evidence_summary": "Smartphone dari tersangka",
     "created_by": "admin@example.com",
@@ -3857,14 +3835,36 @@ evidence_summary: Link to existing evidence
 }
 ```
 
+**Frontend Validation & Error Handling:**
+
+Sebelum mengirim request ke API, frontend akan melakukan validasi required fields. Jika ada required fields yang belum diisi, akan muncul dialog error:
+
+**1. Dialog "Incomplete Form" (Saat Submit):**
+- **Trigger:** User mengklik tombol submit/confirm, tetapi ada required fields yang belum diisi
+- **Message:** "Please complete required fields before submitting"
+- **Actions:**
+  - **Continue Editing:** Menutup dialog dan kembali ke form untuk melengkapi required fields
+
+**Required Fields untuk Create Suspect:**
+- `case_id` (selalu required)
+- `person_name` (required jika `is_unknown_person = false`)
+- `suspect_status` (required jika `is_unknown_person = false`)
+- `evidence_file` atau `evidence_number` (minimal salah satu harus disediakan)
+
+**2. Dialog "Unsaved Changes" (Saat Cancel/Close):**
+- **Trigger:** User mengklik tombol cancel/close atau menutup form, tetapi ada perubahan yang belum disimpan
+- **Message:** "If you leave this form, your data will not be saved"
+- **Actions:**
+  - **Leave Anyway:** Menutup form tanpa menyimpan perubahan
+  - **Continue Editing:** Kembali ke form untuk melanjutkan editing
+
 **Error Responses:**
 
-**400 Bad Request (Empty evidence_id when provided manually):**
+**400 Bad Request (Empty evidence_number when provided manually):**
 ```json
 {
   "status": 400,
-  "message": "evidence_id cannot be empty when provided manually",
-  "data": null
+  "detail": "evidence_number cannot be empty when provided manually"
 }
 ```
 
@@ -3939,7 +3939,7 @@ Authorization: Bearer <access_token>
     "status": "Witness",
     "is_unknown": false,
     "custody_stage": null,
-    "evidence_id": "32342223",
+    "evidence_number": "32342223",
     "evidence_source": "Handphone",
     "evidence_summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
     "created_by": "admin@gmail.com",
@@ -4023,9 +4023,9 @@ Authorization: Bearer <access_token>
 | Person of Interest (radio) | `is_unknown` | boolean | No | `true` for "Unknown", `false` for "Person Name" |
 | Person Name | `name` | string | No | Full name of the suspect |
 | Status (dropdown) | `status` | string | No | Suspect status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
-| Evidence ID (radio: Generating) | - | - | No | If selected, `evidence_id` should NOT be provided (will auto-generate) |
-| Evidence ID (radio: Manual Input) | - | - | No | If selected, `evidence_id` MUST be provided and cannot be empty |
-| Evidence ID (text input) | `evidence_id` | string | No | Manual Evidence ID (required if Manual Input selected, cannot be empty) |
+| Evidence Number (radio: Generating) | - | - | No | If selected, `evidence_number` should NOT be provided (will auto-generate) |
+| Evidence Number (radio: Manual Input) | - | - | No | If selected, `evidence_number` MUST be provided and cannot be empty |
+| Evidence Number (text input) | `evidence_number` | string | No | Manual Evidence Number (required if Manual Input selected, cannot be empty) |
 | Evidence Source (dropdown) | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
 | Investigator | `investigator` | string | No | Investigator name |
@@ -4070,7 +4070,7 @@ notes: "Updated notes"
   "case_name": "Data Breach",
   "investigator": "Solehun",
   "status": "Defendant",
-  "evidence_id": "32342223",
+  "evidence_number": "32342223",
   "evidence_source": "Handphone",
   "date_of_birth": "1995-01-01",
   "place_of_birth": "Medan",
@@ -4091,10 +4091,10 @@ notes: "Updated notes"
 **Catatan:** 
 - Jika `evidence_file` disediakan, gunakan content type `multipart/form-data`
 - Semua field bersifat opsional (partial update)
-- Field `evidence_id` bersifat **opsional**:
+- Field `evidence_number` bersifat **opsional**:
   - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** `evidence_id = null` (opsional, tidak membuat record Evidence)
-  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - **Jika TIDAK disediakan + tidak ada file:** `evidence_number = null` (opsional, tidak membuat record Evidence)
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
   - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada
 - `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
 - `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
@@ -4393,7 +4393,6 @@ Authorization: Bearer {access_token}
   "data": [
     {
       "id": 1,
-      "evidence_id": "32342223",
       "evidence_number": "EVID-001",
       "title": "Handphone A",
       "thumbnail": "/data/thumbnails/evidence_1_map.png",
@@ -4403,7 +4402,6 @@ Authorization: Bearer {access_token}
     },
     {
       "id": 2,
-      "evidence_id": "32342224",
       "evidence_number": "EVID-002",
       "title": "Phone Screen",
       "thumbnail": "/data/thumbnails/evidence_2_phone.png",
@@ -4461,7 +4459,7 @@ Authorization: Bearer {access_token}
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `suspect_id` | integer | Yes | Unique suspect identifier |
-| `evidence_id` | string | No | Evidence ID (if manual input) |
+| `evidence_number` | string | No | Evidence Number (if manual input) |
 | `evidence_source` | string | Yes | Evidence source (e.g., "Handphone", "CCTV") |
 | `evidence_file` | file | Yes | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
 | `notes` | string | No | Evidence notes |
@@ -4474,7 +4472,6 @@ Authorization: Bearer {access_token}
   "message": "Evidence added to suspect successfully",
   "data": {
     "id": 13,
-    "evidence_id": "32342225",
     "evidence_number": "EVID-013",
     "title": "New Evidence",
       "notes": "Notes 33242353",
@@ -4794,17 +4791,18 @@ Content-Type: application/json
 | `case_id` | integer | **Yes** | Case ID where person will be added |
 | `person_name` | string | **Conditional** | Person name. **WAJIB diisi jika `is_unknown_person = false`**. **Tidak perlu diisi jika `is_unknown_person = true`** (akan diabaikan) |
 | `suspect_status` | string | No | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false`**. **Jika `is_unknown_person = true`, akan di-set ke `null`**. **Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default)** |
-| `evidence_id` | string | **Conditional** | Evidence ID (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
-| `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_id` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_number` | string | **Conditional** | Evidence number (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
+| `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_number` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
 | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | `evidence_summary` | string | No | Evidence summary/description |
 | `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown" dipilih di UI), `person_name` dan `suspect_status` tidak perlu diisi. Sistem akan membuat suspect "Unknown" baru dengan `name = "Unknown"`, `status = null`, dan `is_unknown = true`. Evidence akan ter-link ke suspect tersebut**. **Jika `false` (radio button "Person Name" dipilih), `person_name` wajib diisi dan `suspect_status` dapat diisi** (default: `false`) |
 
 **Catatan Field Required:**
 - **Required (Wajib):** `case_id`
-- **Conditional Required (Wajib jika `is_unknown_person = false`):** `person_name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name wajib diisi jika is_unknown_person = false"
-- **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_id` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create person"
-- **Optional (Opsional):** `suspect_status`, `evidence_source`, `evidence_summary`, `is_unknown_person`
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `person_name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `suspect_status` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `suspect_status` tidak diisi, akan mengembalikan error 400: "suspect_status is required when is_unknown_person is false"
+- **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_number` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create person"
+- **Optional (Opsional):** `evidence_source`, `evidence_summary`, `is_unknown_person`
 
 **Catatan tentang `is_unknown_person` dan `suspect_status`:**
 - **Jika `is_unknown_person = true` (radio button "Unknown" dipilih di UI):** 
@@ -4817,26 +4815,27 @@ Content-Type: application/json
   - Di case-detail, setiap suspect "Unknown" akan muncul sebagai person terpisah dengan `id` yang valid (menggunakan `suspect_id` sebagai key, bukan `name`)
 - **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
   - Di UI menampilkan kolom `person_name` dan `suspect_status`
-  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400)
-  - `suspect_status` sesuai input user (bisa diisi atau `null`)
+  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
+  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "suspect_status is required when is_unknown_person is false")
   - Suspect dibuat dengan `name = person_name` dan `status = suspect_status`
   - Evidence dibuat dengan `suspect_id` yang link ke suspect tersebut
 
-**Format Auto-Generate Evidence ID:**
-Jika `evidence_id` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence ID dengan format:
+**Format Auto-Generate Evidence Number:**
+Jika `evidence_number` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence number dengan format:
 - **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
 - **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
 - **Sequence:** Nomor urut berdasarkan jumlah Evidence untuk case tersebut (4 digit dengan leading zeros)
 
 **Workflow Create Person:**
 1. **Validasi input:**
-   - Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name wajib diisi jika is_unknown_person = false"
-2. **Generate evidence_id jika belum ada:**
-   - Jika `evidence_id` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence ID dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
-   - Jika `evidence_id` tidak disediakan dan `evidence_file` tidak ada, akan mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create person"
+   - Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
+   - Jika `is_unknown_person = false` dan `suspect_status` tidak diisi, akan mengembalikan error 400: "suspect_status is required when is_unknown_person is false"
+2. **Generate evidence_number jika belum ada:**
+   - Jika `evidence_number` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence number dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+   - Jika `evidence_number` tidak disediakan dan `evidence_file` tidak ada, akan mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create person"
 3. **Create atau Update Evidence (wajib - selalu dilakukan):**
-   - Jika evidence dengan `evidence_number = evidence_id` sudah ada, update evidence dengan file jika `evidence_file` disediakan
-   - Jika evidence belum ada, create evidence baru dengan `evidence_number = evidence_id`
+   - Jika evidence dengan `evidence_number` yang sama sudah ada, update evidence dengan file jika `evidence_file` disediakan
+   - Jika evidence belum ada, create evidence baru dengan `evidence_number` yang diberikan
    - Evidence selalu dibuat/updated meskipun `is_unknown_person = true`
 4. **Create Suspect (selalu dilakukan):**
    - **Jika `is_unknown_person = false`:**
@@ -4849,28 +4848,28 @@ Jika `evidence_id` tidak disediakan dan `evidence_file` ada, sistem akan otomati
      - Case log dibuat untuk mencatat penambahan person "Unknown" baru
      - Di case-detail, setiap suspect "Unknown" akan muncul sebagai person terpisah dengan `id` yang valid (menggunakan `suspect_id` sebagai key, bukan `name`)
 
-**Perilaku Evidence ID:**
-- **Jika `evidence_id` disediakan (input manual):**
-  - Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
-  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number = evidence_id`
+**Perilaku Evidence Number:**
+- **Jika `evidence_number` disediakan (input manual):**
+  - Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
+  - Sistem memeriksa apakah record Evidence sudah ada dengan `evidence_number` yang sama
   - **Jika Evidence sudah ada:** Update evidence dengan file jika `evidence_file` disediakan
-  - **Jika Evidence TIDAK ada:** Membuat record Evidence baru dengan `evidence_number = evidence_id`
-- **Jika `evidence_id` TIDAK disediakan:**
-  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_id` dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence baru
-  - **Jika `evidence_file` TIDAK ada:** Mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create person"
+  - **Jika Evidence TIDAK ada:** Membuat record Evidence baru dengan `evidence_number` yang diberikan
+- **Jika `evidence_number` TIDAK disediakan:**
+  - **Jika `evidence_file` ada:** Otomatis membuat `evidence_number` dengan format `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence baru
+  - **Jika `evidence_file` TIDAK ada:** Mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create person"
 
-**Example Request (form-data) - Manual Evidence ID:**
+**Example Request (form-data) - Manual Evidence Number:**
 ```
 case_id: 1
 person_name: Mandeep Singh
 suspect_status: Suspect
-evidence_id: 342344442
+evidence_number: 342344442
 evidence_source: Handphone
 evidence_summary: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Auto-Generate Evidence ID:**
+**Example Request (form-data) - Auto-Generate Evidence Number:**
 ```
 case_id: 1
 person_name: Mandeep Singh
@@ -4885,7 +4884,7 @@ evidence_file: [file]
 case_id: 1
 person_name: Nathalie
 suspect_status: Witness
-evidence_id: 342344442
+evidence_number: 342344442
 evidence_source: Handphone
 evidence_summary: Link to existing evidence
 ```
@@ -4894,7 +4893,7 @@ evidence_summary: Link to existing evidence
 ```
 case_id: 1
 is_unknown_person: true
-evidence_id: 342344442
+evidence_number: 342344442
 evidence_source: Handphone
 evidence_summary: Evidence dari unknown person
 evidence_file: [file]
@@ -4904,9 +4903,9 @@ evidence_file: [file]
 - **Endpoint ini HARUS membuat evidence (selalu dilakukan)**
 - **Suspect selalu dibuat (baik untuk `is_unknown_person = true` maupun `false`)**
 - **Jika `is_unknown_person = true`:** Suspect "Unknown" akan dibuat dengan `name = "Unknown"`, `status = null`, dan `is_unknown = true`. Evidence akan ter-link ke suspect tersebut.
-- Field `evidence_file` atau `evidence_id` **WAJIB** disediakan (minimal salah satu)
-- Field `person_name` **WAJIB diisi jika `is_unknown_person = false`**. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name wajib diisi jika is_unknown_person = false"
-- Field `suspect_status` bersifat opsional dan hanya digunakan jika `is_unknown_person = false`. **Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default)**. Di case detail, `person_type` akan `null` jika `suspect_status = null`. **PENTING: Jika `is_unknown_person = true`, `suspect_status` akan di-set ke `null` (suspect "Unknown" akan dibuat dengan `status = null`)**.
+- Field `evidence_file` atau `evidence_number` **WAJIB** disediakan (minimal salah satu)
+- Field `person_name` **WAJIB diisi jika `is_unknown_person = false`**. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
+- Field `suspect_status` **WAJIB diisi jika `is_unknown_person = false`**. Jika `is_unknown_person = false` dan `suspect_status` tidak diisi, akan mengembalikan error 400: "suspect_status is required when is_unknown_person is false". **PENTING: Jika `is_unknown_person = true`, `suspect_status` akan di-set ke `null` (suspect "Unknown" akan dibuat dengan `status = null`)**.
 - Field `is_unknown_person`: 
   - **Jika `true` (radio button "Unknown" dipilih di UI):** 
     - `person_name` tidak perlu diisi (akan diabaikan jika dikirim)
@@ -4915,14 +4914,14 @@ evidence_file: [file]
     - Evidence dibuat dengan `suspect_id` yang link ke suspect "Unknown"
     - Di case-detail, setiap suspect "Unknown" akan muncul sebagai person terpisah dengan `id` yang valid (menggunakan `suspect_id` sebagai key, bukan `name`)
   - **Jika `false` (radio button "Person Name" dipilih di UI):** 
-    - `person_name` **WAJIB diisi**
-    - `suspect_status` dapat diisi sesuai input user (opsional)
+    - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
+    - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "suspect_status is required when is_unknown_person is false")
     - Suspect dibuat dengan `name = person_name` dan `status = suspect_status`
     - Evidence dibuat dengan `suspect_id` yang link ke suspect tersebut
-- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_id}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256.
-- Field `evidence_id` bersifat **opsional**:
+- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_number}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256.
+- Field `evidence_number` bersifat **opsional**:
   - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create person"
+  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create person"
   - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400 jika kosong)
   - **Linking:** Jika `is_unknown_person = false`, Suspect dan Evidence ter-link via `suspect_id` di Evidence (evidence.suspect_id = suspect.id)
 
@@ -4936,7 +4935,7 @@ evidence_file: [file]
     "case_id": 1,
     "name": "Mandeep Singh",
     "suspect_status": "Suspected",
-    "evidence_id": "342344442",
+    "evidence_number": "342344442",
     "evidence_source": "Handphone",
     "investigator": "Solehun",
     "created_by": "Admin Forensic",
@@ -4954,7 +4953,7 @@ evidence_file: [file]
   "data": {
     "id": 1,
     "case_id": 1,
-    "evidence_id": "342344442",
+    "evidence_number": "342344442",
     "source": "Handphone",
     "file_path": "data/evidence/evidence_20251111_163602_342344442.png",
     "description": "Evidence dari unknown person",
@@ -4973,23 +4972,52 @@ evidence_file: [file]
 - Jika `is_unknown_person = true`, tidak ada case log untuk penambahan person (karena tidak ada suspect yang dibuat)
 - Evidence selalu dibuat/updated meskipun `is_unknown_person = true`
 
+**Frontend Validation & Error Handling:**
+
+Sebelum mengirim request ke API, frontend akan melakukan validasi required fields. Jika ada required fields yang belum diisi, akan muncul dialog error:
+
+**1. Dialog "Incomplete Form" (Saat Submit):**
+- **Trigger:** User mengklik tombol submit/confirm, tetapi ada required fields yang belum diisi
+- **Message:** "Please complete required fields before submitting"
+- **Actions:**
+  - **Continue Editing:** Menutup dialog dan kembali ke form untuk melengkapi required fields
+
+**Required Fields untuk Create Person:**
+- `case_id` (selalu required)
+- `person_name` (required jika `is_unknown_person = false`)
+- `suspect_status` (required jika `is_unknown_person = false`)
+- `evidence_file` atau `evidence_number` (minimal salah satu harus disediakan)
+
+**2. Dialog "Unsaved Changes" (Saat Cancel/Close):**
+- **Trigger:** User mengklik tombol cancel/close atau menutup form, tetapi ada perubahan yang belum disimpan
+- **Message:** "If you leave this form, your data will not be saved"
+- **Actions:**
+  - **Leave Anyway:** Menutup form tanpa menyimpan perubahan
+  - **Continue Editing:** Kembali ke form untuk melanjutkan editing
+
 **Error Responses:**
 
-**400 Bad Request (person_name wajib diisi jika is_unknown_person = false):**
+**400 Bad Request (person_name required):**
 ```json
 {
   "status": 400,
-  "message": "person_name wajib diisi jika is_unknown_person = false",
-  "data": null
+  "detail": "person_name is required when is_unknown_person is false"
 }
 ```
 
-**400 Bad Request (Empty evidence_id when provided manually):**
+**400 Bad Request (suspect_status required):**
 ```json
 {
   "status": 400,
-  "message": "evidence_id cannot be empty when provided manually",
-  "data": null
+  "detail": "suspect_status is required when is_unknown_person is false"
+}
+```
+
+**400 Bad Request (Empty evidence_number when provided manually):**
+```json
+{
+  "status": 400,
+  "detail": "evidence_number cannot be empty when provided manually"
 }
 ```
 
@@ -5042,7 +5070,7 @@ evidence_file: [file]
      - `case_id`: `1` (Text) - Required
      - `person_name`: `Mandeep Singh` (Text) - Conditional (Required if `is_unknown_person = false`, Optional if `is_unknown_person = true`)
      - `suspect_status`: `Suspect` (Text) - Optional (only used if `is_unknown_person = false`)
-     - `evidence_id`: `342344442` (Text) - Optional (if provided, cannot be empty)
+     - `evidence_number`: `342344442` (Text) - Optional (if provided, cannot be empty)
      - `evidence_source`: `Handphone` (Text) - Optional
      - `evidence_file`: Select `File` type and choose file - Optional (if provided, file will be saved to `data/evidence/` directory)
      - `evidence_summary`: `GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.` (Text) - Optional
@@ -5054,13 +5082,13 @@ evidence_file: [file]
 - Field `case_id` wajib diisi
 - Field `person_name` wajib diisi jika `is_unknown_person = false` (conditional required)
 - Field `person_name` dan `suspect_status` tidak akan ditampilkan di UI jika `is_unknown_person = true` (tidak perlu diisi)
-- Field `evidence_file` atau `evidence_id` harus disediakan minimal salah satu (conditional required)
-- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_id}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256
+- Field `evidence_file` atau `evidence_number` harus disediakan minimal salah satu (conditional required)
+- Upload file: File disimpan dengan format `evidence_{timestamp}_{evidence_number}.{extension}` di direktori `data/evidence/` dengan perhitungan hash SHA256
 - Field `suspect_status` bersifat opsional dan disimpan di database. Jika tidak disediakan, akan menjadi `null` (tidak ada nilai default)
-- Field `evidence_id` bersifat **opsional**:
+- Field `evidence_number` bersifat **opsional**:
   - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_id harus disediakan untuk create person"
-  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_id cannot be empty when provided manually")
+  - **Jika TIDAK disediakan + tidak ada file:** Mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create person"
+  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
   - **Linking:** Suspect dan Evidence ter-link via `evidence_id` (suspect.evidence_id = evidence.evidence_number)
 
 ---
@@ -5118,8 +5146,9 @@ is_unknown_person: true
 - **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
   - Di UI menampilkan kolom `person_name` dan `suspect_status`
   - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
-  - `suspect_status` optional (bisa diisi atau `null`, jika disediakan)
+  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "suspect_status is required when is_unknown_person is false")
   - `name` di database = `person_name` (wajib)
+  - `status` di database = `suspect_status` (wajib)
 - `suspect_status` dapat diubah ke status lain: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (hanya jika `is_unknown_person = false`)
 - Endpoint ini secara otomatis membuat case log entry ketika person di-update
 
@@ -5132,7 +5161,7 @@ is_unknown_person: true
     "id": 1,
     "name": "Mangdepp Singh",
     "suspect_status": "Witness",
-    "evidence_id": "EVID-1-20251111-0001",
+    "evidence_number": "EVID-1-20251111-0001",
     "evidence_source": "Handphone",
     "evidence_summary": "Berdasarkan rekaman CCTV",
     "investigator": "Solehun",
@@ -5146,12 +5175,35 @@ is_unknown_person: true
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (person_name required):**
 ```json
 {
   "status": 400,
-  "message": "Validation error",
-  "data": null
+  "detail": "person_name is required when is_unknown_person is false"
+}
+```
+
+**400 Bad Request (suspect_status required):**
+```json
+{
+  "status": 400,
+  "detail": "suspect_status is required when is_unknown_person is false"
+}
+```
+
+**400 Bad Request (person_name cannot be empty):**
+```json
+{
+  "status": 400,
+  "detail": "person_name cannot be empty"
+}
+```
+
+**400 Bad Request (suspect_status cannot be empty):**
+```json
+{
+  "status": 400,
+  "detail": "suspect_status cannot be empty"
 }
 ```
 
@@ -5159,8 +5211,7 @@ is_unknown_person: true
 ```json
 {
   "status": 404,
-  "message": "Person with ID {person_id} not found",
-  "data": null
+  "detail": "Person with ID {person_id} not found"
 }
 ```
 

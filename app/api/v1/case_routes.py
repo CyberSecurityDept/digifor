@@ -9,8 +9,9 @@ from app.case_management.schemas import (
     Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse,
     CaseNotesRequest
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 import traceback
+import os
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -112,7 +113,7 @@ async def update_case(
             status=200,
             message="Case updated successfully",
             data=case
-        )
+            )
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(
@@ -236,3 +237,52 @@ async def edit_case_notes(
                 },
                 status_code=500
             )
+
+@router.get("/export-case-details-pdf/{case_id}")
+async def export_case_details_pdf(
+    case_id: int,
+    db: Session = Depends(get_database)
+):
+    """
+    Export case detail to PDF document
+    
+    Returns PDF file with case information, persons of interest, and evidence
+    """
+    try:
+        # Check if case exists
+        from app.case_management.models import Case
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Case with ID {case_id} not found"
+            )
+        
+        # Generate PDF
+        from app.core.config import settings
+        pdf_path = case_service.export_case_detail_pdf(db, case_id, settings.REPORTS_DIR)
+        
+        if not os.path.exists(pdf_path):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate PDF file"
+            )
+        
+        # Get filename for download
+        filename = os.path.basename(pdf_path)
+        
+        return FileResponse(
+            path=pdf_path,
+            filename=filename,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export case detail PDF: {str(e)}"
+        )

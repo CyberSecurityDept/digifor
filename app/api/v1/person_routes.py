@@ -17,7 +17,7 @@ async def create_person(
     case_id: int = Form(...),
     person_name: Optional[str] = Form(None),
     suspect_status: Optional[str] = Form(None),
-    evidence_id: Optional[str] = Form(None),
+    evidence_number: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_file: Optional[UploadFile] = File(None),
     evidence_summary: Optional[str] = Form(None),
@@ -32,19 +32,21 @@ async def create_person(
         
         if not is_unknown_person:
             if not person_name or not person_name.strip():
-                raise HTTPException(status_code=400, detail="person_name wajib diisi jika is_unknown_person = false")
+                raise HTTPException(status_code=400, detail="person_name is required when is_unknown_person is false")
+            if not suspect_status or not suspect_status.strip():
+                raise HTTPException(status_code=400, detail="suspect_status is required when is_unknown_person is false")
         
-        if evidence_id is not None:
-            evidence_id = evidence_id.strip() if isinstance(evidence_id, str) else str(evidence_id).strip()
-            if not evidence_id:
-                raise HTTPException(status_code=400, detail="evidence_id cannot be empty when provided manually")
+        if evidence_number is not None:
+            evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
+            if not evidence_number:
+                raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
         
-        if not evidence_id:
+        if not evidence_number:
             if not evidence_file:
-                raise HTTPException(status_code=400, detail="evidence_file atau evidence_id harus disediakan untuk create person")
+                raise HTTPException(status_code=400, detail="evidence_file atau evidence_number harus disediakan untuk create person")
             date_str = datetime.now().strftime("%Y%m%d")
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_id).count()
-            evidence_id = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
+            evidence_number = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
             
         file_path = None
         file_size = None
@@ -71,7 +73,7 @@ async def create_person(
             os.makedirs(upload_dir, exist_ok=True)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"evidence_{timestamp}_{evidence_id}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_id}"
+            filename = f"evidence_{timestamp}_{evidence_number}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_number}"
             file_path = os.path.join(upload_dir, filename)
             
             file_content = await evidence_file.read()
@@ -82,7 +84,7 @@ async def create_person(
             file_hash = hashlib.sha256(file_content).hexdigest()
             file_type = evidence_file.content_type or 'application/octet-stream'
         
-        evidence_number = evidence_id
+        # evidence_number already set
         evidence_title = case.title if case else evidence_number
         investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         existing_evidence = db.query(Evidence).filter(
@@ -220,7 +222,7 @@ async def create_person(
                     case_id=case_id,
                     action="Edit",
                     changed_by=f"By: {changed_by}",
-                    change_detail=f"Change: Adding evidence {evidence_id}",
+                    change_detail=f"Change: Adding evidence {evidence_number}",
                     notes="",
                     status=current_status
                 )
@@ -245,7 +247,7 @@ async def create_person(
             "case_id": suspect.case_id,
             "name": suspect.name,
             "suspect_status": suspect.status,
-            "evidence_id": suspect.evidence_id,
+            "evidence_number": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,
@@ -283,10 +285,9 @@ async def update_person(
         suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
-        
         if is_unknown_person is not None:
             setattr(suspect, 'is_unknown', is_unknown_person)
-            
+
             if is_unknown_person:
                 setattr(suspect, 'name', "Unknown")
                 setattr(suspect, 'status', None)
@@ -296,20 +297,32 @@ async def update_person(
                         status_code=400,
                         detail="person_name is required when is_unknown_person is false"
                     )
-                setattr(suspect, 'name', person_name.strip())
-                if suspect_status is not None:
-                    setattr(suspect, 'status', suspect_status)
-        else:
-            if person_name is not None:
-                if not person_name.strip():
+                if not suspect_status or not suspect_status.strip():
                     raise HTTPException(
                         status_code=400,
-                        detail="person_name cannot be empty"
+                        detail="suspect_status is required when is_unknown_person is false"
                     )
                 setattr(suspect, 'name', person_name.strip())
-            
-            if suspect_status is not None:
-                setattr(suspect, 'status', suspect_status)
+                setattr(suspect, 'status', suspect_status.strip())
+        else:
+            current_is_unknown = getattr(suspect, 'is_unknown', False)
+            if not current_is_unknown:
+                if person_name is not None:
+                    if not person_name.strip():
+                        raise HTTPException(
+                            status_code=400,
+                            detail="person_name cannot be empty"
+                        )
+                    setattr(suspect, 'name', person_name.strip())
+                if suspect_status is not None:
+                    if not suspect_status.strip():
+                        raise HTTPException(
+                            status_code=400,
+                            detail="suspect_status cannot be empty"
+                        )
+                    setattr(suspect, 'status', suspect_status.strip())
+            else:
+                pass
         
         db.commit()
         db.refresh(suspect)
@@ -346,7 +359,7 @@ async def update_person(
             "case_id": suspect.case_id,
             "name": suspect.name,
             "suspect_status": suspect.status,
-            "evidence_id": suspect.evidence_id,
+            "evidence_number": suspect.evidence_id,
             "evidence_source": suspect.evidence_source,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,

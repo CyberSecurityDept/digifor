@@ -109,7 +109,18 @@ class SuspectService:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             raise Exception(f"Suspect with ID {suspect_id} not found")
+        
+        current_is_unknown = getattr(suspect, 'is_unknown', False)
         update_data = suspect_data.dict(exclude_unset=True)
+        
+        if not current_is_unknown:
+            if 'name' in update_data:
+                if not update_data['name'] or not str(update_data['name']).strip():
+                    raise Exception("name is required when is_unknown is false")
+            if 'status' in update_data:
+                if not update_data['status'] or not str(update_data['status']).strip():
+                    raise Exception("status is required when is_unknown is false")
+        
         for field, value in update_data.items():
             setattr(suspect, field, value)
         db.commit()

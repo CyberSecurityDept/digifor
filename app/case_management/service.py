@@ -7,7 +7,9 @@ from app.case_management.schemas import CaseCreate, CaseUpdate, PersonCreate, Pe
 from app.evidence_management.models import Evidence, CustodyLog
 from datetime import datetime
 from fastapi import HTTPException
-import traceback, logging
+import traceback, logging, os
+from app.case_management.pdf_export import generate_case_detail_pdf
+from app.core.config import settings
 
 def get_wib_now():
     return datetime.now(WIB)
@@ -494,7 +496,7 @@ class CaseService:
                     evidence_num = getattr(evidence, 'evidence_number', None)
                     evidence_item = {
                         "id": evidence.id,
-                        "evidence_id": evidence_num or "",
+                        "evidence_number": evidence_num or "",
                         "evidence_summary": notes_text or "No description available"
                     }
                     
@@ -506,66 +508,18 @@ class CaseService:
                     if suspect_source:
                         evidence_item["source"] = suspect_source
                     
-                    if evidence_num and not any(item.get("evidence_id") == evidence_num for item in evidence_items):
+                    if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
                         evidence_items.append(evidence_item)
-        
-        for evidence in all_evidence:
-            evidence_suspect_id = getattr(evidence, 'suspect_id', None)
-            evidence_num = getattr(evidence, 'evidence_number', None)
-            if evidence_suspect_id is None and evidence_num and evidence_num not in evidence_linked_to_suspects:
-                evidence_linked_to_suspects.add(evidence_num)
-                notes_text = None
-                evidence_notes = getattr(evidence, 'notes', None)
-                evidence_desc = getattr(evidence, 'description', None) or ''
-                if evidence_notes:
-                    if isinstance(evidence_notes, dict):
-                        notes_text = evidence_notes.get('text', '') or evidence_desc
-                    elif isinstance(evidence_notes, str):
-                        notes_text = evidence_notes
-                else:
-                    notes_text = evidence_desc
-                evidence_item = {
-                    "id": evidence.id,
-                    "evidence_id": evidence_num or "",
-                    "evidence_summary": notes_text or "No description available"
-                }
-                evidence_file_path = getattr(evidence, 'file_path', None)
-                if evidence_file_path:
-                    evidence_item["file_path"] = evidence_file_path
-                
-                evidence_source = getattr(evidence, 'source', None)
-                if not evidence_source:
-                    suspect_with_evidence = db.query(Suspect).filter(
-                        Suspect.case_id == case_id,
-                        Suspect.evidence_id == evidence_num
-                    ).first()
-                    if suspect_with_evidence:
-                        evidence_source = getattr(suspect_with_evidence, 'evidence_source', None)
-                
-                if evidence_source:
-                    evidence_item["source"] = evidence_source
-                
-                unknown_key = "unknown_unlinked"
-                if unknown_key not in suspects_by_id:
-                    suspects_by_id[unknown_key] = {
-                        "suspect_id": None,
-                        "name": "Unknown",
-                        "person_type": None,
-                        "evidence": []
-                    }
-                
-                unknown_person_evidence = suspects_by_id[unknown_key]["evidence"]
-                if evidence_num and not any(item.get("evidence_id") == evidence_num for item in unknown_person_evidence):
-                    unknown_person_evidence.append(evidence_item)
         
         for suspect_id, suspect_data in suspects_by_id.items():
             evidence_items = suspect_data["evidence"]
             evidence_items.sort(key=lambda x: x.get("id") or 0)
         
-        persons_of_interest = list(suspects_by_id.values())
-        # Urutkan dari terlama ke terbaru (suspect_id ascending)
-        # Unknown unlinked (suspect_id = None) akan muncul terakhir
-        persons_of_interest.sort(key=lambda x: (x.get("suspect_id") is None, x.get("suspect_id") or 0), reverse=False)
+        persons_of_interest = [
+            suspect_data for suspect_data in suspects_by_id.values() 
+            if suspect_data.get("suspect_id") is not None
+        ]
+        persons_of_interest.sort(key=lambda x: x.get("suspect_id") or 0, reverse=False)
         case_notes_value = getattr(case, 'notes', None)
         person_count = len(persons_of_interest)
         case_data = {
@@ -586,6 +540,30 @@ class CaseService:
         }
         
         return case_data
+    
+    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None) -> str:
+        
+        # Use settings REPORTS_DIR if not provided
+        if output_dir is None:
+            output_dir = settings.REPORTS_DIR
+        
+        # Get case detail data
+        case_data = self.get_case_detail_comprehensive(db, case_id)
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate filename
+        case_info = case_data.get("case", {})
+        case_number = str(case_info.get("case_number", case_info.get("id", "unknown")))
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"case_detail_{case_number}_{timestamp}.pdf"
+        output_path = os.path.join(output_dir, filename)
+        
+        # Generate PDF
+        generate_case_detail_pdf(case_data, output_path)
+        
+        return output_path
 
 class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
@@ -874,7 +852,7 @@ class PersonService:
                 "id": suspect.id,
                 "name": suspect.name,
                 "is_unknown": suspect.is_unknown,
-                "evidence_id": suspect.evidence_id,
+                "evidence_number": suspect.evidence_id,
                 "evidence_source": suspect.evidence_source,
                 "evidence_summary": suspect.evidence_summary,
                 "investigator": suspect.investigator,

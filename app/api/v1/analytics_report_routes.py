@@ -24,6 +24,8 @@ from app.api.v1.analytics_communication_enhanced_routes import get_chat_detail
 from datetime import datetime
 import dateutil.parser
 import os, json, gc, logging, time
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
 
 logger = logging.getLogger(__name__)
 
@@ -243,112 +245,6 @@ def edit_analytic_summary(
             status_code=500,
         )
 
-# def _export_contact_correlation_pdf(analytic, device_ids, db):
-#     devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-#     file_ids = [d.file_id for d in devices]
-    
-#     contacts = (
-#         db.query(Contact)
-#         .filter(Contact.file_id.in_(file_ids))
-#         .order_by(Contact.id)
-#         .all()
-#     )
-
-#     device_contacts = defaultdict(dict)
-
-#     phone_patterns = [
-#         re.compile(r"(\+?\d{7,15})"),
-#         re.compile(r"Mobile:\s*(\+?\d{7,15})", re.IGNORECASE),
-#         re.compile(r"Phone number:\s*(\+?\d{7,15})", re.IGNORECASE),
-#     ]
-
-#     name_patterns = [
-#         re.compile(r"First name:\s*(.*)", re.IGNORECASE),
-#         re.compile(r"Display Name:\s*(.*)", re.IGNORECASE),
-#         re.compile(r"Contact:\s*(.*)", re.IGNORECASE),
-#     ]
-
-#     for contact in contacts:
-#         phones_found = []
-#         names_found = []
-
-#         contact_text = contact.display_name or ""
-#         phones_emails_text = contact.phone_number or ""
-
-#         for pattern in phone_patterns:
-#             phones_found.extend(pattern.findall(contact_text))
-#             phones_found.extend(pattern.findall(phones_emails_text))
-
-#         for pattern in name_patterns:
-#             match = pattern.search(contact_text)
-#             if match:
-#                 name = match.group(1).strip()
-#                 if name and name not in names_found:
-#                     names_found.append(name)
-
-#         if not names_found and contact_text and not re.search(r"\d{7,15}", contact_text):
-#             potential_name = contact_text.strip()
-#             if potential_name and potential_name != "(Unknown)":
-#                 names_found.append(potential_name)
-
-#         for phone in phones_found:
-#             if not phone:
-#                 continue
-
-#             phone = re.sub(r"\D", "", phone)
-#             if len(phone) < 7:
-#                 continue
-
-#             if not phone.startswith("62") and not phone.startswith("+62"):
-#                 if phone.startswith("0"):
-#                     phone = "62" + phone[1:]
-#                 else:
-#                     phone = "62" + phone
-
-#             name = names_found[0] if names_found else phone
-#             name = re.sub(r"\s+", " ", name).strip()
-
-#             # Find device_id from contact's file_id
-#             contact_device_id = None
-#             for d in devices:
-#                 if d.file_id == contact.file_id:
-#                     contact_device_id = d.id
-#                     break
-#             if contact_device_id:
-#                 if contact_device_id not in device_contacts:
-#                     device_contacts[contact_device_id] = {}
-#                 device_contacts[contact_device_id][phone] = name
-
-#     correlation = defaultdict(dict)
-#     for device_id, phone_dict in device_contacts.items():
-#         for phone, name in phone_dict.items():
-#             correlation[phone][device_id] = name
-
-#     correlation = {
-#         phone: devices for phone, devices in correlation.items()
-#         if len(devices) >= 2
-#     }
-
-#     sorted_correlation = dict(
-#         sorted(correlation.items(), key=lambda x: len(x[1]), reverse=True)
-#     )
-
-#     return _generate_pdf_report(
-#         analytic=analytic,
-#         device_ids=device_ids,
-#         db=db,
-#         report_type="Contact Correlation Analysis",
-#         filename_prefix="contact_correlation_report",
-#         data={
-#             "contacts": contacts,
-#             "correlation": sorted_correlation,
-#             "total_contacts": len(contacts),
-#             "cross_device_contacts": len(sorted_correlation)
-#         }
-#     )
-
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
 
 class GlobalPageCanvas(canvas.Canvas):
 
@@ -376,16 +272,13 @@ class GlobalPageCanvas(canvas.Canvas):
         self.setFont("Helvetica", 9)
         self.setFillColor(colors.gray)
 
-        # Garis atas footer
         self.setStrokeColor(colors.HexColor("#B0B0B0"))
         self.setLineWidth(0.5)
         self.line(40, 40, 575, 40)
 
         padding_y = 25
-        # Kiri = teks footer
         self.drawString(40, padding_y, self.footer_text)
 
-        # Kanan = nomor halaman
         page_label = f"Page {current_page} of {total_pages}"
         self.drawRightString(575, padding_y, page_label)
 
@@ -453,7 +346,6 @@ def _export_contact_correlation_pdf(analytic, db):
     logger.info(f"Starting Contact Correlation PDF export for analytic_id={analytic.id}")
     start_time = time.time()
     
-    # Use count instead of loading all data
     total_contacts = db.query(Contact).count()
     logger.info(f"Total contacts to process: {total_contacts}")
     
@@ -473,7 +365,6 @@ def _export_hashfile_analytic_pdf(analytic, db):
     logger.info(f"Starting Hashfile Analytics PDF export for analytic_id={analytic.id}")
     start_time = time.time()
     
-    # Use count instead of loading all data
     total_contacts = db.query(Contact).count()
     logger.info(f"Total contacts to process: {total_contacts}")
     
@@ -495,7 +386,6 @@ def _export_apk_analytics_pdf(analytic, db):
     logger.info(f"Starting APK Analytics PDF export for analytic_id={analytic.id}")
     start_time = time.time()
     
-    # Use count instead of loading all data
     total_apks = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).count()
     logger.info(f"Total APK analytics to process: {total_apks}")
     
@@ -585,7 +475,7 @@ def _build_summary_section(usable_width, summary_text):
         fontSize=14,
         leading=18,
         textColor=colors.black,
-        spaceAfter=0,  # No spacing after title - will be in same table
+        spaceAfter=0,
         fontName="Helvetica-Bold"
     )
 
@@ -598,45 +488,38 @@ def _build_summary_section(usable_width, summary_text):
         textColor=colors.black
     )
 
-    # Handle empty or None summary
     if summary_text is None or not summary_text or not summary_text.strip():
         summary_text = "No summary available."
     else:
         summary_text = summary_text.strip()
 
-    # Create title and content in a single table to keep them together
     title_paragraph = Paragraph("<b>Summary</b>", summary_title_style)
     summary_content = Paragraph(summary_text, normal_style)
     
-    # Combine title and content in one table with proper spacing
     summary_table = Table(
         [
-            [title_paragraph],  # Title row
-            [summary_content]   # Content row
+            [title_paragraph],
+            [summary_content]
         ],
         colWidths=[usable_width]
     )
 
-    # Style the table with black border and light grey background like in the example image
     summary_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 1, colors.black),  # Black border around entire section
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F5F5")),  # Light grey background
-        # Title row styling
+        ("BOX", (0, 0), (-1, -1), 1, colors.black),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F5F5")),
+        
         ("LEFTPADDING", (0, 0), (-1, 0), 12),
         ("RIGHTPADDING", (0, 0), (-1, 0), 12),
         ("TOPPADDING", (0, 0), (-1, 0), 12),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),  # Spacing after title
-        # Content row styling
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+        
         ("LEFTPADDING", (0, 1), (-1, 1), 12),
         ("RIGHTPADDING", (0, 1), (-1, 1), 12),
-        ("TOPPADDING", (0, 1), (-1, 1), 0),  # No top padding - title already has bottom padding
+        ("TOPPADDING", (0, 1), (-1, 1), 0),
         ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        # No line between title and content - they're in the same box
     ]))
-    
-    # Wrap table in KeepTogether to ensure title and content stay together
-    # If there's not enough space, the entire section will move to a new page
+
     return [KeepTogether(summary_table)]
 
 def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
@@ -715,13 +598,11 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # Optimize: Process chat messages in batches to avoid memory issues with large datasets
-    col_time = 140  # diperlebar sedikit biar muat tanggal
+    col_time = 140
     col_chat = usable_width - col_time
     chat_data = [["Time", "Chat"]]
     
-    # Process messages in batches to avoid loading all into memory at once
-    batch_size = 5000  # Process 5k messages at a time
+    batch_size = 5000
     total_messages = len(chat_messages)
     
     logger.info(f"Processing {total_messages} chat messages in batches of {batch_size}")
@@ -761,7 +642,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         logger.info(f"Batch {batch_num}/{total_batches}: Processed {len(batch_messages)} messages ({batch_start+1}-{batch_end}), "
                    f"progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
         
-        # Force garbage collection after each batch
         if batch_end < total_messages:
             gc.collect()
             logger.debug(f"Garbage collection after batch {batch_num}")
@@ -769,14 +649,12 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     batch_processing_time = time.time() - batch_processing_start
     logger.info(f"Chat messages processing completed: {total_messages} messages in {batch_processing_time:.2f}s")
 
-    # Optimize: Split large chat table into smaller chunks for faster PDF generation
-    table_chunk_size = 2000  # Max rows per table chunk
-    total_chat_rows = len(chat_data) - 1  # Exclude header
+    table_chunk_size = 2000
+    total_chat_rows = len(chat_data) - 1
     
     logger.info(f"Creating chat table chunks: {total_chat_rows} chat rows will be split into chunks of {table_chunk_size} rows")
     table_chunk_start = time.time()
     
-    # Process chat table in chunks
     header_row = chat_data[0]
     data_rows = chat_data[1:]
     
@@ -809,7 +687,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         ]))
         story.append(chunk_table)
         
-        # Add small spacer between chunks (except for last chunk)
         if chunk_end < len(data_rows):
             story.append(Spacer(1, 6))
             logger.debug(f"Chat table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")
@@ -1244,8 +1121,7 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             
             logger.info(f"Group {group_index} - Batch {batch_num}/{total_batches}: Processed {len(batch_correlations)} correlations "
                        f"({batch_start+1}-{batch_end}), progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
-            
-            # Force garbage collection after each batch
+
             if batch_end < total_correlations:
                 gc.collect()
                 logger.debug(f"Garbage collection after batch {batch_num}")
@@ -1253,15 +1129,13 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         correlation_processing_time = time.time() - correlation_processing_start
         logger.info(f"Group {group_index} correlations processing completed: {total_correlations} correlations in {correlation_processing_time:.2f}s")
 
-        # Optimize: Split large table into smaller chunks for faster PDF generation
-        table_chunk_size = 2000  # Max rows per table chunk
-        total_rows = len(table_data) - 1  # Exclude header
+        table_chunk_size = 2000
+        total_rows = len(table_data) - 1
         col_widths = [usable_width * 0.25] + [((usable_width * 0.75) / len(group)) for _ in group]
         
         logger.info(f"Creating table chunks: {total_rows} data rows will be split into chunks of {table_chunk_size} rows")
         table_chunk_start = time.time()
         
-        # Process table in chunks
         header_row = table_data[0]
         data_rows = table_data[1:]
         
@@ -1274,7 +1148,7 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             chunk_table = Table(
                 chunk_data,
                 colWidths=col_widths,
-                repeatRows=1,  # Repeat header row on each new page
+                repeatRows=1,
             )
             chunk_table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -1287,7 +1161,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             ]))
             story.append(chunk_table)
             
-            # Add small spacer between chunks (except for last chunk)
             if chunk_end < len(data_rows):
                 story.append(Spacer(1, 6))
                 logger.debug(f"Group {group_index} - Table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")
@@ -1429,7 +1302,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             logger.info(f"Group {group_index} - Batch {batch_num}/{total_batches}: Processed {len(batch_hashfiles)} hashfiles "
                        f"({batch_start+1}-{batch_end}), progress: {progress_pct:.1f}%, batch_time: {batch_time:.2f}s")
             
-            # Force garbage collection after each batch
             if batch_end < total_hashfiles:
                 gc.collect()
                 logger.debug(f"Garbage collection after batch {batch_num}")
@@ -1437,16 +1309,13 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         hashfile_processing_time = time.time() - hashfile_processing_start
         logger.info(f"Group {group_index} hashfiles processing completed: {total_hashfiles} hashfiles in {hashfile_processing_time:.2f}s")
 
-        # Optimize: Split large table into smaller chunks for faster PDF generation
-        # ReportLab is much faster with multiple smaller tables than one huge table
-        table_chunk_size = 2000  # Max rows per table chunk
-        total_rows = len(table_data) - 1  # Exclude header
+        table_chunk_size = 2000
+        total_rows = len(table_data) - 1
         col_widths = [usable_width * 0.25] + [((usable_width * 0.75) / len(group)) for _ in group]
         
         logger.info(f"Creating table chunks: {total_rows} data rows will be split into chunks of {table_chunk_size} rows")
         table_chunk_start = time.time()
         
-        # Process table in chunks
         header_row = table_data[0]
         data_rows = table_data[1:]
         
@@ -1459,7 +1328,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             chunk_table = Table(
                 chunk_data,
                 colWidths=col_widths,
-                repeatRows=1,  # Repeat header row on each new page
+                repeatRows=1,
             )
             chunk_table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -1472,7 +1341,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             ]))
             story.append(chunk_table)
             
-            # Add small spacer between chunks (except for last chunk)
             if chunk_end < len(data_rows):
                 story.append(Spacer(1, 6))
                 logger.debug(f"Group {group_index} - Table chunk {chunk_num}/{total_chunks} created ({chunk_start+1}-{chunk_end} rows)")

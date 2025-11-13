@@ -92,7 +92,7 @@ async def get_evidence_list(
             evidence_data.append({
                 "id": evidence.id,
                 "case_id": evidence.case_id,
-                "evidence_id": evidence.evidence_number,
+                "evidence_number": evidence.evidence_number,
                 "title": case_title,
                 "investigator": investigator_name,
                 "agency": agency_name,
@@ -143,63 +143,10 @@ async def get_evidence_summary(
             detail=f"Unexpected server error: {str(e)}"
         )
 
-@router.get("/get-unknown-suspects/{case_id}")
-async def get_unknown_suspects(
-    case_id: int,
-    db: Session = Depends(get_database),
-    current_user: User = Depends(get_current_user)
-):
-    try:
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
-        unknown_suspects = db.query(Suspect).filter(
-            Suspect.case_id == case_id,
-            Suspect.name == "Unknown",
-            Suspect.is_unknown == True
-        ).order_by(Suspect.id.asc()).all()
-        
-        suspects_list = []
-        for suspect in unknown_suspects:
-            evidence_count = db.query(Evidence).filter(Evidence.suspect_id == suspect.id).count()
-            
-            created_at_str = None
-            try:
-                created_at_value = getattr(suspect, 'created_at', None)
-                if created_at_value is not None:
-                    created_at_str = created_at_value.isoformat()
-            except (AttributeError, TypeError):
-                pass
-            
-            suspects_list.append({
-                "suspect_id": suspect.id,
-                "name": suspect.name,
-                "evidence_count": evidence_count,
-                "created_at": created_at_str
-            })
-        
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": 200,
-                "message": "Unknown suspects retrieved successfully",
-                "data": suspects_list
-            }
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
-        )
-
 @router.post("/create-evidence")
 async def create_evidence(
     case_id: int = Form(...),
-    evidence_id: Optional[str] = Form(None),
+    evidence_number: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
     type: Optional[str] = Form(None),
     source: Optional[str] = Form(None),
@@ -207,6 +154,7 @@ async def create_evidence(
     evidence_summary: Optional[str] = Form(None),
     investigator: str = Form(...),
     person_name: Optional[str] = Form(None),
+    suspect_status: Optional[str] = Form(None),
     is_unknown_person: Optional[bool] = Form(False),
     suspect_id: Optional[int] = Form(None),
     db: Session = Depends(get_database),
@@ -218,23 +166,27 @@ async def create_evidence(
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         if is_unknown_person:
             pass
-        elif not is_unknown_person and (not person_name or not person_name.strip()):
-            raise HTTPException(
-                status_code=400,
-                detail="person_name is required when is_unknown_person is false"
-            )
+        elif not is_unknown_person:
+            if not person_name or not person_name.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="person_name is required when is_unknown_person is false"
+                )
+            if not suspect_status or not suspect_status.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="suspect_status is required when is_unknown_person is false"
+                )
         
-        if evidence_id is not None:
-            evidence_id = evidence_id.strip() if isinstance(evidence_id, str) else str(evidence_id).strip()
-            if not evidence_id:
-                raise HTTPException(status_code=400, detail="evidence_id cannot be empty when provided manually")
+        if evidence_number is not None:
+            evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
+            if not evidence_number:
+                raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
         
-        if not evidence_id:
+        if not evidence_number:
             date_str = datetime.now().strftime("%Y%m%d")
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_id).count()
-            evidence_id = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
-
-        evidence_number = evidence_id
+            evidence_number = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
         evidence_title = case.title if case else evidence_number
         evidence_type_id = None
         if type:
@@ -273,7 +225,7 @@ async def create_evidence(
             upload_dir = "data/evidence"
             os.makedirs(upload_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"evidence_{timestamp}_{evidence_id}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_id}"
+            filename = f"evidence_{timestamp}_{evidence_number}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_number}"
             file_path = os.path.join(upload_dir, filename)
             file_content = await evidence_file.read()
             file_size = len(file_content)
@@ -300,63 +252,69 @@ async def create_evidence(
         
         suspect_id_value = None
         
-        if is_unknown_person:
-            if suspect_id is not None:
-                selected_suspect = db.query(Suspect).filter(
-                    Suspect.id == suspect_id,
-                    Suspect.case_id == case_id,
-                    Suspect.name == "Unknown",
-                    Suspect.is_unknown == True
-                ).first()
-                
-                if not selected_suspect:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Suspect with ID {suspect_id} not found or is not an Unknown person for this case"
-                    )
-                
-                suspect_id_value = selected_suspect.id
+        if suspect_id is not None:
+            selected_suspect = db.query(Suspect).filter(
+                Suspect.id == suspect_id,
+                Suspect.case_id == case_id
+            ).first()
+            
+            if not selected_suspect:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Suspect with ID {suspect_id} not found for this case"
+                )
+            
+            if person_name and person_name.strip():
+                setattr(selected_suspect, 'name', person_name.strip())
+                setattr(selected_suspect, 'is_unknown', False)
+            
+            if suspect_status is not None:
+                setattr(selected_suspect, 'status', suspect_status)
+            
+            db.commit()
+            db.refresh(selected_suspect)
+            suspect_id_value = selected_suspect.id
+        elif is_unknown_person:
+            existing_unknown_suspect = db.query(Suspect).filter(
+                Suspect.case_id == case_id,
+                Suspect.name == "Unknown",
+                Suspect.is_unknown == True
+            ).order_by(Suspect.id.desc()).first()
+            
+            if existing_unknown_suspect:
+                suspect_id_value = existing_unknown_suspect.id
             else:
-                existing_unknown_suspect = db.query(Suspect).filter(
-                    Suspect.case_id == case_id,
-                    Suspect.name == "Unknown",
-                    Suspect.is_unknown == True
-                ).order_by(Suspect.id.desc()).first()
-                
-                if existing_unknown_suspect:
-                    suspect_id_value = existing_unknown_suspect.id
-                else:
-                    investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                    new_suspect = Suspect(
-                        name="Unknown",
+                investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                new_suspect = Suspect(
+                    name="Unknown",
+                    case_id=case_id,
+                    case_name=case.title if case else None,
+                    evidence_id=evidence_number,
+                    evidence_source=source,
+                    investigator=investigator_name,
+                    status=None,
+                    is_unknown=True,
+                    created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                )
+                db.add(new_suspect)
+                db.commit()
+                db.refresh(new_suspect)
+                suspect_id_value = new_suspect.id
+                try:
+                    current_status = case.status if case else "Open"
+                    changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                    case_log = CaseLog(
                         case_id=case_id,
-                        case_name=case.title if case else None,
-                        evidence_id=evidence_number,
-                        evidence_source=source,
-                        investigator=investigator_name,
-                        status=None,
-                        is_unknown=True,
-                        created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                        action="Edit",
+                        changed_by=f"By: {changed_by}",
+                        change_detail=f"Change: Adding person Unknown",
+                        notes="",
+                        status=current_status
                     )
-                    db.add(new_suspect)
+                    db.add(case_log)
                     db.commit()
-                    db.refresh(new_suspect)
-                    suspect_id_value = new_suspect.id
-                    try:
-                        current_status = case.status if case else "Open"
-                        changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                        case_log = CaseLog(
-                            case_id=case_id,
-                            action="Edit",
-                            changed_by=f"By: {changed_by}",
-                            change_detail=f"Change: Adding person Unknown",
-                            notes="",
-                            status=current_status
-                        )
-                        db.add(case_log)
-                        db.commit()
-                    except Exception as e:
-                        print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
+                except Exception as e:
+                    print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
         elif person_name and person_name.strip():
             person_name_clean = person_name.strip()
             existing_suspect = db.query(Suspect).filter(
@@ -414,7 +372,7 @@ async def create_evidence(
                 case_id=case_id,
                 action="Edit",
                 changed_by=f"By: {changed_by}",
-                change_detail=f"Change: Adding evidence {evidence_id}",
+                change_detail=f"Change: Adding evidence {evidence_number}",
                 notes="",
                 status=current_status
             )
@@ -449,7 +407,7 @@ async def create_evidence(
         response_data = {
             "id": evidence.id,
             "case_id": evidence.case_id,
-            "evidence_id": evidence_id,
+            "evidence_number": evidence_number,
             "source": source,
             "file_path": evidence.file_path,
             "description": evidence.description,
