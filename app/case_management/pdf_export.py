@@ -13,8 +13,7 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
 from reportlab.pdfgen import canvas
 from PIL import Image as PILImage, ImageDraw
-
-LOGO_PATH_GLOBAL = "/Users/zagoto/Documents/SIntek-indonesia/digital-forensics/digifor/assets/logo.png"
+from app.core.config import settings
 
 WIB = timezone(timedelta(hours=7), 'WIB')
 
@@ -407,19 +406,10 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
 
         persons_of_interest = case_data.get("persons_of_interest", [])
 
-        for index, person in enumerate(persons_of_interest):
-            person_group_elements = []
-
-            if index > 0:
-                person_group_elements.append(CondPageBreak(200))
-                person_group_elements.append(Spacer(1, 25))
-                person_group_elements.append(poi_title_table)
-                person_group_elements.append(Spacer(1, 5))
-
-            person_name = str(person.get("name") or "Unknown")
-            person_type = str(person.get("person_type") or "N/A")
-            evidence_list = person.get("evidence") or []
-            total_evidence = len(evidence_list)
+        if not persons_of_interest or len(persons_of_interest) == 0:
+            person_name = "<i>No data available</i>"
+            person_type = "<i>No data available</i>"
+            total_evidence = 0
 
             person_info_table_data = [
                 [Paragraph("Name", poi_info_text_style), Paragraph(f": {person_name}", poi_info_text_style)],
@@ -435,101 +425,146 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]))
 
-            person_group_elements.append(Spacer(1, 10))
-            person_group_elements.append(person_info_table)
-            person_group_elements.append(Spacer(1, 10))
+            story.append(Spacer(1, 10))
+            story.append(person_info_table)
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
+            story.append(Spacer(1, 20))
+        else:
+            for index, person in enumerate(persons_of_interest):
+                person_name = str(person.get("name") or "<i>No data available</i>")
+                person_type = str(person.get("person_type") or "<i>No data available</i>")
+                evidence_list = person.get("evidence") or []
+                total_evidence = len(evidence_list)
 
-            if evidence_list:
-                table_data = [[
-                    Paragraph('Picture', table_header_style),
-                    Paragraph('Evidence ID', table_header_style),
-                    Paragraph('Summary', table_header_style),
-                ]]
-
-                for ev in evidence_list:
-                    evidence_id = str(ev.get("evidence_number") or ev.get("evidence_id") or "N/A")
-                    summary_text = str(ev.get("evidence_summary") or "No summary available")
-                    file_path = ev.get("file_path")
-                    pic_cell = Paragraph("<i>No image</i>", evidence_summary_style)
-                    image_size = (80, 80)
-
-                    if file_path and os.path.exists(file_path):
-                        try:
-                            img = PILImage.open(file_path)
-                            img.thumbnail(image_size, PILImage.Resampling.LANCZOS)
-                            buf = BytesIO()
-                            img.save(buf, format="PNG")
-                            buf.seek(0)
-                            pic_cell = Image(buf, width=image_size[0], height=image_size[1])
-                        except Exception as img_e:
-                            logger.warning(f"Failed to process image {file_path}: {img_e}")
-                            
-                            placeholder = PILImage.new('RGB', image_size, color='gray')
-                            draw = ImageDraw.Draw(placeholder)
-                            draw.text((10, 30), "Error", fill='white')
-                            buf = BytesIO()
-                            placeholder.save(buf, format="PNG")
-                            buf.seek(0)
-                            pic_cell = Image(buf, width=image_size[0], height=image_size[1])
-
-                    table_data.append([
-                        pic_cell,
-                        Paragraph(evidence_id, evidence_summary_style),
-                        Paragraph(summary_text, evidence_summary_style),
-                    ])
-
-                evidence_table = Table(
-                    table_data,
-                    colWidths=[USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.5],
-                    repeatRows=1
+                person_info_table_data = [
+                    [Paragraph("Name", poi_info_text_style), Paragraph(f": {person_name}", poi_info_text_style)],
+                    [Paragraph("Status", poi_info_text_style), Paragraph(f": {person_type}", poi_info_text_style)],
+                    [Paragraph("Total Evidence", poi_info_text_style), Paragraph(f": {total_evidence} Evidence", poi_info_text_style)],
+                ]
+                person_info_table = Table(
+                    person_info_table_data, colWidths=[USABLE_WIDTH * 0.15, USABLE_WIDTH * 0.85]
                 )
-                evidence_table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("ALIGN", (0, 0), (-1, 0), "LEFT"),
-                    ("ALIGN", (0, 1), (-1, -1), "LEFT"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLOR_ROW_BACKGROUND_ODD, colors.white]),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("TOPPADDING", (0, 0), (-1, -1), 8),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
-                    ("LINEBELOW", (0, -1), (-1, -1), 1, colors.black),
-                    ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
+                person_info_table.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
                 ]))
 
-                person_group_elements.append(Spacer(1, 7))
-                person_group_elements.append(evidence_table)
-                person_group_elements.append(Spacer(1, 20))
-            else:
-                person_group_elements.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
-                person_group_elements.append(Spacer(1, 20))
+                if index > 0:
+                    subtitle_with_info = [
+                        Spacer(1, 25),
+                        poi_title_table,
+                        Spacer(1, 5),
+                        Spacer(1, 10),
+                        person_info_table,
+                        Spacer(1, 10)
+                    ]
+                    story.append(KeepTogether(subtitle_with_info))
+                else:
+                    story.append(Spacer(1, 10))
+                    story.append(person_info_table)
+                    story.append(Spacer(1, 10))
 
-            story.append(KeepTogether(person_group_elements))
+                if evidence_list:
+                    table_data = [[
+                        Paragraph('Picture', table_header_style),
+                        Paragraph('Evidence ID', table_header_style),
+                        Paragraph('Summary', table_header_style),
+                    ]]
 
-        if case_notes and case_notes.strip():
-            story.append(CondPageBreak(150))
-            notes_data = [
-                [Paragraph("Notes", notes_title_style)],
-                [Paragraph(case_notes, notes_text_style)]
-            ]
-            notes_table = Table(notes_data, colWidths=[USABLE_WIDTH])
-            notes_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), COLOR_ROW_BACKGROUND_ODD),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("BOX", (0, 0), (-1, -1), 1, COLOR_NOTES_BORDER),
-            ]))
-            notes_elements = [
-                Spacer(1, 20),
-                notes_table
-            ]
-            story.append(KeepTogether(notes_elements))
+                    picture_col_width = USABLE_WIDTH * 0.25
+                    
+                    for ev in evidence_list:
+                        evidence_id = str(ev.get("evidence_number") or ev.get("evidence_id") or "N/A")
+                        summary_text = str(ev.get("evidence_summary") or "No summary available")
+                        file_path = ev.get("file_path")
+                        pic_cell = Paragraph("<i>No image</i>", evidence_summary_style)
+
+                        if file_path and os.path.exists(file_path):
+                            try:
+                                img = PILImage.open(file_path)
+                                original_width, original_height = img.size
+                                aspect_ratio = original_height / original_width
+                                
+                                image_width = picture_col_width - 10
+                                image_height = image_width * aspect_ratio
+                                
+                                img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
+                                buf = BytesIO()
+                                img.save(buf, format="PNG")
+                                buf.seek(0)
+                                pic_cell = Image(buf, width=image_width, height=image_height)
+                            except Exception as img_e:
+                                logger.warning(f"Failed to process image {file_path}: {img_e}")
+                                
+                                placeholder_width = picture_col_width - 10
+                                placeholder_height = placeholder_width
+                                placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
+                                draw = ImageDraw.Draw(placeholder)
+                                draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
+                                buf = BytesIO()
+                                placeholder.save(buf, format="PNG")
+                                buf.seek(0)
+                                pic_cell = Image(buf, width=placeholder_width, height=placeholder_height)
+
+                        table_data.append([
+                            pic_cell,
+                            Paragraph(evidence_id, evidence_summary_style),
+                            Paragraph(summary_text, evidence_summary_style),
+                        ])
+
+                    evidence_table = Table(
+                        table_data,
+                        colWidths=[USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.5],
+                        repeatRows=1
+                    )
+                    evidence_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("ALIGN", (0, 0), (-1, 0), "LEFT"),
+                        ("ALIGN", (0, 1), (-1, -1), "LEFT"),
+                        ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
+                        ("VALIGN", (1, 1), (1, -1), "TOP"),
+                        ("VALIGN", (2, 1), (2, -1), "TOP"),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLOR_ROW_BACKGROUND_ODD, colors.white]),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.black),
+                        ("LINEBELOW", (0, -1), (-1, -1), 1, colors.black),
+                        ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
+                    ]))
+
+                    story.append(Spacer(1, 7))
+                    story.append(evidence_table)
+                    story.append(Spacer(1, 20))
+                else:
+                    story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
+                    story.append(Spacer(1, 20))
+
+        notes_value = case_notes.strip() if case_notes and case_notes.strip() else "<i>No notes available</i>"
+        notes_data = [
+            [Paragraph("Notes", notes_title_style)],
+            [Paragraph(notes_value, notes_text_style)]
+        ]
+        notes_table = Table(notes_data, colWidths=[USABLE_WIDTH])
+        notes_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), COLOR_ROW_BACKGROUND_ODD),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("BOX", (0, 0), (-1, -1), 1, COLOR_NOTES_BORDER),
+        ]))
+        notes_elements = [
+            Spacer(1, 20),
+            notes_table
+        ]
+        story.append(KeepTogether(notes_elements))
 
         has_notes = bool(case_notes and case_notes.strip())
         has_person_of_interest = bool(persons_of_interest and len(persons_of_interest) > 0)
@@ -537,6 +572,10 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
         canvas_instance = [None]
 
         def canvas_maker(*args, **kwargs):
+            logo_path = settings.LOGO_PATH
+            if not os.path.isabs(logo_path):
+                logo_path = os.path.join(os.getcwd(), logo_path.lstrip("./"))
+            
             canvas_obj = CaseDetailPageCanvas(
                 *args, case_title=case_title,
                 case_id=case_id,
@@ -545,7 +584,7 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                 case_officer=case_officer,
                 created_date=created_date,
                 case_info_table_height=case_info_table_height,
-                logo_path=LOGO_PATH_GLOBAL,
+                logo_path=logo_path,
                 has_notes=has_notes,
                 has_person_of_interest=has_person_of_interest,
                 **kwargs
