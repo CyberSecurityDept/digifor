@@ -120,7 +120,6 @@ async def run_real_upload_and_finalize(
                     UPLOAD_PROGRESS[upload_id]["status"] = "Progress"
                     UPLOAD_PROGRESS[upload_id]["upload_status"] = "Progress"
                 
-                # Check if done flag is set or percent is 100
                 if svc_data.get("done") or (percent >= 100 and code == 200):
                     upload_service_done = True
                     await asyncio.sleep(2)
@@ -175,7 +174,6 @@ async def run_real_upload_and_finalize(
             "upload_status": "Failed",
             "data": [],
         }
-
 
 @router.post("/analytics/upload-data")
 async def upload_data(
@@ -289,7 +287,6 @@ async def upload_data(
 
     except Exception as e:
         return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
-
 
 @router.get("/analytics/upload-progress")
 async def get_upload_progress(upload_id: str, type: str = Query("data", description="data or apk")):

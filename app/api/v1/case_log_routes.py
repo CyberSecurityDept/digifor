@@ -19,7 +19,6 @@ async def update_case_log(
 ):
     try:
         log = case_log_service.update_case_log(db, case_id, log_data.dict())
-        
         cleaned_log = {k: v for k, v in log.items() if v is not None}
         
         return JSONResponse(

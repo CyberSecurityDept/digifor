@@ -2,17 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, date, timezone, timedelta
-
 from app.api.deps import get_database
 
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
-
 
 @router.get("/case-summary/{case_id}")
 async def get_case_summary_report(

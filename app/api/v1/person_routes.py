@@ -83,8 +83,7 @@ async def create_person(
             
             file_hash = hashlib.sha256(file_content).hexdigest()
             file_type = evidence_file.content_type or 'application/octet-stream'
-        
-        # evidence_number already set
+
         evidence_title = case.title if case else evidence_number
         investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         existing_evidence = db.query(Evidence).filter(

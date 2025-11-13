@@ -56,7 +56,6 @@ class CaseBase(BaseModel):
             return None
         return v
 
-
 class CaseCreate(BaseModel):
     case_number: Optional[str] = Field(None, description="Case number (optional - will auto-generate if not provided)")
     title: str = Field(..., description="Case title")

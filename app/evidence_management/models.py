@@ -1,14 +1,11 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.db.base import Base
 
-
 class EvidenceType(Base):
-    
     __tablename__ = "evidence_types"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
@@ -22,10 +19,9 @@ class EvidenceType(Base):
     def __repr__(self):
         return f"<EvidenceType(id={self.id}, name='{self.name}')>"
 
-
 class Evidence(Base):
-    
     __tablename__ = "evidence"
+
     id = Column(Integer, primary_key=True, index=True)
     evidence_number = Column(String(50), unique=True, index=True, nullable=False)
     title = Column(String(200), nullable=False)
@@ -55,10 +51,9 @@ class Evidence(Base):
     def __repr__(self):
         return f"<Evidence(id={self.id}, evidence_number='{self.evidence_number}')>"
 
-
 class CustodyLog(Base):
-    
     __tablename__ = "custody_logs"
+
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
     event_type = Column(String(50), nullable=False)
@@ -86,16 +81,14 @@ class CustodyLog(Base):
     log_hash = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     created_by = Column(String(100))
-
     evidence = relationship("Evidence", back_populates="custody_logs")
     
     def __repr__(self):
         return f"<CustodyLog(id={self.id}, evidence_id={self.evidence_id}, event_type='{self.event_type}')>"
 
-
 class CustodyReport(Base):
-    
     __tablename__ = "custody_reports"
+    
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
     report_type = Column(String(50), default="standard")

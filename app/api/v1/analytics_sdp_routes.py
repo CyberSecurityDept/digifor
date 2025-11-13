@@ -6,7 +6,7 @@ from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 
 router = APIRouter()
 
-CONVERT_PROGRESS = {}  # key: upload_id (filename), value: dict(progress, status, message, file_path)
+CONVERT_PROGRESS = {}
 
 def _sanitize_name(name: str) -> str:
     base = os.path.basename(name)
@@ -14,7 +14,6 @@ def _sanitize_name(name: str) -> str:
     base = re.sub(r"[^A-Za-z0-9_.-]", "", base)
     base = re.sub(r"_+", "_", base).strip("._")
     return base
-
 
 @router.post("/file-encryptor/convert-to-sdp")
 async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):

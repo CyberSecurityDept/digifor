@@ -60,7 +60,6 @@ router = APIRouter()
 
 hashfile_router = APIRouter(tags=["Hashfile Analytics"])
 
-
 @router.post("/analytics/start-analyzing")
 def create_analytic_with_devices(
     analytic_name: str = Form(...),
@@ -208,18 +207,6 @@ def _get_hashfile_analytics_data(
 
         print(f"[DEBUG] Found {len(hashfiles)} hashfiles for file_ids: {file_ids}")
         print(f"[DEBUG] Devices: {[{'id': d.id, 'file_id': d.file_id, 'owner': d.owner_name} for d in devices]}")
-
-        # Hashfile Analytics Logic:
-        # 1. Group hashfiles by combination of HASH + FILENAME (case-insensitive)
-        # 2. Key format: "hash_value::filename" (e.g., "f349834340dkfdfdkkk::contoh.png")
-        # 3. Track which devices contain each hash+filename combination
-        # 4. Only files that appear in >= 2 devices are considered "correlated"
-        # 
-        # Example: If "contoh.png" with hash "f349834340dkfdfdkkk" appears in:
-        #   - Device A (file_id=1)
-        #   - Device B (file_id=2)
-        #   - Device C (file_id=3)
-        # Then this file is correlated and will be shown in the report
         
         correlation_map: dict[str, dict[str, list | set]] = defaultdict(lambda: {"records": [], "devices": set()})
 
@@ -231,25 +218,20 @@ def _get_hashfile_analytics_data(
             if not hf.file_name:
                 continue
             
-            # Create unique key from hash + filename (case-insensitive, trimmed)
-            # This ensures we match files with same hash AND same filename
             key = f"{hash_value}::{hf.file_name.strip().lower()}"
             device_id = file_to_device.get(hf.file_id)
             if device_id is None:
                 continue
 
-            # Add this hashfile record to the correlation map
             records_list = correlation_map[key]["records"]
             if isinstance(records_list, list):
                 records_list.append(hf)
-            # Track which devices contain this hash+filename combination
             devices_set = correlation_map[key]["devices"]
             if isinstance(devices_set, set):
                 devices_set.add(device_id)
 
         logger.info(f"Total correlation keys (unique hash+filename combinations): {len(correlation_map)}")
         
-        # Log sample correlations for verification
         sample_keys = list(correlation_map.items())[:5]
         for key, data in sample_keys:
             hash_part, filename_part = key.split("::", 1) if "::" in key else (key[:20], "unknown")
@@ -263,7 +245,6 @@ def _get_hashfile_analytics_data(
         
         logger.info(f"Correlated items (appearing in >= {min_devices} devices): {len(correlated)}")
         
-        # Log statistics
         total_hashfiles_before_filter = len(hashfiles)
         total_unique_keys = len(correlation_map)
         total_correlated_keys = len(correlated)
@@ -310,11 +291,9 @@ def _get_hashfile_analytics_data(
             })
 
         hashfile_list.sort(key=lambda x: len(x["devices"]), reverse=True)
-        
         total_correlations = len(hashfile_list)
         logger.info(f"Returning {total_correlations} correlated hashfiles (sorted by number of devices)")
-        
-        # Log sample correlations for verification
+
         if hashfile_list:
             sample = hashfile_list[0]
             logger.info(f"Sample correlation - Filename: {sample.get('file_name', 'Unknown')[:50]}, "

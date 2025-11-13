@@ -193,5 +193,4 @@ def social_media_correlation(
     ),
     db: Session = Depends(get_db),
 ):
-    """Endpoint to get social media correlation data."""
     return _get_social_media_correlation_data(analytic_id, db, platform)

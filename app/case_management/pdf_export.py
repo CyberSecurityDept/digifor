@@ -22,10 +22,8 @@ class CaseStatus:
     REOPENED = "Re-open"
     CLOSED = "Closed"
 
-# Konfigurasi Logger
 logger = logging.getLogger(__name__)
 
-# Style Warna
 COLOR_PRIMARY_BLUE = colors.HexColor("#1a2b63")
 COLOR_HEADER_GREY = colors.HexColor("#f5f5f5")
 COLOR_TITLE = colors.HexColor("#0d0d0d")
@@ -45,7 +43,6 @@ USABLE_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
 
 def get_wib_now() -> datetime:
     return datetime.now(WIB)
-
 
 class CaseDetailPageCanvas(canvas.Canvas):
     def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
@@ -232,7 +229,6 @@ class CaseDetailPageCanvas(canvas.Canvas):
         self.setFillColor(colors.HexColor("#333333"))
         self.drawString(left_margin_footer, footer_y, footer_text)
         self.drawRightString(page_width - right_margin_footer, footer_y, page_text)
-
 
 def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
     try:

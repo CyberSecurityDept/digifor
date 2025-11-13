@@ -542,27 +542,20 @@ class CaseService:
         return case_data
     
     def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None) -> str:
-        
-        # Use settings REPORTS_DIR if not provided
         if output_dir is None:
             output_dir = settings.REPORTS_DIR
-        
-        # Get case detail data
+  
         case_data = self.get_case_detail_comprehensive(db, case_id)
-        
-        # Create output directory
+
         os.makedirs(output_dir, exist_ok=True)
-        
-        # Generate filename
+
         case_info = case_data.get("case", {})
         case_number = str(case_info.get("case_number", case_info.get("id", "unknown")))
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"case_detail_{case_number}_{timestamp}.pdf"
         output_path = os.path.join(output_dir, filename)
-        
-        # Generate PDF
+
         generate_case_detail_pdf(case_data, output_path)
-        
         return output_path
 
 class CaseLogService:
@@ -716,10 +709,8 @@ class CaseLogService:
             log = db.query(CaseLog).filter(CaseLog.id == log_id).first()
             if not log:
                 raise HTTPException(status_code=404, detail="Case log not found")
-            
             case = db.query(Case).filter(Case.id == log.case_id).first()
             current_case_status = case.status if case else None
-            
             created_at_value = getattr(log, 'created_at', None)
             if created_at_value:
                 if isinstance(created_at_value, datetime):

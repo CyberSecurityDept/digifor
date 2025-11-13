@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-
 class EvidenceBase(BaseModel):
     evidence_number: str = Field(..., description="Evidence number")
     title: str = Field(..., description="Evidence title")
@@ -20,10 +19,8 @@ class EvidenceBase(BaseModel):
     is_confidential: bool = Field(False, description="Is confidential")
     notes: Optional[str] = Field(None, description="Evidence notes")
 
-
 class EvidenceCreate(EvidenceBase):
     pass
-
 
 class EvidenceUpdate(BaseModel):
     title: Optional[str] = None
@@ -40,7 +37,6 @@ class EvidenceUpdate(BaseModel):
     is_confidential: Optional[bool] = None
     notes: Optional[str] = None
 
-
 class Evidence(EvidenceBase):
     id: int
     analysis_progress: int
@@ -50,12 +46,10 @@ class Evidence(EvidenceBase):
     class Config:
         from_attributes = True
 
-
 class EvidenceResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: Evidence
-
 
 class EvidenceListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -86,10 +80,8 @@ class CustodyLogBase(BaseModel):
     verification_method: Optional[str] = Field(None, description="Verification method (signature, biometric, digital_cert)")
     notes: Optional[str] = Field(None, description="Additional notes")
 
-
 class CustodyLogCreate(CustodyLogBase):
     created_by: str = Field(..., description="User who created the log")
-
 
 class CustodyLogUpdate(BaseModel):
     action_description: Optional[str] = None
@@ -97,7 +89,6 @@ class CustodyLogUpdate(BaseModel):
     conditions: Optional[str] = None
     duration: Optional[int] = None
     notes: Optional[str] = None
-
 
 class CustodyLog(CustodyLogBase):
     id: int
@@ -112,12 +103,10 @@ class CustodyLog(CustodyLogBase):
     class Config:
         from_attributes = True
 
-
 class CustodyLogResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CustodyLog
-
 
 class CustodyLogListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -126,7 +115,6 @@ class CustodyLogListResponse(BaseModel):
     total: int = Field(..., description="Total number of custody logs")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
-
 
 class CustodyChainResponse(BaseModel):
     evidence_id: int
@@ -138,8 +126,6 @@ class CustodyChainResponse(BaseModel):
     first_event: Optional[CustodyLog]
     last_event: Optional[CustodyLog]
 
-
-
 class CustodyReportBase(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")
     report_type: str = Field("standard", description="Report type (standard, iso_27037, nist)")
@@ -147,10 +133,8 @@ class CustodyReportBase(BaseModel):
     report_description: Optional[str] = Field(None, description="Report description")
     compliance_standard: Optional[str] = Field(None, description="Compliance standard (iso_27037, nist, custom)")
 
-
 class CustodyReportCreate(CustodyReportBase):
     generated_by: str = Field(..., description="User who generated the report")
-
 
 class CustodyReport(CustodyReportBase):
     id: int
@@ -168,12 +152,10 @@ class CustodyReport(CustodyReportBase):
     class Config:
         from_attributes = True
 
-
 class CustodyReportResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CustodyReport
-
 
 class CustodyReportListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -182,7 +164,6 @@ class CustodyReportListResponse(BaseModel):
     total: int = Field(..., description="Total number of reports")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
-
 
 class EvidenceNotesRequest(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")

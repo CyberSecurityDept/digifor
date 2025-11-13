@@ -159,8 +159,8 @@ def encrypt_folder(public_key_path, folder_path, output_dir=None, recursive=Fals
     
     os.makedirs(output_dir, exist_ok=True)
     
-    print(f"📁 Encrypting folder: {folder_path}")
-    print(f"📂 Output directory: {output_dir}")
+    print(f"Encrypting folder: {folder_path}")
+    print(f"Output directory: {output_dir}")
     print(f"Recursive: {'Yes' if recursive else 'No'}")
     print("=" * 50)
     
@@ -219,8 +219,8 @@ def decrypt_folder(private_key_path, folder_path, output_dir=None, recursive=Fal
     
     os.makedirs(output_dir, exist_ok=True)
     
-    print(f"📁 Decrypting folder: {folder_path}")
-    print(f"📂 Output directory: {output_dir}")
+    print(f"Decrypting folder: {folder_path}")
+    print(f"Output directory: {output_dir}")
     print(f"Recursive: {'Yes' if recursive else 'No'}")
     print("=" * 50)
     
