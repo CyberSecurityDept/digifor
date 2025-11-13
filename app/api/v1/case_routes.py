@@ -243,11 +243,6 @@ async def export_case_details_pdf(
     case_id: int,
     db: Session = Depends(get_database)
 ):
-    """
-    Export case detail to PDF document
-    
-    Returns PDF file with case information, persons of interest, and evidence
-    """
     try:
         # Check if case exists
         from app.case_management.models import Case
@@ -257,8 +252,7 @@ async def export_case_details_pdf(
                 status_code=404,
                 detail=f"Case with ID {case_id} not found"
             )
-        
-        # Generate PDF
+
         from app.core.config import settings
         pdf_path = case_service.export_case_detail_pdf(db, case_id, settings.REPORTS_DIR)
         
@@ -267,8 +261,7 @@ async def export_case_details_pdf(
                 status_code=500,
                 detail="Failed to generate PDF file"
             )
-        
-        # Get filename for download
+
         filename = os.path.basename(pdf_path)
         
         return FileResponse(

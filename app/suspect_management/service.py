@@ -5,7 +5,6 @@ from app.suspect_management.models import Suspect
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate
 from app.case_management.models import Case, Agency
 
-
 class SuspectService:
     def create_suspect(self, db: Session, suspect_data: SuspectCreate) -> dict:
         suspect = Suspect(**suspect_data.dict())

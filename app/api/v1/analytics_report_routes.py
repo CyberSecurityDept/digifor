@@ -195,7 +195,6 @@ def save_analytic_summary(
             status_code=500,
         )
 
-
 @router.put("/analytic/edit-summary")
 def edit_analytic_summary(
     request: SummaryRequest,
@@ -244,7 +243,6 @@ def edit_analytic_summary(
             },
             status_code=500,
         )
-
 
 class GlobalPageCanvas(canvas.Canvas):
 
@@ -375,20 +373,16 @@ def _export_hashfile_analytic_pdf(analytic, db):
         data={"total_contacts": total_contacts},
         method="hashfile_analytics"
     )
-    
     elapsed = time.time() - start_time
     logger.info(f"Hashfile Analytics PDF export completed - analytic_id={analytic.id}, total_contacts={total_contacts}, elapsed_time={elapsed:.2f}s")
     
     return result
 
-
 def _export_apk_analytics_pdf(analytic, db):
     logger.info(f"Starting APK Analytics PDF export for analytic_id={analytic.id}")
     start_time = time.time()
-    
     total_apks = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).count()
     logger.info(f"Total APK analytics to process: {total_apks}")
-    
     result = _generate_pdf_report(
         analytic, db,
         report_type="APK Analytics Report",
@@ -399,9 +393,7 @@ def _export_apk_analytics_pdf(analytic, db):
     
     elapsed = time.time() - start_time
     logger.info(f"APK Analytics PDF export completed - analytic_id={analytic.id}, total_apks={total_apks}, elapsed_time={elapsed:.2f}s")
-    
     return result
-
 
 def _export_communication_analytics_pdf(analytic, db,source,person_name,device_id):
     communications = []
@@ -416,7 +408,6 @@ def _export_communication_analytics_pdf(analytic, db,source,person_name,device_i
         device_id=device_id
     )
 
-
 def _export_social_media_analytics_pdf(analytic, db,source):
     return _generate_pdf_report(
         analytic, db,
@@ -426,7 +417,6 @@ def _export_social_media_analytics_pdf(analytic, db,source):
         method="social_media_correlation",
         source=source
     )
-
 
 def _export_generic_analytics_pdf(analytic, db):
     return _generate_pdf_report(
@@ -451,7 +441,6 @@ def _generate_pdf_report(
         return _generate_social_media_correlation_report(analytic, db, report_type, filename_prefix, data,source)
     elif method == "hashfile_analytics":
         return _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data)
-
 
 def _build_table_header_style():
     return TableStyle([
@@ -713,7 +702,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
 
 def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, data):
 
@@ -1006,7 +994,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
-
 def _generate_contact_correlation_report(analytic, db, report_type, filename_prefix, data):
     logger.info(f"Starting Contact Correlation PDF generation - analytic_id={analytic.id}")
     report_start_time = time.time()
@@ -1088,8 +1075,7 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
         table_data = [header_row]
 
-        # Optimize: Process correlations in batches for large datasets
-        batch_size = 10000  # Process 10k correlations at a time
+        batch_size = 10000
         total_correlations = len(correlations)
         
         logger.info(f"Processing {total_correlations} correlations in batches of {batch_size} for group {group_index}")

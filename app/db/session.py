@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine  # type: ignore
 from sqlalchemy.orm import sessionmaker  # type: ignore
 from typing import Generator
-
 from app.core.config import settings
 from app.db.base import Base
 from app.case_management.models import Case
@@ -17,7 +16,6 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
 def get_db() -> Generator:
     db = SessionLocal()
     try:
@@ -27,7 +25,6 @@ def get_db() -> Generator:
         raise
     finally:
         db.close()
-
 
 def init_db():
     Base.metadata.create_all(bind=engine)

@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 
-
 class SuspectBase(BaseModel):
     name: str = Field(..., description="Full name")
     case_name: Optional[str] = Field(None, description="Associated case name")
@@ -25,7 +24,6 @@ class SuspectBase(BaseModel):
     risk_assessment_notes: Optional[str] = Field(None, description="Risk assessment notes")
     is_confidential: bool = Field(False, description="Is confidential")
     notes: Optional[str] = Field(None, description="Additional notes")
-
 
 class SuspectCreate(SuspectBase):
     pass
@@ -53,7 +51,6 @@ class SuspectUpdate(BaseModel):
     is_confidential: Optional[bool] = None
     notes: Optional[str] = None
 
-
 class Suspect(SuspectBase):
     id: int
     created_at: datetime
@@ -62,12 +59,10 @@ class Suspect(SuspectBase):
     class Config:
         from_attributes = True
 
-
 class SuspectResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: Suspect
-
 
 class SuspectListItem(BaseModel):
     id: int
@@ -83,7 +78,6 @@ class SuspectListItem(BaseModel):
     class Config:
         from_attributes = True
 
-
 class SuspectListResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
@@ -91,7 +85,6 @@ class SuspectListResponse(BaseModel):
     total: int = Field(..., description="Total number of suspects")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
-
 
 class SuspectNotesRequest(BaseModel):
     suspect_id: int = Field(..., description="Suspect ID")

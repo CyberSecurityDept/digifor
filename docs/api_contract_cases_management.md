@@ -240,6 +240,92 @@ curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
 
 ---
 
+### Get Current User Profile
+**Endpoint:** `GET /api/v1/auth/me`
+
+**Description:** Get current authenticated user profile information. Returns user details including id, email, fullname, tag, and role.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User profile retrieved successfully",
+  "data": {
+    "id": 1,
+    "email": "admin@gmail.com",
+    "fullname": "Admin Forensic",
+    "tag": "Admin",
+    "role": "admin"
+  }
+}
+```
+
+**Response Data Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | User ID |
+| `email` | string | User email address |
+| `fullname` | string | User full name |
+| `tag` | string | User tag/category (e.g., "Admin", "Investigator", "Ahli Forensic") |
+| `role` | string | User role (e.g., "admin", "user") |
+
+**Error Responses:**
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**401 Unauthorized (Expired Token):**
+```json
+{
+  "status": 401,
+  "message": "Expired token",
+  "data": null
+}
+```
+
+**401 Unauthorized (Inactive User):**
+```json
+{
+  "status": 401,
+  "message": "Inactive or missing user",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve user profile",
+  "data": null
+}
+```
+
+**500 Internal Server Error (Missing User Data):**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve user profile - missing user data",
+  "data": null
+}
+```
+
+**Example Request:**
+```bash
+curl -X GET "http://localhost:8000/api/v1/auth/me" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+---
+
 ### Create User (Admin Only)
 **Endpoint:** `POST /api/v1/auth/create-user`
 

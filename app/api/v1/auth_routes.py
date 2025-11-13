@@ -10,6 +10,7 @@ from app.auth.models import User
 from app.core.config import settings
 from app.core import security
 from fastapi.security import OAuth2PasswordBearer
+from app.api.deps import get_current_user
 
 
 router = APIRouter(prefix="/auth")
@@ -95,9 +96,56 @@ def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
         status_code=200
     )
 
+@router.get(
+    "/me",
+    summary="Get current user profile",
+    openapi_extra={"security": [{"BearerAuth": []}]}
+)
+def get_me(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        user_data = {
+            "id": current_user.id,
+            "email": current_user.email,
+            "fullname": current_user.fullname,
+            "tag": current_user.tag,
+            "role": current_user.role
+        }
+        
+        return JSONResponse(
+            {
+                "status": 200,
+                "message": "User profile retrieved successfully",
+                "data": user_data
+            },
+            status_code=200
+        )
+    except AttributeError as e:
+        print(f"Get me error - Missing user attribute: {e}")
+        return JSONResponse(
+            {
+                "status": 500,
+                "message": "Failed to retrieve user profile - missing user data",
+                "data": None
+            },
+            status_code=500
+        )
+    except Exception as e:
+        print(f"Get me error: {e}")
+        return JSONResponse(
+            {
+                "status": 500,
+                "message": "Failed to retrieve user profile",
+                "data": None
+            },
+            status_code=500
+        )
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     try:
         if service.is_token_blacklisted(db, token):
             raise HTTPException(status_code=401, detail="Token has been revoked")
@@ -123,7 +171,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 )
 def logout(
     request: Request,
-    current_user: User = Security(get_current_user),
+    current_user: User = Security(get_current_user_token),
     db: Session = Depends(get_db)
 ):
     try:
