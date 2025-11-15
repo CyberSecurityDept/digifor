@@ -3,6 +3,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.shared.models import Analytic, Device, AnalyticDevice, Contact
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 from collections import defaultdict
 import re
 from typing import List, Dict, Any
@@ -25,7 +28,7 @@ def normalize_phone_number(phone: str) -> str:
     
     return phone
 
-def _get_contact_correlation_data(analytic_id: int, db: Session):
+def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=None):
     min_devices = 2
     
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
@@ -33,6 +36,12 @@ def _get_contact_correlation_data(analytic_id: int, db: Session):
         return JSONResponse(
             content={"status": 404, "message": "Analytic not found", "data": None},
             status_code=404,
+        )
+    
+    if current_user is not None and not check_analytic_access(analytic, current_user):
+        return JSONResponse(
+            content={"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+            status_code=403,
         )
     
     method_value = analytic.method
@@ -207,6 +216,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session):
 @router.get("/analytic/contact-correlation")
 def get_contact_correlation(
     analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _get_contact_correlation_data(analytic_id, db)
+    return _get_contact_correlation_data(analytic_id, db, current_user)

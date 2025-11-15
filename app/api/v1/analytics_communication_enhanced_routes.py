@@ -9,6 +9,9 @@ from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
 import traceback, re
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
@@ -134,6 +137,7 @@ def get_chat_messages_for_analytic(
 def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
     analytic_id: int = Query(..., description="Analytic ID"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -145,6 +149,15 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -535,6 +548,7 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
     analytic_id: int = Query(..., description="Analytic ID"),
     platform: str = Query(..., description="Platform name (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -566,6 +580,15 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -1048,6 +1071,7 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
     platform: Optional[str] = Query(None, description="Platform name (optional, can filter by search only)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     search: Optional[str] = Query(None, description="Search text in messages (optional)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1076,10 +1100,10 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 return JSONResponse(
                     content={
                         "status": 400,
-                        "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
-                    },
-                    status_code=400
-                )
+                    "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
+                },
+                status_code=400
+            )
         
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
@@ -1089,6 +1113,15 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(

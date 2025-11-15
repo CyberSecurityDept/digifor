@@ -35,10 +35,22 @@ async def get_evidence_list(
     search: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
     sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
         query = db.query(Evidence).options(joinedload(Evidence.case))
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            query = query.join(Case).filter(
+                or_(
+                    Case.main_investigator.ilike(f"%{user_fullname}%"),
+                    Case.main_investigator.ilike(f"%{user_email}%")
+                )
+            )
         if search:
             search_pattern = f"%{search.strip()}%"
             query = query.filter(
@@ -119,11 +131,32 @@ async def get_evidence_list(
 
 @router.get("/get-evidence-summary")
 async def get_evidence_summary(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        total_cases = db.query(Case).count()
-        total_evidence = db.query(Evidence).count()
+        case_query = db.query(Case)
+        evidence_query = db.query(Evidence)
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            case_query = case_query.filter(
+                or_(
+                    Case.main_investigator.ilike(f"%{user_fullname}%"),
+                    Case.main_investigator.ilike(f"%{user_email}%")
+                )
+            )
+            evidence_query = evidence_query.join(Case).filter(
+                or_(
+                    Case.main_investigator.ilike(f"%{user_fullname}%"),
+                    Case.main_investigator.ilike(f"%{user_email}%")
+                )
+            )
+        
+        total_cases = case_query.count()
+        total_evidence = evidence_query.count()
         
         return JSONResponse(
             status_code=200,
@@ -164,6 +197,14 @@ async def create_evidence(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            main_investigator = case.main_investigator or ''
+            if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                raise HTTPException(status_code=403, detail="You do not have permission to create evidence for this case")
         if is_unknown_person:
             pass
         elif not is_unknown_person:
@@ -439,8 +480,23 @@ async def create_evidence(
 @router.get("/get-evidence-by-id{evidence_id}")
 async def get_evidence(
     evidence_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
+    evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
+    if not evidence:
+        raise HTTPException(status_code=404, detail=f"Evidence with ID {evidence_id} not found")
+    
+    user_role = getattr(current_user, 'role', None)
+    if user_role != "admin":
+        case = db.query(Case).filter(Case.id == evidence.case_id).first()
+        if case:
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            main_investigator = case.main_investigator or ''
+            if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                raise HTTPException(status_code=403, detail="You do not have permission to access this evidence")
+    
     return {
         "status": 200,
         "message": "Evidence retrieved successfully",

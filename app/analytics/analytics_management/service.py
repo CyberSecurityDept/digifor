@@ -12,10 +12,12 @@ import requests
 import re
 from datetime import datetime
 
-def store_analytic(db: Session, analytic_name: str, method: str = None):
+def store_analytic(db: Session, analytic_name: str, method: str = None, summary: str = None, created_by: str = None):
     new_analytic = Analytic(
         analytic_name=analytic_name,
         method=method,
+        summary=summary,
+        created_by=created_by,
         created_at=get_indonesia_time()
     )
     db.add(new_analytic)

@@ -27,10 +27,21 @@ class SuspectService:
             "updated_at": suspect.updated_at
         }
     
-    def get_suspect(self, db: Session, suspect_id: int) -> dict:
+    def get_suspect(self, db: Session, suspect_id: int, current_user=None) -> dict:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             raise Exception(f"Suspect with ID {suspect_id} not found")
+        
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+                if case:
+                    user_fullname = getattr(current_user, 'fullname', '') or ''
+                    user_email = getattr(current_user, 'email', '') or ''
+                    main_investigator = case.main_investigator or ''
+                    if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                        raise Exception("You do not have permission to access this suspect")
         
         return {
             "id": suspect.id,
@@ -47,8 +58,21 @@ class SuspectService:
             "updated_at": suspect.updated_at
         }
     
-    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None) -> Tuple[List[dict], int]:
+    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None, current_user=None) -> Tuple[List[dict], int]:
         query = db.query(Suspect)
+        
+        # Filter by user role: admin sees all, user sees only suspects from their cases
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                user_fullname = getattr(current_user, 'fullname', '') or ''
+                user_email = getattr(current_user, 'email', '') or ''
+                query = query.join(Case).filter(
+                    or_(
+                        Case.main_investigator.ilike(f"%{user_fullname}%"),
+                        Case.main_investigator.ilike(f"%{user_email}%")
+                    )
+                )
         if search:
             search_filter = or_(
                 Suspect.name.ilike(f"%{search}%"),
@@ -104,10 +128,22 @@ class SuspectService:
             result.append(suspect_dict)
         return result, total
     
-    def update_suspect(self, db: Session, suspect_id: int, suspect_data: SuspectUpdate) -> dict:
+    def update_suspect(self, db: Session, suspect_id: int, suspect_data: SuspectUpdate, current_user=None) -> dict:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             raise Exception(f"Suspect with ID {suspect_id} not found")
+        
+        # Check access permission: admin can update all, user can only update suspects from their cases
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+                if case:
+                    user_fullname = getattr(current_user, 'fullname', '') or ''
+                    user_email = getattr(current_user, 'email', '') or ''
+                    main_investigator = case.main_investigator or ''
+                    if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                        raise Exception("You do not have permission to update this suspect")
         
         current_is_unknown = getattr(suspect, 'is_unknown', False)
         update_data = suspect_data.dict(exclude_unset=True)
@@ -139,10 +175,21 @@ class SuspectService:
             "updated_at": suspect.updated_at
         }
 
-    def delete_suspect(self, db: Session, suspect_id: int) -> bool:
+    def delete_suspect(self, db: Session, suspect_id: int, current_user=None) -> bool:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             return False
+        
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+                if case:
+                    user_fullname = getattr(current_user, 'fullname', '') or ''
+                    user_email = getattr(current_user, 'email', '') or ''
+                    main_investigator = case.main_investigator or ''
+                    if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                        raise Exception("You do not have permission to delete this suspect")
         
         db.delete(suspect)
         db.commit()

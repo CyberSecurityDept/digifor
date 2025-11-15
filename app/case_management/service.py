@@ -14,6 +14,21 @@ from app.core.config import settings
 def get_wib_now():
     return datetime.now(WIB)
 
+def check_case_access(case: Case, current_user) -> bool:
+    if current_user is None:
+        return False
+    
+    user_role = getattr(current_user, 'role', None)
+    if user_role == "admin":
+        return True
+    
+    user_fullname = getattr(current_user, 'fullname', '') or ''
+    user_email = getattr(current_user, 'email', '') or ''
+    main_investigator = case.main_investigator or ''
+    
+    return (user_fullname.lower() in main_investigator.lower() or 
+            user_email.lower() in main_investigator.lower())
+
 def format_date_indonesian(date_value: datetime) -> str:
     month_names = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
@@ -184,8 +199,20 @@ class CaseService:
         assert isinstance(case_response["updated_at"], str), f"updated_at must be string, got {type(case_response['updated_at'])}"
         return case_response
     
-    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
+    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None, current_user=None) -> dict:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
+
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                user_fullname = getattr(current_user, 'fullname', '') or ''
+                user_email = getattr(current_user, 'email', '') or ''
+                query = query.filter(
+                    or_(
+                        Case.main_investigator.ilike(f"%{user_fullname}%"),
+                        Case.main_investigator.ilike(f"%{user_email}%")
+                    )
+                )
         status_mapping = {
             'open': 'Open',
             'OPEN': 'Open',
@@ -266,10 +293,13 @@ class CaseService:
             "total": total_count
         }
     
-    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
+    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if current_user is not None and not check_case_access(case, current_user):
+            raise HTTPException(status_code=403, detail="You do not have permission to update this case")
         update_data = case_data.dict(exclude_unset=True)
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
@@ -328,11 +358,24 @@ class CaseService:
         
         return case_dict
     
-    def get_case_statistics(self, db: Session) -> dict:
-        total_cases = db.query(Case).count()
-        open_cases = db.query(Case).filter(Case.status == "Open").count()
-        closed_cases = db.query(Case).filter(Case.status == "Closed").count()
-        reopened_cases = db.query(Case).filter(Case.status == "Re-open").count()
+    def get_case_statistics(self, db: Session, current_user=None) -> dict:
+        query = db.query(Case)
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                user_fullname = getattr(current_user, 'fullname', '') or ''
+                user_email = getattr(current_user, 'email', '') or ''
+                query = query.filter(
+                    or_(
+                        Case.main_investigator.ilike(f"%{user_fullname}%"),
+                        Case.main_investigator.ilike(f"%{user_email}%")
+                    )
+                )
+        
+        total_cases = query.count()
+        open_cases = query.filter(Case.status == "Open").count()
+        closed_cases = query.filter(Case.status == "Closed").count()
+        reopened_cases = query.filter(Case.status == "Re-open").count()
         
         return {
             "open_cases": open_cases,
@@ -341,10 +384,13 @@ class CaseService:
             "total_cases": total_cases
         }
     
-    def save_case_notes(self, db: Session, case_id: int, notes: str) -> dict:
+    def save_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if current_user is not None and not check_case_access(case, current_user):
+            raise HTTPException(status_code=403, detail="You do not have permission to save notes for this case")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -364,10 +410,13 @@ class CaseService:
             "updated_at": updated_at_str
         }
     
-    def edit_case_notes(self, db: Session, case_id: int, notes: str) -> dict:
+    def edit_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+
+        if current_user is not None and not check_case_access(case, current_user):
+            raise HTTPException(status_code=403, detail="You do not have permission to edit notes for this case")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -434,10 +483,20 @@ class CaseService:
         
         return chain_of_custody
     
-    def get_case_detail_comprehensive(self, db: Session, case_id: int) -> dict:
+    def get_case_detail_comprehensive(self, db: Session, case_id: int, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        # Check access permission: admin can access all, user can only access their cases
+        if current_user is not None:
+            user_role = getattr(current_user, 'role', None)
+            if user_role != "admin":
+                user_fullname = getattr(current_user, 'fullname', '') or ''
+                user_email = getattr(current_user, 'email', '') or ''
+                main_investigator = case.main_investigator or ''
+                if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                    raise HTTPException(status_code=403, detail="You do not have permission to access this case")
         
         agency_name = None
         work_unit_name = None
@@ -541,11 +600,11 @@ class CaseService:
         
         return case_data
     
-    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None) -> str:
+    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None, current_user=None) -> str:
         if output_dir is None:
             output_dir = settings.REPORTS_DIR
   
-        case_data = self.get_case_detail_comprehensive(db, case_id)
+        case_data = self.get_case_detail_comprehensive(db, case_id, current_user)
 
         os.makedirs(output_dir, exist_ok=True)
 

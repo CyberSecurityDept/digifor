@@ -1,5 +1,5 @@
 
-Senin 13 November 2025
+Laporan Pekerjaan Senin 13 November 2025
 
 Case Management
 
@@ -48,3 +48,30 @@ Case Management
 
 
 
+{
+    "status": 200,
+    "message": "Users retrieved successfully",
+    "data": [
+        {
+            "id": 2,
+            "fullname": "Ivestigator",
+            "email": "investigator@gmail.com",
+            "role": "user",
+            "tag": "Investigator",
+            "is_active": true,
+            "created_at": "2025-11-13T17:24:58.612660"
+        },
+        {
+            "id": 1,
+            "fullname": "Admin Forensic",
+            "email": "admin@gmail.com",
+            "role": "admin",
+            "tag": "Admin",
+            "is_active": true,
+            "created_at": "2025-11-12T02:33:42.246135"
+        }
+    ],
+    "total": 2,
+    "page": 1,
+    "size": 10
+}

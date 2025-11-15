@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional
 from datetime import datetime, timezone
 import traceback, os, hashlib
@@ -20,10 +21,11 @@ async def get_suspects(
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        suspects, total = suspect_service.get_suspects(db, skip, limit, search, status)
+        suspects, total = suspect_service.get_suspects(db, skip, limit, search, status, current_user)
         
         return SuspectListResponse(
             status=200,
@@ -42,11 +44,32 @@ async def get_suspects(
 
 @router.get("/get-suspect-summary")
 async def get_suspect_summary(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        total_person = db.query(Suspect).count()
-        total_evidence = db.query(Evidence).count()
+        suspect_query = db.query(Suspect)
+        evidence_query = db.query(Evidence)
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            suspect_query = suspect_query.join(Case).filter(
+                or_(
+                    Case.main_investigator.ilike(f"%{user_fullname}%"),
+                    Case.main_investigator.ilike(f"%{user_email}%")
+                )
+            )
+            evidence_query = evidence_query.join(Case).filter(
+                or_(
+                    Case.main_investigator.ilike(f"%{user_fullname}%"),
+                    Case.main_investigator.ilike(f"%{user_email}%")
+                )
+            )
+        
+        total_person = suspect_query.count()
+        total_evidence = evidence_query.count()
         return JSONResponse(
             status_code=200,
             content={
@@ -84,6 +107,14 @@ async def create_suspect(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            main_investigator = case.main_investigator or ''
+            if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
+                raise HTTPException(status_code=403, detail="You do not have permission to create suspect for this case")
         is_unknown_flag = is_unknown_person if is_unknown_person is not None else is_unknown
         if is_unknown_flag:
             pass
@@ -260,10 +291,11 @@ async def create_suspect(
 @router.get("/get-suspect-by-id/{suspect_id}", response_model=SuspectResponse)
 async def get_suspect(
     suspect_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        suspect = suspect_service.get_suspect(db, suspect_id)
+        suspect = suspect_service.get_suspect(db, suspect_id, current_user)
         return SuspectResponse(
             status=200,
             message="Suspect retrieved successfully",
@@ -285,10 +317,11 @@ async def get_suspect(
 async def update_suspect(
     suspect_id: int,
     suspect_data: SuspectUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        suspect = suspect_service.update_suspect(db, suspect_id, suspect_data)
+        suspect = suspect_service.update_suspect(db, suspect_id, suspect_data, current_user)
         return SuspectResponse(
             status=200,
             message="Suspect updated successfully",
@@ -309,10 +342,11 @@ async def update_suspect(
 @router.delete("/delete-suspect/{suspect_id}")
 async def delete_suspect(
     suspect_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        success = suspect_service.delete_suspect(db, suspect_id)
+        success = suspect_service.delete_suspect(db, suspect_id, current_user)
         if success:
             return {"status": 200, "message": "Suspect deleted successfully"}
         else:

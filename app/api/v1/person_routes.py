@@ -9,6 +9,7 @@ from app.api.deps import get_database, get_current_user
 from app.auth.models import User
 from fastapi.responses import JSONResponse
 import traceback, os, hashlib
+from app.case_management.service import check_case_access
 
 router = APIRouter(prefix="/persons", tags=["Person Management"])
 
@@ -29,6 +30,9 @@ async def create_person(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if current_user is not None and not check_case_access(case, current_user):
+            raise HTTPException(status_code=403, detail="You do not have permission to create person for this case")
         
         if not is_unknown_person:
             if not person_name or not person_name.strip():
@@ -284,6 +288,13 @@ async def update_person(
         suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
+        
+        case = db.query(Case).filter(Case.id == suspect.case_id).first()
+        if case:
+            from app.case_management.service import check_case_access
+            if current_user is not None and not check_case_access(case, current_user):
+                raise HTTPException(status_code=403, detail="You do not have permission to update this person")
+        
         if is_unknown_person is not None:
             setattr(suspect, 'is_unknown', is_unknown_person)
 
@@ -393,6 +404,13 @@ async def delete_person(
         suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
+        
+        case = db.query(Case).filter(Case.id == suspect.case_id).first()
+        if case:
+            from app.case_management.service import check_case_access
+            if current_user is not None and not check_case_access(case, current_user):
+                raise HTTPException(status_code=403, detail="You do not have permission to delete this person")
+        
         suspect_name = suspect.name
         case_id = suspect.case_id
         evidence_list = db.query(Evidence).filter(Evidence.suspect_id == person_id).all()

@@ -120,9 +120,10 @@ class UploadService:
         file: UploadFile,
         file_name: str,
         notes: str | None,
-        type: str,
-        tools: str,
-        file_bytes: bytes,
+        created_by: str | None = None,
+        type: str = None,
+        tools: str = None,
+        file_bytes: bytes = None,
         method: str | None = None,
     ):
         start_time = time.time()
@@ -329,6 +330,7 @@ class UploadService:
                 file_name=file_name,
                 file_path=rel_path,
                 notes=notes,
+                created_by=created_by,
                 type=type,
                 tools=tools,
                 method=method,

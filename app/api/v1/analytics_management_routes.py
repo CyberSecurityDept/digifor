@@ -14,8 +14,31 @@ from app.core.config import settings
 from datetime import datetime, date, time
 import logging, os
 from collections import defaultdict
+from app.auth.models import User
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
+
+def check_analytic_access(analytic: Analytic, current_user) -> bool:
+    if current_user is None:
+        return False
+    
+    user_role = getattr(current_user, 'role', None)
+    if user_role == "admin":
+        return True
+    
+    user_fullname = getattr(current_user, 'fullname', '') or ''
+    user_email = getattr(current_user, 'email', '') or ''
+    analytic_name = analytic.analytic_name or ''
+    analytic_summary = analytic.summary or ''
+    analytic_created_by = analytic.created_by or ''
+    
+    return (user_fullname.lower() in analytic_name.lower() or 
+            user_email.lower() in analytic_name.lower() or
+            user_fullname.lower() in analytic_summary.lower() or 
+            user_email.lower() in analytic_summary.lower() or
+            user_fullname.lower() in analytic_created_by.lower() or 
+            user_email.lower() in analytic_created_by.lower())
 
 def parse_date_string(date_str: str) -> datetime:
     try:
@@ -64,6 +87,7 @@ hashfile_router = APIRouter(tags=["Hashfile Analytics"])
 def create_analytic_with_devices(
     analytic_name: str = Form(...),
     method: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -95,10 +119,16 @@ def create_analytic_with_devices(
                 status_code=400
             )
 
+        # Add user information to created_by field for access control filtering
+        user_fullname = getattr(current_user, 'fullname', '') or ''
+        user_email = getattr(current_user, 'email', '') or ''
+        created_by_info = f"Created by: {user_fullname} ({user_email})" if user_fullname or user_email else ""
+        
         new_analytic = store_analytic(
             db=db,
             analytic_name=analytic_name,
             method=method,
+            created_by=created_by_info
         )
         
         db.commit()
@@ -114,23 +144,31 @@ def create_analytic_with_devices(
             }
         }
 
-        return {
-            "status": 200,
-            "message": "Analytics created successfully",
-            "data": result
-        }
+        return JSONResponse(
+            content={
+                "status": 200,
+                "message": "Analytics created successfully",
+                "data": result
+            },
+            status_code=200
+        )
 
     except Exception as e:
         db.rollback()
-        return {
-            "status": 500,
-            "message": f"Gagal membuat analytic: {str(e)}",
-            "data": []
-        }
+        logger.error(f"Error creating analytic: {str(e)}")
+        return JSONResponse(
+            content={
+                "status": 500,
+                "message": f"Gagal membuat analytic: {str(e)}",
+                "data": None
+            },
+            status_code=500
+        )
     
 def _get_hashfile_analytics_data(
     analytic_id: int,
-    db: Session
+    db: Session,
+    current_user=None
 ):
     try:
         min_devices = 2
@@ -139,6 +177,12 @@ def _get_hashfile_analytics_data(
             return JSONResponse(
                 {"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404,
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+                status_code=403,
             )
         method_value = analytic.method
         if method_value is None or str(method_value) != "Hashfile Analytics":
@@ -199,9 +243,29 @@ def _get_hashfile_analytics_data(
             .all()
         )
 
+        devices_list_empty = [
+            {
+                "device_label": device_labels[i],
+                "owner_name": d.owner_name,
+                "phone_number": d.phone_number,
+            }
+            for i, d in enumerate(devices)
+        ]
+        
         if not hashfiles:
+            summary_value = analytic.summary
+            summary = summary_value if summary_value is not None else None
             return JSONResponse(
-                {"status": 200, "message": "No hashfile data found", "data": {"devices": [], "correlations": [], "total_correlations": 0}},
+                content={
+                    "status": 200,
+                    "message": "No hashfile data found",
+                    "data": {
+                        "devices": devices_list_empty,
+                        "correlations": [],
+                        "summary": summary,
+                        "total_correlations": 0
+                    }
+                },
                 status_code=200,
             )
 
@@ -312,7 +376,7 @@ def _get_hashfile_analytics_data(
         summary_value = analytic.summary
         summary = summary_value if summary_value is not None else None
         return JSONResponse(
-            {
+            content={
                 "status": 200,
                 "message": "Hashfile correlation completed successfully",
                 "data": {
@@ -326,8 +390,9 @@ def _get_hashfile_analytics_data(
         )
 
     except Exception as e:
+        logger.error(f"Error getting hashfile analytics: {str(e)}")
         return JSONResponse(
-            {
+            content={
                 "status": 500,
                 "message": f"Failed to get hashfile analytics: {str(e)}",
                 "data": None,
@@ -338,14 +403,16 @@ def _get_hashfile_analytics_data(
 @hashfile_router.get("/analytics/hashfile-analytics")
 def get_hashfile_analytics(
     analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return _get_hashfile_analytics_data(analytic_id, db)
+    return _get_hashfile_analytics_data(analytic_id, db, current_user)
 
 
 @router.post("/analytics/start-extraction")
 def start_data_extraction(
     analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -354,6 +421,12 @@ def start_data_extraction(
             return JSONResponse(
                 {"status": 404, "message": "Analytic not found", "data": []},
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -441,10 +514,24 @@ def start_data_extraction(
                 },
                 status_code=200
             )
+        else:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": f"Unsupported method: {method_str}. Supported methods: Contact Correlation, Hashfile Analytics, Deep Communication Analytics, Social Media Correlation",
+                    "data": None
+                },
+                status_code=400
+            )
 
     except Exception as e:
+        logger.error(f"Error starting data extraction: {str(e)}")
         return JSONResponse(
-            {"status": 500, "message": f"Failed to start data extraction: {str(e)}", "data": []},
+            content={
+                "status": 500,
+                "message": f"Failed to start data extraction: {str(e)}",
+                "data": None
+            },
             status_code=500
         )
 
@@ -452,10 +539,27 @@ def start_data_extraction(
 def get_all_analytic(
     search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
     method: Optional[str] = Query(None, description="Filter by method"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
         query = db.query(Analytic)
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            if user_fullname or user_email:
+                query = query.filter(
+                    or_(
+                        Analytic.analytic_name.ilike(f"%{user_fullname}%"),
+                        Analytic.analytic_name.ilike(f"%{user_email}%"),
+                        Analytic.summary.ilike(f"%{user_fullname}%"),
+                        Analytic.summary.ilike(f"%{user_email}%"),
+                        Analytic.created_by.ilike(f"%{user_fullname}%"),
+                        Analytic.created_by.ilike(f"%{user_email}%")
+                    )
+                )
 
         if search:
             search_pattern = f"%{search}%"
@@ -493,11 +597,12 @@ def get_all_analytic(
         )
 
     except Exception as e:
+        logger.error(f"Error getting all analytics: {str(e)}")
         return JSONResponse(
             content={
                 "status": 500,
                 "message": f"Gagal mengambil data: {str(e)}",
-                "data": []
+                "data": None
             },
             status_code=500
         )

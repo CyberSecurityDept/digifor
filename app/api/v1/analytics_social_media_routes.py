@@ -5,13 +5,17 @@ from sqlalchemy import text
 from app.db.session import get_db
 from app.analytics.shared.models import Analytic, AnalyticDevice, Device, SocialMedia
 from typing import Optional
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
 def _get_social_media_correlation_data(
     analytic_id: int,
     db: Session,
-    platform: Optional[str] = "Instagram"
+    platform: Optional[str] = "Instagram",
+    current_user=None
 ):
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
@@ -19,6 +23,13 @@ def _get_social_media_correlation_data(
             {"status": 404, "message": "Analytic not found", "data": {}},
             status_code=404,
         )
+    
+    if current_user is not None:
+        if not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
+                status_code=403,
+            )
 
     if analytic.method is None or str(analytic.method) != "Social Media Correlation":
         return JSONResponse(
@@ -191,6 +202,7 @@ def social_media_correlation(
         "Instagram",
         description='Platform filter: "Instagram", "Facebook", "WhatsApp", "TikTok", "Telegram", "X"',
     ),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _get_social_media_correlation_data(analytic_id, db, platform)
+    return _get_social_media_correlation_data(analytic_id, db, platform, current_user)

@@ -6,7 +6,10 @@ from app.analytics.analytics_management.service import analyze_apk_from_file
 from app.analytics.analytics_management.models import ApkAnalytic, Analytic
 from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
+from app.auth.models import User
+from app.api.deps import get_current_user
 import asyncio, time, uuid, traceback
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
@@ -68,7 +71,12 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
         )
 
 @router.post("/analytics/analyze-apk")
-def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
+def analyze_apk(
+    file_id: int, 
+    analytic_id: int, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     try:
         analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic_obj:
@@ -76,6 +84,14 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
                 {"status": 404, "message": f"Analytics Not Found", "data": None},
                 status_code=404,
             )
+        
+        
+        if current_user is not None and not check_analytic_access(analytic_obj, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+                status_code=403,
+            )
+        
         file_obj = db.query(File).filter(File.id == file_id).first()
         if not file_obj:
             return JSONResponse(
@@ -210,8 +226,18 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
 @router.get("/analytics/apk-analytic")
 def get_apk_analysis(
     analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
+    if analytic_obj:
+        
+        if current_user is not None and not check_analytic_access(analytic_obj, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
+                status_code=403,
+            )
+    
     apk_records = (
         db.query(ApkAnalytic)
         .filter(ApkAnalytic.analytic_id == analytic_id)

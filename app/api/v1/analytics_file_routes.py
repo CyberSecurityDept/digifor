@@ -17,6 +17,8 @@ from typing import Optional
 import os, time, uuid, asyncio, re
 from app.api.v1.analytics_apk_routes import UPLOAD_PROGRESS as APK_PROGRESS, run_real_upload_and_finalize as run_real_upload_and_finalize_apk
 from sqlalchemy import or_  # type: ignore
+from app.auth.models import User
+from app.api.deps import get_current_user
 
 
 router = APIRouter()
@@ -34,6 +36,7 @@ async def run_real_upload_and_finalize(
     file: UploadFile,
     file_name: str,
     notes: Optional[str],
+    created_by: Optional[str],
     type: str,
     tools: str,
     file_bytes: bytes,
@@ -58,6 +61,7 @@ async def run_real_upload_and_finalize(
                 file=file,
                 file_name=file_name,
                 notes=notes,
+                created_by=created_by,
                 type=type,
                 tools=tools,
                 file_bytes=file_bytes,
@@ -184,6 +188,7 @@ async def upload_data(
     type: str = Form(...),
     tools: str = Form(...),
     method: str = Form(...),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         required_fields = {
@@ -250,6 +255,10 @@ async def upload_data(
         if total_size > 104_857_600:
             return JSONResponse({"status": 400, "message": "File size exceeds 100MB limit"}, status_code=400)
 
+        user_fullname = getattr(current_user, 'fullname', '') or ''
+        user_email = getattr(current_user, 'email', '') or ''
+        created_by = f"Created by: {user_fullname} ({user_email})" if user_fullname or user_email else ""
+
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
         UPLOAD_PROGRESS[upload_id] = {
@@ -265,6 +274,7 @@ async def upload_data(
                 "file_obj": file,
                 "file_name": file_name,
                 "notes": notes,
+                "created_by": created_by,
                 "type": type,
                 "tools": tools,
                 "file_bytes": file_bytes,
@@ -315,6 +325,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     ctx["file_obj"],
                     ctx["file_name"],
                     ctx["notes"],
+                    ctx.get("created_by"),
                     ctx["type"],
                     ctx["tools"],
                     ctx["file_bytes"],
@@ -539,6 +550,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
 def get_files(
     search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
     filter: Optional[str] = Query("All", description='Method filter: "Deep Communication Analytics", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -551,6 +563,22 @@ def get_files(
         }
 
         query = db.query(File)
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            if user_fullname or user_email:
+                query = query.filter(
+                    or_(
+                        File.created_by.ilike(f"%{user_fullname}%"),
+                        File.created_by.ilike(f"%{user_email}%"),
+                        File.notes.ilike(f"%{user_fullname}%"),
+                        File.notes.ilike(f"%{user_email}%"),
+                        File.file_name.ilike(f"%{user_fullname}%"),
+                        File.file_name.ilike(f"%{user_email}%")
+                    )
+                )
 
         if filter and filter in allowed_methods and filter != "All":
             query = query.filter(File.method == filter)

@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
 from fastapi import FastAPI, Request, HTTPException  # type: ignore
 from fastapi.responses import JSONResponse, Response  # type: ignore
+from fastapi.exceptions import RequestValidationError  # type: ignore
 from contextlib import asynccontextmanager
 import uvicorn  # type: ignore
 
@@ -36,7 +37,7 @@ from app.api.v1 import (
     evidence_routes,
     suspect_routes,
     report_routes,
-    # user_managements_routes
+    user_routes,
 )
 from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
@@ -128,12 +129,11 @@ def custom_openapi():
 app.openapi = custom_openapi
 app.mount("/data", StaticFiles(directory="data"), name="data")
 
-# app.include_router(user_managements_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
-
 app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
 
 
 app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
+app.include_router(user_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
 
 # Analytics Management
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
@@ -156,6 +156,34 @@ app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags
 
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    error_messages = []
+    
+    for error in errors:
+        field_path = " -> ".join(str(loc) for loc in error.get("loc", []))
+        error_msg = error.get("msg", "Validation error")
+        error_type = error.get("type", "")
+        
+        if "Password and confirm password do not match" in error_msg:
+            error_messages.append("Password and confirm password do not match")
+        elif error_type == "value_error":
+            error_messages.append(f"{error_msg}")
+        else:
+            error_messages.append(f"{field_path}: {error_msg}")
+    
+    message = "; ".join(error_messages) if error_messages else "Validation error"
+    
+    return JSONResponse(
+        status_code=400,
+        content={
+            "status": 400,
+            "message": message,
+            "data": None
+        }
+    )
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if isinstance(exc.detail, dict) and "status" in exc.detail and "message" in exc.detail:
@@ -168,7 +196,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             status_code=exc.status_code,
             content={
                 "status": exc.status_code,
-                "message": exc.detail
+                "message": exc.detail,
+                "data": None
             }
         )
 

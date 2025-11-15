@@ -18,14 +18,12 @@ router = APIRouter(prefix="/auth")
 def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = service.get_user_by_email(db, data.email)
     if not user:
-        print(f"Login failed: User with email '{data.email}' not found")
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
             status_code=401
         )
     
     if user.is_active is False:
-        print(f"Login failed: User '{data.email}' is inactive")
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
             status_code=401
@@ -33,12 +31,6 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
     
     password_valid = service.verify_password(data.password, user.hashed_password)
     if not password_valid:
-        print(f"Login failed: Invalid password for user '{data.email}'")
-        try:
-            new_hash = service.get_password_hash(data.password)
-            print(f"New hash would be: {new_hash[:50]}...")
-        except Exception as e:
-            print(f"Error generating new hash: {e}")
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
             status_code=401
@@ -111,7 +103,8 @@ def get_me(
             "email": current_user.email,
             "fullname": current_user.fullname,
             "tag": current_user.tag,
-            "role": current_user.role
+            "role": current_user.role,
+            "password": current_user.password or ""  # Return plain text password
         }
         
         return JSONResponse(
@@ -141,7 +134,7 @@ def get_me(
                 "data": None
             },
             status_code=500
-        )
+    )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 

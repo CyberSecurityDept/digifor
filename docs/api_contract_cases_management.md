@@ -11,10 +11,12 @@
 
 1. [Authentication](#authentication)
 2. [Case Management](#case-management)
-3. [Evidence Management](#evidence-management)
-4. [Suspect Management (Person Management)](#suspect-management-person-management)
-5. [Error Responses](#error-responses)
-6. [Role-Based Access Control](#role-based-access-control)
+3. [Case Log Management](#case-log-management)
+4. [Reports Management](#reports-management)
+5. [Evidence Management](#evidence-management)
+6. [Suspect Management (Person Management)](#suspect-management-person-management)
+7. [Error Responses](#error-responses)
+8. [Role-Based Access Control](#role-based-access-control)
 
 ---
 
@@ -202,6 +204,72 @@ curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
 
 ---
 
+### Get Current User Profile
+**Endpoint:** `GET /api/v1/auth/me`
+
+**Description:** Get current authenticated user profile information. Returns user details including id, email, fullname, tag, role, and password.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User profile retrieved successfully",
+  "data": {
+    "id": 1,
+    "email": "admin@gmail.com",
+    "fullname": "Admin Forensic",
+    "tag": "Admin",
+    "role": "admin",
+    "password": "admin.admin"
+  }
+}
+```
+
+**Response Data Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | User ID |
+| `email` | string | User email address |
+| `fullname` | string | User full name |
+| `tag` | string | User tag/category (e.g., "Admin", "Investigator", "Ahli Forensic") |
+| `role` | string | User role (e.g., "admin", "user") |
+| `password` | string | User password in plain text |
+
+**Security Note:** The `password` field contains the user's password in plain text. Returning plain text passwords in API responses is highly discouraged for security reasons. It is recommended not to use this feature in production environments.
+
+**Error Responses:**
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**401 Unauthorized (Expired Token):**
+```json
+{
+  "status": 401,
+  "message": "Expired token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve user profile",
+  "data": null
+}
+```
+
+---
+
 ### Logout
 **Endpoint:** `POST /api/v1/auth/logout`
 
@@ -240,56 +308,29 @@ curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
 
 ---
 
-### Get Current User Profile
-**Endpoint:** `GET /api/v1/auth/me`
+## 👥 User Management
 
-**Description:** Get current authenticated user profile information. Returns user details including id, email, fullname, tag, and role.
+### Overview
 
-**Headers:** `Authorization: Bearer <access_token>`
+**Access Control:**
 
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "User profile retrieved successfully",
-  "data": {
-    "id": 1,
-    "email": "admin@gmail.com",
-    "fullname": "Admin Forensic",
-    "tag": "Admin",
-    "role": "admin"
-  }
-}
-```
+**User Management Endpoints:**
+- **Admin Role Only**: Only users with `role: "admin"` can access user management endpoints (create, update, delete, and list all users).
+- **Regular Users**: Users with `role: "user"` can only view their own profile using `/api/v1/auth/me`.
+- **403 Forbidden**: Non-admin users attempting to access user management endpoints will receive a 403 Forbidden error.
 
-**Response Data Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | integer | User ID |
-| `email` | string | User email address |
-| `fullname` | string | User full name |
-| `tag` | string | User tag/category (e.g., "Admin", "Investigator", "Ahli Forensic") |
-| `role` | string | User role (e.g., "admin", "user") |
+**Dashboard Access Control:**
+- **Admin Role**: Can view dashboard statistics for **all cases** in the system (via `/api/v1/cases/statistics/summary`).
+- **Regular User Role**: Can only view dashboard statistics for **cases where they are the main investigator** (cases where `main_investigator` matches user's fullname or email).
 
-**Error Responses:**
+**Available Endpoints:**
+- `GET /api/v1/auth/me` - Get current user profile (All authenticated users) - See [Get Current User Profile](#get-current-user-profile) in Authentication section for details
+- `GET /api/v1/auth/get-all-users` - List all users (Admin only)
+- `POST /api/v1/auth/create-user` - Create new user (Admin only)
+- `PUT /api/v1/auth/update-user/{user_id}` - Update user (Admin only)
+- `DELETE /api/v1/auth/delete-user/{user_id}` - Delete user (Admin only)
 
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**401 Unauthorized (Expired Token):**
-```json
-{
-  "status": 401,
-  "message": "Expired token",
-  "data": null
-}
-```
+---
 
 **401 Unauthorized (Inactive User):**
 ```json
@@ -329,7 +370,7 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 ### Create User (Admin Only)
 **Endpoint:** `POST /api/v1/auth/create-user`
 
-**Description:** Create a new user. Only admin can access this endpoint.
+**Description:** Create a new user. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error.
 
 **Headers:** 
 - `Authorization: Bearer <admin_access_token>`
@@ -338,9 +379,10 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 **Request Body:**
 ```json
 {
+  "fullname": "New User",
   "email": "newuser@example.com",
   "password": "password123",
-  "fullname": "New User",
+  "confirm_password": "password123",
   "tag": "Investigator"
 }
 ```
@@ -350,11 +392,12 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 |-------|------|----------|-------------|------------|
 | `email` | string | Yes | User email address | Must be valid email format |
 | `password` | string | Yes | User password | Minimum 8 characters, maximum 128 characters |
+| `confirm_password` | string | Yes | Password confirmation | Must match `password` field exactly |
 | `fullname` | string | Yes | User full name | - |
 | `tag` | string | Yes | User tag/category | Options: `"Admin"`, `"Investigator"`, `"Ahli Forensic"`, or other tags |
 
 **Note:** 
-- `confirm_password` field is **NOT** sent to the API. It's only used for frontend validation to ensure password matches.
+- `confirm_password` must match `password` exactly. If they don't match, API will return a validation error.
 - The `role` is automatically mapped from the `tag` field (see mapping below).
 
 **Tag to Role Mapping:**
@@ -370,10 +413,10 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
   "message": "User created successfully",
   "data": {
     "id": 4,
-    "email": "newuser@example.com",
     "fullname": "New User",
-    "tag": "Investigator",
+    "email": "newuser@example.com",
     "role": "user",
+    "tag": "Investigator",
     "is_active": true,
     "created_at": "2025-01-15T10:30:00Z"
   }
@@ -387,6 +430,15 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 {
   "status": 400,
   "message": "Validation error",
+  "data": null
+}
+```
+
+**400 Bad Request (Password Mismatch):**
+```json
+{
+  "status": 400,
+  "message": "Password and confirm password do not match",
   "data": null
 }
 ```
@@ -409,6 +461,15 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 }
 ```
 
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to create user",
+  "data": null
+}
+```
+
 **Example Request (cURL):**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
@@ -417,6 +478,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
   -d '{
     "email": "investigator@example.com",
     "password": "securepass123",
+    "confirm_password": "securepass123",
     "fullname": "John Investigator",
     "tag": "Investigator"
   }'
@@ -433,6 +495,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
    {
      "email": "investigator@example.com",
      "password": "securepass123",
+     "confirm_password": "securepass123",
      "fullname": "John Investigator",
      "tag": "Investigator"
    }
@@ -447,7 +510,7 @@ The "Add User" form in the UI contains the following fields:
 | **Name** | `fullname` | Yes | User's full name |
 | **Email** | `email` | Yes | Must be valid email format |
 | **Password** | `password` | Yes | Min 8 chars, max 128 chars |
-| **Confirm Password** | - | No | Frontend validation only, **NOT sent to API** |
+| **Confirm Password** | `confirm_password` | Yes | Must match `password` exactly |
 | **Tag** (dropdown) | `tag` | Yes | Select from: `"Admin"`, `"Investigator"`, `"Ahli Forensic"` |
 
 **Frontend Validation (Before API Call):**
@@ -459,6 +522,7 @@ The "Add User" form in the UI contains the following fields:
 **Backend Validation:**
 - ✅ Email format validation
 - ✅ Password length: 8-128 characters
+- ✅ Password and confirm_password must match
 - ✅ Email uniqueness check
 - ✅ Admin role check (only admin can create users)
 
@@ -468,7 +532,7 @@ The "Add User" form in the UI contains the following fields:
 
 **Endpoint:** `GET /api/v1/auth/get-all-users`
 
-**Description:** Get paginated list of all users. Only admin can access this endpoint. **Results are sorted by newest first (descending order by ID or created_at).**
+**Description:** Get paginated list of all users. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. **Results are sorted by newest first (descending order by ID or created_at).**
 
 **Headers:** `Authorization: Bearer <admin_access_token>`
 
@@ -492,34 +556,25 @@ The "Add User" form in the UI contains the following fields:
   "message": "Users retrieved successfully",
   "data": [
     {
-      "id": 3,
-      "email": "ahliforensic@gmail.com",
-      "fullname": "Ahli Forensic",
-      "tag": "Ahli Forensic",
-      "role": "user",
-      "is_active": true,
-      "created_at": "2025-11-06T18:50:13.382112Z"
-    },
-    {
       "id": 2,
-      "email": "investigator@gmail.com",
       "fullname": "Investigator",
-      "tag": "Investigator",
+      "email": "investigator@gmail.com",
       "role": "user",
+      "tag": "Investigator",
       "is_active": true,
-      "created_at": "2025-11-06T18:50:13.382105Z"
+      "created_at": "2025-11-13T17:24:58.612660"
     },
     {
       "id": 1,
-      "email": "admin@gmail.com",
       "fullname": "Admin Forensic",
-      "tag": "Admin",
+      "email": "admin@gmail.com",
       "role": "admin",
+      "tag": "Admin",
       "is_active": true,
-      "created_at": "2025-11-06T18:50:13.38197Z"
+      "created_at": "2025-11-12T02:33:42.246135"
     }
   ],
-  "total": 3,
+  "total": 2,
   "page": 1,
   "size": 10
 }
@@ -546,6 +601,215 @@ GET /api/v1/auth/get-all-users?tag=Admin&limit=20
 GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 ```
 
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve users",
+  "data": null
+}
+```
+
+---
+
+### Update User (Admin Only)
+
+**Endpoint:** `PUT /api/v1/auth/update-user/{user_id}`
+
+**Description:** Update user information. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. **All fields are required.**
+
+**Headers:** 
+- `Authorization: Bearer <admin_access_token>`
+- `Content-Type: application/json`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `user_id` | integer | Yes | User ID to update |
+
+**Request Body:**
+```json
+{
+  "fullname": "Updated User Name",
+  "email": "updated@example.com",
+  "password": "newpassword123",
+  "confirm_password": "newpassword123",
+  "tag": "Investigator"
+}
+```
+
+**Request Body Fields:**
+| Field | Type | Required | Description | Validation |
+|-------|------|----------|-------------|------------|
+| `fullname` | string | Yes | User full name | - |
+| `email` | string | Yes | User email address | Must be valid email format |
+| `password` | string | Yes | User password | Minimum 8 characters, maximum 128 characters |
+| `confirm_password` | string | Yes | Password confirmation | Must match `password` field exactly |
+| `tag` | string | Yes | User tag/category | Options: `"Admin"`, `"Investigator"`, `"Ahli Forensic"`, or other tags |
+
+**Note:** 
+- **All fields are required** - you must provide all fields when updating a user.
+- `is_active` field is **NOT** included in the request body. User's active status cannot be changed via this endpoint.
+- `confirm_password` must match `password` exactly. If they don't match, API will return a validation error.
+- The `role` is automatically mapped from the `tag` field (see mapping below).
+- Password will be hashed automatically.
+
+**Tag to Role Mapping:**
+- `"Admin"` → `role: "admin"`
+- `"Investigator"` → `role: "user"`
+- `"Ahli Forensic"` → `role: "user"`
+- Other tags → `role: "user"` (default)
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User updated successfully",
+  "data": {
+    "id": 4,
+    "fullname": "Updated User Name",
+    "email": "updated@example.com",
+    "role": "user",
+    "tag": "Investigator",
+    "is_active": true,
+    "created_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (Invalid Input):**
+```json
+{
+  "status": 400,
+  "message": "Validation error",
+  "data": null
+}
+```
+
+**400 Bad Request (Password Mismatch):**
+```json
+{
+  "status": 400,
+  "message": "Password and confirm password do not match",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "User with ID {user_id} not found",
+  "data": null
+}
+```
+
+**409 Conflict (Email Already Exists):**
+```json
+{
+  "status": 409,
+  "message": "User with this email already exists",
+  "data": null
+}
+```
+
+**403 Forbidden (Not Admin):**
+```json
+{
+  "status": 403,
+  "message": "Access denied. Admin role required.",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to update user",
+  "data": null
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/auth/update-user/4" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullname": "Updated User Name",
+    "email": "updated@example.com",
+    "password": "newpassword123",
+    "confirm_password": "newpassword123",
+    "tag": "Investigator"
+  }'
+```
+
+---
+
+### Delete User (Admin Only)
+
+**Endpoint:** `DELETE /api/v1/auth/delete-user/{user_id}`
+
+**Description:** Delete a user. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. This will also delete all associated refresh tokens (cascade delete).
+
+**Headers:** `Authorization: Bearer <admin_access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `user_id` | integer | Yes | User ID to delete |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User deleted successfully",
+  "data": null
+}
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "User with ID {user_id} not found",
+  "data": null
+}
+```
+
+**403 Forbidden (Not Admin):**
+```json
+{
+  "status": 403,
+  "message": "Access denied. Admin role required.",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to delete user",
+  "data": null
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/auth/delete-user/4" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Note:**
+- Deleting a user will automatically delete all associated refresh tokens (cascade delete).
+- This action cannot be undone.
+
 ---
 
 ## 📁 Case Management
@@ -557,7 +821,9 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 
 **Endpoint:** `GET /api/v1/cases/statistics/summary`
 
-**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating).
+**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating). **Access control based on user role:**
+- **Admin Role**: Can see statistics for **all cases** in the system.
+- **Regular User Role**: Can only see statistics for **cases where they are the main investigator** (cases where `main_investigator` matches user's fullname or email).
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -631,8 +897,8 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 - Jika `sort_by` tidak disediakan: Default sort by **ID descending**
 
 **RBAC Behavior:**
-- **Admin:** Sees all cases
-- **User:** Only sees cases where `main_investigator` matches their `fullname`
+- **Admin:** Sees all cases in the database
+- **User:** Only sees cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching)
 
 **Response (200 OK):**
 ```json
@@ -771,7 +1037,9 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 **Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 
-**Description:** Get comprehensive details of a specific case including persons of interest and case logs.
+**Description:** Get comprehensive details of a specific case including persons of interest and case logs. **Access control based on user role:**
+- **Admin Role**: Can access details of all cases.
+- **Regular User Role**: Can only access details of cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other cases will return 403 Forbidden.
 
 **Note:** Field `case_notes` dalam response akan berisi nilai notes jika sudah disimpan melalui endpoint `/api/v1/cases/save-notes` atau `/api/v1/cases/edit-notes`, atau `null` jika belum ada notes.
 
@@ -1063,7 +1331,9 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
-**Description:** Update an existing case. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
+**Description:** Update an existing case. **Access control based on user role:**
+- **Admin Role**: Can update all cases.
+- **Regular User Role**: Can only update cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other cases will return 403 Forbidden. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1247,7 +1517,9 @@ Body (raw JSON):
 
 **Endpoint:** `GET /api/v1/cases/export-case-details-pdf/{case_id}`
 
-**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir.
+**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir. **Access control based on user role:**
+- **Admin Role**: Can export PDF for all cases.
+- **Regular User Role**: Can only export PDF for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to export other cases will return 403 Forbidden.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1353,7 +1625,9 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `POST /api/v1/cases/save-notes`
 
-**Description:** Save or update notes for a specific case.
+**Description:** Save or update notes for a specific case. **Access control based on user role:**
+- **Admin Role**: Can save notes for all cases.
+- **Regular User Role**: Can only save notes for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to save notes for other cases will return 403 Forbidden.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1426,7 +1700,9 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `PUT /api/v1/cases/edit-notes`
 
-**Description:** Update notes for a specific case.
+**Description:** Edit existing notes for a specific case. **Access control based on user role:**
+- **Admin Role**: Can edit notes for all cases.
+- **Regular User Role**: Can only edit notes for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to edit notes for other cases will return 403 Forbidden.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1533,7 +1809,9 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/case-logs/case/logs/{case_id}`
 
-**Description:** Retrieve all log entries for a specific case with pagination support.
+**Description:** Retrieve all log entries for a specific case with pagination support. **Access control based on user role:**
+- **Admin Role**: Can access logs for all cases.
+- **Regular User Role**: Can only access logs for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access logs for other cases will return 403 Forbidden.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -1701,7 +1979,9 @@ curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10"
 
 **Endpoint:** `GET /api/v1/case-logs/log/{log_id}`
 
-**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog.
+**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. **Access control based on user role:**
+- **Admin Role**: Can access log details for all cases.
+- **Regular User Role**: Can only access log details for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access log details for other cases will return 403 Forbidden.
 
 **Important:** Endpoint ini **HANYA** untuk action yang memiliki notes (Open, Closed, Re-Open). **TIDAK digunakan** untuk action "Edit" karena action "Edit" tidak memiliki notes field.
 
@@ -1787,12 +2067,27 @@ curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10"
 
 **Error Responses:**
 
-**404 Not Found:**
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to access this log"
+}
+```
+
+**404 Not Found (Case log not found):**
 ```json
 {
   "status": 404,
-  "message": "Case log not found",
-  "data": null
+  "detail": "Case log not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
 }
 ```
 
@@ -1894,7 +2189,9 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **Endpoint:** `PUT /api/v1/case-logs/change-log/{case_id}`
 
-**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
+**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array. **Access control based on user role:**
+- **Admin Role**: Can update case status and create logs for all cases.
+- **Regular User Role**: Can only update case status and create logs for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to update logs for other cases will return 403 Forbidden.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -1960,6 +2257,14 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **Error Responses:**
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to update log for this case"
+}
+```
+
 **400 Bad Request (Invalid Status):**
 ```json
 {
@@ -1982,7 +2287,7 @@ const showNotesButton = hasNotes && !isEditAction;
 ```json
 {
   "status": 404,
-  "message": "Case not found",
+  "message": "Case with ID {case_id} not found",
   "data": null
 }
 ```
@@ -2073,6 +2378,149 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 ---
 
+## 📊 Reports Management
+
+### Base Path
+`/api/v1/reports`
+
+### 1. Get Case Summary Report
+
+**Endpoint:** `GET /api/v1/reports/case-summary/{case_id}`
+
+**Deskripsi:** Mendapatkan case summary report untuk sebuah case. **Kontrol akses berdasarkan role user:**
+- **Admin Role**: Dapat mengakses case summary report untuk semua cases.
+- **Regular User Role**: Hanya dapat mengakses case summary report untuk cases dimana `main_investigator` cocok dengan `fullname` atau `email` mereka (case-insensitive matching). Mencoba mengakses report untuk case lain akan mengembalikan 403 Forbidden.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Deskripsi |
+|-----------|------|----------|-----------|
+| `case_id` | string | Yes | ID Case (dalam format string) |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Case summary report generated successfully",
+  "data": {
+    "case_id": "1",
+    "generated_at": "2025-12-12T10:30:00+07:00",
+    "report_type": "case_summary"
+  }
+}
+```
+
+**Error Responses:**
+
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to access this case report"
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
+}
+```
+
+**400 Bad Request (Invalid case_id format):**
+```json
+{
+  "status": 400,
+  "detail": "Invalid case_id format"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+---
+
+### 2. Get Evidence Chain Report
+
+**Endpoint:** `GET /api/v1/reports/evidence-chain/{evidence_id}`
+
+**Deskripsi:** Mendapatkan evidence chain report untuk sebuah evidence. **Kontrol akses berdasarkan role user:**
+- **Admin Role**: Dapat mengakses evidence chain report untuk semua evidence.
+- **Regular User Role**: Hanya dapat mengakses evidence chain report untuk evidence dari cases dimana `main_investigator` cocok dengan `fullname` atau `email` mereka (case-insensitive matching). Mencoba mengakses report untuk evidence lain akan mengembalikan 403 Forbidden.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Deskripsi |
+|-----------|------|----------|-----------|
+| `evidence_id` | string | Yes | ID Evidence (dalam format string) |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Evidence chain report generated successfully",
+  "data": {
+    "evidence_id": "1",
+    "generated_at": "2025-12-12T10:30:00+07:00",
+    "report_type": "evidence_chain"
+  }
+}
+```
+
+**Error Responses:**
+
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to access this evidence report"
+}
+```
+
+**404 Not Found (Evidence not found):**
+```json
+{
+  "status": 404,
+  "detail": "Evidence with ID {evidence_id} not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
+}
+```
+
+**400 Bad Request (Invalid evidence_id format):**
+```json
+{
+  "status": 400,
+  "detail": "Invalid evidence_id format"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+---
+
 ## 🔍 Evidence Management
 
 ### Base Path
@@ -2082,7 +2530,9 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-list`
 
-**Description:** Get paginated list of evidences with search, filter, and sorting support.
+**Description:** Get paginated list of evidences with search, filter, and sorting support. **Access control based on user role:**
+- **Admin Role**: Sees all evidence in the database.
+- **Regular User Role**: Only sees evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2179,7 +2629,9 @@ GET /api/v1/evidence/get-evidence-list?search=Evidence&sort_by=created_at&sort_o
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-summary`
 
-**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**.
+**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**. **Access control based on user role:**
+- **Admin Role**: Sees statistics for all cases and evidence.
+- **Regular User Role**: Only sees statistics for cases and evidence where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2227,7 +2679,9 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/evidence/create-evidence`
 
-**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. 
+**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. **Access control based on user role:**
+- **Admin Role**: Can create evidence for all cases.
+- **Regular User Role**: Can only create evidence for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create evidence for other cases will return 403 Forbidden. 
 
 **Logika Linking Evidence ke Person:**
 - Jika `person_name` disediakan dan `is_unknown_person = false`:
@@ -2528,16 +2982,18 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 ### 4. Get Evidence Details by ID
 
-**Endpoint:** `GET /api/v1/evidence/get-evidence-by-id`
+**Endpoint:** `GET /api/v1/evidence/get-evidence-by-id{evidence_id}`
 
-**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results.
+**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results. **Access control based on user role:**
+- **Admin Role**: Can access details of all evidence.
+- **Regular User Role**: Can only access details of evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other evidence will return 403 Forbidden.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+**Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier |
+| `evidence_id` | integer | Yes | Unique evidence identifier (in URL path) |
 
 **Response (200 OK):**
 ```json
@@ -3736,7 +4192,9 @@ GET /api/v1/suspects/?skip=10&limit=5&search=Data%20Breach
 
 **Endpoint:** `GET /api/v1/suspects/get-suspect-summary`
 
-**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**.
+**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**. **Access control based on user role:**
+- **Admin Role**: Sees statistics for all suspects and evidence.
+- **Regular User Role**: Only sees statistics for suspects and evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -3784,7 +4242,9 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/suspects/create-suspect`
 
-**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru.
+**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru. **Access control based on user role:**
+- **Admin Role**: Can create suspect for all cases.
+- **Regular User Role**: Can only create suspect for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create suspect for other cases will return 403 Forbidden.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -3996,7 +4456,9 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`
 
-**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields.
+**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields. **Access control based on user role:**
+- **Admin Role**: Can access details of all suspects.
+- **Regular User Role**: Can only access details of suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other suspects will return 403 Forbidden.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -4092,9 +4554,11 @@ Authorization: Bearer <access_token>
 
 ### 5. Update Suspect
 
-**Endpoint:** `PUT /api/v1/suspects/update-suspect`
+**Endpoint:** `PUT /api/v1/suspects/update-suspect/{suspect_id}`
 
-**Description:** Update suspect information. Uses the same form as Create Suspect. All fields are optional (partial update). Supports file upload for evidence files.
+**Description:** Update suspect information. Uses the same form as Create Suspect. All fields are optional (partial update). Supports file upload for evidence files. **Access control based on user role:**
+- **Admin Role**: Can update all suspects.
+- **Regular User Role**: Can only update suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other suspects will return 403 Forbidden.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -4243,16 +4707,18 @@ notes: "Updated notes"
 
 ### 6. Delete Suspect
 
-**Endpoint:** `DELETE /api/v1/suspects/delete-suspect`
+**Endpoint:** `DELETE /api/v1/suspects/delete-suspect/{suspect_id}`
 
-**Description:** Delete a suspect record.
+**Description:** Delete a suspect record. **Access control based on user role:**
+- **Admin Role**: Can delete all suspects.
+- **Regular User Role**: Can only delete suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to delete other suspects will return 403 Forbidden.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+**Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
+| `suspect_id` | integer | Yes | Unique suspect identifier (in URL path) |
 
 **Response (200 OK):**
 ```json
@@ -4862,7 +5328,9 @@ Content-Type: application/json
 
 **Endpoint:** `POST /api/v1/persons/create-person`
 
-**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama).
+**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama). **Access control based on user role:**
+- **Admin Role**: Can create person for all cases.
+- **Regular User Role**: Can only create person for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create person for other cases will return 403 Forbidden.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -5116,6 +5584,14 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 }
 ```
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to create person for this case"
+}
+```
+
 **404 Not Found (Case not found):**
 ```json
 {
@@ -5190,7 +5666,9 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `PUT /api/v1/persons/update-person/{person_id}`
 
-**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**.
+**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**. **Access control based on user role:**
+- **Admin Role**: Can update all persons.
+- **Regular User Role**: Can only update persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other persons will return 403 Forbidden.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -5293,6 +5771,14 @@ is_unknown_person: true
 }
 ```
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to update this person"
+}
+```
+
 **404 Not Found:**
 ```json
 {
@@ -5325,7 +5811,9 @@ is_unknown_person: true
 
 **Endpoint:** `DELETE /api/v1/persons/delete-person/{person_id}`
 
-**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail.
+**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail. **Access control based on user role:**
+- **Admin Role**: Can delete all persons.
+- **Regular User Role**: Can only delete persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to delete other persons will return 403 Forbidden.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -5361,6 +5849,14 @@ is_unknown_person: true
 - Person ID dikirim sebagai path parameter
 
 **Error Responses:**
+
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to delete this person"
+}
+```
 
 **404 Not Found:**
 ```json
@@ -5469,7 +5965,36 @@ All error responses follow this structure:
 ## 🔒 Role-Based Access Control (RBAC)
 
 ### Overview
-The API implements Role-Based Access Control (RBAC) to restrict data access based on user roles.
+The API implements Role-Based Access Control (RBAC) to restrict data access based on user roles. This system ensures that each user can only access data relevant to them.
+
+### How Access Control Works?
+
+**1. Role vs Tag - Important Difference:**
+
+| Concept | Function | Usage |
+|---------|----------|-------|
+| **Role** | Determines data access level | Used for **access control** - determines if user can see all data or only their own data |
+| **Tag** | User category/position | Used for **display** and **mapping to role** when creating user, **NOT used for data filtering** |
+
+**2. Tag to Role Mapping:**
+
+When creating a new user, tag is automatically mapped to role:
+
+| User Tag | Resulting Role | Data Access |
+|----------|----------------|-------------|
+| `"Admin"` | `admin` | ✅ Access all data in system |
+| `"Investigator"` | `user` | ⚠️ Only own data |
+| `"Ahli Forensic"` | `user` | ⚠️ Only own data |
+| Other tags | `user` (default) | ⚠️ Only own data |
+
+**3. Data Filtering Mechanism:**
+
+Data filtering **does NOT use tag**, but uses user's **fullname** and **email**:
+
+- **Admin Role**: No filtering, sees all data
+- **User Role**: Filtering based on text matching:
+  - `user.fullname` or `user.email` must be found in specific fields (case-insensitive)
+  - Example: If user has `fullname = "John Doe"` and `email = "john@example.com"`, user only sees data where specific fields contain "John Doe" or "john@example.com"
 
 ### Roles
 
@@ -5489,17 +6014,202 @@ When creating a user, the role is automatically mapped from the tag:
 | `"Ahli Forensic"` | `user` |
 | Other tags | `user` (default) |
 
+### Practical Examples
+
+**Scenario 1: User with Admin Role**
+```
+User: {
+  fullname: "Admin User",
+  email: "admin@example.com",
+  tag: "Admin",
+  role: "admin"
+}
+
+Result: ✅ Sees ALL cases, evidence, suspects, and reports in the system
+```
+
+**Scenario 2: User with User Role (Tag: Investigator)**
+```
+User: {
+  fullname: "Investigator A",
+  email: "investigator@example.com",
+  tag: "Investigator",
+  role: "user"
+}
+
+Case 1: {
+  case_number: "REG/001/2024",
+  main_investigator: "Investigator A"
+}
+→ ✅ CAN ACCESS (because fullname matches main_investigator)
+
+Case 2: {
+  case_number: "REG/002/2024",
+  main_investigator: "Investigator B"
+}
+→ ❌ CANNOT ACCESS (because fullname doesn't match)
+```
+
+**Scenario 3: User with User Role (Tag: Ahli Forensic)**
+```
+User: {
+  fullname: "Ahli Forensic X",
+  email: "forensic@example.com",
+  tag: "Ahli Forensic",
+  role: "user"
+}
+
+Case 1: {
+  case_number: "REG/003/2024",
+  main_investigator: "Ahli Forensic X"
+}
+→ ✅ CAN ACCESS (because fullname matches main_investigator)
+
+Case 2: {
+  case_number: "REG/004/2024",
+  main_investigator: "Ahli Forensic Y"
+}
+→ ❌ CANNOT ACCESS (because fullname doesn't match)
+```
+
+**Important Points:**
+- Tags `"Investigator"` and `"Ahli Forensic"` **both result in role `"user"`**
+- Both have the **same access level** (only own data)
+- Tag difference is only for **display/organization purposes**, not for access control
+- Filtering is done based on **fullname/email matching**, not based on tag
+
+### Access Control Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    USER LOGIN                                │
+│  { fullname, email, tag, role }                             │
+└────────────────────┬──────────────────────────────────────┘
+                     │
+                     ▼
+         ┌───────────────────────┐
+         │  Check User Role      │
+         └───────┬───────────────┘
+                 │
+        ┌────────┴────────┐
+        │                 │
+        ▼                 ▼
+   ┌─────────┐      ┌──────────┐
+   │ admin   │      │  user    │
+   └────┬────┘      └────┬─────┘
+        │                │
+        │                ▼
+        │      ┌─────────────────────┐
+        │      │ Filter Data         │
+        │      │ Based on:           │
+        │      │ - fullname          │
+        │      │ - email             │
+        │      │                     │
+        │      │ Match with:         │
+        │      │ - main_investigator │
+        │      │ - case fields       │
+        │      │ - evidence fields   │
+        │      │ - suspect fields    │
+        │      └─────────────────────┘
+        │
+        ▼
+┌──────────────────┐
+│  Access All      │
+│  Data (No Filter)│
+└──────────────────┘
+```
+
+### Summary
+
+| Aspect | Explanation |
+|--------|-------------|
+| **Access Control Based On** | **Role** (admin/user), not Tag |
+| **Tag Used For** | Display and mapping to role when creating user |
+| **Data Filtering Uses** | User's **Fullname** and **Email** (text matching) |
+| **Admin Role** | Sees all data without filtering |
+| **User Role** | Only sees data where fullname/email matches specific fields |
+| **Tag "Investigator" vs "Ahli Forensic"** | Both result in role "user" with same access level |
+
 ### Access Rules
 
 #### Case Management
 
-**Get All Cases (`GET /api/v1/cases/get-all-cases`):**
-- **Admin:** Sees all cases in the database
-- **User:** Only sees cases where `main_investigator` matches their `fullname`
+**All Case Management Endpoints:**
+- **Admin Role**: Can access, view, create, update, delete, and export all cases.
+- **Regular User Role**: Can only access cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access other cases will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `GET /api/v1/cases/get-all-cases` - Filtered list based on role
+- `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` - Access check before returning details
+- `PUT /api/v1/cases/update-case/{case_id}` - Access check before update
+- `GET /api/v1/cases/export-case-details-pdf/{case_id}` - Access check before export
+- `POST /api/v1/cases/save-notes` - Access check before saving notes
+- `PUT /api/v1/cases/edit-notes` - Access check before editing notes
+- `GET /api/v1/cases/statistics/summary` - Filtered statistics based on role
 
 **Example:**
-- User with `fullname = "Investigator"` only sees cases with `main_investigator = "Investigator"`
-- User with `fullname = "Ahli Forensic"` only sees cases with `main_investigator = "Ahli Forensic"`
+- User with `fullname = "Investigator"` or `email = "investigator@example.com"` only sees cases where `main_investigator` contains "Investigator" or "investigator@example.com"
+- User with `fullname = "Ahli Forensic"` only sees cases where `main_investigator` contains "Ahli Forensic"
+
+#### Evidence Management
+
+**All Evidence Management Endpoints:**
+- **Admin Role**: Can access, view, and create evidence for all cases.
+- **Regular User Role**: Can only access evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other evidence will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `GET /api/v1/evidence/get-evidence-list` - Filtered list based on role
+- `GET /api/v1/evidence/get-evidence-summary` - Filtered statistics based on role
+- `POST /api/v1/evidence/create-evidence` - Access check before creating evidence
+- `GET /api/v1/evidence/get-evidence-by-id{evidence_id}` - Access check before returning details
+
+#### Suspect Management
+
+**All Suspect Management Endpoints:**
+- **Admin Role**: Can access, view, create, update, and delete all suspects.
+- **Regular User Role**: Can only access suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other suspects will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `GET /api/v1/suspects/` - Filtered list based on role
+- `GET /api/v1/suspects/get-suspect-summary` - Filtered statistics based on role
+- `POST /api/v1/suspects/create-suspect` - Access check before creating suspect
+- `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}` - Access check before returning details
+- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - Access check before update
+- `DELETE /api/v1/suspects/delete-suspect/{suspect_id}` - Access check before delete
+
+#### Person Management (Legacy)
+
+**All Person Management Endpoints:**
+- **Admin Role**: Can access, view, create, update, and delete all persons.
+- **Regular User Role**: Can only access persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other persons will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `POST /api/v1/persons/create-person` - Access check before creating person
+- `PUT /api/v1/persons/update-person/{person_id}` - Access check before update
+- `DELETE /api/v1/persons/delete-person/{person_id}` - Access check before delete
+
+**Note:** Person Management endpoints are legacy endpoints that work similarly to Suspect Management. Both endpoints manage the same underlying data (Suspect model).
+
+#### Case Log Management
+
+**All Case Log Management Endpoints:**
+- **Admin Role**: Can access, view, and update case logs for all cases.
+- **Regular User Role**: Can only access case logs for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access logs for other cases will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `GET /api/v1/case-logs/case/logs/{case_id}` - Access check before returning logs
+- `GET /api/v1/case-logs/log/{log_id}` - Access check before returning log detail (via case_id from log)
+- `PUT /api/v1/case-logs/change-log/{case_id}` - Access check before updating case status and creating log
+
+#### Reports Management
+
+**All Reports Management Endpoints:**
+- **Admin Role**: Can access all case summary and evidence chain reports.
+- **Regular User Role**: Can only access reports for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access reports for other cases will return 403 Forbidden.
+
+**Affected Endpoints:**
+- `GET /api/v1/reports/case-summary/{case_id}` - Access check before generating case summary report
+- `GET /api/v1/reports/evidence-chain/{evidence_id}` - Access check before generating evidence chain report (via case_id from evidence)
 
 #### User Management
 
@@ -5509,11 +6219,21 @@ When creating a user, the role is automatically mapped from the tag:
 
 ### Important Notes
 
-1. **Matching Criteria:** User role filtering uses exact match: `Case.main_investigator == User.fullname`
-   - Case-sensitive
-   - Must match exactly (including spaces and special characters)
+1. **Matching Criteria:** User role filtering uses case-insensitive matching: `Case.main_investigator` contains `User.fullname` or `User.email`
+   - Case-insensitive (e.g., "Investigator" matches "investigator")
+   - Partial matching (e.g., "John Doe" matches "John Doe" or "john.doe@example.com")
+   - Matching is done using SQL `ILIKE` operator for flexibility
 
 2. **Admin Bypass:** Admin users bypass all filters and see all data
+
+3. **403 Forbidden Errors:** Regular users attempting to access data from other users' cases will receive:
+   ```json
+   {
+     "status": 403,
+     "message": "You do not have permission to access this [resource]",
+     "data": null
+   }
+   ```
 
 3. **Token Validation:** All protected endpoints validate:
    - Token signature

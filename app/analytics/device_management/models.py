@@ -10,6 +10,7 @@ class File(Base):
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     notes = Column(String, nullable=True)
+    created_by = Column(String, nullable=True)
     type = Column(String, nullable=False)
     tools = Column(String, nullable=True)
     method = Column(String, nullable=True)
