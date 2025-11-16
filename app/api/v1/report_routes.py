@@ -27,9 +27,6 @@ async def get_case_summary_report(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to access this case report")
-        
         return {
             "status": 200,
             "message": "Case summary report generated successfully",
@@ -57,9 +54,6 @@ async def get_evidence_chain_report(
         case = db.query(Case).filter(Case.id == evidence.case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {evidence.case_id} not found")
-        
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to access this evidence report")
         
         return {
             "status": 200,

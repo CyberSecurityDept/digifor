@@ -15,7 +15,7 @@ class Suspect(Base):
     status = Column(Enum("Witness", "Reported", "Suspected", "Suspect", "Defendant", name="suspect_status"), nullable=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True)
     is_unknown = Column(Boolean, default=False)
-    evidence_id = Column(String(100))
+    evidence_number = Column(String(100))
     evidence_source = Column(String(100))
     created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

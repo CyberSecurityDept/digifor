@@ -135,7 +135,7 @@ app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags
 app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
 app.include_router(user_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
 
-# Analytics Management
+# Case Management
 app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
 app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
 app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])

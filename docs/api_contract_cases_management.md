@@ -821,9 +821,7 @@ curl -X DELETE "http://localhost:8000/api/v1/auth/delete-user/4" \
 
 **Endpoint:** `GET /api/v1/cases/statistics/summary`
 
-**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating). **Access control based on user role:**
-- **Admin Role**: Can see statistics for **all cases** in the system.
-- **Regular User Role**: Can only see statistics for **cases where they are the main investigator** (cases where `main_investigator` matches user's fullname or email).
+**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating). **Full Access**: All roles can see statistics for all cases. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1037,9 +1035,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 **Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 
-**Description:** Get comprehensive details of a specific case including persons of interest and case logs. **Access control based on user role:**
-- **Admin Role**: Can access details of all cases.
-- **Regular User Role**: Can only access details of cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other cases will return 403 Forbidden.
+**Description:** Get comprehensive details of a specific case including persons of interest and case logs. **Full Access**: All roles can access details of all cases. No filtering or access restrictions.
 
 **Note:** Field `case_notes` dalam response akan berisi nilai notes jika sudah disimpan melalui endpoint `/api/v1/cases/save-notes` atau `/api/v1/cases/edit-notes`, atau `null` jika belum ada notes.
 
@@ -1331,9 +1327,7 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
-**Description:** Update an existing case. **Access control based on user role:**
-- **Admin Role**: Can update all cases.
-- **Regular User Role**: Can only update cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other cases will return 403 Forbidden. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
+**Description:** Update an existing case. **Full Access**: All roles can update all cases. No filtering or access restrictions. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1517,9 +1511,7 @@ Body (raw JSON):
 
 **Endpoint:** `GET /api/v1/cases/export-case-details-pdf/{case_id}`
 
-**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir. **Access control based on user role:**
-- **Admin Role**: Can export PDF for all cases.
-- **Regular User Role**: Can only export PDF for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to export other cases will return 403 Forbidden.
+**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir. **Full Access**: All roles can export PDF for all cases. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1625,9 +1617,7 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `POST /api/v1/cases/save-notes`
 
-**Description:** Save or update notes for a specific case. **Access control based on user role:**
-- **Admin Role**: Can save notes for all cases.
-- **Regular User Role**: Can only save notes for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to save notes for other cases will return 403 Forbidden.
+**Description:** Save or update notes for a specific case. **Full Access**: All roles can save notes for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1700,9 +1690,7 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `PUT /api/v1/cases/edit-notes`
 
-**Description:** Edit existing notes for a specific case. **Access control based on user role:**
-- **Admin Role**: Can edit notes for all cases.
-- **Regular User Role**: Can only edit notes for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to edit notes for other cases will return 403 Forbidden.
+**Description:** Edit existing notes for a specific case. **Full Access**: All roles can edit notes for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1809,9 +1797,7 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/case-logs/case/logs/{case_id}`
 
-**Description:** Retrieve all log entries for a specific case with pagination support. **Access control based on user role:**
-- **Admin Role**: Can access logs for all cases.
-- **Regular User Role**: Can only access logs for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access logs for other cases will return 403 Forbidden.
+**Description:** Retrieve all log entries for a specific case with pagination support. **Full Access**: All roles can access logs for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -1979,9 +1965,7 @@ curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10"
 
 **Endpoint:** `GET /api/v1/case-logs/log/{log_id}`
 
-**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. **Access control based on user role:**
-- **Admin Role**: Can access log details for all cases.
-- **Regular User Role**: Can only access log details for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access log details for other cases will return 403 Forbidden.
+**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. **Full Access**: All roles can access log details for all cases. No filtering or access restrictions.
 
 **Important:** Endpoint ini **HANYA** untuk action yang memiliki notes (Open, Closed, Re-Open). **TIDAK digunakan** untuk action "Edit" karena action "Edit" tidak memiliki notes field.
 
@@ -2189,9 +2173,7 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **Endpoint:** `PUT /api/v1/case-logs/change-log/{case_id}`
 
-**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array. **Access control based on user role:**
-- **Admin Role**: Can update case status and create logs for all cases.
-- **Regular User Role**: Can only update case status and create logs for cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to update logs for other cases will return 403 Forbidden.
+**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array. **Full Access**: All roles can update case status and create logs for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -2278,7 +2260,7 @@ const showNotesButton = hasNotes && !isEditAction;
 ```json
 {
   "status": 400,
-  "message": "Notes/alasan wajib diisi ketika mengubah status case",
+  "message": "Notes/reason is required when changing case status",
   "data": null
 }
 ```
@@ -2387,9 +2369,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 **Endpoint:** `GET /api/v1/reports/case-summary/{case_id}`
 
-**Deskripsi:** Mendapatkan case summary report untuk sebuah case. **Kontrol akses berdasarkan role user:**
-- **Admin Role**: Dapat mengakses case summary report untuk semua cases.
-- **Regular User Role**: Hanya dapat mengakses case summary report untuk cases dimana `main_investigator` cocok dengan `fullname` atau `email` mereka (case-insensitive matching). Mencoba mengakses report untuk case lain akan mengembalikan 403 Forbidden.
+**Deskripsi:** Mendapatkan case summary report untuk sebuah case. **Full Access**: Semua role dapat mengakses case summary report untuk semua cases. Tidak ada filtering atau pembatasan akses.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2452,9 +2432,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 **Endpoint:** `GET /api/v1/reports/evidence-chain/{evidence_id}`
 
-**Deskripsi:** Mendapatkan evidence chain report untuk sebuah evidence. **Kontrol akses berdasarkan role user:**
-- **Admin Role**: Dapat mengakses evidence chain report untuk semua evidence.
-- **Regular User Role**: Hanya dapat mengakses evidence chain report untuk evidence dari cases dimana `main_investigator` cocok dengan `fullname` atau `email` mereka (case-insensitive matching). Mencoba mengakses report untuk evidence lain akan mengembalikan 403 Forbidden.
+**Deskripsi:** Mendapatkan evidence chain report untuk sebuah evidence. **Full Access**: Semua role dapat mengakses evidence chain report untuk semua evidence. Tidak ada filtering atau pembatasan akses.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2530,9 +2508,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-list`
 
-**Description:** Get paginated list of evidences with search, filter, and sorting support. **Access control based on user role:**
-- **Admin Role**: Sees all evidence in the database.
-- **Regular User Role**: Only sees evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
+**Description:** Get paginated list of evidences with search, filter, and sorting support. **Full Access**: All roles can see all evidence in the database. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2629,9 +2605,7 @@ GET /api/v1/evidence/get-evidence-list?search=Evidence&sort_by=created_at&sort_o
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-summary`
 
-**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**. **Access control based on user role:**
-- **Admin Role**: Sees statistics for all cases and evidence.
-- **Regular User Role**: Only sees statistics for cases and evidence where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
+**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**. **Full Access**: All roles can see statistics for all cases and evidence. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2679,9 +2653,7 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/evidence/create-evidence`
 
-**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. **Access control based on user role:**
-- **Admin Role**: Can create evidence for all cases.
-- **Regular User Role**: Can only create evidence for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create evidence for other cases will return 403 Forbidden. 
+**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. **Full Access**: All roles can create evidence for all cases. No filtering or access restrictions. 
 
 **Logika Linking Evidence ke Person:**
 - Jika `person_name` disediakan dan `is_unknown_person = false`:
@@ -2691,11 +2663,8 @@ Authorization: Bearer <access_token>
 - Jika `is_unknown_person = true`: Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama. Jika ada, evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru). Jika belum ada, sistem akan membuat suspect "Unknown" baru dan evidence akan ter-link ke suspect tersebut.
 
 **Headers:** 
-- Tab **Authorization**: 
-  - Type: `Bearer Token`
-  - Token: `{access_token}`
-- Tab **Body**: 
-  - Select: `form-data`
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
 **Request Body (form-data):**
 | Field | Type | Required | Description |
@@ -2984,9 +2953,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-by-id{evidence_id}`
 
-**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results. **Access control based on user role:**
-- **Admin Role**: Can access details of all evidence.
-- **Regular User Role**: Can only access details of evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other evidence will return 403 Forbidden.
+**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results. **Full Access**: All roles can access details of all evidence. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -3901,6 +3868,152 @@ Authorization: Bearer {access_token}
 
 ---
 
+### 4. Update Evidence
+
+**Endpoint:** `PUT /api/v1/evidence/update-evidence/{evidence_id}`
+
+**Description:** Update evidence information. All fields are optional (partial update). Supports file upload for evidence files. **Endpoint ini digunakan dari form "Edit Evidence"**. **Full Access**: All roles can update all evidence. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `evidence_id` | integer | **Yes** | Evidence ID yang akan di-update |
+
+**Request Body (form-data, all fields optional):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | integer | No | Case ID (jika ingin mengubah case yang terkait) |
+| `evidence_number` | string | No | Evidence number (jika disediakan, tidak boleh kosong) |
+| `type` | string | No | Evidence type name (text input dari form UI). **Jika disediakan, sistem akan mencari atau membuat EvidenceType baru secara otomatis** |
+| `source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_summary` | string | No | Evidence summary/description (disimpan ke field `description` di database) |
+| `investigator` | string | No | Investigator name (who collected/analyzed the evidence) |
+| `person_name` | string | Conditional | Person of interest name. **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI)**. Jika disediakan dan `suspect_id` tidak disediakan, sistem akan mencari existing suspect dengan nama tersebut. Jika tidak ditemukan, sistem akan otomatis membuat suspect baru dengan nama tersebut dan link evidence_number ke suspect tersebut |
+| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih)** |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama. Jika `suspect_id` disediakan, evidence akan ter-link ke suspect "Unknown" dengan `suspect_id` tersebut. Jika `suspect_id` tidak disediakan, evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru) atau membuat suspect "Unknown" baru jika belum ada |
+| `suspect_id` | integer | No | Suspect ID untuk memilih suspect tertentu. **Jika `suspect_id` disediakan, evidence akan ter-link ke suspect dengan `suspect_id` tersebut (harus merupakan suspect dengan `case_id` yang sama). Jika `person_name` dan/atau `suspect_status` juga disediakan, suspect tersebut akan di-update dengan nilai baru (tidak membuat suspect baru)** |
+
+**Catatan:** 
+- Semua field bersifat opsional (partial update)
+- Jika `evidence_file` disediakan, file lama akan diganti dengan file baru
+- Field `file_path`, `file_size`, `file_hash`, `file_type`, dan `file_extension` akan otomatis di-update setelah file di-upload
+- Jika `evidence_number` disediakan secara manual, tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
+- Jika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate), akan mengembalikan error 400 dengan pesan yang menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut
+- Jika `evidence_number` yang ingin diupdate sama dengan `evidence_number` yang sudah ada di evidence yang sedang diupdate, tidak akan ada error (tidak perlu update)
+- `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
+- `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
+- `suspect_status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
+
+**Example Request (form-data):**
+```
+case_id: 1
+evidence_number: 32342223
+type: Dokumen
+source: Handphone
+evidence_summary: Updated GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.
+investigator: Solehun
+person_name: Dwiky
+suspect_status: Witness
+evidence_file: [file]
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Evidence updated successfully",
+  "data": {
+    "id": 1,
+    "case_id": 1,
+    "evidence_number": "32342223",
+    "source": "Handphone",
+    "file_path": "data/evidence/evidence_20251111_163602_32342223.png",
+    "description": "Updated GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+    "title": "Buronan Maroko Interpol",
+    "investigator": "Solehun",
+    "agency": "Trikora",
+    "person_name": "Dwiky",
+    "updated_at": "11/11/2025"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (Empty evidence_number):**
+```json
+{
+  "status": 400,
+  "detail": "evidence_number cannot be empty when provided manually"
+}
+```
+
+**400 Bad Request (Duplicate evidence_number):**
+```json
+{
+  "status": 400,
+  "detail": "Evidence number '454950045' already exists for another evidence (ID: 1)"
+}
+```
+
+**Catatan:** Error ini terjadi ketika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate). Pesan error akan menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut untuk membantu troubleshooting.
+
+**400 Bad Request (Invalid file type):**
+```json
+{
+  "status": 400,
+  "detail": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
+}
+```
+
+**404 Not Found (Evidence not found):**
+```json
+{
+  "status": 404,
+  "detail": "Evidence with ID {evidence_id} not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
+}
+```
+
+**404 Not Found (Suspect not found):**
+```json
+{
+  "status": 404,
+  "detail": "Suspect with ID {suspect_id} not found for this case"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "detail": "Unexpected server error: {error_message}"
+}
+```
+
+---
+
 ### 13. Save Evidence Notes
 
 **Endpoint:** `POST /api/v1/evidence/save-notes`
@@ -4192,9 +4305,7 @@ GET /api/v1/suspects/?skip=10&limit=5&search=Data%20Breach
 
 **Endpoint:** `GET /api/v1/suspects/get-suspect-summary`
 
-**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**. **Access control based on user role:**
-- **Admin Role**: Sees statistics for all suspects and evidence.
-- **Regular User Role**: Only sees statistics for suspects and evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email).
+**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**. **Full Access**: All roles can see statistics for all suspects and evidence. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -4242,9 +4353,7 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/suspects/create-suspect`
 
-**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru. **Access control based on user role:**
-- **Admin Role**: Can create suspect for all cases.
-- **Regular User Role**: Can only create suspect for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create suspect for other cases will return 403 Forbidden.
+**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru. **Full Access**: All roles can create suspect for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -4254,34 +4363,40 @@ Authorization: Bearer <access_token>
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `case_id` | integer | **Yes** | Case ID where suspect will be added |
-| `person_name` | string | Conditional | Person name. **Wajib jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih |
-| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
+| `name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI dan dikirim secara eksplisit). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih) atau jika `is_unknown_person` tidak dikirim (None)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih |
+| `status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI dan dikirim secara eksplisit). Jika `is_unknown_person = true` atau tidak dikirim, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
+| `is_unknown` | boolean | No | Legacy field untuk unknown person (default: `false`). Gunakan `is_unknown_person` sebagai gantinya |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `name` dan `status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan dibuat dengan nama "Unknown", dan `status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih dan dikirim secara eksplisit):** `name` dan `status` wajib diisi. **Jika tidak dikirim (None):** Validasi `name` dan `status` tidak dipaksa (backward compatibility) |
 | `evidence_number` | string | **Conditional** | Evidence number (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
 | `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_number` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
 | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | `evidence_summary` | string | No | Evidence summary/description |
-| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan dibuat dengan nama "Unknown", dan `suspect_status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` wajib diisi, `suspect_status` optional (default: `false`) |
+| `case_name` | string | No | Case name (optional, akan di-set otomatis dari case jika `case_id` disediakan) |
 
 **Catatan Field Required:**
 - **Required (Wajib):** `case_id`
-- **Conditional Required:** `person_name` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
-- **Conditional Required:** `suspect_status` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
+- **Conditional Required (Wajib jika `is_unknown_person = false` secara eksplisit):** `name` wajib diisi jika `is_unknown_person = false` (dikirim secara eksplisit). Jika `is_unknown_person` tidak dikirim (None), validasi tidak dipaksa. Jika `is_unknown_person = false` dan `name` tidak diisi, akan mengembalikan error 400: "name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false` secara eksplisit):** `status` wajib diisi jika `is_unknown_person = false` (dikirim secara eksplisit). Jika `is_unknown_person` tidak dikirim (None), validasi tidak dipaksa. Jika `is_unknown_person = false` dan `status` tidak diisi, akan mengembalikan error 400: "status is required when is_unknown_person is false"
 - **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_number` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create suspect"
-- **Optional (Opsional):** `evidence_source`, `evidence_summary`, `is_unknown_person`
+- **Optional (Opsional):** `evidence_source`, `evidence_summary`, `is_unknown_person`, `is_unknown`, `case_name`
 
-**Catatan tentang `is_unknown_person` dan `suspect_status`:**
-- **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
-  - Di UI **TIDAK menampilkan** kolom `person_name` dan `suspect_status` (field ini tidak perlu diisi)
-  - `person_name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
-  - `suspect_status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
+**Catatan tentang `is_unknown_person` dan Validasi:**
+- **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI dan dikirim secara eksplisit):** 
+  - Di UI **TIDAK menampilkan** kolom `name` dan `status` (field ini tidak perlu diisi)
+  - `name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
+  - `status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
   - `name` di database = "Unknown"
-  - `suspect_status` di database = `null`
-- **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
-  - Di UI menampilkan kolom `person_name` dan `suspect_status`
-  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
-  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
-  - `name` di database = `person_name` (wajib)
-  - `status` di database = `suspect_status` (wajib)
+  - `status` di database = `null`
+- **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI dan dikirim secara eksplisit):**
+  - Di UI menampilkan kolom `name` dan `status`
+  - `name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
+  - `status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
+  - `name` di database = `name` (wajib)
+  - `status` di database = `status` (wajib)
+- **Jika `is_unknown_person` tidak dikirim (None):**
+  - Validasi `name` dan `status` **TIDAK dipaksa** (backward compatibility)
+  - Sistem akan menggunakan `is_unknown` sebagai fallback (default: `false`)
+  - Jika `is_unknown = false` dan `name`/`status` tidak diisi, tidak akan error (untuk backward compatibility)
 
 **Format Auto-Generate Evidence Number:**
 Jika radio "Generating" dipilih atau `evidence_number` tidak disediakan dan `evidence_file` ada:
@@ -4307,32 +4422,45 @@ Jika radio "Generating" dipilih atau `evidence_number` tidak disediakan dan `evi
   - **Jika Evidence TIDAK ada dan ada `evidence_file`:** Membuat record Evidence baru dengan `evidence_number` yang diberikan
   - **Jika Evidence TIDAK ada dan tidak ada `evidence_file`:** Gunakan `evidence_number` yang diberikan (suspect.evidence_id = evidence_number, tapi evidence record tidak dibuat)
 
-**Example Request (form-data) - Manual Evidence Number:**
+**Example Request (form-data) - Manual Evidence Number (Person Name):**
 ```
 case_id: 1
-person_name: John Doe
-suspect_status: Suspect
+name: John Doe
+status: Suspect
+is_unknown_person: false
 evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Smartphone dari tersangka
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Auto-Generate Evidence Number:**
+**Example Request (form-data) - Auto-Generate Evidence Number (Person Name):**
 ```
 case_id: 1
-person_name: John Doe
-suspect_status: Witness
+name: John Doe
+status: Witness
+is_unknown_person: false
 evidence_source: Handphone
 evidence_summary: Test evidence summary
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Link to Existing Evidence:**
+**Example Request (form-data) - Unknown Person:**
 ```
 case_id: 1
-person_name: Nathalie
-suspect_status: Witness
+is_unknown_person: true
+evidence_number: 32342223
+evidence_source: Handphone
+evidence_summary: Evidence for unknown person
+evidence_file: [file]
+```
+
+**Example Request (form-data) - Link to Existing Evidence (Person Name):**
+```
+case_id: 1
+name: Nathalie
+status: Witness
+is_unknown_person: false
 evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Link to existing evidence
@@ -4456,9 +4584,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`
 
-**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields. **Access control based on user role:**
-- **Admin Role**: Can access details of all suspects.
-- **Regular User Role**: Can only access details of suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other suspects will return 403 Forbidden.
+**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields. **Full Access**: All roles can access details of all suspects. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -4556,99 +4682,87 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `PUT /api/v1/suspects/update-suspect/{suspect_id}`
 
-**Description:** Update suspect information. Uses the same form as Create Suspect. All fields are optional (partial update). Supports file upload for evidence files. **Access control based on user role:**
-- **Admin Role**: Can update all suspects.
-- **Regular User Role**: Can only update suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other suspects will return 403 Forbidden.
+**Description:** Update suspect information. Uses the same form as Create Suspect. All fields are optional (partial update). Supports file upload for evidence files. **Endpoint ini digunakan dari form "Edit Suspect"**. **Full Access**: All roles can update all suspects. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
-- `Content-Type: multipart/form-data` (when evidence file is included) or `application/json`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
-**Request Body (multipart/form-data or JSON - all fields optional, but `suspect_id` is required):**
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID yang akan di-update |
 
-**Form Fields Mapping (same as Create Suspect):**
-| UI Field | API Field | Type | Required | Description |
-|----------|-----------|------|----------|-------------|
-| Case Name (dropdown) | `case_id` | integer | No | Case ID selected from dropdown |
-| Person of Interest (radio) | `is_unknown` | boolean | No | `true` for "Unknown", `false` for "Person Name" |
-| Person Name | `name` | string | No | Full name of the suspect |
-| Status (dropdown) | `status` | string | No | Suspect status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
-| Evidence Number (radio: Generating) | - | - | No | If selected, `evidence_number` should NOT be provided (will auto-generate) |
-| Evidence Number (radio: Manual Input) | - | - | No | If selected, `evidence_number` MUST be provided and cannot be empty |
-| Evidence Number (text input) | `evidence_number` | string | No | Manual Evidence Number (required if Manual Input selected, cannot be empty) |
-| Evidence Source (dropdown) | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
-| Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
-| Investigator | `investigator` | string | No | Investigator name |
-| Date of Birth | `date_of_birth` | date | No | Date of birth (YYYY-MM-DD) |
-| Place of Birth | `place_of_birth` | string | No | Place of birth |
-| Nationality | `nationality` | string | No | Nationality |
-| Phone Number | `phone_number` | string | No | Phone number |
-| Email | `email` | string | No | Email address |
-| Address | `address` | string | No | Address |
-| Height | `height` | integer | No | Height in cm |
-| Weight | `weight` | integer | No | Weight in kg |
-| Eye Color | `eye_color` | string | No | Eye color |
-| Hair Color | `hair_color` | string | No | Hair color |
-| Distinguishing Marks | `distinguishing_marks` | string | No | Distinguishing marks |
-| Has Criminal Record | `has_criminal_record` | boolean | No | Has criminal record |
-| Criminal Record Details | `criminal_record_details` | string | No | Criminal record details |
-| Risk Level | `risk_level` | string | No | Risk level: `"low"`, `"medium"`, `"high"` |
-| Risk Assessment Notes | `risk_assessment_notes` | string | No | Risk assessment notes |
-| Is Confidential | `is_confidential` | boolean | No | Is confidential |
-| Notes | `notes` | string | No | Additional notes |
+**Request Body (form-data, all fields optional):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | integer | No | Case ID (jika ingin mengubah case yang terkait) |
+| `name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** |
+| `is_unknown` | boolean | No | Flag untuk unknown person (legacy field, gunakan `is_unknown_person`) |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `name` dan `status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan diubah menjadi "Unknown", dan `status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `name` wajib diisi, `status` optional |
+| `status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
+| `evidence_number` | string | No | Evidence number (jika disediakan, tidak boleh kosong). **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` |
+| `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_summary` | string | No | Evidence summary/description |
+| `case_name` | string | No | Case name (optional, akan di-set otomatis dari case jika `case_id` disediakan) |
 
-**Example Request (multipart/form-data):**
+**Catatan Field Required:**
+- **Required (Wajib):** `suspect_id` (di path parameter)
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `name` tidak diisi, akan mengembalikan error 400: "name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `status` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `status` tidak diisi, akan mengembalikan error 400: "status is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika disediakan):** `evidence_number` tidak boleh kosong jika disediakan secara manual (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
+- **Optional (Opsional):** `case_id`, `evidence_source`, `evidence_summary`, `evidence_file`, `case_name`, `is_unknown_person`
+
+**Catatan tentang `is_unknown_person` dan `status`:**
+- **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
+  - Di UI **TIDAK menampilkan** kolom `name` dan `status` (field ini tidak perlu diisi)
+  - `name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
+  - `status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
+  - `name` di database = "Unknown"
+  - `status` di database = `null`
+- **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
+  - Di UI menampilkan kolom `name` dan `status`
+  - `name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
+  - `status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
+  - `name` di database = `name` (wajib)
+  - `status` di database = `status` (wajib)
+
+**Format Auto-Generate Evidence Number:**
+Jika `evidence_number` tidak disediakan dan `evidence_file` ada, sistem akan otomatis membuat evidence number dengan format:
+- **Format:** `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}`
+- **Contoh:** `EVID-1-20251110-0001`, `EVID-1-20251110-0002`, dst.
+
+**Example Request (form-data) - Person Name:**
 ```
 case_id: 1
-is_unknown: false
-name: "Updated Name"
-status: "Defendant"
-evidence_id_generating: true
-evidence_source: "Handphone"
+name: John Doe
+status: Defendant
+is_unknown_person: false
+evidence_number: 4380458334
+evidence_source: Handphone
+evidence_summary: Updated GPS handphone suspect
 evidence_file: [file]
-risk_level: "high"
-notes: "Updated notes"
 ```
 
-**Example Request (JSON - without file upload):**
-```json
-{
-  "suspect_id": 1,
-  "case_id": 1,
-  "is_unknown": false,
-  "name": "Updated Name",
-  "case_name": "Data Breach",
-  "investigator": "Solehun",
-  "status": "Defendant",
-  "evidence_number": "32342223",
-  "evidence_source": "Handphone",
-  "date_of_birth": "1995-01-01",
-  "place_of_birth": "Medan",
-  "nationality": "Indonesian",
-  "phone_number": "+628123456785",
-  "email": "updated@example.com",
-  "address": "Medan, Indonesia",
-  "height": 170,
-  "weight": 65,
-  "eye_color": "Brown",
-  "hair_color": "Black",
-  "has_criminal_record": false,
-  "risk_level": "high",
-  "notes": "Updated notes"
-}
+**Example Request (form-data) - Unknown Person:**
+```
+case_id: 1
+is_unknown_person: true
+evidence_number: 4380458334
+evidence_source: Handphone
+evidence_summary: Evidence for unknown person
+evidence_file: [file]
 ```
 
 **Catatan:** 
-- Jika `evidence_file` disediakan, gunakan content type `multipart/form-data`
-- Semua field bersifat opsional (partial update)
-- Field `evidence_number` bersifat **opsional**:
-  - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** `evidence_number = null` (opsional, tidak membuat record Evidence)
-  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
-  - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada
+- Semua field bersifat opsional (partial update), tetapi ada conditional requirements berdasarkan `is_unknown_person`
+- Jika `evidence_file` disediakan, file lama akan diganti dengan file baru (jika evidence sudah ada)
+- Jika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate), akan mengembalikan error 400 dengan pesan yang menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut
+- Jika `evidence_number` yang ingin diupdate sama dengan `evidence_number` yang sudah ada di evidence yang sedang diupdate, tidak akan ada error (tidak perlu update)
 - `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
 - `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
-- `suspect_status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
+- `status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
 
 **Response (200 OK):**
 ```json
@@ -4657,9 +4771,16 @@ notes: "Updated notes"
   "message": "Suspect updated successfully",
   "data": {
     "id": 1,
-    "name": "Updated Name",
+    "name": "John Doe",
+    "case_name": "Buronan Maroko Interpol",
+    "investigator": "Solehun",
     "status": "Defendant",
-    "risk_level": "high",
+    "is_unknown": false,
+    "evidence_id": "4380458334",
+    "evidence_source": "Handphone",
+    "created_by": "admin@gmail.com",
+    "case_id": 1,
+    "created_at": "2025-12-11T08:00:00Z",
     "updated_at": "2025-12-16T15:00:00Z"
   }
 }
@@ -4667,7 +4788,57 @@ notes: "Updated notes"
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (name required):**
+```json
+{
+  "status": 400,
+  "detail": "name is required when is_unknown_person is false"
+}
+```
+
+**400 Bad Request (status required):**
+```json
+{
+  "status": 400,
+  "detail": "status is required when is_unknown_person is false"
+}
+```
+
+**400 Bad Request (name cannot be empty):**
+```json
+{
+  "status": 400,
+  "detail": "name cannot be empty"
+}
+```
+
+**400 Bad Request (evidence_number cannot be empty):**
+```json
+{
+  "status": 400,
+  "detail": "evidence_number cannot be empty when provided manually"
+}
+```
+
+**400 Bad Request (Duplicate evidence_number):**
+```json
+{
+  "status": 400,
+  "detail": "Evidence number '4380458334' already exists for another evidence (ID: 1)"
+}
+```
+
+**Catatan:** Error ini terjadi ketika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate). Pesan error akan menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut untuk membantu troubleshooting.
+
+**400 Bad Request (Invalid file type):**
+```json
+{
+  "status": 400,
+  "detail": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
+}
+```
+
+**400 Bad Request (Validation error):**
 ```json
 {
   "status": 400,
@@ -4676,12 +4847,19 @@ notes: "Updated notes"
 }
 ```
 
-**404 Not Found:**
+**404 Not Found (Suspect not found):**
 ```json
 {
   "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
+  "detail": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
 }
 ```
 
@@ -4698,68 +4876,13 @@ notes: "Updated notes"
 ```json
 {
   "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
+  "detail": "Unexpected server error: {error_message}"
 }
 ```
 
 ---
 
-### 6. Delete Suspect
-
-**Endpoint:** `DELETE /api/v1/suspects/delete-suspect/{suspect_id}`
-
-**Description:** Delete a suspect record. **Access control based on user role:**
-- **Admin Role**: Can delete all suspects.
-- **Regular User Role**: Can only delete suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to delete other suspects will return 403 Forbidden.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Path Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier (in URL path) |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Suspect deleted successfully"
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 7. Get Suspect Statuses
+### 6. Get Suspect Statuses
 
 **Endpoint:** `GET /api/v1/suspects/statuses`
 
@@ -5328,16 +5451,11 @@ Content-Type: application/json
 
 **Endpoint:** `POST /api/v1/persons/create-person`
 
-**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama). **Access control based on user role:**
-- **Admin Role**: Can create person for all cases.
-- **Regular User Role**: Can only create person for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to create person for other cases will return 403 Forbidden.
+**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama). **Full Access**: All roles can create person for all cases. No filtering or access restrictions.
 
 **Headers:** 
-- Tab **Authorization**: 
-  - Type: `Bearer Token`
-  - Token: `{access_token}`
-- Tab **Body**: 
-  - Select: `form-data`
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
 **Request Body (form-data):**
 | Field | Type | Required | Description |
@@ -5666,9 +5784,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `PUT /api/v1/persons/update-person/{person_id}`
 
-**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**. **Access control based on user role:**
-- **Admin Role**: Can update all persons.
-- **Regular User Role**: Can only update persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to update other persons will return 403 Forbidden.
+**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**. **Full Access**: All roles can update all persons. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -5811,9 +5927,7 @@ is_unknown_person: true
 
 **Endpoint:** `DELETE /api/v1/persons/delete-person/{person_id}`
 
-**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail. **Access control based on user role:**
-- **Admin Role**: Can delete all persons.
-- **Regular User Role**: Can only delete persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to delete other persons will return 403 Forbidden.
+**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail. **Full Access**: All roles can delete all persons. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -5965,7 +6079,10 @@ All error responses follow this structure:
 ## 🔒 Role-Based Access Control (RBAC)
 
 ### Overview
-The API implements Role-Based Access Control (RBAC) to restrict data access based on user roles. This system ensures that each user can only access data relevant to them.
+The API implements Role-Based Access Control (RBAC) for different modules:
+- **Case Management Modules (Case, Evidence, Suspect, Person, Case Log, Reports)**: **Full Access** - All roles can access all data
+- **User Management**: **Admin Only** - Only admin role can access user management endpoints
+- **Analytics Management**: **Role-Based** - Access control based on user roles (see Analytics Management documentation)
 
 ### How Access Control Works?
 
@@ -5980,28 +6097,36 @@ The API implements Role-Based Access Control (RBAC) to restrict data access base
 
 When creating a new user, tag is automatically mapped to role:
 
-| User Tag | Resulting Role | Data Access |
-|----------|----------------|-------------|
-| `"Admin"` | `admin` | ✅ Access all data in system |
-| `"Investigator"` | `user` | ⚠️ Only own data |
-| `"Ahli Forensic"` | `user` | ⚠️ Only own data |
-| Other tags | `user` (default) | ⚠️ Only own data |
+| User Tag | Resulting Role | Case Management Access | User Management Access |
+|----------|----------------|------------------------|------------------------|
+| `"Admin"` | `admin` | ✅ Full Access (all data) | ✅ Full Access (can manage users) |
+| `"Investigator"` | `user` | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
+| `"Ahli Forensic"` | `user` | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
+| Other tags | `user` (default) | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
 
-**3. Data Filtering Mechanism:**
+**3. Access Control by Module:**
 
-Data filtering **does NOT use tag**, but uses user's **fullname** and **email**:
+**Case Management Modules (Full Access):**
+- **All Roles**: Can access, view, create, update, delete all cases, evidence, suspects, persons, case logs, and reports
+- **No Filtering**: No restrictions based on `main_investigator` or user information
+- **No 403 Errors**: All roles can access all data without permission errors
 
-- **Admin Role**: No filtering, sees all data
-- **User Role**: Filtering based on text matching:
-  - `user.fullname` or `user.email` must be found in specific fields (case-insensitive)
-  - Example: If user has `fullname = "John Doe"` and `email = "john@example.com"`, user only sees data where specific fields contain "John Doe" or "john@example.com"
+**User Management (Admin Only):**
+- **Admin Role**: Can access, view, create, update, delete all users
+- **Regular User Role**: Cannot access user management endpoints (403 Forbidden)
+
+**Analytics Management (Role-Based):**
+- See Analytics Management documentation for detailed access control rules
+- Uses filtering based on `analytic_name`, `summary`, or `created_by` containing user's `fullname` or `email`
+
+**Note:** The old data filtering mechanism (based on `main_investigator` matching user's `fullname` or `email`) **no longer applies** to Case Management modules. All Case Management modules now have full access for all roles.
 
 ### Roles
 
-| Role | Description | Access Level |
-|------|-------------|--------------|
-| `admin` | Administrator | Full access to all data |
-| `user` | Regular user | Limited access (own data only) |
+| Role | Description | Case Management Access | User Management Access |
+|------|-------------|------------------------|------------------------|
+| `admin` | Administrator | Full access to all data | Full access (can manage users) |
+| `user` | Regular user | Full access to all data | No access (403 Forbidden) |
 
 ### Role Mapping from Tags
 
@@ -6025,7 +6150,8 @@ User: {
   role: "admin"
 }
 
-Result: ✅ Sees ALL cases, evidence, suspects, and reports in the system
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+User Management: ✅ Can access, create, update, delete all users
 ```
 
 **Scenario 2: User with User Role (Tag: Investigator)**
@@ -6037,17 +6163,15 @@ User: {
   role: "user"
 }
 
-Case 1: {
-  case_number: "REG/001/2024",
-  main_investigator: "Investigator A"
-}
-→ ✅ CAN ACCESS (because fullname matches main_investigator)
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+  - Case 1 (main_investigator: "Investigator A"): ✅ CAN ACCESS
+  - Case 2 (main_investigator: "Investigator B"): ✅ CAN ACCESS
+  - Case 3 (main_investigator: "Ahli Forensic X"): ✅ CAN ACCESS
+  - All cases accessible regardless of main_investigator value
 
-Case 2: {
-  case_number: "REG/002/2024",
-  main_investigator: "Investigator B"
-}
-→ ❌ CANNOT ACCESS (because fullname doesn't match)
+User Management: ❌ Cannot access (403 Forbidden)
+  - GET /api/v1/auth/get-all-users: ❌ 403 Forbidden
+  - POST /api/v1/auth/create-user: ❌ 403 Forbidden
 ```
 
 **Scenario 3: User with User Role (Tag: Ahli Forensic)**
@@ -6059,24 +6183,21 @@ User: {
   role: "user"
 }
 
-Case 1: {
-  case_number: "REG/003/2024",
-  main_investigator: "Ahli Forensic X"
-}
-→ ✅ CAN ACCESS (because fullname matches main_investigator)
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+  - Case 1 (main_investigator: "Ahli Forensic X"): ✅ CAN ACCESS
+  - Case 2 (main_investigator: "Ahli Forensic Y"): ✅ CAN ACCESS
+  - Case 3 (main_investigator: "Investigator A"): ✅ CAN ACCESS
+  - All cases accessible regardless of main_investigator value
 
-Case 2: {
-  case_number: "REG/004/2024",
-  main_investigator: "Ahli Forensic Y"
-}
-→ ❌ CANNOT ACCESS (because fullname doesn't match)
+User Management: ❌ Cannot access (403 Forbidden)
 ```
 
 **Important Points:**
 - Tags `"Investigator"` and `"Ahli Forensic"` **both result in role `"user"`**
-- Both have the **same access level** (only own data)
+- Both have **full access** to Case Management modules (all data)
+- Both have **no access** to User Management (admin only)
 - Tag difference is only for **display/organization purposes**, not for access control
-- Filtering is done based on **fullname/email matching**, not based on tag
+- **No filtering** is applied to Case Management modules - all roles see all data
 
 ### Access Control Flow Diagram
 
@@ -6088,152 +6209,147 @@ Case 2: {
                      │
                      ▼
          ┌───────────────────────┐
-         │  Check User Role      │
+         │  Check Module Type    │
          └───────┬───────────────┘
                  │
         ┌────────┴────────┐
         │                 │
         ▼                 ▼
-   ┌─────────┐      ┌──────────┐
-   │ admin   │      │  user    │
-   └────┬────┘      └────┬─────┘
-        │                │
-        │                ▼
-        │      ┌─────────────────────┐
-        │      │ Filter Data         │
-        │      │ Based on:           │
-        │      │ - fullname          │
-        │      │ - email             │
-        │      │                     │
-        │      │ Match with:         │
-        │      │ - main_investigator │
-        │      │ - case fields       │
-        │      │ - evidence fields   │
-        │      │ - suspect fields    │
-        │      └─────────────────────┘
-        │
-        ▼
-┌──────────────────┐
-│  Access All      │
-│  Data (No Filter)│
-└──────────────────┘
+┌──────────────┐   ┌──────────────┐
+│ Case Mgmt    │   │ User Mgmt    │
+│ Modules      │   │              │
+└──────┬───────┘   └──────┬───────┘
+       │                  │
+       │                  │
+       ▼                  ▼
+┌──────────────┐   ┌──────────────┐
+│ Full Access  │   │ Check Role   │
+│ All Roles    │   └──────┬───────┘
+│              │          │
+│ ✅ Admin     │          │
+│ ✅ User      │          ▼
+│              │   ┌──────────────┐
+│ No Filtering │   │ admin?       │
+│ No 403       │   └──────┬───────┘
+└──────────────┘          │
+                          │
+                  ┌───────┴───────┐
+                  │               │
+                  ▼               ▼
+            ┌─────────┐     ┌──────────┐
+            │  Yes    │     │   No     │
+            │ ✅ Allow│     │ ❌ 403   │
+            └─────────┘     └──────────┘
 ```
 
 ### Summary
 
 | Aspect | Explanation |
 |--------|-------------|
-| **Access Control Based On** | **Role** (admin/user), not Tag |
+| **Case Management Modules** | **Full Access** - All roles (admin/user) can access all data |
+| **User Management** | **Admin Only** - Only admin role can access user management endpoints |
+| **Access Control Based On** | **Module Type** - Different modules have different access rules |
 | **Tag Used For** | Display and mapping to role when creating user |
-| **Data Filtering Uses** | User's **Fullname** and **Email** (text matching) |
-| **Admin Role** | Sees all data without filtering |
-| **User Role** | Only sees data where fullname/email matches specific fields |
-| **Tag "Investigator" vs "Ahli Forensic"** | Both result in role "user" with same access level |
+| **Case Management Filtering** | **No Filtering** - All roles see all data |
+| **User Management Filtering** | **Role-Based** - Only admin can access |
+| **Tag "Investigator" vs "Ahli Forensic"** | Both result in role "user" with full access to Case Management, no access to User Management |
 
 ### Access Rules
 
 #### Case Management
 
 **All Case Management Endpoints:**
-- **Admin Role**: Can access, view, create, update, delete, and export all cases.
-- **Regular User Role**: Can only access cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching). Attempting to access other cases will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, delete, and export all cases. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `GET /api/v1/cases/get-all-cases` - Filtered list based on role
-- `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` - Access check before returning details
-- `PUT /api/v1/cases/update-case/{case_id}` - Access check before update
-- `GET /api/v1/cases/export-case-details-pdf/{case_id}` - Access check before export
-- `POST /api/v1/cases/save-notes` - Access check before saving notes
-- `PUT /api/v1/cases/edit-notes` - Access check before editing notes
-- `GET /api/v1/cases/statistics/summary` - Filtered statistics based on role
+- `GET /api/v1/cases/get-all-cases` - All cases accessible to all roles
+- `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` - All case details accessible to all roles
+- `PUT /api/v1/cases/update-case/{case_id}` - All cases can be updated by all roles
+- `GET /api/v1/cases/export-case-details-pdf/{case_id}` - All cases can be exported by all roles
+- `POST /api/v1/cases/save-notes` - Notes can be saved for all cases by all roles
+- `PUT /api/v1/cases/edit-notes` - Notes can be edited for all cases by all roles
+- `GET /api/v1/cases/statistics/summary` - All statistics accessible to all roles
 
 **Example:**
-- User with `fullname = "Investigator"` or `email = "investigator@example.com"` only sees cases where `main_investigator` contains "Investigator" or "investigator@example.com"
-- User with `fullname = "Ahli Forensic"` only sees cases where `main_investigator` contains "Ahli Forensic"
+- User with any role can access all cases regardless of `main_investigator` value
+- No 403 Forbidden errors for accessing cases from other users
 
 #### Evidence Management
 
 **All Evidence Management Endpoints:**
-- **Admin Role**: Can access, view, and create evidence for all cases.
-- **Regular User Role**: Can only access evidence from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other evidence will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, and create evidence for all cases. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `GET /api/v1/evidence/get-evidence-list` - Filtered list based on role
-- `GET /api/v1/evidence/get-evidence-summary` - Filtered statistics based on role
-- `POST /api/v1/evidence/create-evidence` - Access check before creating evidence
-- `GET /api/v1/evidence/get-evidence-by-id{evidence_id}` - Access check before returning details
+- `GET /api/v1/evidence/get-evidence-list` - All evidence accessible to all roles
+- `GET /api/v1/evidence/get-evidence-summary` - All statistics accessible to all roles
+- `POST /api/v1/evidence/create-evidence` - Evidence can be created for all cases by all roles
+- `GET /api/v1/evidence/get-evidence-by-id{evidence_id}` - All evidence details accessible to all roles
 
 #### Suspect Management
 
 **All Suspect Management Endpoints:**
-- **Admin Role**: Can access, view, create, update, and delete all suspects.
-- **Regular User Role**: Can only access suspects from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other suspects will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, and delete all suspects. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `GET /api/v1/suspects/` - Filtered list based on role
-- `GET /api/v1/suspects/get-suspect-summary` - Filtered statistics based on role
-- `POST /api/v1/suspects/create-suspect` - Access check before creating suspect
-- `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}` - Access check before returning details
-- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - Access check before update
-- `DELETE /api/v1/suspects/delete-suspect/{suspect_id}` - Access check before delete
+- `GET /api/v1/suspects/` - All suspects accessible to all roles
+- `GET /api/v1/suspects/get-suspect-summary` - All statistics accessible to all roles
+- `POST /api/v1/suspects/create-suspect` - Suspects can be created for all cases by all roles
+- `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}` - All suspect details accessible to all roles
+- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - All suspects can be updated by all roles
+- `DELETE /api/v1/suspects/delete-suspect/{suspect_id}` - All suspects can be deleted by all roles
 
 #### Person Management (Legacy)
 
 **All Person Management Endpoints:**
-- **Admin Role**: Can access, view, create, update, and delete all persons.
-- **Regular User Role**: Can only access persons from cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access other persons will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, and delete all persons. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `POST /api/v1/persons/create-person` - Access check before creating person
-- `PUT /api/v1/persons/update-person/{person_id}` - Access check before update
-- `DELETE /api/v1/persons/delete-person/{person_id}` - Access check before delete
+- `POST /api/v1/persons/create-person` - Persons can be created for all cases by all roles
+- `PUT /api/v1/persons/update-person/{person_id}` - All persons can be updated by all roles
+- `DELETE /api/v1/persons/delete-person/{person_id}` - All persons can be deleted by all roles
 
 **Note:** Person Management endpoints are legacy endpoints that work similarly to Suspect Management. Both endpoints manage the same underlying data (Suspect model).
 
 #### Case Log Management
 
 **All Case Log Management Endpoints:**
-- **Admin Role**: Can access, view, and update case logs for all cases.
-- **Regular User Role**: Can only access case logs for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access logs for other cases will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, and update case logs for all cases. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `GET /api/v1/case-logs/case/logs/{case_id}` - Access check before returning logs
-- `GET /api/v1/case-logs/log/{log_id}` - Access check before returning log detail (via case_id from log)
-- `PUT /api/v1/case-logs/change-log/{case_id}` - Access check before updating case status and creating log
+- `GET /api/v1/case-logs/case/logs/{case_id}` - All case logs accessible to all roles
+- `GET /api/v1/case-logs/log/{log_id}` - All log details accessible to all roles
+- `PUT /api/v1/case-logs/change-log/{case_id}` - Case status can be updated for all cases by all roles
 
 #### Reports Management
 
 **All Reports Management Endpoints:**
-- **Admin Role**: Can access all case summary and evidence chain reports.
-- **Regular User Role**: Can only access reports for cases where they are the main investigator (cases where `main_investigator` matches user's fullname or email). Attempting to access reports for other cases will return 403 Forbidden.
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access all case summary and evidence chain reports. No filtering or access restrictions based on `main_investigator`.
 
 **Affected Endpoints:**
-- `GET /api/v1/reports/case-summary/{case_id}` - Access check before generating case summary report
-- `GET /api/v1/reports/evidence-chain/{evidence_id}` - Access check before generating evidence chain report (via case_id from evidence)
+- `GET /api/v1/reports/case-summary/{case_id}` - All case summary reports accessible to all roles
+- `GET /api/v1/reports/evidence-chain/{evidence_id}` - All evidence chain reports accessible to all roles
 
 #### User Management
 
-**Create User (`POST /api/v1/auth/create-user`):**
-- **Admin:** ✅ Can create users
-- **User:** ❌ Cannot create users (403 Forbidden)
+**All User Management Endpoints:**
+- **Admin Role**: ✅ Can access, view, create, update, and delete all users.
+- **Regular User Role**: ❌ Cannot access user management endpoints (403 Forbidden). Only admin can manage users.
+
+**Affected Endpoints:**
+- `GET /api/v1/auth/get-all-users` - Admin only
+- `POST /api/v1/auth/create-user` - Admin only
+- `PUT /api/v1/auth/update-user/{user_id}` - Admin only
+- `DELETE /api/v1/auth/delete-user/{user_id}` - Admin only
+
+**Note:** User Management is the only module with restricted access. All other modules (Case, Evidence, Suspect, Person, Case Log, Reports) have full access for all roles.
 
 ### Important Notes
 
-1. **Matching Criteria:** User role filtering uses case-insensitive matching: `Case.main_investigator` contains `User.fullname` or `User.email`
-   - Case-insensitive (e.g., "Investigator" matches "investigator")
-   - Partial matching (e.g., "John Doe" matches "John Doe" or "john.doe@example.com")
-   - Matching is done using SQL `ILIKE` operator for flexibility
+1. **Full Access for Case Management Modules:** All Case Management, Evidence Management, Suspect Management, Person Management, Case Log Management, and Reports Management endpoints have **full access** for all roles. No filtering or access restrictions are applied.
 
-2. **Admin Bypass:** Admin users bypass all filters and see all data
+2. **User Management Restriction:** Only Admin role can access User Management endpoints. Regular users (Investigator, Ahli Forensic) will receive 403 Forbidden when attempting to access user management endpoints.
 
-3. **403 Forbidden Errors:** Regular users attempting to access data from other users' cases will receive:
-   ```json
-   {
-     "status": 403,
-     "message": "You do not have permission to access this [resource]",
-     "data": null
-   }
-   ```
+3. **No 403 Forbidden Errors:** Regular users will NOT receive 403 Forbidden errors when accessing Case Management, Evidence Management, Suspect Management, Person Management, Case Log Management, or Reports Management endpoints, as all roles have full access to these modules.
 
 3. **Token Validation:** All protected endpoints validate:
    - Token signature

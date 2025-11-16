@@ -11,6 +11,28 @@ from fastapi.responses import JSONResponse
 import traceback, os, hashlib
 from app.case_management.service import check_case_access
 
+# Valid enum values for suspect_status
+VALID_SUSPECT_STATUSES = ["Witness", "Reported", "Suspected", "Suspect", "Defendant"]
+
+def normalize_suspect_status(status: Optional[str]) -> Optional[str]:
+    if not status or not isinstance(status, str):
+        return None
+    
+    status_clean = status.strip()
+    if not status_clean:
+        return None
+    
+    for valid_status in VALID_SUSPECT_STATUSES:
+        if status_clean.lower() == valid_status.lower():
+            return valid_status
+    
+    status_capitalized = status_clean.capitalize()
+    for valid_status in VALID_SUSPECT_STATUSES:
+        if status_capitalized.lower() == valid_status.lower():
+            return valid_status
+    
+    return None
+
 router = APIRouter(prefix="/persons", tags=["Person Management"])
 
 @router.post("/create-person")
@@ -30,9 +52,6 @@ async def create_person(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to create person for this case")
         
         if not is_unknown_person:
             if not person_name or not person_name.strip():
@@ -149,7 +168,12 @@ async def create_person(
                 print(f"Warning: Could not create case log for suspect: {str(e)}")
         else:
             person_name_clean = person_name.strip() if person_name else None
-            final_suspect_status = suspect_status if suspect_status else None
+            final_suspect_status = normalize_suspect_status(suspect_status) if suspect_status else None
+            if suspect_status and final_suspect_status is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                )
             
             suspect_dict = {
                 "name": person_name_clean,
@@ -250,7 +274,7 @@ async def create_person(
             "case_id": suspect.case_id,
             "name": suspect.name,
             "suspect_status": suspect.status,
-            "evidence_number": suspect.evidence_id,
+            "evidence_number": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,
@@ -291,10 +315,8 @@ async def update_person(
         
         case = db.query(Case).filter(Case.id == suspect.case_id).first()
         if case:
-            from app.case_management.service import check_case_access
-            if current_user is not None and not check_case_access(case, current_user):
-                raise HTTPException(status_code=403, detail="You do not have permission to update this person")
-        
+            print("case found")
+
         if is_unknown_person is not None:
             setattr(suspect, 'is_unknown', is_unknown_person)
 
@@ -313,7 +335,13 @@ async def update_person(
                         detail="suspect_status is required when is_unknown_person is false"
                     )
                 setattr(suspect, 'name', person_name.strip())
-                setattr(suspect, 'status', suspect_status.strip())
+                normalized_status = normalize_suspect_status(suspect_status)
+                if normalized_status is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                    )
+                setattr(suspect, 'status', normalized_status)
         else:
             current_is_unknown = getattr(suspect, 'is_unknown', False)
             if not current_is_unknown:
@@ -330,7 +358,13 @@ async def update_person(
                             status_code=400,
                             detail="suspect_status cannot be empty"
                         )
-                    setattr(suspect, 'status', suspect_status.strip())
+                    normalized_status = normalize_suspect_status(suspect_status)
+                    if normalized_status is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        )
+                    setattr(suspect, 'status', normalized_status)
             else:
                 pass
         
@@ -369,7 +403,7 @@ async def update_person(
             "case_id": suspect.case_id,
             "name": suspect.name,
             "suspect_status": suspect.status,
-            "evidence_number": suspect.evidence_id,
+            "evidence_number": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "investigator": suspect.investigator,
             "created_by": suspect.created_by,
@@ -407,9 +441,7 @@ async def delete_person(
         
         case = db.query(Case).filter(Case.id == suspect.case_id).first()
         if case:
-            from app.case_management.service import check_case_access
-            if current_user is not None and not check_case_access(case, current_user):
-                raise HTTPException(status_code=403, detail="You do not have permission to delete this person")
+            print("case found")
         
         suspect_name = suspect.name
         case_id = suspect.case_id

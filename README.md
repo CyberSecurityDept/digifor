@@ -136,6 +136,24 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
 
 - **Migrations**: Run migrations using Alembic
   ```bash
+  # Activate virtual environment first
+  source venv/bin/activate  # macOS/Linux
+  venv\Scripts\activate     # Windows
+  
+  # Check current migration status
+  alembic current
+  
+  # Apply all pending migrations
+  alembic upgrade head
+  
+  # View migration history
+  alembic history
+  
+  # Rollback to previous migration (if needed)
+  alembic downgrade -1
+  
+  # Create new migration (after model changes)
+  alembic revision --autogenerate -m "description_of_changes"
   alembic upgrade head
   ```
 - **Database Initialization**: Use the provided script to set up the database
@@ -143,6 +161,35 @@ DATABASE_URL=postgresql://forenlytic_user:your_password@localhost:5432/forenlyti
   python tools/setup_postgres.py
   ```
 - **Backup**: Regular backups recommended for production environments
+
+### Alembic Migration Setup
+
+This project uses Alembic for database schema versioning and migrations. The Alembic configuration is located in:
+- `alembic.ini` - Main Alembic configuration file
+- `alembic/env.py` - Environment configuration for migrations
+- `alembic/versions/` - Directory containing migration scripts
+
+**Important Migration Files:**
+- Migration files in `alembic/versions/` should be committed to version control
+- All developers should run `alembic upgrade head` after pulling new migrations
+- Never edit existing migration files that have been applied to production
+
+**Creating New Migrations:**
+```bash
+# After modifying models, create a new migration
+alembic revision --autogenerate -m "description_of_changes"
+
+# Review the generated migration file
+# Then apply it
+alembic upgrade head
+```
+
+**Migration Best Practices:**
+1. Always review auto-generated migrations before applying
+2. Test migrations on a development database first
+3. Create backups before running migrations in production
+4. Keep migration files in version control
+5. Document breaking changes in migration comments
 
 ## 🔴 Redis Server
 
@@ -321,7 +368,10 @@ cp env.example .env
 # 8. Initialize database
 python tools/setup_postgres.py
 
-# 9. Run server
+# 9. Run database migrations
+alembic upgrade head
+
+# 10. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -351,7 +401,10 @@ copy env.example .env
 # 9. Initialize database
 python tools\setup_postgres.py
 
-# 10. Run server
+# 10. Run database migrations
+alembic upgrade head
+
+# 11. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -397,7 +450,10 @@ cp env.example .env
 # 10. Initialize database
 python tools/setup_postgres.py
 
-# 11. Run server
+# 11. Run database migrations
+alembic upgrade head
+
+# 12. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -474,6 +530,11 @@ pip install --upgrade -r requirements.txt
 ```bash
 python scripts/check-db-connection.py
 python scripts/init-database.py
+
+# Run database migrations
+alembic upgrade head
+
+# Seed initial data
 python -m app.auth.seed
 ```
 

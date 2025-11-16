@@ -15,19 +15,7 @@ def get_wib_now():
     return datetime.now(WIB)
 
 def check_case_access(case: Case, current_user) -> bool:
-    if current_user is None:
-        return False
-    
-    user_role = getattr(current_user, 'role', None)
-    if user_role == "admin":
-        return True
-    
-    user_fullname = getattr(current_user, 'fullname', '') or ''
-    user_email = getattr(current_user, 'email', '') or ''
-    main_investigator = case.main_investigator or ''
-    
-    return (user_fullname.lower() in main_investigator.lower() or 
-            user_email.lower() in main_investigator.lower())
+    return True
 
 def format_date_indonesian(date_value: datetime) -> str:
     month_names = {
@@ -202,17 +190,6 @@ class CaseService:
     def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None, current_user=None) -> dict:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
 
-        if current_user is not None:
-            user_role = getattr(current_user, 'role', None)
-            if user_role != "admin":
-                user_fullname = getattr(current_user, 'fullname', '') or ''
-                user_email = getattr(current_user, 'email', '') or ''
-                query = query.filter(
-                    or_(
-                        Case.main_investigator.ilike(f"%{user_fullname}%"),
-                        Case.main_investigator.ilike(f"%{user_email}%")
-                    )
-                )
         status_mapping = {
             'open': 'Open',
             'OPEN': 'Open',
@@ -298,8 +275,6 @@ class CaseService:
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to update this case")
         update_data = case_data.dict(exclude_unset=True)
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
@@ -360,17 +335,6 @@ class CaseService:
     
     def get_case_statistics(self, db: Session, current_user=None) -> dict:
         query = db.query(Case)
-        if current_user is not None:
-            user_role = getattr(current_user, 'role', None)
-            if user_role != "admin":
-                user_fullname = getattr(current_user, 'fullname', '') or ''
-                user_email = getattr(current_user, 'email', '') or ''
-                query = query.filter(
-                    or_(
-                        Case.main_investigator.ilike(f"%{user_fullname}%"),
-                        Case.main_investigator.ilike(f"%{user_email}%")
-                    )
-                )
         
         total_cases = query.count()
         open_cases = query.filter(Case.status == "Open").count()
@@ -388,9 +352,6 @@ class CaseService:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to save notes for this case")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -414,9 +375,6 @@ class CaseService:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to edit notes for this case")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -488,16 +446,6 @@ class CaseService:
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        # Check access permission: admin can access all, user can only access their cases
-        if current_user is not None:
-            user_role = getattr(current_user, 'role', None)
-            if user_role != "admin":
-                user_fullname = getattr(current_user, 'fullname', '') or ''
-                user_email = getattr(current_user, 'email', '') or ''
-                main_investigator = case.main_investigator or ''
-                if not (user_fullname.lower() in main_investigator.lower() or user_email.lower() in main_investigator.lower()):
-                    raise HTTPException(status_code=403, detail="You do not have permission to access this case")
-        
         agency_name = None
         work_unit_name = None
         
@@ -531,44 +479,57 @@ class CaseService:
             
         for evidence in all_evidence:
             evidence_suspect_id = getattr(evidence, 'suspect_id', None)
+            evidence_num = getattr(evidence, 'evidence_number', None)
+            
+            linked_suspect_id = None
             if evidence_suspect_id and evidence_suspect_id in suspect_map:
-                suspect = suspect_map[evidence_suspect_id]
+                linked_suspect_id = evidence_suspect_id
+            elif evidence_num:
+                for suspect_id, suspect in suspect_map.items():
+                    suspect_evidence_number = getattr(suspect, 'evidence_number', None)
+                    if suspect_evidence_number and suspect_evidence_number == evidence_num:
+                        linked_suspect_id = suspect_id
+                        break
+            
+            if linked_suspect_id is not None and linked_suspect_id in suspects_by_id:
+                suspect = suspect_map[linked_suspect_id]
+                evidence_items = suspects_by_id[linked_suspect_id]["evidence"]
                 
-                if evidence_suspect_id in suspects_by_id:
-                    evidence_items = suspects_by_id[evidence_suspect_id]["evidence"]
-                    evidence_num = getattr(evidence, 'evidence_number', None)
-                    if evidence_num:
-                        evidence_linked_to_suspects.add(evidence_num)
-                    
-                    notes_text = None
-                    evidence_notes = getattr(evidence, 'notes', None)
-                    evidence_desc = getattr(evidence, 'description', None) or ''
-                    
-                    if evidence_notes:
-                        if isinstance(evidence_notes, dict):
-                            notes_text = evidence_notes.get('text', '') or evidence_desc
-                        elif isinstance(evidence_notes, str):
-                            notes_text = evidence_notes
-                    else:
-                        notes_text = evidence_desc
-                    
-                    evidence_num = getattr(evidence, 'evidence_number', None)
-                    evidence_item = {
-                        "id": evidence.id,
-                        "evidence_number": evidence_num or "",
-                        "evidence_summary": notes_text or "No description available"
-                    }
-                    
-                    evidence_file_path = getattr(evidence, 'file_path', None)
-                    if evidence_file_path:
-                        evidence_item["file_path"] = evidence_file_path
-                    
+                if evidence_num:
+                    evidence_linked_to_suspects.add(evidence_num)
+                
+                notes_text = None
+                evidence_notes = getattr(evidence, 'notes', None)
+                evidence_desc = getattr(evidence, 'description', None) or ''
+                
+                if evidence_notes:
+                    if isinstance(evidence_notes, dict):
+                        notes_text = evidence_notes.get('text', '') or evidence_desc
+                    elif isinstance(evidence_notes, str):
+                        notes_text = evidence_notes
+                else:
+                    notes_text = evidence_desc
+                
+                evidence_item = {
+                    "id": evidence.id,
+                    "evidence_number": evidence_num or "",
+                    "evidence_summary": notes_text or "No description available"
+                }
+                
+                evidence_file_path = getattr(evidence, 'file_path', None)
+                if evidence_file_path:
+                    evidence_item["file_path"] = evidence_file_path
+                
+                evidence_source = getattr(evidence, 'source', None)
+                if evidence_source:
+                    evidence_item["source"] = evidence_source
+                else:
                     suspect_source = getattr(suspect, 'evidence_source', None)
                     if suspect_source:
                         evidence_item["source"] = suspect_source
-                    
-                    if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
-                        evidence_items.append(evidence_item)
+                
+                if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
+                    evidence_items.append(evidence_item)
         
         for suspect_id, suspect_data in suspects_by_id.items():
             evidence_items = suspect_data["evidence"]
@@ -862,7 +823,7 @@ class PersonService:
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
             "suspect_status": suspect.status,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
@@ -881,7 +842,7 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
@@ -902,7 +863,7 @@ class PersonService:
                 "id": suspect.id,
                 "name": suspect.name,
                 "is_unknown": suspect.is_unknown,
-                "evidence_number": suspect.evidence_id,
+                "evidence_number": suspect.evidence_number,
                 "evidence_source": suspect.evidence_source,
                 "evidence_summary": suspect.evidence_summary,
                 "investigator": suspect.investigator,
@@ -938,7 +899,7 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,

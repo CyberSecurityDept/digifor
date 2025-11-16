@@ -21,6 +21,10 @@ wheels/
 *.egg
 MANIFEST
 
+# Alembic (keep migration files, ignore cache)
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
 # Virtual Environment
 venv/
 env/

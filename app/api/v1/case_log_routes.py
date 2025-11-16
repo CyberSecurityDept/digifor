@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.api.deps import get_database, get_current_user
 from app.case_management.service import case_log_service, check_case_access
-from app.case_management.models import Case
+from app.case_management.models import Case, CaseLog
 from app.auth.models import User
 from app.case_management.schemas import (
     CaseLogUpdate, CaseLogResponse, CaseLogListResponse
@@ -24,9 +24,6 @@ async def update_case_log(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to update log for this case")
         
         log = case_log_service.update_case_log(db, case_id, log_data.dict())
         cleaned_log = {k: v for k, v in log.items() if v is not None}
@@ -63,9 +60,6 @@ async def get_case_logs(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to access logs for this case")
-        
         logs = case_log_service.get_case_logs(db, case_id, skip, limit)
         total = case_log_service.get_log_count(db, case_id)
         
@@ -100,7 +94,6 @@ async def get_case_log_detail(
     logger = logging.getLogger(__name__)
     logger.info(f"Getting case log detail for log_id: {log_id}")
     try:
-        from app.case_management.models import CaseLog
         log_obj = db.query(CaseLog).filter(CaseLog.id == log_id).first()
         if not log_obj:
             raise HTTPException(status_code=404, detail="Case log not found")
@@ -108,9 +101,6 @@ async def get_case_log_detail(
         case = db.query(Case).filter(Case.id == log_obj.case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {log_obj.case_id} not found")
-        
-        if current_user is not None and not check_case_access(case, current_user):
-            raise HTTPException(status_code=403, detail="You do not have permission to access this log")
         
         log = case_log_service.get_case_log_detail(db, log_id)
         logger.info(f"Successfully retrieved case log detail for log_id: {log_id}")
