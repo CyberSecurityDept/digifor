@@ -322,31 +322,6 @@ async def create_suspect(
             detail=f"Unexpected server error: {str(e)}"
         )
 
-@router.get("/get-suspect-by-id/{suspect_id}", response_model=SuspectResponse)
-async def get_suspect(
-    suspect_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_database)
-):
-    try:
-        suspect = suspect_service.get_suspect(db, suspect_id, current_user)
-        return SuspectResponse(
-            status=200,
-            message="Suspect retrieved successfully",
-            data=suspect
-        )
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Suspect with ID {suspect_id} not found"
-            )
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="Unexpected server error, please try again later"
-            )
-
 @router.get("/get-suspect-detail/{suspect_id}")
 async def get_suspect_detail(
     suspect_id: int,

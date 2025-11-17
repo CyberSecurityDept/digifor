@@ -4127,7 +4127,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 **Catatan:** 
 - Endpoint `get-person` dan `get-persons-by-case` sudah tidak digunakan karena data person/suspect sudah ditampilkan di endpoint `get-case-detail-comprehensive`.
 - Untuk mendapatkan detail person/suspect, gunakan endpoint `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` yang akan menampilkan semua persons of interest dalam response `persons_of_interest`.
-- Untuk mendapatkan detail suspect lengkap, gunakan endpoint `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`.
+- Untuk mendapatkan detail suspect lengkap, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`.
 
 ---
 
@@ -4644,10 +4644,11 @@ User Management: ❌ Cannot access (403 Forbidden)
 **Affected Endpoints:**
 - `GET /api/v1/suspects/` - All suspects accessible to all roles
 - `GET /api/v1/suspects/get-suspect-summary` - All statistics accessible to all roles
+- `GET /api/v1/suspects/get-suspect-detail/{suspect_id}` - All suspect details accessible to all roles
 - `POST /api/v1/suspects/create-suspect` - Suspects can be created for all cases by all roles
-- `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}` - All suspect details accessible to all roles
 - `PUT /api/v1/suspects/update-suspect/{suspect_id}` - All suspects can be updated by all roles
-- `DELETE /api/v1/suspects/delete-suspect/{suspect_id}` - All suspects can be deleted by all roles
+- `POST /api/v1/suspects/save-suspect-notes` - All roles can save notes for all suspects
+- `PUT /api/v1/suspects/edit-suspect-notes` - All roles can edit notes for all suspects
 
 #### Person Management (Legacy)
 
