@@ -3094,7 +3094,81 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 3. Create Suspect
+### 3. Get Suspect Detail
+
+**Endpoint:** `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+
+**Description:** Get detailed information of a specific suspect by ID. **Endpoint ini digunakan untuk menampilkan detail suspect di halaman detail suspect**. Returns suspect details including name, case information, investigator, status, evidence information, and timestamps. **Full Access**: All roles can view details of all suspects. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Suspect detail retrieved successfully",
+  "data": {
+    "id": 7,
+    "name": "Doyo Wati Jo Sa Li",
+    "case_name": "Kasus kriminal pembunuhan di terminal pasar minggu",
+    "investigator": "Solehun",
+    "status": "Reported",
+    "evidence_number": "45495004534839",
+    "evidence_source": "SSD",
+    "created_at": "2025-11-16T22:20:01.709015+07:00",
+    "updated_at": "2025-11-17T15:44:34.479614+07:00"
+  }
+}
+```
+
+**Example Request:**
+```
+GET /api/v1/suspects/get-suspect-detail/7
+Authorization: Bearer <access_token>
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
+}
+```
+
+**Note:**
+- Response tidak termasuk field `case_id`, `is_unknown`, dan `created_by`
+- Field `name` adalah nama suspect (bisa "Unknown" jika `is_unknown = true`)
+- Field `status` bisa `null` jika suspect adalah unknown person
+- Timestamps (`created_at`, `updated_at`) dalam format ISO 8601 dengan timezone
+
+---
+
+### 4. Create Suspect
 
 **Endpoint:** `POST /api/v1/suspects/create-suspect`
 
@@ -3319,7 +3393,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 ---
 
-### 4. Update Suspect
+### 5. Update Suspect
 
 **Endpoint:** `PUT /api/v1/suspects/update-suspect/{suspect_id}`
 

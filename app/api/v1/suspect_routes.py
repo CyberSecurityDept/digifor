@@ -347,6 +347,75 @@ async def get_suspect(
                 detail="Unexpected server error, please try again later"
             )
 
+@router.get("/get-suspect-detail/{suspect_id}")
+async def get_suspect_detail(
+    suspect_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {suspect_id} not found"
+                }
+            )
+        
+        created_at_str = None
+        updated_at_str = None
+        try:
+            created_at_value = getattr(suspect, 'created_at', None)
+            if created_at_value:
+                if isinstance(created_at_value, datetime):
+                    created_at_str = created_at_value.isoformat()
+                else:
+                    created_at_str = str(created_at_value)
+        except (AttributeError, TypeError):
+            pass
+        
+        try:
+            updated_at_value = getattr(suspect, 'updated_at', None)
+            if updated_at_value:
+                if isinstance(updated_at_value, datetime):
+                    updated_at_str = updated_at_value.isoformat()
+                else:
+                    updated_at_str = str(updated_at_value)
+        except (AttributeError, TypeError):
+            pass
+        
+        suspect_detail = {
+            "id": suspect.id,
+            "name": suspect.name,
+            "case_name": suspect.case_name,
+            "investigator": suspect.investigator,
+            "status": suspect.status,
+            "evidence_number": suspect.evidence_number,
+            "evidence_source": suspect.evidence_source,
+            "created_at": created_at_str,
+            "updated_at": updated_at_str
+        }
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "message": "Suspect detail retrieved successfully",
+                "data": suspect_detail
+            }
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": f"Unexpected server error: {str(e)}"
+            }
+        )
+
 @router.put("/update-suspect/{suspect_id}", response_model=SuspectResponse)
 async def update_suspect(
     suspect_id: int,
