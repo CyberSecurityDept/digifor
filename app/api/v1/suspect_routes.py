@@ -690,8 +690,122 @@ async def update_suspect(
             }
         )
 
-@router.put("/save-suspect-notes")
+@router.post("/save-suspect-notes")
 async def save_suspect_notes(
+    request: SuspectNotesRequest = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        suspect_id = request.suspect_id
+        notes = request.notes
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {suspect_id} not found"
+                }
+            )
+        
+        notes_trimmed = notes.strip() if notes else ""
+        evidence_list = []
+        if suspect_id is not None:
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
+            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
+                evidence_by_number = db.query(Evidence).filter(
+                    Evidence.evidence_number == suspect.evidence_number,
+                    Evidence.case_id == suspect.case_id
+                ).all()
+                evidence_ids = {e.id for e in evidence_records}
+                for evidence in evidence_by_number:
+                    if evidence.id not in evidence_ids:
+                        evidence_records.append(evidence)
+            evidence_list = evidence_records
+        
+        if not evidence_list or len(evidence_list) == 0:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+                }
+            )
+        
+        first_evidence = evidence_list[0]
+        current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
+
+        existing_notes = None
+        if isinstance(current_notes, dict):
+            existing_notes = current_notes.get('suspect_notes')
+        elif isinstance(current_notes, str):
+            existing_notes = current_notes
+        
+        if existing_notes is not None and str(existing_notes).strip():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Notes already exist for this suspect. Use PUT /api/v1/suspects/edit-suspect-notes to update existing notes."
+                }
+            )
+        
+        if isinstance(current_notes, dict):
+            current_notes['suspect_notes'] = notes_trimmed
+        elif isinstance(current_notes, str):
+            current_notes = {'suspect_notes': notes_trimmed, 'text': current_notes}
+        else:
+            current_notes = {'suspect_notes': notes_trimmed}
+        
+        setattr(first_evidence, 'notes', current_notes)
+        db.commit()
+        db.refresh(first_evidence)
+        
+        try:
+            case = None
+            if suspect.case_id is not None:
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case:
+                current_status = case.status if case else "Open"
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                case_log = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Added notes for suspect {suspect.name}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+                db.commit()
+        except Exception as e:
+            print(f"Warning: Could not create case log: {str(e)}")
+        
+        return JSONResponse(
+            status_code=201,
+            content={
+                "status": 201,
+                "message": "Suspect notes saved successfully",
+                "data": {
+                    "suspect_id": suspect_id,
+                    "notes": notes_trimmed
+                }
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": f"Unexpected server error: {str(e)}"
+            }
+        )
+
+@router.put("/edit-suspect-notes")
+async def edit_suspect_notes(
     request: SuspectNotesRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
@@ -731,12 +845,27 @@ async def save_suspect_notes(
                 status_code=400,
                 content={
                     "status": 400,
-                    "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+                    "message": "Cannot edit notes: No evidence found for this suspect. Please create evidence first."
                 }
             )
         
         first_evidence = evidence_list[0]
         current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
+
+        existing_notes = None
+        if isinstance(current_notes, dict):
+            existing_notes = current_notes.get('suspect_notes')
+        elif isinstance(current_notes, str):
+            existing_notes = current_notes
+        
+        if existing_notes is None or not str(existing_notes).strip():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "No notes found for this suspect. Use POST /api/v1/suspects/save-suspect-notes to create new notes."
+                }
+            )
         
         if isinstance(current_notes, dict):
             current_notes['suspect_notes'] = notes_trimmed
@@ -773,7 +902,7 @@ async def save_suspect_notes(
             status_code=200,
             content={
                 "status": 200,
-                "message": "Suspect notes saved successfully",
+                "message": "Suspect notes updated successfully",
                 "data": {
                     "suspect_id": suspect_id,
                     "notes": notes_trimmed

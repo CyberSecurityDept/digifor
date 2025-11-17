@@ -3606,15 +3606,13 @@ suspect_status: Suspect
 
 ---
 
-### 6. Save/Edit Suspect Notes
+### 6. Save Suspect Notes
 
-**Endpoint:** `PUT /api/v1/suspects/save-suspect-notes`
+**Endpoint:** `POST /api/v1/suspects/save-suspect-notes`
 
-**Description:** Save or update notes for a suspect. **Endpoint ini digunakan untuk menyimpan atau mengupdate catatan tentang suspect**. Endpoint ini dapat digunakan untuk:
-- **Save notes**: Menyimpan notes baru jika suspect belum memiliki notes
-- **Edit notes**: Mengupdate notes yang sudah ada untuk suspect
+**Description:** Save new notes for a suspect. **Endpoint ini digunakan untuk menyimpan catatan baru tentang suspect**. Endpoint ini hanya dapat digunakan untuk menyimpan notes baru jika suspect belum memiliki notes. Jika notes sudah ada, gunakan endpoint `PUT /api/v1/suspects/edit-suspect-notes` untuk mengupdate notes yang sudah ada.
 
-Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can save/edit notes for all suspects. No filtering or access restrictions.
+Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can save notes for all suspects. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -3626,7 +3624,7 @@ Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan
 | `suspect_id` | integer | **Yes** | Suspect ID |
 | `notes` | string | **Yes** | Notes text to save for the suspect |
 
-**Example Request (Save New Notes):**
+**Example Request:**
 ```json
 {
   "suspect_id": 1,
@@ -3634,18 +3632,10 @@ Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan
 }
 ```
 
-**Example Request (Edit Existing Notes):**
+**Response (201 Created):**
 ```json
 {
-  "suspect_id": 1,
-  "notes": "Updated notes: Dokumentasi detail telah diperbarui dengan informasi tambahan tentang isolasi jaringan dan chain of custody."
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
+  "status": 201,
   "message": "Suspect notes saved successfully",
   "data": {
     "suspect_id": 1,
@@ -3654,11 +3644,6 @@ Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan
 }
 ```
 
-**Catatan:**
-- Endpoint ini dapat digunakan untuk **save notes baru** (jika suspect belum memiliki notes) atau **edit notes yang sudah ada** (jika suspect sudah memiliki notes)
-- Jika notes sudah ada, notes baru akan menggantikan notes yang lama
-- Response message selalu "Suspect notes saved successfully" baik untuk save maupun edit
-
 **Error Responses:**
 
 **400 Bad Request (No evidence found):**
@@ -3666,6 +3651,14 @@ Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan
 {
   "status": 400,
   "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+}
+```
+
+**400 Bad Request (Notes already exist):**
+```json
+{
+  "status": 400,
+  "message": "Notes already exist for this suspect. Use PUT /api/v1/suspects/edit-suspect-notes to update existing notes."
 }
 ```
 
@@ -3695,12 +3688,107 @@ Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan
 ```
 
 **Note:**
+- Endpoint ini hanya untuk **menyimpan notes baru**. Jika notes sudah ada, endpoint akan mengembalikan error 400
 - Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect
 - Notes disimpan sebagai JSON dengan key `suspect_notes`
-- Jika evidence sudah memiliki notes (dict atau string), notes baru akan menggantikan nilai `suspect_notes` yang lama, tetapi notes lain di dalam dict tidak akan dihapus
-- Endpoint ini secara otomatis membuat case log entry ketika notes di-save atau di-update
+- Jika evidence sudah memiliki notes (dict atau string), notes baru akan ditambahkan sebagai `suspect_notes`, tetapi notes lain di dalam dict tidak akan dihapus
+- Endpoint ini secara otomatis membuat case log entry ketika notes di-save
 - Notes yang disimpan akan muncul di endpoint `get-suspect-detail` di field `suspect_notes`
 - Untuk melihat notes yang sudah disimpan, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+- Untuk mengupdate notes yang sudah ada, gunakan endpoint `PUT /api/v1/suspects/edit-suspect-notes`
+
+---
+
+### 7. Edit Suspect Notes
+
+**Endpoint:** `PUT /api/v1/suspects/edit-suspect-notes`
+
+**Description:** Edit existing notes for a suspect. **Endpoint ini digunakan untuk mengupdate catatan yang sudah ada tentang suspect**. Endpoint ini hanya dapat digunakan untuk mengupdate notes yang sudah ada. Jika notes belum ada, gunakan endpoint `POST /api/v1/suspects/save-suspect-notes` untuk membuat notes baru.
+
+Notes akan diupdate di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can edit notes for all suspects. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body (JSON):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+| `notes` | string | **Yes** | Notes text to update for the suspect |
+
+**Example Request:**
+```json
+{
+  "suspect_id": 1,
+  "notes": "Updated notes: Dokumentasi detail telah diperbarui dengan informasi tambahan tentang isolasi jaringan dan chain of custody."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Suspect notes updated successfully",
+  "data": {
+    "suspect_id": 1,
+    "notes": "Updated notes: Dokumentasi detail telah diperbarui dengan informasi tambahan tentang isolasi jaringan dan chain of custody."
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (No evidence found):**
+```json
+{
+  "status": 400,
+  "message": "Cannot edit notes: No evidence found for this suspect. Please create evidence first."
+}
+```
+
+**400 Bad Request (No notes found):**
+```json
+{
+  "status": 400,
+  "message": "No notes found for this suspect. Use POST /api/v1/suspects/save-suspect-notes to create new notes."
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
+}
+```
+
+**Note:**
+- Endpoint ini hanya untuk **mengupdate notes yang sudah ada**. Jika notes belum ada, endpoint akan mengembalikan error 400
+- Notes akan diupdate di field `notes` dari evidence pertama yang terhubung dengan suspect
+- Notes disimpan sebagai JSON dengan key `suspect_notes`
+- Notes baru akan menggantikan nilai `suspect_notes` yang lama, tetapi notes lain di dalam dict tidak akan dihapus
+- Endpoint ini secara otomatis membuat case log entry ketika notes di-update
+- Notes yang diupdate akan muncul di endpoint `get-suspect-detail` di field `suspect_notes`
+- Untuk melihat notes yang sudah disimpan, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+- Untuk membuat notes baru, gunakan endpoint `POST /api/v1/suspects/save-suspect-notes`
 
 ---
 
