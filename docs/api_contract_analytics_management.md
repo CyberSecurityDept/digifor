@@ -531,6 +531,14 @@ Content-Type: application/json
 
 **Deskripsi:** Mendapatkan status progress dari proses upload file. Endpoint ini dapat digunakan untuk memantau progress upload baik untuk file data maupun file APK. Jika upload belum dimulai, endpoint ini akan secara otomatis memulai proses upload di background.
 
+**Catatan Penting:**
+- **Error Handling & Cleanup:** Jika proses upload gagal setelah file record di-insert ke database (misalnya error saat parsing, decryption timeout, atau error lainnya), sistem akan secara otomatis melakukan cleanup dengan menghapus:
+  - File record dari database
+  - Data terkait (social media, contacts, calls, hashfiles, chat messages) yang terkait dengan file tersebut
+  - File fisik dari storage
+- Hal ini memastikan tidak ada orphaned records yang tersisa di database ketika upload gagal.
+- Status `"Failed"` mengindikasikan bahwa proses upload telah gagal dan tidak ada data yang tersimpan di database.
+
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
@@ -644,6 +652,11 @@ Content-Type: application/json
   "data": []
 }
 ```
+
+**Catatan Error Handling:**
+- Jika error terjadi setelah file record di-insert ke database, sistem akan otomatis melakukan cleanup (menghapus file record, data terkait, dan file fisik).
+- Response dengan status `"Failed"` berarti proses upload telah gagal dan tidak ada data yang tersimpan di database.
+- Untuk error yang terjadi sebelum file record di-insert (misalnya error saat upload file atau decryption), tidak ada cleanup yang diperlukan karena belum ada data di database.
 
 ---
 
