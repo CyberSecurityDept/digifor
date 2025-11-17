@@ -363,39 +363,82 @@ async def get_suspect_detail(
                     "message": f"Suspect with ID {suspect_id} not found"
                 }
             )
+
+        case = None
+        created_at_case_str = None
+        if suspect.case_id is not None:
+            case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case is not None and hasattr(case, 'created_at') and case.created_at is not None:
+                try:
+                    if isinstance(case.created_at, datetime):
+                        created_at_case_str = case.created_at.strftime("%d/%m/%Y")
+                    else:
+                        created_at_case_str = str(case.created_at)
+                except (AttributeError, TypeError):
+                    pass
         
-        created_at_str = None
-        updated_at_str = None
-        try:
-            created_at_value = getattr(suspect, 'created_at', None)
-            if created_at_value:
-                if isinstance(created_at_value, datetime):
-                    created_at_str = created_at_value.isoformat()
-                else:
-                    created_at_str = str(created_at_value)
-        except (AttributeError, TypeError):
-            pass
+        evidence_list = []
+        if suspect_id is not None:
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
+            for evidence in evidence_records:
+                evidence_created_at_str = None
+                evidence_updated_at_str = None
+                
+                try:
+                    if hasattr(evidence, 'created_at') and evidence.created_at is not None:
+                        if isinstance(evidence.created_at, datetime):
+                            evidence_created_at_str = evidence.created_at.isoformat()
+                        else:
+                            evidence_created_at_str = str(evidence.created_at)
+                except (AttributeError, TypeError):
+                    pass
+                
+                try:
+                    if hasattr(evidence, 'updated_at') and evidence.updated_at is not None:
+                        if isinstance(evidence.updated_at, datetime):
+                            evidence_updated_at_str = evidence.updated_at.isoformat()
+                        else:
+                            evidence_updated_at_str = str(evidence.updated_at)
+                except (AttributeError, TypeError):
+                    pass
+                
+                evidence_list.append({
+                    "id": evidence.id,
+                    "evidence_number": evidence.evidence_number,
+                    "evidence_summary": evidence.description if hasattr(evidence, 'description') else None,
+                    "file_path": evidence.file_path if hasattr(evidence, 'file_path') else None,
+                    "created_at": evidence_created_at_str,
+                    "updated_at": evidence_updated_at_str
+                })
         
-        try:
-            updated_at_value = getattr(suspect, 'updated_at', None)
-            if updated_at_value:
-                if isinstance(updated_at_value, datetime):
-                    updated_at_str = updated_at_value.isoformat()
-                else:
-                    updated_at_str = str(updated_at_value)
-        except (AttributeError, TypeError):
-            pass
+        suspect_notes = ""
+        if hasattr(suspect, 'notes') and suspect.notes is not None:
+            suspect_notes = suspect.notes
+        else:
+            if evidence_list and len(evidence_list) > 0:
+                first_evidence = db.query(Evidence).filter(Evidence.id == evidence_list[0]["id"]).first()
+                if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
+                    if isinstance(first_evidence.notes, dict):
+                        suspect_notes = first_evidence.notes.get('suspect_notes', '') or ''
+                    elif isinstance(first_evidence.notes, str):
+                        suspect_notes = first_evidence.notes
+                    else:
+                        suspect_notes = str(first_evidence.notes) if first_evidence.notes is not None else ""
         
         suspect_detail = {
             "id": suspect.id,
-            "name": suspect.name,
-            "case_name": suspect.case_name,
+            "person_name": suspect.name,
+            "suspect_status": suspect.status,
             "investigator": suspect.investigator,
-            "status": suspect.status,
-            "evidence_number": suspect.evidence_number,
-            "evidence_source": suspect.evidence_source,
-            "created_at": created_at_str,
-            "updated_at": updated_at_str
+            "case_name": suspect.case_name,
+            "created_at_case": created_at_case_str,
+            "evidence": [
+                {
+                    "evidence_count": str(len(evidence_list)),
+                    "list_evidence": evidence_list
+                }
+            ],
+            "suspect_notes": suspect_notes
         }
         
         return JSONResponse(

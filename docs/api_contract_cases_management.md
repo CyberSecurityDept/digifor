@@ -3114,15 +3114,36 @@ Authorization: Bearer <access_token>
   "status": 200,
   "message": "Suspect detail retrieved successfully",
   "data": {
-    "id": 7,
-    "name": "Doyo Wati Jo Sa Li",
-    "case_name": "Kasus kriminal pembunuhan di terminal pasar minggu",
+    "id": 1,
+    "person_name": "Bombom",
+    "suspect_status": "Reported",
     "investigator": "Solehun",
-    "status": "Reported",
-    "evidence_number": "45495004534839",
-    "evidence_source": "SSD",
-    "created_at": "2025-11-16T22:20:01.709015+07:00",
-    "updated_at": "2025-11-17T15:44:34.479614+07:00"
+    "case_name": "Kasus kriminal pembunuhan di terminal pasar minggu",
+    "created_at_case": "20/12/2025",
+    "evidence": [
+      {
+        "evidence_count": "2",
+        "list_evidence": [
+          {
+            "id": 1,
+            "evidence_number": "EVID-1-20251116-0001",
+            "evidence_summary": "Handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+            "file_path": "data/evidence/evidence_20251116_211231_EVID-1-20251116-0001.png",
+            "created_at": "2025-11-16T21:12:31.214904+07:00",
+            "updated_at": "2025-11-16T21:27:35.722355+07:00"
+          },
+          {
+            "id": 2,
+            "evidence_number": "33242352",
+            "evidence_summary": "Terdapat dialog seputar pembakaran dengan suspect lain.",
+            "file_path": "data/evidence/evidence_20251116_211231_EVID-1-20251116-0002.png",
+            "created_at": "2025-11-16T21:12:31.214904+07:00",
+            "updated_at": "2025-11-16T21:27:35.722355+07:00"
+          }
+        ]
+      }
+    ],
+    "suspect_notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
   }
 }
 ```
@@ -3161,10 +3182,19 @@ Authorization: Bearer <access_token>
 ```
 
 **Note:**
-- Response tidak termasuk field `case_id`, `is_unknown`, dan `created_by`
-- Field `name` adalah nama suspect (bisa "Unknown" jika `is_unknown = true`)
-- Field `status` bisa `null` jika suspect adalah unknown person
-- Timestamps (`created_at`, `updated_at`) dalam format ISO 8601 dengan timezone
+- Field `person_name` adalah nama suspect (bisa "Unknown" jika `is_unknown = true`)
+- Field `suspect_status` bisa `null` jika suspect adalah unknown person
+- Field `created_at_case` adalah tanggal pembuatan case dalam format DD/MM/YYYY
+- Field `evidence` berisi array dengan:
+  - `evidence_count`: Jumlah total evidence yang terhubung dengan suspect (dalam format string)
+  - `list_evidence`: Array dari evidence records yang terhubung dengan suspect, berisi:
+    - `id`: Evidence ID
+    - `evidence_number`: Nomor evidence
+    - `evidence_summary`: Ringkasan/deskripsi evidence (dari field `description` di Evidence)
+    - `file_path`: Path file evidence
+    - `created_at`: Timestamp pembuatan evidence dalam format ISO 8601 dengan timezone
+    - `updated_at`: Timestamp update evidence dalam format ISO 8601 dengan timezone
+- Field `suspect_notes`: Catatan tentang suspect (dari field `notes` di Suspect atau Evidence, jika tersedia)
 
 ---
 
