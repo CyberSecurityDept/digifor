@@ -380,6 +380,17 @@ async def get_suspect_detail(
         evidence_list = []
         if suspect_id is not None:
             evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
+            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
+                evidence_by_number = db.query(Evidence).filter(
+                    Evidence.evidence_number == suspect.evidence_number,
+                    Evidence.case_id == suspect.case_id
+                ).all()
+                
+                evidence_ids = {e.id for e in evidence_records}
+                for evidence in evidence_by_number:
+                    if evidence.id not in evidence_ids:
+                        evidence_records.append(evidence)
+            
             for evidence in evidence_records:
                 evidence_created_at_str = None
                 evidence_updated_at_str = None
