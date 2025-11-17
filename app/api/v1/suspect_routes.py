@@ -354,11 +354,6 @@ async def update_suspect(
     person_name: Optional[str] = Form(None),
     is_unknown_person: Optional[bool] = Form(None),
     suspect_status: Optional[str] = Form(None),
-    evidence_number: Optional[str] = Form(None),
-    evidence_source: Optional[str] = Form(None),
-    evidence_file: Optional[UploadFile] = File(None),
-    evidence_summary: Optional[str] = Form(None),
-    case_name: Optional[str] = Form(None),
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
@@ -375,218 +370,88 @@ async def update_suspect(
         if case_id is not None:
             case = db.query(Case).filter(Case.id == case_id).first()
             if not case:
-                raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "status": 404,
+                        "message": f"Case with ID {case_id} not found"
+                    }
+                )
             setattr(suspect, 'case_id', case_id)
-            if case_name is None:
-                setattr(suspect, 'case_name', case.title if case else None)
-
-        if case_name is not None:
-            setattr(suspect, 'case_name', case_name)
+            setattr(suspect, 'case_name', case.title if case else None)
+            investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            setattr(suspect, 'investigator', investigator_name)
     
         current_is_unknown = getattr(suspect, 'is_unknown', False)
         
-        if is_unknown_flag is not None and is_unknown_flag != current_is_unknown:
+        if is_unknown_flag is not None:
             setattr(suspect, 'is_unknown', is_unknown_flag)
             
             if is_unknown_flag:
                 setattr(suspect, 'name', "Unknown")
                 setattr(suspect, 'status', None)
             else:
-                if person_name is not None:
-                    if not person_name.strip():
-                        raise HTTPException(
-                            status_code=400,
-                            detail="person_name is required when is_unknown_person is false"
-                        )
-                    setattr(suspect, 'name', person_name.strip())
-                else:
-                    raise HTTPException(
+                if person_name is None or not person_name.strip():
+                    return JSONResponse(
                         status_code=400,
-                        detail="person_name is required when is_unknown_person is false"
-                    )
-                
-                if suspect_status is not None:
-                    normalized_status = normalize_suspect_status(suspect_status)
-                    if normalized_status is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
-                        )
-                    setattr(suspect, 'status', normalized_status)
-                else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="suspect_status is required when is_unknown_person is false"
-                    )
-        elif is_unknown_flag is not None:
-            setattr(suspect, 'is_unknown', is_unknown_flag)
-        
-        final_is_unknown = is_unknown_flag if is_unknown_flag is not None else current_is_unknown
-
-        if not final_is_unknown:
-            if person_name is not None:
-                if not person_name.strip():
-                    raise HTTPException(
-                        status_code=400,
-                        detail="person_name cannot be empty"
+                        content={
+                            "status": 400,
+                            "message": "person_name is required when is_unknown_person is false"
+                        }
                     )
                 setattr(suspect, 'name', person_name.strip())
-            
-            if suspect_status is not None:
+                
+                if suspect_status is None or not suspect_status.strip():
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "status": 400,
+                            "message": "suspect_status is required when is_unknown_person is false"
+                        }
+                    )
+                
                 normalized_status = normalize_suspect_status(suspect_status)
                 if normalized_status is None:
-                    raise HTTPException(
+                    return JSONResponse(
                         status_code=400,
-                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        content={
+                            "status": 400,
+                            "message": f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        }
                     )
                 setattr(suspect, 'status', normalized_status)
-        
-        if evidence_number is not None:
-            evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
-            if not evidence_number:
-                raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
-        
-        current_case_id = suspect.case_id
-        if not evidence_number and evidence_file:
-            date_str = datetime.now().strftime("%Y%m%d")
-            evidence_count = db.query(Evidence).filter(Evidence.case_id == current_case_id).count()
-            evidence_number = f"EVID-{current_case_id}-{date_str}-{evidence_count + 1:04d}"
-        
-        file_path = None
-        file_size = None
-        file_hash = None
-        file_type = None
-        file_extension = None
-        
-        if evidence_file:
-            allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
-            file_extension = ''
-            if evidence_file.filename and '.' in evidence_file.filename:
-                file_extension = evidence_file.filename.split('.')[-1].lower()
-            
-            if file_extension and file_extension not in allowed_extensions:
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "status": 400,
-                        "detail": f"File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: {', '.join(allowed_extensions)})"
-                    }
-                )
-            
-            upload_dir = "data/evidence"
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            evidence_num = evidence_number or suspect.evidence_number or str(suspect_id)
-            filename = f"evidence_{timestamp}_{evidence_num}.{file_extension}" if file_extension else f"evidence_{timestamp}_{evidence_num}"
-            file_path = os.path.join(upload_dir, filename)
-            file_content = await evidence_file.read()
-            file_size = len(file_content)
-            with open(file_path, "wb") as f:
-                f.write(file_content)
-            file_hash = hashlib.sha256(file_content).hexdigest()
-            file_type = evidence_file.content_type or 'application/octet-stream'
-        
-        if evidence_number or evidence_file:
-            current_evidence_number = getattr(suspect, 'evidence_number', None)
-            if current_evidence_number:
-                existing_evidence = None
-                if evidence_number:
-                    existing_evidence = db.query(Evidence).filter(
-                        Evidence.evidence_number == evidence_number,
-                        Evidence.case_id == current_case_id
-                    ).first()
+        else:
+            if not current_is_unknown:
+                if person_name is not None:
+                    if not person_name.strip():
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "status": 400,
+                                "message": "person_name cannot be empty"
+                            }
+                        )
+                    setattr(suspect, 'name', person_name.strip())
                 
-                if not existing_evidence and current_evidence_number:
-                    existing_evidence = db.query(Evidence).filter(
-                        Evidence.evidence_number == current_evidence_number,
-                        Evidence.case_id == current_case_id
-                    ).first()
-                
-                if existing_evidence:
-                    if evidence_number:
-                        other_evidence = db.query(Evidence).filter(
-                            Evidence.evidence_number == evidence_number,
-                            Evidence.id != existing_evidence.id
-                        ).first()
-                        if other_evidence:
-                            raise HTTPException(
-                                status_code=400,
-                                detail=f"Evidence number '{evidence_number}' already exists for another evidence"
-                            )
-                        setattr(existing_evidence, 'evidence_number', evidence_number)
-                    
-                    if evidence_summary is not None:
-                        setattr(existing_evidence, 'description', evidence_summary)
-                    
-                    if file_path:
-                        setattr(existing_evidence, 'file_path', file_path)
-                        setattr(existing_evidence, 'file_size', file_size)
-                        setattr(existing_evidence, 'file_hash', file_hash)
-                        setattr(existing_evidence, 'file_type', file_type)
-                        setattr(existing_evidence, 'file_extension', file_extension)
-                    
-                    if evidence_source is not None:
-                        setattr(existing_evidence, 'source', evidence_source)
-                    
-                    db.commit()
-                    db.refresh(existing_evidence)
-                    setattr(suspect, 'evidence_number', existing_evidence.evidence_number)
-                else:
-                    if evidence_file:
-                        case = db.query(Case).filter(Case.id == current_case_id).first()
-                        investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                        evidence_title = case.title if case else evidence_number
-                        evidence_dict = {
-                            "evidence_number": evidence_number,
-                            "title": evidence_title,
-                            "description": evidence_summary,
-                            "case_id": current_case_id,
-                            "file_path": file_path,
-                            "file_size": file_size,
-                            "file_hash": file_hash,
-                            "file_type": file_type,
-                            "file_extension": file_extension,
-                            "investigator": investigator_name,
-                            "collected_date": datetime.now(timezone.utc),
-                        }
-                        new_evidence = Evidence(**evidence_dict)
-                        db.add(new_evidence)
-                        db.commit()
-                        db.refresh(new_evidence)
-                        setattr(suspect, 'evidence_number', new_evidence.evidence_number)
-            else:
-                if evidence_file:
-                    case = db.query(Case).filter(Case.id == current_case_id).first()
-                    investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                    evidence_title = case.title if case else evidence_number
-                    evidence_dict = {
-                        "evidence_number": evidence_number,
-                        "title": evidence_title,
-                        "description": evidence_summary,
-                        "case_id": current_case_id,
-                        "file_path": file_path,
-                        "file_size": file_size,
-                        "file_hash": file_hash,
-                        "file_type": file_type,
-                        "file_extension": file_extension,
-                        "investigator": investigator_name,
-                        "collected_date": datetime.now(timezone.utc),
-                    }
-                    new_evidence = Evidence(**evidence_dict)
-                    db.add(new_evidence)
-                    db.commit()
-                    db.refresh(new_evidence)
-                    setattr(suspect, 'evidence_number', new_evidence.evidence_number)
-        
-        if evidence_source is not None:
-            setattr(suspect, 'evidence_source', evidence_source)
-        
-        if case_id is not None:
-            case = db.query(Case).filter(Case.id == case_id).first()
-            if case:
-                investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                setattr(suspect, 'investigator', investigator_name)
+                if suspect_status is not None:
+                    if not suspect_status.strip():
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "status": 400,
+                                "message": "suspect_status cannot be empty"
+                            }
+                        )
+                    normalized_status = normalize_suspect_status(suspect_status)
+                    if normalized_status is None:
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "status": 400,
+                                "message": f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                            }
+                        )
+                    setattr(suspect, 'status', normalized_status)
         
         db.commit()
         db.refresh(suspect)
@@ -636,11 +501,8 @@ async def update_suspect(
             "case_name": suspect.case_name,
             "investigator": suspect.investigator,
             "status": suspect.status,
-            "is_unknown": suspect.is_unknown,
             "evidence_number": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
-            "created_by": suspect.created_by,
-            "case_id": suspect.case_id,
             "created_at": created_at_str,
             "updated_at": updated_at_str
         }

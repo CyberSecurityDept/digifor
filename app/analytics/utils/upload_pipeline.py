@@ -54,7 +54,6 @@ def format_bytes(n: int) -> str:
         i += 1
     return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
 
-
 class UploadService:
     def __init__(self):
         self._progress: Dict[str, Dict[str, Any]] = {}
