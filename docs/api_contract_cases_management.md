@@ -3606,6 +3606,86 @@ suspect_status: Suspect
 
 ---
 
+### 6. Save Suspect Notes
+
+**Endpoint:** `PUT /api/v1/suspects/save-suspect-notes`
+
+**Description:** Save or update notes for a suspect. **Endpoint ini digunakan untuk menyimpan atau mengupdate catatan tentang suspect**. Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can save notes for all suspects. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body (JSON):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+| `notes` | string | **Yes** | Notes text to save for the suspect |
+
+**Example Request:**
+```json
+{
+  "suspect_id": 1,
+  "notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Suspect notes saved successfully",
+  "data": {
+    "suspect_id": 1,
+    "notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (No evidence found):**
+```json
+{
+  "status": 400,
+  "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
+}
+```
+
+**Note:**
+- Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect
+- Notes disimpan sebagai JSON dengan key `suspect_notes`
+- Jika evidence sudah memiliki notes (dict atau string), notes baru akan ditambahkan/update tanpa menghapus notes yang sudah ada
+- Endpoint ini secara otomatis membuat case log entry ketika notes di-update
+- Notes yang disimpan akan muncul di endpoint `get-suspect-detail` di field `suspect_notes`
+
+---
+
 **Endpoint:** `POST /api/v1/suspects/evidence`
 
 **Description:** Add new evidence to an existing suspect. Supports file upload for evidence files.
