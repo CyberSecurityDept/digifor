@@ -334,7 +334,7 @@ def build_report_header(analytic, timestamp_now, usable_width, file_upload_date=
     logo_path = settings.LOGO_PATH
     if not os.path.exists(logo_path):
         raise FileNotFoundError(f"Logo tidak ditemukan di {logo_path}")
-    logo_img = Image(logo_path, width=130, height=30)
+    logo_img = Image(logo_path, width=191, height=30)
 
     export_time = Paragraph(
         f"Exported: {timestamp_now.strftime('%d/%m/%Y %H:%M')} WIB", export_style
@@ -593,27 +593,24 @@ def _build_summary_section(usable_width, summary_text):
 
 def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
     logger.info(f"Starting Deep Communication PDF generation - analytic_id={analytic.id}, source={source}, person_name={person_name}, device_id={device_id}")
-    report_start_time = time.time()
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
 
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
-    
-    logger.info(f"PDF file path: {file_path}")
 
+    # === PAGE SETUP ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
     header_height = 120
-    
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
         leftMargin=left_margin,
         rightMargin=right_margin,
-        topMargin=header_height,   
+        topMargin=header_height,
         bottomMargin=50,
     )
 
@@ -626,146 +623,182 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         db=db
     )
 
-    logger.info("Fetching chat detail data...")
     chat_data = {}
     chat_messages = []
     try:
-        if response is not None and hasattr(response, "body") and response.body is not None:
-            response_data = json.loads(response.body.decode("utf-8"))
-            chat_data = response_data.get("data", {}) if isinstance(response_data, dict) else {}
-            chat_messages = chat_data.get("chat_messages", []) if isinstance(chat_data, dict) else []
-            logger.info(f"Retrieved {len(chat_messages)} chat messages")
-    except Exception as e:
-        logger.error(f"Failed to parse chat_detail: {e}", exc_info=True)
-        chat_messages = []
-        chat_data = {}
+        if response and hasattr(response, "body"):
+            raw = json.loads(response.body.decode("utf-8"))
+            chat_data = raw.get("data", {})
+            chat_messages = chat_data.get("chat_messages", [])
+    except:
+        pass
 
-    styles = getSampleStyleSheet()
+    # === STYLES ===
+    style_time_center = ParagraphStyle(
+        "TimeCenter",
+        fontSize=11,
+        leading=14,
+        alignment=TA_CENTER,
+        wordWrap="CJK"
+    )
+
+    style_chat_left = ParagraphStyle(
+        "ChatLeft",
+        fontSize=11,
+        leading=14,
+        alignment=TA_LEFT,     # LEFT ALIGN FIXED HERE
+        wordWrap="CJK"
+    )
+
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
-    normal_style = ParagraphStyle("Normal", fontSize=11, leading=14, alignment=TA_LEFT)
-    wrap_style = ParagraphStyle("Wrap", fontSize=11, leading=14, wordWrap="CJK", alignment=TA_JUSTIFY)
 
     story = []
     story.append(Spacer(1, 5))
 
-    sender_name = chat_messages[0].get("sender", "Unknown") if chat_messages else "Unknown"
-    receiver_name = chat_messages[0].get("recipient", "Unknown") if chat_messages else "Unknown"
+    # ============================================================
+    #        INFO SECTION — JUSTIFY BETWEEN
+    # ============================================================
+
+    sender_name = chat_messages[0].get("sender", "-") if chat_messages else "-"
+    receiver_name = chat_messages[0].get("recipient", "-") if chat_messages else "-"
     total_messages = len(chat_messages)
-    platform_name = chat_data.get("platform", source or "Unknown") if isinstance(chat_data, dict) else (source or "Unknown")
+    platform_name = chat_data.get("platform", source or "-")
 
     info_data = [
         ["Source", f": {platform_name}", "Sender", f": {sender_name}"],
-        ["Receiver", f": {receiver_name}", "Messages", f": {total_messages} total"],
+        ["Messages", f": {total_messages} Messages", "Receiver", f": {receiver_name}"],
     ]
-    info_table = Table(info_data, colWidths=[60, (usable_width/2 - 60), 60, (usable_width/2 - 60)])
+
+    col_w = [
+        usable_width * 0.13,
+        usable_width * 0.37,
+        usable_width * 0.13,
+        usable_width * 0.37,
+    ]
+
+    info_table = Table(info_data, colWidths=col_w)
     info_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 11),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("FONTSIZE", (0, 0), (-1, -1), 12),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+
+        ("LINEBEFORE", (0, 0), (-1, -1), 0, colors.transparent),
+        ("LINEAFTER", (0, 0), (-1, -1), 0, colors.transparent),
+        ("LINEABOVE", (0, 0), (-1, -1), 0, colors.transparent),
+        ("LINEBELOW", (0, 0), (-1, -1), 0, colors.transparent),
     ]))
+
     story.append(info_table)
     story.append(Spacer(1, 16))
 
+    # ============================================================
+    #        CHAT TABLE — Time CENTER, Chat LEFT (FIXED)
+    # ============================================================
+
     col_time = 140
     col_chat = usable_width - col_time
-    chat_data = [["Time", "Chat"]]
 
-    batch_size = 5000
-    total_messages = len(chat_messages)
+    table_data = [["Time", "Chat"]]
 
-    for batch_start in range(0, total_messages, batch_size):
-        batch_end = min(batch_start + batch_size, total_messages)
-        batch_messages = chat_messages[batch_start:batch_end]
+    for msg in chat_messages:
+        ts = msg.get("timestamp") or msg.get("times") or "-"
+        try:
+            dt = dateutil.parser.isoparse(ts)
+            ts = dt.strftime("%Y-%m-%d %H:%M")
+        except:
+            pass
 
-        for msg in batch_messages:
-            timestamp_raw = msg.get("timestamp")
-            time_display = msg.get("times") or ""
+        sender = msg.get("sender", "-")
+        txt = msg.get("message_text", "")
 
-            if timestamp_raw:
-                try:
-                    dt = dateutil.parser.isoparse(timestamp_raw)
-                    time_val = dt.strftime("%Y-%m-%d %H:%M")
-                except:
-                    time_val = time_display or timestamp_raw
-            else:
-                time_val = time_display
+        table_data.append([
+            Paragraph(ts, style_time_center),                    # CENTER
+            Paragraph(f"{sender}: {txt}", style_chat_left)       # LEFT FIXED
+        ])
 
-            sender = msg.get("sender", "Unknown")
-            text = msg.get("message_text", "")
-            chat_data.append([Paragraph(time_val, wrap_style), Paragraph(f"{sender}: {text}", wrap_style)])
+    header_row = table_data[0]
+    data_rows = table_data[1:]
+    chunk_size = 2000
 
-    table_chunk_size = 2000
-    header_row = chat_data[0]
-    data_rows = chat_data[1:]
-    total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
-    
-    for chunk_start in range(0, len(data_rows), table_chunk_size):
-        chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
-        chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
-        chunk_num = (chunk_start // table_chunk_size) + 1
-        
-        chunk_table = Table(chunk_data, colWidths=[col_time, col_chat])
-        chunk_table.setStyle(TableStyle([
+    for start in range(0, len(data_rows), chunk_size):
+        end = min(start + chunk_size, len(data_rows))
+        chunk = [header_row] + data_rows[start:end]
+
+        tbl = Table(chunk, colWidths=[col_time, col_chat], repeatRows=1)
+        tbl.setStyle(TableStyle([
+            # HEADER
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+
+            # FIX CONTENT ALIGN
+            ("ALIGN", (0, 1), (0, -1), "CENTER"),  # TIME column center
+            ("ALIGN", (1, 1), (1, -1), "LEFT"),    # CHAT column left
+            ("VALIGN", (0, 1), (-1, -1), "TOP"),
+
+            # Transparent borders except bottom
+            ("LINEBEFORE", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEAFTER", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEABOVE", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.grey),
+
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
 
-        story.append(chunk_table)
-        if chunk_end < len(data_rows):
+        story.append(tbl)
+        if end < len(data_rows):
             story.append(Spacer(1, 6))
 
     story.append(Spacer(1, 20))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
 
-    summary_points = analytic.summary
-    story.extend(_build_summary_section(usable_width, summary_points))
+    # ============================================================
+    #                 HEADER CANVAS
+    # ============================================================
 
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
         canvas_obj.saveState()
-
-        page_width, page_height = A4
-        top_y = page_height - 30
+        page_w, page_h = A4
+        top = page_h - 30
 
         logo_path = settings.LOGO_PATH
-        logo_x = 20
-        logo_y = top_y - 30
-
         if os.path.exists(logo_path):
-            try:
-                
-                canvas_obj.drawImage(
-                    ImageReader(logo_path),
-                    logo_x,
-                    logo_y,
-                    width=130,
-                    height=30,
-                    preserveAspectRatio=True,
-                    mask="auto"
-                )
-            except:
-                pass
+            from reportlab.lib.utils import ImageReader
+            canvas_obj.drawImage(
+                ImageReader(logo_path),
+                20, top - 30,
+                width=191, height=30,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
 
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
-        canvas_obj.drawRightString(565, logo_y + 15, f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB")
+        canvas_obj.drawRightString(page_w - 30, top - 15, f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB")
 
         canvas_obj.setFont("Helvetica-Bold", 20)
-        title_y = logo_y - 20
-        canvas_obj.drawString(30, title_y, analytic.analytic_name)
+        canvas_obj.drawString(30, top - 50, analytic.analytic_name)
 
         canvas_obj.setFont("Helvetica", 12)
-        method_y = title_y - 25
+        canvas_obj.drawString(30, top - 75, f"Method: {analytic.method.replace('_', ' ').title()}")
 
-        canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
-        uploaded_str = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_timestamp.strftime("%d/%m/%Y")
-        canvas_obj.drawRightString(565, method_y, f"File Uploaded: {uploaded_str}")
+        uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_timestamp.strftime("%d/%m/%Y")
+        canvas_obj.drawRightString(page_w - 30, top - 75, f"File Uploaded: {uploaded}")
+
         canvas_obj.restoreState()
 
+    # BUILD PDF
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -774,15 +807,10 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
             *a,
             footer_text=f"{analytic.analytic_name} - {analytic.method.replace('_', ' ').title()}",
             **kw
-        ),
+        )
     )
 
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return FileResponse(file_path, filename=filename, media_type="application/pdf")
 
 def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, data):
     reports_dir = settings.REPORTS_DIR
@@ -803,13 +831,14 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         leftMargin=left_margin,
         rightMargin=right_margin,
         topMargin=header_height,
-        bottomMargin=60
+        bottomMargin=60,
     )
 
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=10.5, leading=14, alignment=TA_LEFT)
     wrap_desc = ParagraphStyle("WrapDesc", fontSize=10.5, leading=14, alignment=TA_JUSTIFY)
+    center_style = ParagraphStyle("Center", fontSize=10.5, leading=14, alignment=TA_CENTER)
 
     apk_analytics = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).all()
 
@@ -824,129 +853,236 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         else:
             common_items.append([item, desc])
 
+    # === STORY ===
     story = []
+    story.append(Spacer(1, 5))
+
+    # ============================
+    #     INFO SECTION FIXED
+    # ============================
+    info_left = usable_width * 0.50
+    info_right = usable_width * 0.50
 
     total_apks = len(apk_analytics)
-    total_malicious = len(malicious_items)
-    total_common = len(common_items)
-    avg_score = "-"
 
+    # Calculate probability
     try:
         scores = [float(a.malware_scoring) for a in apk_analytics if a.malware_scoring]
-        avg_score = f"{sum(scores) / len(scores):.1f}%" if scores else "-"
+        avg_score = f"{sum(scores) / len(scores):.0f}%"
     except:
-        pass
+        avg_score = "-"
 
+    # Fetch file
+    file_obj = None
+    if apk_analytics:
+        file_obj = db.query(File).filter(File.id == apk_analytics[0].file_id).first()
+
+    file_name = file_obj.file_name if file_obj else "-"
+
+    def format_size(size):
+        if not size:
+            return "-"
+        for unit in ["B","KB","MB","GB"]:
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} TB"
+
+    file_size = format_size(file_obj.total_size) if file_obj else "-"
+
+    # INFO TABLE KIRI
     info_data = [
-        ["Total APK Files", f": {total_apks}"],
-        ["Malicious Items", f": {total_malicious}"],
-        ["Common Items", f": {total_common}"],
-        ["Average Malware Scoring", f": {avg_score}"],
+        ["File Name", f": {file_name}"],
+        ["File Size", f": {file_size}"],
+        ["Total Files Scanned", f": {total_apks} Files"],
     ]
-    info_table = Table(info_data, colWidths=[160, usable_width - 160])
-    info_table.setStyle(TableStyle([
+
+    info_table_left = Table(info_data, colWidths=[info_left * 0.45, info_left * 0.55])
+    info_table_left.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 11),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("FONTSIZE", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-    story.append(info_table)
+
+    # RIGHT — MALWARE PROBABILITY BOX
+    
+    # gabungkan title + value tapi value tidak bold
+    box_text = Paragraph(
+        f"<b>Malware Probability :</b> <font name='Helvetica' size='12'>{avg_score}</font>",
+        ParagraphStyle(
+            "BoxText",
+            fontSize=12,
+            leading=16,
+            fontName="Helvetica-Bold",
+            alignment=TA_LEFT
+        )
+    )
+
+    # auto width → gunakan None, tapi tambahkan min width agar tidak terlalu pendek
+    box = Table(
+        [[box_text]],
+        colWidths=[None],     # otomatis
+    )
+
+    box.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1.2, colors.HexColor("#466086")),
+        ("VALIGN", (0, 0), (-1, -1), "RIGHT"),
+
+        # padding diperbesar
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+
+        # biar ukuran box ngikut konten dan tidak stretch
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+    ]))
+
+
+    # COMBINE LEFT + RIGHT
+    info_container = Table(
+        [[info_table_left, box]],
+        colWidths=[info_left, info_right]
+    )
+    info_container.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    story.append(info_container)
     story.append(Spacer(1, 20))
 
-    story.append(Paragraph("<b>Malicious</b>", heading_style))
+    # ============================
+    #     TABLE STYLE
+    # ============================
+    def table_style_no_border():
+        return TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("LINEBEFORE", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEAFTER", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEABOVE", (0, 0), (-1, -1), 0, colors.transparent),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.6, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ])
+
+    # MALICIOUS TABLE
+    malicious_header = Table(
+        [[Paragraph("Malicious", ParagraphStyle(
+            "MalHeader",
+            fontSize=12,
+            leading=14,
+            fontName="Helvetica",   # no bold
+            textColor=colors.black
+        ))]],
+        colWidths=[usable_width]
+    )
+    malicious_header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(malicious_header)
     story.append(Spacer(1, 4))
 
-    col_left = round(usable_width * 0.3, 2)
+
+    col_left = usable_width * 0.30
     col_right = usable_width - col_left
 
     if malicious_items:
-        mal_data = [["Malicious Item", "Description"]]
-        for item, desc in malicious_items:
-            mal_data.append([Paragraph(item, normal_style), Paragraph(desc, wrap_desc)])
-        mal_table = Table(mal_data, colWidths=[col_left, col_right])
-        mal_table.setStyle(_build_table_header_style())
+        mal_table = Table([["Malicious Item", "Description"]] +
+                          [[Paragraph(i, normal_style), Paragraph(d, wrap_desc)] for i, d in malicious_items],
+                          colWidths=[col_left, col_right],
+                          repeatRows=1)
+        mal_table.setStyle(table_style_no_border())
         story.append(mal_table)
     else:
         story.append(Paragraph("Tidak ditemukan entri berstatus <b>dangerous</b>.", normal_style))
+
     story.append(Spacer(1, 20))
 
-    story.append(Paragraph("<b>Common</b>", heading_style))
+    # COMMON TABLE
+    common_header = Table(
+        [[Paragraph("Common", ParagraphStyle(
+            "ComHeader",
+            fontSize=12,
+            leading=14,
+            fontName="Helvetica",   # no bold
+            textColor=colors.black
+        ))]],
+        colWidths=[usable_width]
+    )
+    common_header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(common_header)
     story.append(Spacer(1, 4))
 
+
     if common_items:
-        com_data = [["Common Item", "Description"]]
-        for item, desc in common_items:
-            com_data.append([Paragraph(item, normal_style), Paragraph(desc, wrap_desc)])
-        com_table = Table(com_data, colWidths=[col_left, col_right])
-        com_table.setStyle(_build_table_header_style())
+        com_table = Table([["Common Item", "Description"]] +
+                          [[Paragraph(i, normal_style), Paragraph(d, wrap_desc)] for i, d in common_items],
+                          colWidths=[col_left, col_right],
+                          repeatRows=1)
+        com_table.setStyle(table_style_no_border())
         story.append(com_table)
     else:
         story.append(Paragraph("Tidak ada entri common terdeteksi.", normal_style))
+
     story.append(Spacer(1, 20))
 
+    # SUMMARY
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
+    # HEADER CANVAS
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
         canvas_obj.saveState()
-
-        page_width, page_height = A4
-        top_y = page_height - 30
+        page_w, page_h = A4
+        top = page_h - 30
 
         logo_path = settings.LOGO_PATH
-        logo_x = 20
-        logo_y = top_y - 30
-
         if os.path.exists(logo_path):
-            try:
-                
-                canvas_obj.drawImage(
-                    ImageReader(logo_path),
-                    logo_x,
-                    logo_y,
-                    width=130,
-                    height=30,
-                    preserveAspectRatio=True,
-                    mask="auto"
-                )
-            except:
-                pass
+            from reportlab.lib.utils import ImageReader
+            canvas_obj.drawImage(
+                ImageReader(logo_path),
+                20, top - 30,
+                width=191, height=30,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
 
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
-        canvas_obj.drawRightString(
-            565,
-            logo_y + 15,
-            f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
-        )
+        canvas_obj.drawRightString(page_w - 30, top - 15, f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB")
 
         canvas_obj.setFont("Helvetica-Bold", 20)
-        title_y = logo_y - 20
-        canvas_obj.drawString(30, title_y, analytic.analytic_name)
+        canvas_obj.drawString(30, top - 50, analytic.analytic_name)
 
         canvas_obj.setFont("Helvetica", 12)
-        method_y = title_y - 25
+        canvas_obj.drawString(30, top - 75, f"Method: {analytic.method.replace('_', ' ').title()}")
 
-        canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
-
-        if analytic.created_at:
-            file_uploaded_str = analytic.created_at.strftime("%d/%m/%Y")
-        else:
-            file_uploaded_str = header_timestamp.strftime("%d/%m/%Y")
-
-        canvas_obj.drawRightString(565, method_y, f"File Uploaded: {file_uploaded_str}")
-
+        uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_timestamp.strftime("%d/%m/%Y")
+        canvas_obj.drawRightString(page_w - 30, top - 75, f"File Uploaded: {uploaded}")
         canvas_obj.restoreState()
 
     doc.build(
         story,
         onFirstPage=draw_header,
         onLaterPages=draw_header,
-        canvasmaker=lambda *a, **kw: GlobalPageCanvas(
-            *a,
-            footer_text=f"{analytic.analytic_name} - {analytic.method.replace('_', ' ').title()}",
-            **kw
-        ),
+        canvasmaker=lambda *a, **kw:
+            GlobalPageCanvas(*a, footer_text=f"{analytic.analytic_name} - {analytic.method.replace('_', ' ').title()}", **kw)
     )
 
     return FileResponse(
@@ -1323,6 +1459,7 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
 def _generate_contact_correlation_report(analytic, db, report_type, filename_prefix, data, current_user=None):
     logger.info(f"Starting Contact Correlation PDF generation - analytic_id={analytic.id}")
     report_start_time = time.time()
@@ -1332,231 +1469,10 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
-    
-    logger.info(f"PDF file path: {file_path}")
 
+    # === PAGE SETUP ===
     page_width, _ = A4
-    left_margin, right_margin = 30, 30
-    usable_width = page_width - left_margin - right_margin
-    header_height = 120
-
-    doc = SimpleDocTemplate(
-        file_path,
-        pagesize=A4,
-        leftMargin=left_margin,
-        rightMargin=right_margin,
-        topMargin=header_height,    
-        bottomMargin=50,
-    )
-
-    logger.info("Fetching contact correlation data...")
-    result = _get_contact_correlation_data(analytic.id, db, current_user)
-
-    if isinstance(result, JSONResponse):
-        result = result.body
-    if isinstance(result, (bytes, bytearray)):
-        result = json.loads(result.decode("utf-8"))
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except:
-            result = {}
-    if not isinstance(result, dict):
-        result = {}
-
-    api_data = result.get("data", {})
-    devices = api_data.get("devices", [])
-    correlations = api_data.get("correlations", [])
-    summary = api_data.get("summary")
-    logger.info(f"Retrieved {len(devices)} devices and {len(correlations)} correlations")
-
-    styles = getSampleStyleSheet()
-
-    header_device_style = ParagraphStyle(
-        "HeaderDevice", alignment=TA_CENTER, textColor=colors.white,
-        fontName="Helvetica-Bold", fontSize=10, leading=12
-    )
-
-    normal_center = ParagraphStyle("NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER)
-    normal_left = ParagraphStyle("NormalLeft", fontSize=10, leading=13, alignment=TA_LEFT)
-
-    group_size = 4
-    grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
-    total_groups = len(grouped_devices)
-
-    story = []
-
-    story.append(Spacer(1, 2))
-
-    for group_index, group in enumerate(grouped_devices, start=1):
-        start_device = (group_index - 1) * group_size + 1
-        end_device = start_device + len(group) - 1
-
-        info_data = [
-            ["Source", "         : Contact Correlation"],
-            ["Total Device", f"         : {len(devices)} Devices (Device {start_device}-{end_device})"],
-            ["Total Correlated Contacts", f"         : {len(correlations)} Contacts"],
-        ]
-        info_table = Table(info_data, colWidths=[100, usable_width - 100])
-        info_table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 11),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        story.append(info_table)
-        story.append(Spacer(1, 16))
-
-        header_row = ["Contact Number"]
-        for dev in group:
-            header_row.append(Paragraph(
-                f"<b>{dev['device_label']}</b><br/><font size=9>{dev['phone_number'] or '-'}</font>",
-                header_device_style
-            ))
-
-        table_data = [header_row]
-
-        batch_size = 10000
-        total_correlations = len(correlations)
-
-        for batch_start in range(0, total_correlations, batch_size):
-            batch_end = min(batch_start + batch_size, total_correlations)
-            batch_correlations = correlations[batch_start:batch_end]
-
-            for corr in batch_correlations:
-                contact_num = corr.get("contact_number", "-")
-                row = [Paragraph(contact_num, normal_left)]
-
-                dev_map = {d["device_label"]: d["contact_name"] for d in corr.get("devices_found_in", [])}
-
-                for dev in group:
-                    device_label = dev["device_label"]
-                    cell_value = dev_map.get(device_label, "—")
-                    row.append(Paragraph(cell_value, normal_center))
-
-                table_data.append(row)
-
-        table_chunk_size = 2000
-        col_widths = [usable_width * 0.25] + [
-            (usable_width * 0.75) / len(group)
-            for _ in group
-        ]
-
-        header_row_copy = table_data[0]
-        data_rows = table_data[1:]
-        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
-        
-        for chunk_start in range(0, len(data_rows), table_chunk_size):
-            chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
-            chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
-            chunk_num = (chunk_start // table_chunk_size) + 1
-            
-            chunk_table = Table(
-                chunk_data,
-                colWidths=col_widths,
-                repeatRows=1,
-            )
-
-            chunk_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ]))
-
-            story.append(chunk_table)
-
-            if chunk_end < len(data_rows):
-                story.append(Spacer(1, 6))
-
-        if group_index < total_groups:
-            story.append(PageBreak())
-
-    story.append(Spacer(1, 20))
-    story.extend(_build_summary_section(usable_width, summary))
-
-    header_timestamp = timestamp_now
-
-    def draw_header(canvas_obj, doc):
-        canvas_obj.saveState()
-        page_width, page_height = A4
-        top_y = page_height - 30
-
-        logo_path = settings.LOGO_PATH
-        logo_x = 20
-        logo_y = top_y - 30
-
-        if os.path.exists(logo_path):
-            try:
-                
-                canvas_obj.drawImage(
-                    ImageReader(logo_path),
-                    logo_x,
-                    logo_y,
-                    width=130,
-                    height=30,
-                    preserveAspectRatio=True,
-                    mask="auto"
-                )
-            except:
-                pass
-
-        canvas_obj.setFont("Helvetica", 10)
-        canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
-        exported_text = f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
-        canvas_obj.drawRightString(565, logo_y + 15, exported_text)
-
-        canvas_obj.setFont("Helvetica-Bold", 20)
-        title_y = logo_y - 20
-        canvas_obj.setFillColor(colors.black)
-        canvas_obj.drawString(30, title_y, analytic.analytic_name)
-
-        canvas_obj.setFont("Helvetica", 12)
-        method_y = title_y - 25
-        canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
-
-        if analytic.created_at:
-            uploaded_str = analytic.created_at.strftime("%d/%m/%Y")
-        else:
-            uploaded_str = header_timestamp.strftime("%d/%m/%Y")
-
-        canvas_obj.drawRightString(565, method_y, f"File Uploaded: {uploaded_str}")
-
-        canvas_obj.restoreState()
-
-    logger.info(f"Building PDF with {len(story)} story items...")
-
-    doc.build(
-        story,
-        onFirstPage=draw_header,
-        onLaterPages=draw_header,
-        canvasmaker=lambda *a, **kw: GlobalPageCanvas(
-            *a,
-            footer_text=f"{analytic.analytic_name} - {analytic.method.replace('_', ' ').title()}",
-            **kw
-        ),
-    )
-
-    logger.info(f"Contact Correlation PDF generation completed - file: {filename}")
-
-    return FileResponse(path=file_path, filename=filename, media_type="application/pdf")
-
-def _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data):
-    logger.info(f"Starting Hashfile Analytics PDF generation - analytic_id={analytic.id}")
-    report_start_time = time.time()
-    
-    reports_dir = settings.REPORTS_DIR
-    os.makedirs(reports_dir, exist_ok=True)
-    timestamp_now = get_indonesia_time()
-    filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
-    file_path = os.path.join(reports_dir, filename)
-    
-    logger.info(f"PDF file path: {file_path}")
-
-    page_width, _ = A4
-    left_margin, right_margin = 30, 30
+    left_margin = right_margin = 30
     usable_width = page_width - left_margin - right_margin
     header_height = 120
 
@@ -1569,164 +1485,179 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         bottomMargin=50,
     )
 
+    # FETCH DATA
+    result = _get_contact_correlation_data(analytic.id, db, current_user)
+
+    if isinstance(result, JSONResponse):
+        result = result.body
+    if isinstance(result, (bytes, bytearray)):
+        result = json.loads(result.decode("utf-8"))
+    if isinstance(result, str):
+        try: result = json.loads(result)
+        except: result = {}
+    if not isinstance(result, dict):
+        result = {}
+
+    api_data = result.get("data", {})
+    devices = api_data.get("devices", [])
+    correlations = api_data.get("correlations", [])
+    summary = api_data.get("summary")
+
+    # === STYLES ===
     styles = getSampleStyleSheet()
-    normal_style = ParagraphStyle("Normal", fontSize=10, leading=13, alignment=TA_CENTER)
-    header_style = ParagraphStyle(
-        "HeaderDevice", alignment=TA_CENTER, textColor=colors.white,
-        fontName="Helvetica-Bold", fontSize=9
+    center_style = ParagraphStyle("Center", alignment=TA_CENTER, fontSize=10, leading=13)
+    header_device_style = ParagraphStyle(
+        "HeaderDevice", alignment=TA_CENTER, fontSize=10, leading=12,
+        textColor=colors.white, fontName="Helvetica-Bold"
     )
 
-    logger.info("Fetching hashfile analytics data...")
-    response = _get_hashfile_analytics_data(analytic.id, db)
-
-    data = {}
-    try:
-        if response is not None:
-            if hasattr(response, "body") and response.body is not None:
-                body = response.body.decode("utf-8") if isinstance(response.body, bytes) else response.body
-                parsed = json.loads(body)
-                data = parsed.get("data", {}) if isinstance(parsed, dict) else {}
-            elif isinstance(response, dict):
-                data = response.get("data", {})
-    except Exception as e:
-        logger.error(f"Error parsing hashfile analytics response: {e}", exc_info=True)
-        data = {}
-
-    devices = data.get("devices", [])
-    hashfiles = data.get("correlations") or []
-
-    logger.info(f"Retrieved {len(devices)} devices for hashfile analytics")
-
+    # === GROUPING ===
     group_size = 4
-    grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
-    total_groups = len(grouped_devices)
+    groups = [devices[i:i+group_size] for i in range(0, len(devices), group_size)]
 
     story = []
-
     story.append(Spacer(1, 5))
 
-    for group_index, group in enumerate(grouped_devices, start=1):
+    # =================================================================
+    #                         PER GROUP RENDERING
+    # =================================================================
+    for group_index, group in enumerate(groups, start=1):
 
-        start_device = (group_index - 1) * group_size + 1
-        end_device = start_device + len(group) - 1
+        start_dev = (group_index - 1) * group_size + 1
+        end_dev = start_dev + len(group) - 1
 
+        # INFO TABLE (aligned with content grid)
+        info_col_left = usable_width * 0.20
         info_data = [
-            ["Source", f"     : Handphone"],
-            ["Total Device", f"     : {len(devices)} Devices (Device {start_device}-{end_device})"],
-            ["Total Correlated Hashfiles", f"     : {len(hashfiles)} Files"],
+            ["Source", ": Handphone"],
+            ["Total Device", f": {len(devices)} Devices (Device {start_dev}-{end_dev})"],
+            ["Total Contact", f": {len(correlations)} Contacts"],
         ]
-        info_table = Table(info_data, colWidths=[120, usable_width - 120])
+        info_table = Table(info_data, colWidths=[info_col_left, usable_width - info_col_left])
         info_table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 11),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
+            ("FONTSIZE", (0,0), (-1,-1), 12),
+            ("LEFTPADDING", (0,0), (-1,-1), 0),
+            ("RIGHTPADDING", (0,0), (-1,-1), 0),
+            ("TOPPADDING", (0,0), (-1,-1), 2),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
         ]))
         story.append(info_table)
-        story.append(Spacer(1, 16))
+        story.append(Spacer(1, 12))
 
-        header_row = ["Filename"]
+        # TABLE HEADER ROW
+        header_row = ["Contact Number"]
         for dev in group:
-            owner_name = dev.get("owner_name", "Unknown")
-            phone_number = dev.get("phone_number", "-") or "-"
-            header_html = f"<b>{owner_name}</b><br/><font size=9>({phone_number})</font>"
-            header_row.append(Paragraph(header_html, header_style))
+            header_row.append(
+                Paragraph(
+                    f"<b>{dev['device_label']}</b><br/><font size=9>{dev.get('phone_number','-')}</font>",
+                    header_device_style
+                )
+            )
 
-        table_data = [header_row]
+        table_rows = [header_row]
 
-        total_hashfiles = len(hashfiles)
-        batch_size = 10000
+        # TABLE ROWS
+        for row in correlations:
+            contact_num = row.get("contact_number", "-")
+            dev_map = {d["device_label"]: d["contact_name"] for d in row.get("devices_found_in", [])}
 
-        for batch_start in range(0, total_hashfiles, batch_size):
-            batch_end = min(batch_start + batch_size, total_hashfiles)
-            for h in hashfiles[batch_start:batch_end]:
-                file_name = h.get("file_name", "Unknown")
-                row = [Paragraph(file_name, normal_style)]
-                for dev in group:
-                    symbol = "✔" if dev.get("device_label") in h.get("devices", []) else "✘"
-                    row.append(Paragraph(symbol, normal_style))
-                table_data.append(row)
+            new_row = [Paragraph(contact_num, center_style)]
+            for dev in group:
+                val = dev_map.get(dev["device_label"], "—")
+                new_row.append(Paragraph(val, center_style))
 
-        table_chunk_size = 2000
+            table_rows.append(new_row)
+
+        # WIDTH DISTRIBUTION
         col_widths = [usable_width * 0.25] + [(usable_width * 0.75) / len(group) for _ in group]
 
-        header_row_copy = table_data[0]
-        data_rows = table_data[1:]
-        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
-        
-        for chunk_start in range(0, len(data_rows), table_chunk_size):
-            chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
-            chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
-            chunk_num = (chunk_start // table_chunk_size) + 1
-            
-            chunk_table = Table(
-                chunk_data,
-                colWidths=col_widths,
-                repeatRows=1,
-            )
-            chunk_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ]))
-            story.append(chunk_table)
+        # TABLE COMPONENT
+        tbl = Table(table_rows, colWidths=col_widths, repeatRows=1)
 
-            if chunk_end < len(data_rows):
-                story.append(Spacer(1, 6))
+        # ============================================================
+        #            APPLY STYLE — ONLY BORDER BOTTOM
+        # ============================================================
+        tbl.setStyle(TableStyle([
+            # HEADER
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#466086")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ("ALIGN", (0,0), (-1,0), "CENTER"),
+            ("VALIGN", (0,0), (-1,0), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,0), 6),
+            ("BOTTOMPADDING", (0,0), (-1,0), 6),
 
-        if group_index < total_groups:
+            # BODY ALIGNMENT
+            ("ALIGN", (0,1), (-1,-1), "CENTER"),
+            ("VALIGN", (0,1), (-1,-1), "MIDDLE"),
+
+            # REMOVE ALL BORDERS COMPLETELY
+            ("BOX", (0,0), (-1,-1), 0, colors.white),
+            ("LINEBEFORE", (0,0), (-1,-1), 0, colors.transparent),
+            ("LINEAFTER", (0,0), (-1,-1), 0,  colors.transparent),
+            ("LINEABOVE", (0,1), (-1,-1), 0,  colors.transparent),
+
+            # ONLY BOTTOM BORDER FOR DATA ROWS
+            ("LINEBELOW", (0,1), (-1,-1), 0.5, colors.grey),
+
+            # ZEBRA
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
+
+            # CLEAN PADDING
+            ("LEFTPADDING", (0,0), (-1,-1), 4),
+            ("RIGHTPADDING", (0,0), (-1,-1), 4),
+            ("TOPPADDING", (0,1), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,1), (-1,-1), 6),
+        ]))
+
+        story.append(tbl)
+
+        if group_index < len(groups):
             story.append(PageBreak())
 
-    story.append(Spacer(1, 20))
-    story.extend(_build_summary_section(usable_width, analytic.summary))
+    # SUMMARY
+    story.append(Spacer(1, 16))
+    story.extend(_build_summary_section(usable_width, summary))
 
-    header_timestamp = timestamp_now
+    # ======================= HEADER CANVAS ==========================
+    header_ts = timestamp_now
 
     def draw_header(canvas_obj, doc):
         canvas_obj.saveState()
-        page_width, page_height = A4
+        _, page_height = A4
         top_y = page_height - 30
 
+        # LOGO ORIGINAL — NO BLACK BOX
         logo_path = settings.LOGO_PATH
-        logo_x = 20
-        logo_y = top_y - 30
-
         if os.path.exists(logo_path):
-            try:
-                
-                canvas_obj.drawImage(
-                    ImageReader(logo_path),
-                    logo_x, logo_y,
-                    width=130, height=30,
-                    preserveAspectRatio=True, mask="auto"
-                )
-            except:
-                pass
+            from reportlab.lib.utils import ImageReader
+            canvas_obj.drawImage(
+                ImageReader(logo_path),
+                20, top_y - 30,
+                width=191, height=30,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
 
+        # EXPORT TIME
         canvas_obj.setFont("Helvetica", 10)
-        canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
-        exported_text = f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
-        canvas_obj.drawRightString(565, logo_y + 15, exported_text)
+        canvas_obj.drawRightString(565, top_y - 15, f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB")
 
+        # TITLE
         canvas_obj.setFont("Helvetica-Bold", 20)
-        title_y = logo_y - 20
-        canvas_obj.setFillColor(colors.black)
-        canvas_obj.drawString(30, title_y, analytic.analytic_name)
+        canvas_obj.drawString(30, top_y - 55, analytic.analytic_name)
 
+        # METHOD + FILE UPLOADED
         canvas_obj.setFont("Helvetica", 12)
-        method_y = title_y - 25
-        canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
+        canvas_obj.drawString(30, top_y - 80, f"Method: {analytic.method.replace('_',' ').title()}")
 
-        uploaded_str = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_timestamp.strftime("%d/%m/%Y")
-        canvas_obj.drawRightString(565, method_y, f"File Uploaded: {uploaded_str}")
+        uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_ts.strftime("%d/%m/%Y")
+        canvas_obj.drawRightString(565, top_y - 80, f"File Uploaded: {uploaded}")
 
         canvas_obj.restoreState()
 
-    logger.info(f"Building PDF document with {len(story)} story elements...")
-
+    # BUILD PDF
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -1743,3 +1674,261 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         filename=filename,
         media_type="application/pdf"
     )
+
+def _generate_hashfile_analytics_report(analytic, db, report_type, filename_prefix, data):
+    logger.info(f"Starting Hashfile Analytics PDF generation - analytic_id={analytic.id}")
+    report_start_time = time.time()
+    
+    reports_dir = settings.REPORTS_DIR
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp_now = get_indonesia_time()
+    filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
+    file_path = os.path.join(reports_dir, filename)
+
+    # === PAGE SETUP (SPACE FOR GLOBAL HEADER) ===
+    page_width, _ = A4
+    left_margin, right_margin = 30, 30
+    usable_width = page_width - left_margin - right_margin
+    header_height = 120
+
+    doc = SimpleDocTemplate(
+        file_path,
+        pagesize=A4,
+        leftMargin=left_margin,
+        rightMargin=right_margin,
+        topMargin=header_height,
+        bottomMargin=50,
+    )
+
+    # === STYLES ===
+    styles = getSampleStyleSheet()
+    normal_center = ParagraphStyle(
+        "NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER
+    )
+    header_style = ParagraphStyle(
+        "HeaderStyle",
+        alignment=TA_CENTER,
+        textColor=colors.white,
+        fontName="Helvetica-Bold",
+        fontSize=9,
+    )
+
+    # === FETCH DATA ===
+    logger.info("Fetching hashfile analytics data...")
+    response = _get_hashfile_analytics_data(analytic.id, db)
+
+    data = {}
+    try:
+        if response is not None:
+            if hasattr(response, "body") and response.body is not None:
+                raw = response.body.decode("utf-8") if isinstance(response.body, bytes) else response.body
+                parsed = json.loads(raw)
+                data = parsed.get("data", {}) if isinstance(parsed, dict) else {}
+            elif isinstance(response, dict):
+                data = response.get("data", {}) if isinstance(response, dict) else {}
+    except Exception as e:
+        logger.error(f"Error parsing hashfile analytics response: {e}", exc_info=True)
+        data = {}
+
+    devices = data.get("devices", [])
+    hashfiles = data.get("correlations") or []
+    logger.info(f"Retrieved {len(devices)} devices for hashfile analytics")
+
+    # === GROUP DEVICES ===
+    group_size = 4
+    grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
+    total_groups = len(grouped_devices)
+
+    story = []
+    story.append(Spacer(1, 5))  # kecil saja supaya tidak tabrakan dengan header global
+
+    # ======================================================================
+    #                              MAIN LOOP
+    # ======================================================================
+    for group_idx, group in enumerate(grouped_devices, start=1):
+
+        start_device = (group_idx - 1) * group_size + 1
+        end_device = start_device + len(group) - 1
+
+        # === INFO TABLE (SEJEJAR DENGAN TABEL KONTEN) ===
+        info_col_left = usable_width * 0.25
+        info_col_right = usable_width - info_col_left
+
+        info_data = [
+            ["Source", f": Handphone"],
+            ["Total Device", f": {len(devices)} Devices (Device {start_device}-{end_device})"],
+            ["Total Files", f": {len(hashfiles)} Files"],
+        ]
+        info_table = Table(info_data, colWidths=[info_col_left, info_col_right])
+        info_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 12),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 12))
+
+        # === TABLE HEADER ===
+        header_row = ["Filename"]
+        for dev in group:
+            owner = dev.get("owner_name", "Unknown")
+            phone = dev.get("phone_number") or "-"
+
+            header_row.append(
+                Paragraph(
+                    f"<b>{owner}</b><br/><font size='8'><b></b>{phone}</font>",
+                    header_style
+                )
+            )
+
+        table_data = [header_row]
+
+        # === TABLE DATA ===
+        for h in hashfiles:
+            row = [Paragraph(h.get("file_name", "-"), normal_center)]
+
+            found_devs = h.get("devices", [])
+            for dev in group:
+                val = "✔" if dev.get("device_label") in found_devs else "✘"
+                row.append(Paragraph(val, normal_center))
+
+            table_data.append(row)
+
+        # === CHUNK LARGE TABLE ===
+        chunk_size = 2000
+        data_rows = table_data[1:]
+        col_widths = [usable_width * 0.25] + [
+            (usable_width * 0.75) / len(group) for _ in group
+        ]
+
+        for start in range(0, len(data_rows), chunk_size):
+            end = min(start + chunk_size, len(data_rows))
+            chunk = [header_row] + data_rows[start:end]
+
+            chunk_table = Table(chunk, colWidths=col_widths, repeatRows=1)
+
+            # STYLE: header tetap, body center, border hanya bottom
+            chunk_table.setStyle(TableStyle([
+                # HEADER
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, 0), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
+
+                # RESET ALL BORDERS (tidak ada kanan / kiri / atas, tidak ada grid vertikal)
+                ("BOX", (0, 0), (-1, -1), 0, colors.white),
+                ("LINEBEFORE", (0,0), (-1,-1), 0, colors.transparent),
+                ("LINEAFTER", (0,0), (-1,-1), 0,  colors.transparent),
+                ("LINEABOVE", (0,1), (-1,-1), 0,  colors.transparent),
+                # BODY ALIGNMENT
+                ("ALIGN", (0, 1), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 1), (-1, -1), "MIDDLE"),
+
+                # HANYA BORDER BOTTOM UNTUK BODY
+                ("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.grey),
+
+                # ZEBRA ROWS
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+
+                # PADDING BODY
+                ("TOPPADDING", (0, 1), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+                ("LEFTPADDING", (0, 1), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 1), (-1, -1), 4),
+            ]))
+
+            story.append(chunk_table)
+
+            if end < len(data_rows):
+                story.append(Spacer(1, 6))
+
+        if group_idx < total_groups:
+            story.append(PageBreak())
+
+    # === SUMMARY ===
+    story.append(Spacer(1, 20))
+    story.extend(_build_summary_section(usable_width, analytic.summary))
+
+    # === GLOBAL HEADER (PAKAI VERSI LAMA, TANPA BAR HITAM) ===
+    header_timestamp = timestamp_now
+
+    def draw_header(canvas_obj, doc):
+        canvas_obj.saveState()
+        page_width, page_height = A4
+        top_y = page_height - 30
+
+        # Logo (ukuran standar, tanpa background hitam)
+        logo_path = settings.LOGO_PATH
+        logo_x = 20
+        logo_y = top_y - 30
+        if os.path.exists(logo_path):
+            try:
+                from reportlab.lib.utils import ImageReader
+                canvas_obj.drawImage(
+                    ImageReader(logo_path),
+                    logo_x,
+                    logo_y,
+                    width=191,
+                    height=30,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
+            except Exception:
+                pass
+
+        # Exported time
+        canvas_obj.setFont("Helvetica", 10)
+        canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
+        canvas_obj.drawRightString(
+            565,
+            logo_y + 15,
+            f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB",
+        )
+
+        # Title
+        canvas_obj.setFont("Helvetica-Bold", 20)
+        title_y = logo_y - 20
+        canvas_obj.setFillColor(colors.black)
+        canvas_obj.drawString(30, title_y, analytic.analytic_name)
+
+        # Method + File Uploaded
+        canvas_obj.setFont("Helvetica", 12)
+        method_y = title_y - 25
+        canvas_obj.drawString(
+            30,
+            method_y,
+            f"Method: {analytic.method.replace('_', ' ').title()}",
+        )
+
+        if analytic.created_at:
+            uploaded_str = analytic.created_at.strftime("%d/%m/%Y")
+        else:
+            uploaded_str = header_timestamp.strftime("%d/%m/%Y")
+        canvas_obj.drawRightString(565, method_y, f"File Uploaded: {uploaded_str}")
+
+        canvas_obj.restoreState()
+
+    # === BUILD PDF ===
+    logger.info(f"Building Hashfile Analytics PDF with {len(story)} story items...")
+
+    doc.build(
+        story,
+        onFirstPage=draw_header,
+        onLaterPages=draw_header,
+        canvasmaker=lambda *a, **kw: GlobalPageCanvas(
+            *a,
+            footer_text=f"{analytic.analytic_name} - {analytic.method.replace('_', ' ').title()}",
+            **kw,
+        ),
+    )
+
+    logger.info(f"Hashfile Analytics PDF generation completed - file: {filename}")
+    return FileResponse(path=file_path, filename=filename, media_type="application/pdf")
+
