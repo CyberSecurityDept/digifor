@@ -422,19 +422,29 @@ async def get_suspect_detail(
                     "updated_at": evidence_updated_at_str
                 })
         
-        suspect_notes = ""
+        suspect_notes = None
         if hasattr(suspect, 'notes') and suspect.notes is not None:
-            suspect_notes = suspect.notes
+            if isinstance(suspect.notes, str) and suspect.notes.strip():
+                suspect_notes = suspect.notes.strip()
+            elif isinstance(suspect.notes, dict):
+                suspect_notes = suspect.notes.get('suspect_notes') or suspect.notes.get('text')
+                if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                    suspect_notes = None
+            else:
+                suspect_notes = str(suspect.notes) if suspect.notes else None
         else:
             if evidence_list and len(evidence_list) > 0:
                 first_evidence = db.query(Evidence).filter(Evidence.id == evidence_list[0]["id"]).first()
                 if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
                     if isinstance(first_evidence.notes, dict):
-                        suspect_notes = first_evidence.notes.get('suspect_notes', '') or ''
+                        suspect_notes = first_evidence.notes.get('suspect_notes') or first_evidence.notes.get('text')
+                        if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                            suspect_notes = None
                     elif isinstance(first_evidence.notes, str):
-                        suspect_notes = first_evidence.notes
+                        suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
                     else:
-                        suspect_notes = str(first_evidence.notes) if first_evidence.notes is not None else ""
+                        notes_value = first_evidence.notes
+                        suspect_notes = str(notes_value) if notes_value is not None else None
         
         suspect_detail = {
             "id": suspect.id,

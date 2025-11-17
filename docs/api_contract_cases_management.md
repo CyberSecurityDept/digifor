@@ -3143,7 +3143,7 @@ Authorization: Bearer <access_token>
         ]
       }
     ],
-    "suspect_notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
+    "suspect_notes": null
   }
 }
 ```
@@ -3194,7 +3194,7 @@ Authorization: Bearer <access_token>
     - `file_path`: Path file evidence
     - `created_at`: Timestamp pembuatan evidence dalam format ISO 8601 dengan timezone
     - `updated_at`: Timestamp update evidence dalam format ISO 8601 dengan timezone
-- Field `suspect_notes`: Catatan tentang suspect (dari field `notes` di Suspect atau Evidence, jika tersedia)
+- Field `suspect_notes`: Catatan tentang suspect (dari field `notes` di Suspect atau Evidence, jika tersedia). Akan mengembalikan `null` jika tidak ada notes atau notes kosong
 
 ---
 
