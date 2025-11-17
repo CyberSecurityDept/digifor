@@ -354,7 +354,7 @@ async def get_suspect(
 async def update_suspect(
     suspect_id: int,
     case_id: Optional[int] = Form(None),
-    name: Optional[str] = Form(None),
+    person_name: Optional[str] = Form(None),
     is_unknown: Optional[bool] = Form(None),
     is_unknown_person: Optional[bool] = Form(None),
     status: Optional[str] = Form(None),
@@ -399,17 +399,17 @@ async def update_suspect(
                 setattr(suspect, 'name', "Unknown")
                 setattr(suspect, 'status', None)
             else:
-                if name is not None:
-                    if not name.strip():
+                if person_name is not None:
+                    if not person_name.strip():
                         raise HTTPException(
                             status_code=400,
-                            detail="name is required when is_unknown_person is false"
+                            detail="person_name is required when is_unknown_person is false"
                         )
-                    setattr(suspect, 'name', name.strip())
+                    setattr(suspect, 'name', person_name.strip())
                 else:
                     raise HTTPException(
                         status_code=400,
-                        detail="name is required when is_unknown_person is false"
+                        detail="person_name is required when is_unknown_person is false"
                     )
                 
                 if status is not None:
@@ -431,13 +431,13 @@ async def update_suspect(
         final_is_unknown = is_unknown_flag if is_unknown_flag is not None else current_is_unknown
 
         if not final_is_unknown:
-            if name is not None:
-                if not name.strip():
+            if person_name is not None:
+                if not person_name.strip():
                     raise HTTPException(
                         status_code=400,
-                        detail="name cannot be empty"
+                        detail="person_name cannot be empty"
                     )
-                setattr(suspect, 'name', name.strip())
+                setattr(suspect, 'name', person_name.strip())
             
             if status is not None:
                 normalized_status = normalize_suspect_status(status)
@@ -669,23 +669,36 @@ async def update_suspect(
             if "evidence_number" in error_str.lower():
                 match = re.search(r"evidence_number\)=\(([^)]+)\)", error_str)
                 evidence_num = match.group(1) if match else "this evidence number"
-                raise HTTPException(
+                return JSONResponse(
                     status_code=400,
-                    detail=f"Evidence number '{evidence_num}' already exists for another evidence"
+                    content={
+                        "status": 400,
+                        "message": f"Evidence number '{evidence_num}' already exists for another evidence"
+                    }
                 )
-            raise HTTPException(
+            return JSONResponse(
                 status_code=400,
-                detail="Duplicate entry. This value already exists in the database"
+                content={
+                    "status": 400,
+                    "message": "Duplicate entry. This value already exists in the database"
+                }
             )
-            raise HTTPException(
+        else:
+            return JSONResponse(
                 status_code=500,
-            detail=f"Database error: {error_str}"
+                content={
+                    "status": 500,
+                    "message": f"Database error: {error_str}"
+                }
             )
     except Exception as e:
         db.rollback()
         traceback.print_exc()
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            content={
+                "status": 500,
+                "message": f"Unexpected server error: {str(e)}"
+            }
         )
 

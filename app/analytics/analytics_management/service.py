@@ -5,11 +5,8 @@ from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List
 from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.scan_apk import load_suspicious_indicators
-import os
-import json
-import hashlib
-import requests
-import re
+from app.core.config import settings
+import os, json, hashlib, requests, re, logging
 from datetime import datetime
 
 def store_analytic(db: Session, analytic_name: str, method: str = None, summary: str = None, created_by: str = None):
@@ -71,7 +68,6 @@ def get_analytic_devices(db: Session, analytic_id: int):
     devices = db.query(Device).filter(Device.analytic_id == analytic_id).all()
     return devices
 
-MOBSF_URL="http://172.15.2.105:5001"
 def classify_permissions(permissions, suspicious_set=None):
     if not permissions:
         print("[!] No permissions found in report.")
@@ -213,7 +209,7 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     with open(file_path, "rb") as f:
         filename = os.path.basename(file_path)
         files = {"file": (filename, f, "application/octet-stream")}
-        resp = requests.post(f"{MOBSF_URL}/api/v1/upload", files=files, headers=headers)
+        resp = requests.post(f"{settings.MOBSF_URL}/api/v1/upload", files=files, headers=headers)
     log_response("Upload", resp)
     if resp.status_code != 200:
         raise RuntimeError(f"Upload gagal: {resp.text}")
@@ -222,40 +218,17 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
         raise RuntimeError("Tidak dapat membaca hash dari response upload")
     
     print("[*] Starting MobSF scan...")
-    scan_resp = requests.post(f"{MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
+    scan_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
     log_response("Scan", scan_resp)
     if scan_resp.status_code != 200:
         raise RuntimeError(f"Scan gagal: {scan_resp.text}")
 
     print("[*] Fetching MobSF JSON report...")
-    json_resp = requests.post(f"{MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
+    json_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
     log_response("Report JSON", json_resp)
     if json_resp.status_code != 200:
         raise RuntimeError(f"Gagal ambil report JSON: {json_resp.text}")
     report_json = json_resp.json()
-
-    # === Simpan report JSON ke file ===
-    # output_dir = os.path.join(os.getcwd(), "mobsf_output")
-    # os.makedirs(output_dir, exist_ok=True)
-    # base_name = os.path.splitext(os.path.basename(file_path))[0]
-    # json_path = os.path.join(output_dir, f"report_{base_name}.json")
-    # with open(json_path, "w", encoding="utf-8") as f:
-    #     json.dump(report_json, f, indent=2)
-    # print(f"[*] Report JSON saved: {json_path}")
-
-    # === Simpan permission-only PDF ===
-    # pdf_path = os.path.join(output_dir, f"permission_report_{base_name}.pdf")
-    # print("[*] Requesting permission-only PDF from MobSF...")
-    # pdf_resp = requests.post(
-    #     f"{MOBSF_URL}/api/v1/permissions_pdf",
-    #     data={"hash": file_hash, "scan_type": scan_type},
-    #     headers=headers
-    # )
-    # log_response("Permissions PDF", pdf_resp)
-    # if pdf_resp.status_code == 200:
-    #     with open(pdf_path, "wb") as f:
-    #         f.write(pdf_resp.content)
-    #     print(f"[+] Permission PDF saved to: {pdf_path}")
     
     permissions = report_json.get('permissions', {})
     print(f"[*] Extracted {len(permissions)} permissions from report.")

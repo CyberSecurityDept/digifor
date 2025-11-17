@@ -733,12 +733,12 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     
     header_row = chat_data[0]
     data_rows = chat_data[1:]
+    total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
     
     for chunk_start in range(0, len(data_rows), table_chunk_size):
         chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
         chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
         chunk_num = (chunk_start // table_chunk_size) + 1
-        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
         
         chunk_table = Table(chunk_data, colWidths=[col_time, col_chat])
         chunk_table.setStyle(TableStyle([
@@ -1444,12 +1444,12 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         
         header_row = table_data[0]
         data_rows = table_data[1:]
+        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
         
         for chunk_start in range(0, len(data_rows), table_chunk_size):
             chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
             chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
             chunk_num = (chunk_start // table_chunk_size) + 1
-            total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
             
             chunk_table = Table(
                 chunk_data,
@@ -1623,12 +1623,12 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         
         header_row = table_data[0]
         data_rows = table_data[1:]
+        total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size if len(data_rows) > 0 else 0
         
         for chunk_start in range(0, len(data_rows), table_chunk_size):
             chunk_end = min(chunk_start + table_chunk_size, len(data_rows))
             chunk_data = [header_row] + data_rows[chunk_start:chunk_end]
             chunk_num = (chunk_start // table_chunk_size) + 1
-            total_chunks = (len(data_rows) + table_chunk_size - 1) // table_chunk_size
             
             chunk_table = Table(
                 chunk_data,

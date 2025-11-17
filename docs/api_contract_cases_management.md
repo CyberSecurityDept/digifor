@@ -4697,9 +4697,9 @@ Authorization: Bearer <access_token>
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `case_id` | integer | No | Case ID (jika ingin mengubah case yang terkait) |
-| `name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** |
+| `person_name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** |
 | `is_unknown` | boolean | No | Flag untuk unknown person (legacy field, gunakan `is_unknown_person`) |
-| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `name` dan `status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan diubah menjadi "Unknown", dan `status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `name` wajib diisi, `status` optional |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan diubah menjadi "Unknown", dan `status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` wajib diisi, `status` optional |
 | `status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
 | `evidence_number` | string | No | Evidence number (jika disediakan, tidak boleh kosong). **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` |
 | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
@@ -4709,23 +4709,23 @@ Authorization: Bearer <access_token>
 
 **Catatan Field Required:**
 - **Required (Wajib):** `suspect_id` (di path parameter)
-- **Conditional Required (Wajib jika `is_unknown_person = false`):** `name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `name` tidak diisi, akan mengembalikan error 400: "name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `person_name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
 - **Conditional Required (Wajib jika `is_unknown_person = false`):** `status` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `status` tidak diisi, akan mengembalikan error 400: "status is required when is_unknown_person is false"
 - **Conditional Required (Wajib jika disediakan):** `evidence_number` tidak boleh kosong jika disediakan secara manual (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
 - **Optional (Opsional):** `case_id`, `evidence_source`, `evidence_summary`, `evidence_file`, `case_name`, `is_unknown_person`
 
 **Catatan tentang `is_unknown_person` dan `status`:**
 - **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
-  - Di UI **TIDAK menampilkan** kolom `name` dan `status` (field ini tidak perlu diisi)
-  - `name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
+  - Di UI **TIDAK menampilkan** kolom `person_name` dan `status` (field ini tidak perlu diisi)
+  - `person_name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
   - `status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
   - `name` di database = "Unknown"
   - `status` di database = `null`
 - **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
-  - Di UI menampilkan kolom `name` dan `status`
-  - `name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
+  - Di UI menampilkan kolom `person_name` dan `status`
+  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
   - `status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
-  - `name` di database = `name` (wajib)
+  - `name` di database = `person_name` (wajib)
   - `status` di database = `status` (wajib)
 
 **Format Auto-Generate Evidence Number:**
@@ -4736,7 +4736,7 @@ Jika `evidence_number` tidak disediakan dan `evidence_file` ada, sistem akan oto
 **Example Request (form-data) - Person Name:**
 ```
 case_id: 1
-name: John Doe
+person_name: John Doe
 status: Defendant
 is_unknown_person: false
 evidence_number: 4380458334
@@ -4788,11 +4788,11 @@ evidence_file: [file]
 
 **Error Responses:**
 
-**400 Bad Request (name required):**
+**400 Bad Request (person_name required):**
 ```json
 {
   "status": 400,
-  "detail": "name is required when is_unknown_person is false"
+  "message": "person_name is required when is_unknown_person is false"
 }
 ```
 
@@ -4800,15 +4800,15 @@ evidence_file: [file]
 ```json
 {
   "status": 400,
-  "detail": "status is required when is_unknown_person is false"
+  "message": "status is required when is_unknown_person is false"
 }
 ```
 
-**400 Bad Request (name cannot be empty):**
+**400 Bad Request (person_name cannot be empty):**
 ```json
 {
   "status": 400,
-  "detail": "name cannot be empty"
+  "message": "person_name cannot be empty"
 }
 ```
 
@@ -4816,7 +4816,7 @@ evidence_file: [file]
 ```json
 {
   "status": 400,
-  "detail": "evidence_number cannot be empty when provided manually"
+  "message": "evidence_number cannot be empty when provided manually"
 }
 ```
 
@@ -4824,17 +4824,25 @@ evidence_file: [file]
 ```json
 {
   "status": 400,
-  "detail": "Evidence number '4380458334' already exists for another evidence (ID: 1)"
+  "message": "Evidence number '4380458334' already exists for another evidence"
 }
 ```
 
-**Catatan:** Error ini terjadi ketika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate). Pesan error akan menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut untuk membantu troubleshooting.
+**Catatan:** Error ini terjadi ketika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate).
+
+**400 Bad Request (Duplicate entry):**
+```json
+{
+  "status": 400,
+  "message": "Duplicate entry. This value already exists in the database"
+}
+```
 
 **400 Bad Request (Invalid file type):**
 ```json
 {
   "status": 400,
-  "detail": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
+  "message": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
 }
 ```
 
@@ -4851,7 +4859,7 @@ evidence_file: [file]
 ```json
 {
   "status": 404,
-  "detail": "Suspect with ID {suspect_id} not found"
+  "message": "Suspect with ID {suspect_id} not found"
 }
 ```
 
@@ -4859,7 +4867,7 @@ evidence_file: [file]
 ```json
 {
   "status": 404,
-  "detail": "Case with ID {case_id} not found"
+  "message": "Case with ID {case_id} not found"
 }
 ```
 
@@ -4872,11 +4880,19 @@ evidence_file: [file]
 }
 ```
 
-**500 Internal Server Error:**
+**500 Internal Server Error (Database error):**
 ```json
 {
   "status": 500,
-  "detail": "Unexpected server error: {error_message}"
+  "message": "Database error: {error_str}"
+}
+```
+
+**500 Internal Server Error (Unexpected error):**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
 }
 ```
 
