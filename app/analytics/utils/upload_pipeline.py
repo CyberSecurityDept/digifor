@@ -82,6 +82,35 @@ class UploadService:
         else:
             data.update({"message": message, "done": True})
 
+    def _cleanup_failed_upload(self, file_id: int = None, file_path: str = None):
+        try:
+            db = next(get_db())
+            
+            if file_id:
+                file_record = db.query(File).filter(File.id == file_id).first()
+                if file_record:
+                    db.query(SocialMedia).filter(SocialMedia.file_id == file_id).delete()
+                    db.query(Contact).filter(Contact.file_id == file_id).delete()
+                    db.query(Call).filter(Call.file_id == file_id).delete()
+                    db.query(HashFile).filter(HashFile.file_id == file_id).delete()
+                    db.query(ChatMessage).filter(ChatMessage.file_id == file_id).delete()
+                    db.delete(file_record)
+                    db.commit()
+                    print(f"[CLEANUP] Deleted file record {file_id} and related data from database")
+            
+            if file_path:
+                try:
+                    full_path = os.path.join(BASE_DIR, file_path) if not os.path.isabs(file_path) else file_path
+                    if os.path.exists(full_path):
+                        os.remove(full_path)
+                        print(f"[CLEANUP] Deleted physical file: {full_path}")
+                except Exception as e:
+                    print(f"[CLEANUP] Error deleting physical file {file_path}: {str(e)}")
+                    
+        except Exception as e:
+            print(f"[CLEANUP] Error during cleanup: {str(e)}")
+            traceback.print_exc()
+
     def get_progress(self, upload_id: str):
         data = self._progress.get(upload_id)
         if not data:
@@ -133,6 +162,10 @@ class UploadService:
         self._init_state(upload_id)
         self._progress[upload_id]["_processing"] = True
 
+        file_record_inserted = False
+        file_id = None
+        rel_path = None
+        
         try:
             original_filename = file.filename
             if not original_filename:
@@ -341,7 +374,8 @@ class UploadService:
             db.commit()
             db.refresh(file_record)
             
-            file_id: int = int(file_record.id)  # type: ignore[assignment]
+            file_id = int(file_record.id)  # type: ignore[assignment]
+            file_record_inserted = True
             
             parsing_result = {
                 "tool_used": parsed_data.get("tool", tools),
@@ -659,6 +693,8 @@ class UploadService:
             return response_data
 
         except Exception as e:
+            if file_record_inserted and file_id:
+                self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
             self._mark_done(upload_id, f"Upload error: {str(e)}")
             return {"status": 500, "message": f"Unexpected upload error: {str(e)}", "data": None}
 
@@ -857,7 +893,6 @@ class UploadService:
             db.refresh(file_record)
             print(f"[DEBUG] File record refreshed (ID: {file_record.id})")
 
-            # === Update progress ===
             self._progress[upload_id].update({
                 "percent": 100,
                 "progress_size": format_bytes(total_size),

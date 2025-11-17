@@ -30,6 +30,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import ImageReader
 
 logger = logging.getLogger(__name__)
 
@@ -276,13 +277,11 @@ class GlobalPageCanvas(canvas.Canvas):
         self.pages = []
 
     def showPage(self):
-
         self.pages.append(dict(self.__dict__))
         self._startPage()  # type: ignore[reportAttributeAccessIssue]
 
     def save(self):
         total_pages = len(self.pages)
-
         for page_number, page_dict in enumerate(self.pages, start=1):
             self.__dict__.update(page_dict)
             self._draw_footer(page_number, total_pages)
@@ -308,7 +307,6 @@ def build_report_header(analytic, timestamp_now, usable_width, file_upload_date=
     styles = getSampleStyleSheet()
     story = []
     
-    # Initial spacing - adjusted to move logo and exported up on page 1 only
     story.append(Spacer(1, -130))
 
     subtitle_style = ParagraphStyle("Subtitle", fontSize=12, textColor=colors.black, leftIndent=-7, fontName="Helvetica")
@@ -342,7 +340,6 @@ def build_report_header(analytic, timestamp_now, usable_width, file_upload_date=
         f"Exported: {timestamp_now.strftime('%d/%m/%Y %H:%M')} WIB", export_style
     )
 
-    # Logo and Exported in 1 grid (1 row, 2 columns) - moved up on page 1
     header_table = Table(
         [[logo_img, export_time]], colWidths=[usable_width * 0.5, usable_width * 0.5]
     )
@@ -391,10 +388,8 @@ def build_report_header(analytic, timestamp_now, usable_width, file_upload_date=
 def _export_contact_correlation_pdf(analytic, db, current_user=None):
     logger.info(f"Starting Contact Correlation PDF export for analytic_id={analytic.id}")
     start_time = time.time()
-    
     total_contacts = db.query(Contact).count()
     logger.info(f"Total contacts to process: {total_contacts}")
-    
     result = _generate_pdf_report(
         analytic, db,
         report_type="Contact Correlation Analysis",
@@ -411,10 +406,8 @@ def _export_contact_correlation_pdf(analytic, db, current_user=None):
 def _export_hashfile_analytic_pdf(analytic, db):
     logger.info(f"Starting Hashfile Analytics PDF export for analytic_id={analytic.id}")
     start_time = time.time()
-    
     total_contacts = db.query(Contact).count()
     logger.info(f"Total contacts to process: {total_contacts}")
-    
     result = _generate_pdf_report(
         analytic, db,
         report_type="Hashfile Analytics",
@@ -601,7 +594,6 @@ def _build_summary_section(usable_width, summary_text):
 def _generate_deep_communication_report(analytic, db, report_type, filename_prefix, data, source, person_name, device_id):
     logger.info(f"Starting Deep Communication PDF generation - analytic_id={analytic.id}, source={source}, person_name={person_name}, device_id={device_id}")
     report_start_time = time.time()
-    
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -611,11 +603,10 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     
     logger.info(f"PDF file path: {file_path}")
 
-    # === PAGE SETUP (HEADER STANDARDIZED) ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
-    header_height = 120  # SAMAKAN DENGAN REPORT LAIN
+    header_height = 120
     
     doc = SimpleDocTemplate(
         file_path,
@@ -626,7 +617,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         bottomMargin=50,
     )
 
-    # === FETCH CHAT DETAIL ===
     response = get_chat_detail(
         analytic_id=analytic.id,
         person_name=person_name,
@@ -650,17 +640,14 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         chat_messages = []
         chat_data = {}
 
-    # === STYLES ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=11, leading=14, alignment=TA_LEFT)
     wrap_style = ParagraphStyle("Wrap", fontSize=11, leading=14, wordWrap="CJK", alignment=TA_JUSTIFY)
 
-    # === STORY START ===
     story = []
     story.append(Spacer(1, 5))
 
-    # === INFO SECTION ===
     sender_name = chat_messages[0].get("sender", "Unknown") if chat_messages else "Unknown"
     receiver_name = chat_messages[0].get("recipient", "Unknown") if chat_messages else "Unknown"
     total_messages = len(chat_messages)
@@ -679,7 +666,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # === CHAT TABLE BUILDING ===
     col_time = 140
     col_chat = usable_width - col_time
     chat_data = [["Time", "Chat"]]
@@ -737,9 +723,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     summary_points = analytic.summary
     story.extend(_build_summary_section(usable_width, summary_points))
 
-    # =====================================================================
-    #               HEADER CANVAS (IDENTIK DENGAN SEMUA REPORT LAIN)
-    # =====================================================================
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
@@ -748,14 +731,13 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
         page_width, page_height = A4
         top_y = page_height - 30
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         logo_x = 20
         logo_y = top_y - 30
 
         if os.path.exists(logo_path):
             try:
-                from reportlab.lib.utils import ImageReader
+                
                 canvas_obj.drawImage(
                     ImageReader(logo_path),
                     logo_x,
@@ -768,28 +750,22 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
             except:
                 pass
 
-        # Exported timestamp
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
         canvas_obj.drawRightString(565, logo_y + 15, f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB")
 
-        # Title
         canvas_obj.setFont("Helvetica-Bold", 20)
         title_y = logo_y - 20
         canvas_obj.drawString(30, title_y, analytic.analytic_name)
 
-        # Method + File Uploaded
         canvas_obj.setFont("Helvetica", 12)
         method_y = title_y - 25
 
         canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
-
         uploaded_str = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_timestamp.strftime("%d/%m/%Y")
         canvas_obj.drawRightString(565, method_y, f"File Uploaded: {uploaded_str}")
-
         canvas_obj.restoreState()
 
-    # === BUILD PDF ===
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -809,7 +785,6 @@ def _generate_deep_communication_report(analytic, db, report_type, filename_pref
     )
 
 def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, data):
-
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
 
@@ -817,7 +792,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
 
-    # === PAGE SETUP ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -828,17 +802,15 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         pagesize=A4,
         leftMargin=left_margin,
         rightMargin=right_margin,
-        topMargin=header_height,   # important
+        topMargin=header_height,
         bottomMargin=60
     )
 
-    # === STYLES ===
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=10.5, leading=14, alignment=TA_LEFT)
     wrap_desc = ParagraphStyle("WrapDesc", fontSize=10.5, leading=14, alignment=TA_JUSTIFY)
 
-    # === FETCH DATA ===
     apk_analytics = db.query(ApkAnalytic).filter(ApkAnalytic.analytic_id == analytic.id).all()
 
     malicious_items = []
@@ -852,10 +824,8 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         else:
             common_items.append([item, desc])
 
-    # === STORY (NO HEADER HERE) ===
     story = []
 
-    # === INFO SECTION ===
     total_apks = len(apk_analytics)
     total_malicious = len(malicious_items)
     total_common = len(common_items)
@@ -882,7 +852,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     story.append(info_table)
     story.append(Spacer(1, 20))
 
-    # === MALICIOUS ===
     story.append(Paragraph("<b>Malicious</b>", heading_style))
     story.append(Spacer(1, 4))
 
@@ -900,7 +869,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ditemukan entri berstatus <b>dangerous</b>.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === COMMON ===
     story.append(Paragraph("<b>Common</b>", heading_style))
     story.append(Spacer(1, 4))
 
@@ -915,10 +883,8 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         story.append(Paragraph("Tidak ada entri common terdeteksi.", normal_style))
     story.append(Spacer(1, 20))
 
-    # === SUMMARY ===
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
-    # === HEADER FOR ALL PAGES ===
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
@@ -927,14 +893,13 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         page_width, page_height = A4
         top_y = page_height - 30
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         logo_x = 20
         logo_y = top_y - 30
 
         if os.path.exists(logo_path):
             try:
-                from reportlab.lib.utils import ImageReader
+                
                 canvas_obj.drawImage(
                     ImageReader(logo_path),
                     logo_x,
@@ -947,7 +912,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
             except:
                 pass
 
-        # Export time
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
         canvas_obj.drawRightString(
@@ -956,12 +920,10 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
             f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # Title
         canvas_obj.setFont("Helvetica-Bold", 20)
         title_y = logo_y - 20
         canvas_obj.drawString(30, title_y, analytic.analytic_name)
 
-        # Method + File Uploaded
         canvas_obj.setFont("Helvetica", 12)
         method_y = title_y - 25
 
@@ -976,7 +938,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
 
         canvas_obj.restoreState()
 
-    # === BUILD PDF ===
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -1012,16 +973,14 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
     
-    # Calculate header height: logo (30) + spacing (6) + title (20) + spacing (14) + method (12) + spacing (20) = ~102 points
-    # We need topMargin to accommodate header on pages 2+ to prevent content overlap
-    header_height = 140  # Approximate header height in points
+    header_height = 140
     
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
         leftMargin=left_margin,
         rightMargin=right_margin,
-        topMargin=header_height,  # Increased to accommodate header on pages 2+
+        topMargin=header_height,
         bottomMargin=50,
     )
 
@@ -1163,8 +1122,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
         story.append(Paragraph("No correlation data found for this platform.", normal_style))
     else:
         correlation_table_data = [["Connections", "Involved Device", "Correlated Account"]]
-
-        # Group rows by (label, involved_devices_set) to combine accounts
         grouped_data = {}
         
         for bucket in buckets:
@@ -1172,19 +1129,13 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
             devices_rows = bucket.get("devices", [])
 
             for accounts_row in devices_rows:
-                # Find devices involved in this correlation (non-None accounts)
                 involved_device_indices = [i for i, acc in enumerate(accounts_row) if acc is not None]
                 involved_device_ids = [devices[i]["device_id"] for i in involved_device_indices if i < len(devices)]
                 
-                # Create a key for grouping: (label, sorted_device_ids_tuple)
                 if involved_device_ids:
-                    # Sort device IDs for consistent grouping
                     sorted_device_ids = tuple(sorted(involved_device_ids))
                     group_key = (label, sorted_device_ids)
                     
-                    # Get all unique accounts from this row (replace null with "unknown")
-                    # Each position in accounts_row corresponds to a device
-                    # We collect all account values from this row, replacing null with "unknown"
                     accounts_from_row = set()
                     for acc in accounts_row:
                         if acc is None:
@@ -1192,7 +1143,6 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
                         elif str(acc).strip():
                             accounts_from_row.add(str(acc).strip())
                     
-                    # Add accounts to the group
                     if group_key not in grouped_data:
                         grouped_data[group_key] = {
                             "label": label,
@@ -1200,17 +1150,13 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
                             "accounts": set()
                         }
                     
-                    # Add all accounts from this row to the group (set will deduplicate)
                     grouped_data[group_key]["accounts"].update(accounts_from_row)
         
-        # Convert grouped data to table rows
         for (label, device_ids_tuple), group_info in grouped_data.items():
-            # Format device numbers as "Device 1, 2, 3"
             device_numbers = ", ".join([str(did) for did in device_ids_tuple])
             involved_devices_text = f"Device {device_numbers}"
-            
-            # Format all accounts for this group
-            accounts_list = sorted(list(group_info["accounts"]))  # Sort for consistent display
+ 
+            accounts_list = sorted(list(group_info["accounts"]))
             if accounts_list:
                 formatted_accounts = []
                 for acc in accounts_list:
@@ -1270,8 +1216,7 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
 
     logger.info(f"Building PDF document with {len(story)} story elements...")
     pdf_build_start = time.time()
-    
-    # Store header data for use in onLaterPages callback
+
     header_data = {
         'analytic': analytic,
         'timestamp_now': timestamp_now,
@@ -1279,47 +1224,39 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
     }
     
     def draw_header_on_new_page(canvas_obj, doc):
-        """Draw header on pages 2+ to maintain consistent structure"""
         page_number = canvas_obj._pageNumber
         if page_number > 1:
             canvas_obj.saveState()
-            
-            # Get header data from closure
+
             analytic = header_data['analytic']
             timestamp_now = header_data['timestamp_now']
             file_upload_date = header_data['file_upload_date']
             
-            # Get header data
-            page_height = 842  # A4 height in points
-            top_margin = page_height - 30  # Standard top margin
+            page_height = 842
+            top_margin = page_height - 30
             
-            # Draw logo and exported time in same row (1 grid) - moved down
             logo_path = settings.LOGO_PATH
-            logo_y = top_margin - 30  # Logo top position
+            logo_y = top_margin - 30
             logo_height = 30
             logo_width = 130
-            # Logo x position should match page 1: left margin (30) + LEFTPADDING (-10) = 20
             logo_x = 20
             
             if os.path.exists(logo_path):
                 try:
-                    from reportlab.lib.utils import ImageReader
+                    
                     img = ImageReader(logo_path)
-                    # Logo position - aligned in grid, matching page 1 position and size
                     canvas_obj.drawImage(img, logo_x, logo_y, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
                 except Exception as e:
                     logger.warning(f"Failed to draw logo on page {page_number}: {e}")
                     pass
             
-            # Draw exported time (top right) - aligned with logo vertically in same grid
             canvas_obj.setFont("Helvetica", 10)
             canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
             export_time_text = f"Exported: {timestamp_now.strftime('%d/%m/%Y %H:%M')} WIB"
-            # Align exported time vertically with logo center (logo center is at logo_y + logo_height/2)
-            exported_y = logo_y + (logo_height / 2) - 3  # Center align with logo, -3 for text baseline adjustment
-            canvas_obj.drawRightString(565, exported_y, export_time_text)
             
-            # Draw title
+            exported_y = logo_y + (logo_height / 2) - 3
+            canvas_obj.drawRightString(565, exported_y, export_time_text)
+
             try:
                 try:
                     pdfmetrics.registerFont(TTFont('Arial-Bold', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'))
@@ -1333,28 +1270,19 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
             except:
                 title_font = "Helvetica-Bold"
             
-            # Draw title in its own grid, shifted down slightly
             canvas_obj.setFont(title_font, 20)
             canvas_obj.setFillColor(colors.HexColor("#0d0d0d"))
-            # Title in separate grid, positioned below logo/exported with spacing
-            # logo_y is at top_margin - 30, logo_height is 30, so logo bottom is at top_margin
-            # Add spacing (6 points like page 1) then title, shifted down a bit more
-            title_y = top_margin - 6 - 50  # Shift down: logo bottom + spacing - additional downward shift
+            title_y = top_margin - 6 - 50
             canvas_obj.drawString(29, title_y, analytic.analytic_name)
             
-            # Draw method and file uploaded in 6:6 grid (same as page 1)
             canvas_obj.setFont("Helvetica", 12)
             canvas_obj.setFillColor(colors.black)
-            # Method positioned below title with spacing (14 points like page 1), shifted down a bit more
-            method_y = title_y - 14 - 12 - 7  # title_y - spacing - method font size - additional downward shift
+            method_y = title_y - 14 - 12 - 7
             
-            # Calculate grid positions: usable_width = 535 (A4 width 595 - left 30 - right 30)
-            # Grid 6:6 means each column is 50% of usable_width
             usable_width = 535
-            method_col_width = usable_width * 6 / 12  # 267.5
-            file_uploaded_col_width = usable_width * 6 / 12  # 267.5
+            method_col_width = usable_width * 6 / 12
+            file_uploaded_col_width = usable_width * 6 / 12
             
-            # Method: left-aligned, starting from left margin + LEFTPADDING (2) = 32
             method_text = f"Method: {analytic.method.replace('_', ' ').title()}"
             canvas_obj.drawString(32, method_y, method_text)
             
@@ -1365,19 +1293,11 @@ def _generate_social_media_correlation_report(analytic, db, report_type, filenam
             else:
                 file_date_str = timestamp_now.strftime('%d/%m/%Y')
             
-            # File Uploaded: right-aligned in second grid column
-            # Right edge of second column = left margin + usable_width = 30 + 535 = 565
             file_uploaded_text = f"File Uploaded: {file_date_str}"
             canvas_obj.drawRightString(565, method_y, file_uploaded_text)
             
             canvas_obj.restoreState()
-            
-            # Note: Content spacing is handled by ReportLab's flow mechanism
-            # The header is drawn on the canvas, and ReportLab will automatically
-            # place content below it based on the document's margins and flow
-            # The topMargin of 30 points should be sufficient for the header area
-            # If content overlaps, we may need to increase topMargin in SimpleDocTemplate
-    
+           
     doc.build(
         story,
         onFirstPage=lambda canvas_obj, doc: None,
@@ -1415,7 +1335,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     
     logger.info(f"PDF file path: {file_path}")
 
-    # === PAGE SETUP WITH STANDARD HEADER MARGIN ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -1430,7 +1349,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         bottomMargin=50,
     )
 
-    # === FETCH DATA ===
     logger.info("Fetching contact correlation data...")
     result = _get_contact_correlation_data(analytic.id, db, current_user)
 
@@ -1452,7 +1370,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     summary = api_data.get("summary")
     logger.info(f"Retrieved {len(devices)} devices and {len(correlations)} correlations")
 
-    # === STYLES ===
     styles = getSampleStyleSheet()
 
     header_device_style = ParagraphStyle(
@@ -1463,23 +1380,18 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     normal_center = ParagraphStyle("NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER)
     normal_left = ParagraphStyle("NormalLeft", fontSize=10, leading=13, alignment=TA_LEFT)
 
-    # === DEVICE GROUP SPLITTING ===
     group_size = 4
     grouped_devices = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
     total_groups = len(grouped_devices)
 
     story = []
 
-    # === FIX HEADER OVERLAP FOR PAGE 1 ===
     story.append(Spacer(1, 2))
 
-    # === BUILD PER GROUP ===
     for group_index, group in enumerate(grouped_devices, start=1):
-
         start_device = (group_index - 1) * group_size + 1
         end_device = start_device + len(group) - 1
 
-        # Info Table
         info_data = [
             ["Source", "         : Contact Correlation"],
             ["Total Device", f"         : {len(devices)} Devices (Device {start_device}-{end_device})"],
@@ -1494,7 +1406,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         story.append(info_table)
         story.append(Spacer(1, 16))
 
-        # Header Row
         header_row = ["Contact Number"]
         for dev in group:
             header_row.append(Paragraph(
@@ -1504,7 +1415,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
         table_data = [header_row]
 
-        # === CORRELATION BATCHING ===
         batch_size = 10000
         total_correlations = len(correlations)
 
@@ -1525,7 +1435,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
                 table_data.append(row)
 
-        # === CHUNK LARGE TABLE ===
         table_chunk_size = 2000
         col_widths = [usable_width * 0.25] + [
             (usable_width * 0.75) / len(group)
@@ -1565,11 +1474,9 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         if group_index < total_groups:
             story.append(PageBreak())
 
-    # === SUMMARY ===
     story.append(Spacer(1, 20))
     story.extend(_build_summary_section(usable_width, summary))
 
-    # === HEADER CANVAS (STANDARDIZED) ===
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
@@ -1577,14 +1484,13 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
         page_width, page_height = A4
         top_y = page_height - 30
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         logo_x = 20
         logo_y = top_y - 30
 
         if os.path.exists(logo_path):
             try:
-                from reportlab.lib.utils import ImageReader
+                
                 canvas_obj.drawImage(
                     ImageReader(logo_path),
                     logo_x,
@@ -1597,19 +1503,16 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             except:
                 pass
 
-        # Exported
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
         exported_text = f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
         canvas_obj.drawRightString(565, logo_y + 15, exported_text)
 
-        # Title
         canvas_obj.setFont("Helvetica-Bold", 20)
         title_y = logo_y - 20
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(30, title_y, analytic.analytic_name)
 
-        # Method & File Uploaded
         canvas_obj.setFont("Helvetica", 12)
         method_y = title_y - 25
         canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
@@ -1623,7 +1526,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
 
         canvas_obj.restoreState()
 
-    # === BUILD PDF ===
     logger.info(f"Building PDF with {len(story)} story items...")
 
     doc.build(
@@ -1653,7 +1555,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     
     logger.info(f"PDF file path: {file_path}")
 
-    # === PAGE SETUP (WITH STANDARD GLOBAL HEADER SPACE) ===
     page_width, _ = A4
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
@@ -1675,7 +1576,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         fontName="Helvetica-Bold", fontSize=9
     )
 
-    # === FETCH DATA ===
     logger.info("Fetching hashfile analytics data...")
     response = _get_hashfile_analytics_data(analytic.id, db)
 
@@ -1703,13 +1603,10 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
     story = []
 
-    # === SMALL SPACER TO AVOID PAGE 1 OVERLAP ===
     story.append(Spacer(1, 5))
 
-    # === MAIN CONTENT ===
     for group_index, group in enumerate(grouped_devices, start=1):
 
-        # Info box
         start_device = (group_index - 1) * group_size + 1
         end_device = start_device + len(group) - 1
 
@@ -1727,7 +1624,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         story.append(info_table)
         story.append(Spacer(1, 16))
 
-        # Table header
         header_row = ["Filename"]
         for dev in group:
             owner_name = dev.get("owner_name", "Unknown")
@@ -1740,7 +1636,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         total_hashfiles = len(hashfiles)
         batch_size = 10000
 
-        # Batch processing
         for batch_start in range(0, total_hashfiles, batch_size):
             batch_end = min(batch_start + batch_size, total_hashfiles)
             for h in hashfiles[batch_start:batch_end]:
@@ -1751,7 +1646,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
                     row.append(Paragraph(symbol, normal_style))
                 table_data.append(row)
 
-        # Chunking
         table_chunk_size = 2000
         col_widths = [usable_width * 0.25] + [(usable_width * 0.75) / len(group) for _ in group]
 
@@ -1786,11 +1680,9 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         if group_index < total_groups:
             story.append(PageBreak())
 
-    # SUMMARY
     story.append(Spacer(1, 20))
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
-    # === STANDARDIZED GLOBAL HEADER (MATCH OTHER REPORTS) ===
     header_timestamp = timestamp_now
 
     def draw_header(canvas_obj, doc):
@@ -1798,14 +1690,13 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         page_width, page_height = A4
         top_y = page_height - 30
 
-        # Logo
         logo_path = settings.LOGO_PATH
         logo_x = 20
         logo_y = top_y - 30
 
         if os.path.exists(logo_path):
             try:
-                from reportlab.lib.utils import ImageReader
+                
                 canvas_obj.drawImage(
                     ImageReader(logo_path),
                     logo_x, logo_y,
@@ -1815,19 +1706,16 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             except:
                 pass
 
-        # Exported timestamp
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.setFillColor(colors.HexColor("#4b4b4b"))
         exported_text = f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
         canvas_obj.drawRightString(565, logo_y + 15, exported_text)
 
-        # Title
         canvas_obj.setFont("Helvetica-Bold", 20)
         title_y = logo_y - 20
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(30, title_y, analytic.analytic_name)
 
-        # Method + Uploaded
         canvas_obj.setFont("Helvetica", 12)
         method_y = title_y - 25
         canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_', ' ').title()}")
@@ -1837,7 +1725,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         canvas_obj.restoreState()
 
-    # === BUILD PDF ===
     logger.info(f"Building PDF document with {len(story)} story elements...")
 
     doc.build(

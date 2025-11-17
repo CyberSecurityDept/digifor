@@ -95,11 +95,8 @@ async def get_suspect_summary(
 @router.post("/create-suspect", response_model=SuspectResponse)
 async def create_suspect(
     case_id: int = Form(...),
-    name: Optional[str] = Form(None),
     person_name: Optional[str] = Form(None),
-    is_unknown: bool = Form(False),
     is_unknown_person: Optional[str] = Form(None),
-    status: Optional[str] = Form(None),
     suspect_status: Optional[str] = Form(None),
     evidence_number: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
@@ -114,9 +111,9 @@ async def create_suspect(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        final_name = name or person_name
+        final_name = person_name
  
-        final_status = status or suspect_status
+        final_status = suspect_status
 
         is_unknown_person_bool = None
         if is_unknown_person is not None:
@@ -125,18 +122,18 @@ async def create_suspect(
             else:
                 is_unknown_person_bool = bool(is_unknown_person)
         
-        is_unknown_flag = is_unknown_person_bool if is_unknown_person_bool is not None else is_unknown
+        is_unknown_flag = is_unknown_person_bool if is_unknown_person_bool is not None else False
         
         if is_unknown_person_bool is not None and not is_unknown_person_bool:
             if not final_name or not final_name.strip():
                 raise HTTPException(
                     status_code=400,
-                    detail="name is required when is_unknown_person is false"
+                    detail="person_name is required when is_unknown_person is false"
                 )
             if not final_status or not final_status.strip():
                 raise HTTPException(
                     status_code=400,
-                    detail="status is required when is_unknown_person is false"
+                    detail="suspect_status is required when is_unknown_person is false"
                 )
         
         if evidence_number is not None:
@@ -355,9 +352,8 @@ async def update_suspect(
     suspect_id: int,
     case_id: Optional[int] = Form(None),
     person_name: Optional[str] = Form(None),
-    is_unknown: Optional[bool] = Form(None),
     is_unknown_person: Optional[bool] = Form(None),
-    status: Optional[str] = Form(None),
+    suspect_status: Optional[str] = Form(None),
     evidence_number: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_file: Optional[UploadFile] = File(None),
@@ -371,11 +367,8 @@ async def update_suspect(
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Suspect with ID {suspect_id} not found")
         
-        is_unknown_flag = None
         if is_unknown_person is not None:
             is_unknown_flag = is_unknown_person
-        elif is_unknown is not None:
-            is_unknown_flag = is_unknown
         else:
             is_unknown_flag = getattr(suspect, 'is_unknown', False)
         
@@ -412,18 +405,18 @@ async def update_suspect(
                         detail="person_name is required when is_unknown_person is false"
                     )
                 
-                if status is not None:
-                    normalized_status = normalize_suspect_status(status)
+                if suspect_status is not None:
+                    normalized_status = normalize_suspect_status(suspect_status)
                     if normalized_status is None:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Invalid status value: '{status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                         )
                     setattr(suspect, 'status', normalized_status)
                 else:
                     raise HTTPException(
                         status_code=400,
-                        detail="status is required when is_unknown_person is false"
+                        detail="suspect_status is required when is_unknown_person is false"
                     )
         elif is_unknown_flag is not None:
             setattr(suspect, 'is_unknown', is_unknown_flag)
@@ -439,12 +432,12 @@ async def update_suspect(
                     )
                 setattr(suspect, 'name', person_name.strip())
             
-            if status is not None:
-                normalized_status = normalize_suspect_status(status)
+            if suspect_status is not None:
+                normalized_status = normalize_suspect_status(suspect_status)
                 if normalized_status is None:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Invalid status value: '{status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                     )
                 setattr(suspect, 'status', normalized_status)
         
