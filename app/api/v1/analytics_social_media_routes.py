@@ -149,6 +149,8 @@ def _get_social_media_correlation_data(
             "account_key": key,
             "account_name": sm.account_name,
             "full_name": sm.full_name,
+            "platform_id": platform_id_value,
+            "phone_number": sm.phone_number,
             "device": device_map.get(sm.file_id),
         }
         correlation_map.setdefault(key, []).append(record)
@@ -166,9 +168,18 @@ def _get_social_media_correlation_data(
         for dev in devices:
             if dev.id in devices_present:
                 rec = devices_present[dev.id]
-                row.append(rec["full_name"] or rec["account_name"])
+                if selected_platform == "whatsapp":
+                    value = rec["full_name"] or rec["phone_number"]
+                else:
+                    value = (
+                        rec["full_name"] or 
+                        rec["account_name"] or 
+                        rec["platform_id"] or 
+                        rec["phone_number"]
+                    )
+                row.append(value if value is not None else "Unknown")
             else:
-                row.append(None)
+                row.append("Unknown")
         bucket_map[label].append(row)
 
     sorted_buckets = []

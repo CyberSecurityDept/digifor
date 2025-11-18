@@ -92,6 +92,17 @@ def analyze_apk(
                 status_code=403,
             )
         
+        method_value = analytic_obj.method
+        if method_value is None or str(method_value) != "APK Analytics":
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
         file_obj = db.query(File).filter(File.id == file_id).first()
         if not file_obj:
             return JSONResponse(
@@ -230,13 +241,28 @@ def get_apk_analysis(
     db: Session = Depends(get_db)
 ):
     analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
-    if analytic_obj:
-        
-        if current_user is not None and not check_analytic_access(analytic_obj, current_user):
-            return JSONResponse(
-                {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
-                status_code=403,
-            )
+    if not analytic_obj:
+        return JSONResponse(
+            {"status": 404, "message": "Analytic not found", "data": {}},
+            status_code=404,
+        )
+    
+    if current_user is not None and not check_analytic_access(analytic_obj, current_user):
+        return JSONResponse(
+            {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
+            status_code=403,
+        )
+    
+    method_value = analytic_obj.method
+    if method_value is None or str(method_value) != "APK Analytics":
+        return JSONResponse(
+            {
+                "status": 400,
+                "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
+                "data": {}
+            },
+            status_code=400,
+        )
     
     apk_records = (
         db.query(ApkAnalytic)
@@ -246,11 +272,14 @@ def get_apk_analysis(
     )
     
     if not apk_records:
-        return {
-            "status": 404,
-            "message": f"No APK analysis found for analytic_id={analytic_id}",
-            "data": {}
-        }
+        return JSONResponse(
+            {
+                "status": 404,
+                "message": f"No APK analysis found for analytic_id={analytic_id}",
+                "data": {}
+            },
+            status_code=404,
+        )
 
     malware_scoring = apk_records[0].malware_scoring if apk_records else None
 
@@ -264,13 +293,16 @@ def get_apk_analysis(
         for r in apk_records
     ]
 
-    return {
-        "status": 200,
-        "message": "Success",
-        "data": {
-            "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
-            "method": apk_records[0].analytic.method if apk_records else None,
-            "malware_scoring": malware_scoring,
-            "permissions": permissions
-        }
-    }
+    return JSONResponse(
+        {
+            "status": 200,
+            "message": "Success",
+            "data": {
+                "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
+                "method": apk_records[0].analytic.method if apk_records else None,
+                "malware_scoring": malware_scoring,
+                "permissions": permissions
+            }
+        },
+        status_code=200,
+    )

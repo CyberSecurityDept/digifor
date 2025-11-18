@@ -160,6 +160,17 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 status_code=403
             )
 
+        method_value = analytic.method
+        if method_value is None or str(method_value) != "Deep Communication Analytics":
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": f"This endpoint is only for Deep Communication Analytics. Current analytic method is '{method_value}'",
+                    "data": None
+                },
+                status_code=400
+            )
+
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
         ).order_by(AnalyticDevice.id).all()
