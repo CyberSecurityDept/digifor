@@ -1184,7 +1184,7 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/analytic/deep-communication-analytics`
 
-**Deskripsi:** Mendapatkan data deep communication analytics untuk sebuah analytic. **Kontrol akses berdasarkan role user:**
+**Deskripsi:** Mendapatkan data deep communication analytics untuk sebuah analytic. Endpoint ini hanya dapat digunakan untuk analytic dengan method **"Deep Communication Analytics"**. **Kontrol akses berdasarkan role user:**
 - **Admin Role**: Dapat mengakses analytics untuk semua analytics.
 - **Regular User Role**: Hanya dapat mengakses analytics dimana `analytic_name`, `summary`, atau `created_by` mengandung `fullname` atau `email` mereka. Mencoba mengakses analytic lain akan mengembalikan 403 Forbidden.
 
@@ -1193,8 +1193,13 @@ Content-Type: application/json
 **Query Parameters:**
 | Parameter | Type | Required | Deskripsi |
 |-----------|------|----------|-----------|
-| `analytic_id` | integer | Yes | ID Analytic |
-| `device_id` | integer | No | Filter berdasarkan device ID |
+| `analytic_id` | integer | Yes | ID Analytic (harus memiliki method "Deep Communication Analytics") |
+| `device_id` | integer | No | Filter berdasarkan device ID. Jika tidak disediakan, akan mengambil data dari semua device yang terhubung dengan analytic |
+
+**Logika Penentuan Person Name:**
+- Jika `chat_type` adalah **"Group"** atau **"Broadcast"**: `person` value diambil dari field `group_name` pada table `chat_messages`
+- Jika `chat_type` adalah **"One On One"**: `person` value diambil dari field `from_name` pada table `chat_messages`
+- Jika `chat_type` adalah `null`: menggunakan logika default yang sudah ada (berdasarkan direction dan field lainnya)
 
 **Response (200 OK - With Data):**
 ```json
@@ -1221,16 +1226,26 @@ Content-Type: application/json
               {
                 "person": "Jane Smith",
                 "intensity": 75
+              },
+              {
+                "person": "Youth Bandung Reborn",
+                "intensity": 42
               }
             ]
           }
         ]
       }
     ],
-    "summary": null
+    "summary": "Lorem Ipsum is simply dummy text..."
   }
 }
 ```
+
+**Catatan:**
+- `intensity_list` berisi daftar orang/grup yang berkomunikasi dengan device owner, diurutkan berdasarkan intensity (frekuensi komunikasi) tertinggi
+- Untuk chat type "Group" atau "Broadcast", `person` akan menampilkan nama grup dari `group_name`
+- Untuk chat type "One On One", `person` akan menampilkan nama kontak dari `from_name`
+- Device owner tidak akan muncul dalam `intensity_list`
 
 **Response (200 OK - No Devices Linked):**
 ```json
@@ -1249,6 +1264,15 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
+**400 Bad Request (Wrong Analytic Method):**
+```json
+{
+  "status": 400,
+  "message": "This endpoint is only for Deep Communication Analytics. Current analytic method is 'Social Media Correlation'",
+  "data": null
+}
+```
 
 **401 Unauthorized:**
 ```json
@@ -1301,7 +1325,7 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/analytic/platform-cards/intensity`
 
-**Deskripsi:** Mendapatkan data intensity (frekuensi komunikasi) untuk platform tertentu dalam sebuah analytic. **Kontrol akses berdasarkan role user:**
+**Deskripsi:** Mendapatkan data intensity (frekuensi komunikasi) untuk platform tertentu dalam sebuah analytic. Endpoint ini hanya dapat digunakan untuk analytic dengan method **"Deep Communication Analytics"**. **Kontrol akses berdasarkan role user:**
 - **Admin Role**: Dapat mengakses analytics untuk semua analytics.
 - **Regular User Role**: Hanya dapat mengakses analytics dimana `analytic_name`, `summary`, atau `created_by` mengandung `fullname` atau `email` mereka. Mencoba mengakses analytic lain akan mengembalikan 403 Forbidden.
 
@@ -1310,9 +1334,9 @@ Content-Type: application/json
 **Query Parameters:**
 | Parameter | Type | Required | Deskripsi |
 |-----------|------|----------|-----------|
-| `analytic_id` | integer | Yes | ID Analytic |
-| `platform` | string | Yes | Platform name: `"Instagram"`, `"Telegram"`, `"WhatsApp"`, `"Facebook"`, `"X"`, `"TikTok"` |
-| `device_id` | integer | No | Filter berdasarkan device ID |
+| `analytic_id` | integer | Yes | ID Analytic (harus memiliki method "Deep Communication Analytics") |
+| `platform` | string | Yes | Platform name: `"Instagram"`, `"Telegram"`, `"WhatsApp"`, `"Facebook"`, `"X"`, `"TikTok"` (case-insensitive) |
+| `device_id` | integer | No | Filter berdasarkan device ID. Jika tidak disediakan, akan mengambil data dari semua device yang terhubung dengan analytic |
 
 **Response (200 OK - With Data):**
 ```json
@@ -1328,9 +1352,14 @@ Content-Type: application/json
         "person": "Jane Smith",
         "person_id": "+628987654321",
         "intensity": 75
+      },
+      {
+        "person": "John Doe",
+        "person_id": null,
+        "intensity": 42
       }
     ],
-    "summary": null
+    "summary": "Lorem Ipsum is simply dummy text..."
   }
 }
 ```
@@ -1345,10 +1374,16 @@ Content-Type: application/json
     "platform": "Instagram",
     "device_id": null,
     "intensity_list": [],
-    "summary": null
+    "summary": "Lorem Ipsum is simply dummy text..."
   }
 }
 ```
+
+**Catatan:**
+- `intensity_list` berisi daftar orang yang berkomunikasi dengan device owner, diurutkan berdasarkan intensity (frekuensi komunikasi) tertinggi
+- `person_id` bisa berupa `null` jika tidak tersedia (hanya nama yang tersedia)
+- `intensity` menunjukkan jumlah total pesan yang dipertukarkan dengan orang tersebut
+- Device owner tidak akan muncul dalam `intensity_list`
 
 **Error Responses:**
 
@@ -1366,6 +1401,15 @@ Content-Type: application/json
 {
   "status": 400,
   "message": "Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok",
+  "data": null
+}
+```
+
+**400 Bad Request (Wrong Analytic Method):**
+```json
+{
+  "status": 400,
+  "message": "This endpoint is only for Deep Communication Analytics. Current analytic method is 'Social Media Correlation'",
   "data": null
 }
 ```

@@ -292,6 +292,8 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     sender_id = msg.sender_number or ""
                     recipient_name = msg.to_name or ""
                     recipient_id = msg.recipient_number or ""
+                    chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                    group_name = (msg.group_name or "").strip() if msg.group_name else None
                     
                     sender_name_lower = (sender_name or "").strip().lower()
                     recipient_name_lower = (recipient_name or "").strip().lower()
@@ -303,64 +305,81 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     person_id = None
                     thread_id = (msg.thread_id or msg.chat_id or "").strip()
                     
-                    if direction_lower in ['outgoing', 'sent']:
-                        if recipient_name and recipient_name.strip():
-                            recipient_name_clean = recipient_name.strip()
-                            if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
-                                if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
-                                    person_name = recipient_id.strip()
-                                    person_id = recipient_id.strip()
-                                elif thread_id and thread_id in thread_person_map:
-                                    person_name = thread_person_map[thread_id]["name"]
-                                    person_id = thread_person_map[thread_id].get("id")
+                    # Check chat_type to determine person_name source
+                    if chat_type:
+                        chat_type_lower = chat_type.lower()
+                        if chat_type_lower in ["group", "broadcast"]:
+                            # For Group or Broadcast: use group_name
+                            if group_name and group_name.strip():
+                                person_name = group_name.strip()
+                                # Use group_id as person_id if available
+                                person_id = (msg.group_id or "").strip() if msg.group_id else None
+                        elif chat_type_lower == "one on one":
+                            # For One On One: use from_name
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name.strip()
+                                person_id = sender_id if sender_id and sender_id.strip() else None
+                    
+                    # If person_name not set yet (chat_type is null or conditions not met), use existing logic
+                    if not person_name:
+                        if direction_lower in ['outgoing', 'sent']:
+                            if recipient_name and recipient_name.strip():
+                                recipient_name_clean = recipient_name.strip()
+                                if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
+                                    if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+                                        person_name = recipient_id.strip()
+                                        person_id = recipient_id.strip()
+                                    elif thread_id and thread_id in thread_person_map:
+                                        person_name = thread_person_map[thread_id]["name"]
+                                        person_id = thread_person_map[thread_id].get("id")
+                                    else:
+                                        continue
                                 else:
-                                    continue
+                                    person_name = recipient_name_clean
+                                    person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                            elif recipient_id and recipient_id.strip():
+                                recipient_id_clean = recipient_id.strip()
+                                if len(recipient_id_clean) > 50:
+                                    if thread_id and thread_id in thread_person_map:
+                                        person_name = thread_person_map[thread_id]["name"]
+                                        person_id = thread_person_map[thread_id].get("id")
+                                    else:
+                                        continue
+                                else:
+                                    person_name = recipient_id_clean
+                                    person_id = recipient_id_clean
                             else:
-                                person_name = recipient_name_clean
-                                person_id = recipient_id if recipient_id and recipient_id.strip() else None
-                        elif recipient_id and recipient_id.strip():
-                            recipient_id_clean = recipient_id.strip()
-                            if len(recipient_id_clean) > 50:
                                 if thread_id and thread_id in thread_person_map:
                                     person_name = thread_person_map[thread_id]["name"]
                                     person_id = thread_person_map[thread_id].get("id")
                                 else:
                                     continue
-                            else:
-                                person_name = recipient_id_clean
-                                person_id = recipient_id_clean
-                        else:
-                            if thread_id and thread_id in thread_person_map:
-                                person_name = thread_person_map[thread_id]["name"]
-                                person_id = thread_person_map[thread_id].get("id")
+                        elif direction_lower in ['incoming', 'received']:
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name.strip()
+                                person_id = sender_id if sender_id and sender_id.strip() else None
+                            elif sender_id and sender_id.strip():
+                                sender_id_clean = sender_id.strip()
+                                if len(sender_id_clean) > 50:
+                                    continue
+                                person_name = sender_id_clean
+                                person_id = sender_id_clean
                             else:
                                 continue
-                    elif direction_lower in ['incoming', 'received']:
-                        if sender_name and sender_name.strip():
-                            person_name = sender_name.strip()
-                            person_id = sender_id if sender_id and sender_id.strip() else None
-                        elif sender_id and sender_id.strip():
-                            sender_id_clean = sender_id.strip()
-                            if len(sender_id_clean) > 50:
-                                continue
-                            person_name = sender_id_clean
-                            person_id = sender_id_clean
                         else:
-                            continue
-                    else:
-                        sender_name_lower = (sender_name or "").strip().lower()
-                        if sender_name and (not device_owner_name or sender_name_lower != device_owner_name):
-                            person_name = sender_name
-                            person_id = sender_id
-                        elif recipient_name and (not device_owner_name or recipient_name_lower != device_owner_name):
-                            person_name = recipient_name
-                            person_id = recipient_id
-                        elif recipient_name:
-                            person_name = recipient_name
-                            person_id = recipient_id
-                        elif sender_name:
-                            person_name = sender_name
-                            person_id = sender_id
+                            sender_name_lower = (sender_name or "").strip().lower()
+                            if sender_name and (not device_owner_name or sender_name_lower != device_owner_name):
+                                person_name = sender_name
+                                person_id = sender_id
+                            elif recipient_name and (not device_owner_name or recipient_name_lower != device_owner_name):
+                                person_name = recipient_name
+                                person_id = recipient_id
+                            elif recipient_name:
+                                person_name = recipient_name
+                                person_id = recipient_id
+                            elif sender_name:
+                                person_name = sender_name
+                                person_id = sender_id
                     
                     if person_name and device_owner_name:
                         person_name_lower = person_name.strip().lower()

@@ -35,9 +35,7 @@ class ChatMessagesParserExtended:
     def __init__(self, db: Session):
         self.db = db
     
-    # Helper methods
     def _is_na(self, value: Any) -> bool:
-        """Safely check if value is NA/NaN, returns bool (not Series/NDArray)"""
         if value is None:
             return True
         if isinstance(value, (pd.Series, pd.DataFrame)):
@@ -54,7 +52,6 @@ class ChatMessagesParserExtended:
             return False
     
     def _not_na(self, value: Any) -> bool:
-        """Safely check if value is not NA/NaN, returns bool (not Series/NDArray)"""
         return not self._is_na(value)
 
     def _normalize_platform_name(self, platform: str) -> str:
@@ -121,7 +118,6 @@ class ChatMessagesParserExtended:
             return True
         
         return False
-    
 
     def parse_cellebrite_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -158,6 +154,9 @@ class ChatMessagesParserExtended:
                     "file_id": msg.get("file_id"),
                     "platform": msg.get("platform", "Unknown"),
                     "message_text": msg.get("message_text"),
+                    "account_name": msg.get("account_name"),
+                    "group_name": msg.get("group_name"),
+                    "group_id": msg.get("group_id"),
                     "from_name": (msg.get("sender") or "").strip() or "Unknown",
                     "sender_number": (msg.get("sender_number") or "").strip() or None,
                     "to_name": (msg.get("receiver") or "").strip() or "Unknown",
@@ -166,6 +165,8 @@ class ChatMessagesParserExtended:
                     "thread_id": msg.get("thread_id"),
                     "message_id": msg.get("thread_id"),
                     "message_type": msg.get("type", "Unknown"),
+                    "chat_type": msg.get("chat_type"),
+                    "status": msg.get("status"),
                     "direction": msg.get("direction"),
                     "source_tool": "Cellebrite",
                     "sheet_name": "Chats",
@@ -217,10 +218,10 @@ class ChatMessagesParserExtended:
                 "no_source_type": 0,
                 "header_row": 0,
                 "unsupported_platform": 0,
+                "duplicate_system_message": 0,
             }
 
             allowed_platforms = ["whatsapp", "telegram", "instagram", "facebook", "tiktok", "x", "twitter", "x (twitter)"]
-
             for idx, row in df.iterrows():
                 try:
                     first_col = self._clean(row.get(df.columns[0], "")) or ""
@@ -247,13 +248,25 @@ class ChatMessagesParserExtended:
                     if not non_owner_full:
                         non_owner_full = "Unknown"
 
+                    group_name_value = self._clean(row.get("Name")) or self._clean(row.get("name"))
+                    
                     from_field = (row.get("From") or "").strip()
+                    
+                    if from_field:
+                        from_field_lower = from_field.lower().strip()
+                        if "system message" in from_field_lower and from_field_lower.count("system message") > 1:
+                            skip_reasons["duplicate_system_message"] += 1
+                            skipped_count += 1
+                            continue
+                    
                     sender = from_field or owner_full or "Unknown"
 
                     if "system message" in from_field.lower():
                         direction = "Incoming"
                         sender = "System Message"
                         receiver = owner_full or "Unknown"
+                        sender_number = None
+                        from_name = "System Message"
                     else:
                         direction = "Incoming"
                         if owner_full and from_field:
@@ -263,12 +276,6 @@ class ChatMessagesParserExtended:
                                 direction = "Incoming"
 
                     receiver = non_owner_full if direction == "Outgoing" else owner_full
-
-                    sender_number, from_name = self._split_name_number(sender)
-                    recipient_number, to_name = self._split_name_number(receiver)
-
-                    from_name = self._safe_clean_name(from_name)
-                    to_name = self._safe_clean_name(to_name)
 
                     timestamp_clean = self._parse_timestamp(row.get("Timestamp: Time"))
                     if not timestamp_clean:
@@ -289,6 +296,28 @@ class ChatMessagesParserExtended:
                         skipped_count += 1
                         continue
 
+                    chat_type_raw = self._clean(row.get("Chat Type")) or self._clean(row.get("chat type")) or self._clean(row.get("Chat type"))
+                    chat_type = None
+
+                    status_value = self._clean(row.get("Status")) or self._clean(row.get("status"))
+                    
+                    if chat_type_raw:
+                        chat_type_normalized = chat_type_raw.lower().strip().replace("-", " ").replace("_", " ")
+                        if "one on one" in chat_type_normalized:
+                            chat_type = "One On One"
+                        elif "group" in chat_type_normalized:
+                            chat_type = "Group"
+                        elif "broadcast" in chat_type_normalized:
+                            chat_type = "Broadcast"
+                        else:
+                            chat_type = chat_type_raw
+
+                    sender_number, from_name = self._split_name_number(from_field)
+                    from_name = self._safe_clean_name(from_name)
+
+                    recipient_number, to_name = self._split_name_number(receiver)
+                    to_name = self._safe_clean_name(to_name)
+
                     body = self._clean(row.get("Body"))
                     if not sender or not body:
                         skip_reasons["no_sender_or_text"] += 1
@@ -296,6 +325,12 @@ class ChatMessagesParserExtended:
                         continue
 
                     thread_id = self._clean(row.get("Identifier"))
+                    
+                    group_id_value = None
+                    if chat_type and chat_type.lower() in ["group", "broadcast"]:
+                        group_id_value = self._clean(row.get("Identifier"))
+
+                    account_name = self._clean(row.get("Account")) or self._clean(row.get("account"))
 
                     entry = {
                         "file_id": file_id,
@@ -310,6 +345,11 @@ class ChatMessagesParserExtended:
                         "recipient_number": recipient_number,
                         "details": None,
                         "thread_id": thread_id,
+                        "chat_type": chat_type,
+                        "status": status_value,
+                        "account_name": account_name,
+                        "group_name": group_name_value,
+                        "group_id": group_id_value,
                     }
 
                     results.append(entry)
@@ -332,7 +372,6 @@ class ChatMessagesParserExtended:
 
         return results
 
-
     def _safe_clean_name(self, text: Optional[str]) -> str:
         if not text:
             return "Unknown"
@@ -343,7 +382,6 @@ class ChatMessagesParserExtended:
 
         return cleaned if cleaned else "Unknown"
 
-
     def _split_name_number(self, raw_value: str) -> Tuple[Optional[str], str]:
         if not raw_value or not str(raw_value).strip():
             return None, "Unknown"
@@ -351,12 +389,14 @@ class ChatMessagesParserExtended:
         val = str(raw_value).strip()
 
         val = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', val)
-        val = re.sub(r'@[\w\.-]+', '', val).strip()
+        val = self._clean_whatsapp_format(val) or ""
+        val = val.strip()
 
         parts = val.split(" ", 1)
 
         if len(parts) == 2:
             number_candidate, name_part = parts[0].strip(), parts[1].strip()
+            number_candidate = self._clean_whatsapp_format(number_candidate) or number_candidate
 
             if re.match(r'^\+?\d+$', number_candidate):
                 return number_candidate, self._safe_clean_name(name_part)
@@ -368,7 +408,17 @@ class ChatMessagesParserExtended:
 
         return None, self._safe_clean_name(val)
 
-    
+    def _clean_whatsapp_format(self, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return value
+        
+        text = str(value).strip()
+        text = re.sub(r'@s\.whatsapp\.net', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'@[\w\.-]+', '', text)
+        text = text.strip()
+        
+        return text if text else None
+
     def _clean(self, value: Any) -> Optional[str]:
         if value is None or self._is_na(value):
             return None
@@ -382,8 +432,10 @@ class ChatMessagesParserExtended:
         text = re.sub(r"[\x00-\x1F]+", " ", text)
         text = "".join(ch for ch in text if ch.isprintable())
         text = re.sub(r"\s+", " ", text).strip()
+        
+        text = self._clean_whatsapp_format(text)
+        
         return text or None
-
 
     def _extract_name(self, text: str) -> Optional[str]:
         if not text or str(text).strip().lower() in ["", "nan", "none"]:
@@ -392,7 +444,6 @@ class ChatMessagesParserExtended:
         cleaned = re.sub(r"^\+?\d+\s*", "", cleaned).strip()
         cleaned = self._clean(cleaned)
         return cleaned or None
-
 
     def _parse_timestamp(self, raw: str) -> Optional[str]:
         if not raw:
@@ -405,9 +456,6 @@ class ChatMessagesParserExtended:
             return localized.isoformat()
         except Exception:
             return None
-
-
-
 
     def parse_oxygen_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -585,7 +633,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_oxygen_messages_sheet(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:  # type: ignore[reportGeneralTypeIssues]
         results = []
         
@@ -739,13 +786,13 @@ class ChatMessagesParserExtended:
             
             logger.info(f"[OXYGEN MESSAGES PARSER] Found columns - Source: {source_col}, Message: {message_col}, Timestamp: {timestamp_col}, Sender: {sender_col}, Receiver: {receiver_col}, ThreadID: {thread_id_col}, Details: {details_col}")
             print(f"[OXYGEN MESSAGES PARSER] Found columns:")
-            print(f"  Source/Platform: {source_col}")
-            print(f"  Message: {message_col}")
-            print(f"  Timestamp: {timestamp_col}")
-            print(f"  Sender: {sender_col}")
-            print(f"  Receiver: {receiver_col}")
-            print(f"  Thread ID: {thread_id_col}")
-            print(f"  Details: {details_col}")
+            print(f"Source/Platform: {source_col}")
+            print(f"Message: {message_col}")
+            print(f"Timestamp: {timestamp_col}")
+            print(f"Sender: {sender_col}")
+            print(f"Receiver: {receiver_col}")
+            print(f"Thread ID: {thread_id_col}")
+            print(f"Details: {details_col}")
             
             if not source_col:
                 logger.warning(f"[OXYGEN MESSAGES PARSER] No Source/Platform column found!")
@@ -790,7 +837,6 @@ class ChatMessagesParserExtended:
                         elif 'facebook' in source_lower or 'messenger' in source_lower:
                             platform = "facebook"
                         
-                        # Normalize platform name to capitalized format
                         if platform:
                             platform = self._normalize_platform_name(platform)
                         
@@ -833,7 +879,7 @@ class ChatMessagesParserExtended:
                                 if message_text and message_text.upper() != 'N/A':
                                     message_col = col
                                     break
-                    
+
                     if not message_text:
                         for col_idx in [3, 4, 5, 2]:
                             if col_idx < len(df.columns):
@@ -1328,7 +1374,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _generate_oxygen_message_id(self, platform: str, row: pd.Series, file_id: int, index: int) -> str:
         message_id_fields = ['Message ID', 'Item ID', 'Record', 'message_id', 'id', 'Instant Message #']
         for field in message_id_fields:
@@ -1343,7 +1388,6 @@ class ChatMessagesParserExtended:
             return f"{platform}_{file_id}_{clean_timestamp}_{index}"
         
         return f"{platform}_{file_id}_{index}"
-
 
     def _parse_oxygen_telegram_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
@@ -1619,7 +1663,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_oxygen_instagram_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
@@ -1818,7 +1861,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_oxygen_twitter_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
@@ -2005,7 +2047,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_oxygen_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
@@ -2089,7 +2130,6 @@ class ChatMessagesParserExtended:
             logger.error(f"[OXYGEN TIKTOK PARSER] Error parsing TikTok messages from {sheet_name}: {e}", exc_info=True)
         
         return results
-
 
     def _parse_oxygen_facebook_messages(self, file_path: str, sheet_name: str, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
@@ -2182,7 +2222,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def parse_axiom_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
@@ -2194,7 +2233,6 @@ class ChatMessagesParserExtended:
             
             platform_counts = {}
             
-            # Telegram Messages - iOS
             if 'Telegram Messages - iOS' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Telegram Messages - iOS sheet, parsing...")
                 telegram_results = self._parse_telegram_messages(file_path, 'Telegram Messages - iOS', file_id)
@@ -2203,8 +2241,7 @@ class ChatMessagesParserExtended:
                 logger.info(f"[CHAT PARSER] Telegram Messages - iOS: Parsed {len(telegram_results)} messages")
             else:
                 logger.debug(f"[CHAT PARSER] Telegram Messages - iOS sheet not found")
-            
-            # Telegram Messages - Android
+
             if 'Telegram Messages - Android' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Telegram Messages - Android sheet, parsing...")
                 telegram_android_results = self._parse_telegram_messages(file_path, 'Telegram Messages - Android', file_id)
@@ -2241,7 +2278,6 @@ class ChatMessagesParserExtended:
             else:
                 logger.warning(f"[CHAT PARSER] Twitter Direct Messages sheet not found")
             
-            # Facebook Messenger Messages
             if 'Facebook Messenger Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Facebook Messenger Messages sheet, parsing...")
                 facebook_results = self._parse_facebook_messages(file_path, 'Facebook Messenger Messages', file_id)
@@ -2251,7 +2287,6 @@ class ChatMessagesParserExtended:
             else:
                 logger.debug(f"[CHAT PARSER] Facebook Messenger Messages sheet not found")
             
-            # WhatsApp Messages - Android
             if 'WhatsApp Messages - Android' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found WhatsApp Messages - Android sheet, parsing...")
                 whatsapp_android_results = self._parse_whatsapp_messages(file_path, 'WhatsApp Messages - Android', file_id)
@@ -2261,7 +2296,6 @@ class ChatMessagesParserExtended:
             else:
                 logger.debug(f"[CHAT PARSER] WhatsApp Messages - Android sheet not found")
             
-            # WhatsApp Messages - iOS
             if 'WhatsApp Messages - iOS' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found WhatsApp Messages - iOS sheet, parsing...")
                 whatsapp_ios_results = self._parse_whatsapp_messages(file_path, 'WhatsApp Messages - iOS', file_id)
@@ -2271,7 +2305,6 @@ class ChatMessagesParserExtended:
             else:
                 logger.debug(f"[CHAT PARSER] WhatsApp Messages - iOS sheet not found")
             
-            # Android WhatsApp Messages
             if 'Android WhatsApp Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found Android WhatsApp Messages sheet, parsing...")
                 android_whatsapp_results = self._parse_whatsapp_messages(file_path, 'Android WhatsApp Messages', file_id)
@@ -2281,7 +2314,6 @@ class ChatMessagesParserExtended:
             else:
                 logger.debug(f"[CHAT PARSER] Android WhatsApp Messages sheet not found")
             
-            # iOS WhatsApp Messages
             if 'iOS WhatsApp Messages' in xls.sheet_names:
                 logger.info(f"[CHAT PARSER] Found iOS WhatsApp Messages sheet, parsing...")
                 ios_whatsapp_results = self._parse_whatsapp_messages(file_path, 'iOS WhatsApp Messages', file_id)
@@ -2335,7 +2367,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
@@ -2349,15 +2380,12 @@ class ChatMessagesParserExtended:
             skipped_count = 0
             
             for idx, row in df.iterrows():
-                # Special handling for Telegram Messages - Android: use "Message Body" column
                 if sheet_name == 'Telegram Messages - Android' and 'Message Body' in df.columns:
                     message_text = str(row.get('Message Body', '')).strip() if self._not_na(row.get('Message Body')) else ''
                 else:
                     message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
                 
-                # Get message_id and message_type based on sheet type
                 if sheet_name == 'Telegram Messages - Android':
-                    # For Android: use "Item ID" for message_id
                     message_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                     message_type = str(row.get('Type', 'text')).strip() if self._not_na(row.get('Type')) else 'text'
                 else:
@@ -2370,26 +2398,19 @@ class ChatMessagesParserExtended:
                         logger.debug(f"[TELEGRAM PARSER] Row {idx} skipped: No message text")
                     continue
                 
-                # Special handling for Telegram Messages - Android
                 if sheet_name == 'Telegram Messages - Android':
-                    # Map direction: Sent -> "Outgoing", Received -> "Incoming"
                     direction_raw = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                     direction = self._normalize_direction(direction_raw)
                     
-                    # Get chat_id (Telegram Android uses _ChatId, not _ThreadID)
                     chat_id = str(row.get('_ChatId', '')).strip() if self._not_na(row.get('_ChatId')) else ''
                     
-                    # Use chat_id as thread_id (for Telegram Android, they are the same)
-                    # If chat_id is empty, try to generate from Sender ID + Recipient ID
                     thread_id = chat_id
                     if not thread_id:
                         sender_id = str(row.get('Sender ID', '')).strip() if self._not_na(row.get('Sender ID')) else ''
                         recipient_id = str(row.get('Recipient ID', '')).strip() if self._not_na(row.get('Recipient ID')) else ''
                         if sender_id and recipient_id:
-                            # Create consistent thread_id from sorted participants
                             participants = sorted([sender_id, recipient_id])
                             thread_id = "_".join(participants)
-                            # Also set chat_id if it was empty
                             if not chat_id:
                                 chat_id = thread_id
                         elif sender_id or recipient_id:
@@ -2473,17 +2494,14 @@ class ChatMessagesParserExtended:
             skipped_count = 0
             
             for idx, row in df.iterrows():
-                # Get message text from 'Message' column
                 message_text = str(row.get('Message', '')).strip() if self._not_na(row.get('Message')) else ''
                 
-                # Skip messages without text
                 if not message_text:
                     skipped_count += 1
                     if skipped_count <= 5:
                         logger.debug(f"[INSTAGRAM PARSER] Row {idx} skipped: No message text")
                     continue
                 
-                # Get timestamp - prioritize 'Message Date/Time - UTC+00:00 (dd/MM/yyyy)'
                 timestamp = ''
                 timestamp_columns = [
                     'Message Date/Time - UTC+00:00 (dd/MM/yyyy)',
@@ -2498,22 +2516,16 @@ class ChatMessagesParserExtended:
                         if timestamp:
                             break
                 
-                # Get Sender and Recipient
                 sender_name = str(row.get('Sender', '')).strip() if self._not_na(row.get('Sender')) else ''
                 recipient_name = str(row.get('Recipient', '')).strip() if self._not_na(row.get('Recipient')) else ''
                 
-                # Get Direction
                 direction = str(row.get('Direction', '')).strip() if self._not_na(row.get('Direction')) else ''
                 
-                # Get _ThreadID
                 thread_id = str(row.get('_ThreadID', '')).strip() if self._not_na(row.get('_ThreadID')) else ''
-                
-                # Get Chat ID
+
                 chat_id = str(row.get('Chat ID', '')).strip() if self._not_na(row.get('Chat ID')) else ''
                 
-                # Generate chat_id and thread_id from participants if both are empty
                 if not thread_id and not chat_id:
-                    # Try to generate from Sender and Recipient combination
                     participants = sorted([p for p in [sender_name, recipient_name] if p])
                     if len(participants) >= 2:
                         chat_id = "_".join(participants)
@@ -2522,19 +2534,15 @@ class ChatMessagesParserExtended:
                         chat_id = participants[0]
                         thread_id = chat_id
                 
-                # Use thread_id as chat_id if chat_id is empty but thread_id exists
                 if not chat_id and thread_id:
                     chat_id = thread_id
                 
-                # Use chat_id as thread_id if thread_id is empty but chat_id exists
                 if not thread_id and chat_id:
                     thread_id = chat_id
                 
-                # Get Item ID for message_id
                 item_id = str(row.get('Item ID', '')).strip() if self._not_na(row.get('Item ID')) else ''
                 message_id = item_id or f"instagram_{file_id}_{idx}"
                 
-                # Get message type
                 message_type = str(row.get('Type', 'text')).strip() if self._not_na(row.get('Type')) else 'text'
                 
                 message_data = {
@@ -2824,7 +2832,6 @@ class ChatMessagesParserExtended:
                         chat_id = participants[0]
                         thread_id = chat_id
                     elif sender_name and receiver_name:
-                        # Fallback to names if IDs not available
                         participants = sorted([sender_name, receiver_name])
                         if len(participants) >= 2:
                             chat_id = "_".join(participants)
@@ -2905,14 +2912,11 @@ class ChatMessagesParserExtended:
                         logger.debug(f"[WHATSAPP PARSER] Row {idx} skipped: WhatsApp system message")
                     continue
                 
-                # Special handling for WhatsApp Messages - Android
                 if sheet_name == 'WhatsApp Messages - Android':
-                    # Use Sender Nickname for from_name
                     sender_name = ''
                     if 'Sender Nickname' in df.columns:
                         sender_name = str(row.get('Sender Nickname', '')).strip() if self._not_na(row.get('Sender Nickname')) else ''
                     
-                    # Extract sender_number from Sender column if available
                     sender_number = ''
                     sender_raw = str(row.get('Sender', '')) if self._not_na(row.get('Sender')) else ''
                     if '@s.whatsapp.net' in sender_raw:
@@ -2924,12 +2928,10 @@ class ChatMessagesParserExtended:
                         if phone_match:
                             sender_number = phone_match.group(1)
                     
-                    # Use Recipient Nickname for to_name
                     recipient_name = ''
                     if 'Recipient Nickname' in df.columns:
                         recipient_name = str(row.get('Recipient Nickname', '')).strip() if self._not_na(row.get('Recipient Nickname')) else ''
                     
-                    # Extract recipient_number from Recipient column if available
                     recipient_number = ''
                     recipient_raw = str(row.get('Recipient', '')) if self._not_na(row.get('Recipient')) else ''
                     if '@s.whatsapp.net' in recipient_raw:
@@ -2941,7 +2943,6 @@ class ChatMessagesParserExtended:
                         if phone_match:
                             recipient_number = phone_match.group(1)
                 else:
-                    # Default handling for other WhatsApp sheets
                     sender_raw = str(row.get('Sender', '')) if self._not_na(row.get('Sender')) else ''
                     sender_name = ''
                     sender_number = ''
