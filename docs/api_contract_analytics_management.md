@@ -1338,6 +1338,11 @@ Content-Type: application/json
 | `platform` | string | Yes | Platform name: `"Instagram"`, `"Telegram"`, `"WhatsApp"`, `"Facebook"`, `"X"`, `"TikTok"` (case-insensitive) |
 | `device_id` | integer | No | Filter berdasarkan device ID. Jika tidak disediakan, akan mengambil data dari semua device yang terhubung dengan analytic |
 
+**Logika Penentuan Person Name:**
+- Jika `chat_type` adalah **"Group"** atau **"Broadcast"**: `person` value diambil dari field `group_name` pada table `chat_messages`
+- Jika `chat_type` adalah **"One On One"**: `person` value diambil dari field `from_name` pada table `chat_messages`
+- Jika `chat_type` adalah `null`: menggunakan logika default yang sudah ada (berdasarkan direction dan field lainnya)
+
 **Response (200 OK - With Data):**
 ```json
 {
@@ -1380,9 +1385,11 @@ Content-Type: application/json
 ```
 
 **Catatan:**
-- `intensity_list` berisi daftar orang yang berkomunikasi dengan device owner, diurutkan berdasarkan intensity (frekuensi komunikasi) tertinggi
+- `intensity_list` berisi daftar orang/grup yang berkomunikasi dengan device owner, diurutkan berdasarkan intensity (frekuensi komunikasi) tertinggi
+- Untuk chat type "Group" atau "Broadcast", `person` akan menampilkan nama grup dari `group_name`
+- Untuk chat type "One On One", `person` akan menampilkan nama kontak dari `from_name`
 - `person_id` bisa berupa `null` jika tidak tersedia (hanya nama yang tersedia)
-- `intensity` menunjukkan jumlah total pesan yang dipertukarkan dengan orang tersebut
+- `intensity` menunjukkan jumlah total pesan yang dipertukarkan dengan orang/grup tersebut
 - Device owner tidak akan muncul dalam `intensity_list`
 
 **Error Responses:**

@@ -305,22 +305,16 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     person_id = None
                     thread_id = (msg.thread_id or msg.chat_id or "").strip()
                     
-                    # Check chat_type to determine person_name source
                     if chat_type:
                         chat_type_lower = chat_type.lower()
                         if chat_type_lower in ["group", "broadcast"]:
-                            # For Group or Broadcast: use group_name
                             if group_name and group_name.strip():
                                 person_name = group_name.strip()
-                                # Use group_id as person_id if available
                                 person_id = (msg.group_id or "").strip() if msg.group_id else None
                         elif chat_type_lower == "one on one":
-                            # For One On One: use from_name
                             if sender_name and sender_name.strip():
                                 person_name = sender_name.strip()
                                 person_id = sender_id if sender_id and sender_id.strip() else None
-                    
-                    # If person_name not set yet (chat_type is null or conditions not met), use existing logic
                     if not person_name:
                         if direction_lower in ['outgoing', 'sent']:
                             if recipient_name and recipient_name.strip():
@@ -451,12 +445,31 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                         merged_name = None
                         merged_id = None
                         
+                        thread_chat_type = None
+                        thread_group_name = None
+                        thread_group_id = None
+                        if person_keys_in_thread:
+                            first_person_messages = persons[person_keys_in_thread[0]]
+                            if first_person_messages:
+                                first_msg = first_person_messages[0]
+                                msg_chat_type = (first_msg.chat_type or "").strip() if first_msg.chat_type else None
+                                if msg_chat_type:
+                                    msg_chat_type_lower = msg_chat_type.lower()
+                                    if msg_chat_type_lower in ["group", "broadcast"]:
+                                        thread_chat_type = msg_chat_type_lower
+                                        thread_group_name = (first_msg.group_name or "").strip() if first_msg.group_name else None
+                                        thread_group_id = (first_msg.group_id or "").strip() if first_msg.group_id else None
+                        
                         for person_key in person_keys_in_thread:
                             messages = persons[person_key]
                             all_messages_in_thread.extend(messages)
                             person_data = person_info.get(person_key, {})
                             name_val = person_data.get("name", person_key)
-                            if not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
+
+                            if thread_chat_type in ["group", "broadcast"] and thread_group_name:
+                                if not merged_name or (thread_group_name and not thread_group_name.strip().isdigit() and len(thread_group_name.strip()) > 3):
+                                    merged_name = thread_group_name
+                            elif not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
                                 merged_name = name_val if name_val else merged_name
                         
                         for msg in all_messages_in_thread:
@@ -464,6 +477,12 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                             if direction in ['incoming', 'received']:
                                 sender_id = msg.sender_number or ""
                                 sender_name = (msg.from_name or "").strip()
+                                
+                                if thread_chat_type in ["group", "broadcast"] and thread_group_id:
+                                    if not merged_id:
+                                        merged_id = thread_group_id
+                                    break
+                                
                                 if sender_name:
                                     sender_name_lower = sender_name.strip().lower()
                                     is_person = True
@@ -691,6 +710,22 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
         person_info = {}
         
         thread_person_map = {}
+        thread_group_map = {}  # Map thread_id -> group_name for Group/Broadcast
+        
+        for msg in platform_messages:
+            thread_id = (msg.thread_id or msg.chat_id or "").strip()
+            if thread_id:
+                chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                if chat_type:
+                    chat_type_lower = chat_type.lower()
+                    if chat_type_lower in ["group", "broadcast"]:
+                        group_name = (msg.group_name or "").strip() if msg.group_name else None
+                        if group_name and group_name.strip():
+                            if thread_id not in thread_group_map:
+                                thread_group_map[thread_id] = {
+                                    "name": group_name.strip(),
+                                    "id": (msg.group_id or "").strip() if msg.group_id else None
+                                }
         
         for msg in platform_messages:
             direction = (msg.direction or "").strip()
@@ -699,19 +734,39 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                 sender_name = msg.from_name or ""
                 sender_id = msg.sender_number or ""
                 thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                group_name = (msg.group_name or "").strip() if msg.group_name else None
                 
-                if sender_name and sender_name.strip():
-                    person_name = sender_name.strip()
-                    person_id = sender_id if sender_id and sender_id.strip() else None
-                elif sender_id and sender_id.strip():
-                    sender_id_clean = sender_id.strip()
-                    if len(sender_id_clean) <= 50:
-                        person_name = sender_id_clean
-                        person_id = sender_id_clean
+                person_name = None
+                person_id = None
+                
+                if chat_type:
+                    chat_type_lower = chat_type.lower()
+                    if chat_type_lower in ["group", "broadcast"]:
+                        if group_name and group_name.strip():
+                            person_name = group_name.strip()
+                            person_id = (msg.group_id or "").strip() if msg.group_id else None
+                        elif thread_id and thread_id in thread_group_map:
+                            person_name = thread_group_map[thread_id]["name"]
+                            person_id = thread_group_map[thread_id].get("id")
+                    elif chat_type_lower == "one on one":
+                        if sender_name and sender_name.strip():
+                            person_name = sender_name.strip()
+                            person_id = sender_id if sender_id and sender_id.strip() else None
+                
+                if not person_name:
+                    if sender_name and sender_name.strip():
+                        person_name = sender_name.strip()
+                        person_id = sender_id if sender_id and sender_id.strip() else None
+                    elif sender_id and sender_id.strip():
+                        sender_id_clean = sender_id.strip()
+                        if len(sender_id_clean) <= 50:
+                            person_name = sender_id_clean
+                            person_id = sender_id_clean
+                        else:
+                            continue
                     else:
                         continue
-                else:
-                    continue
                 
                 if thread_id and person_name:
                     if thread_id not in thread_person_map:
@@ -725,6 +780,8 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             sender_id = msg.sender_number or ""
             recipient_name = msg.to_name or ""
             recipient_id = msg.recipient_number or ""
+            chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+            group_name = (msg.group_name or "").strip() if msg.group_name else None
             
             device_owner_name = None
             device_owner_id = None
@@ -737,7 +794,6 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             sender_name_lower = (sender_name or "").strip().lower()
             recipient_name_lower = (recipient_name or "").strip().lower()
             
-            
             direction = (msg.direction or "").strip()
             direction_lower = direction.lower()
             
@@ -746,50 +802,68 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             
             thread_id = (msg.thread_id or msg.chat_id or "").strip()
             
-            if direction_lower in ['outgoing', 'sent']:
-                if recipient_name and recipient_name.strip():
-                    recipient_name_clean = recipient_name.strip()
-                    if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
-                        if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
-                            person_name = recipient_id.strip()
-                            person_id = recipient_id.strip()
-                        elif thread_id and thread_id in thread_person_map:
-                            person_name = thread_person_map[thread_id]["name"]
-                            person_id = thread_person_map[thread_id].get("id")
+            if thread_id and thread_id in thread_group_map:
+                person_name = thread_group_map[thread_id]["name"]
+                person_id = thread_group_map[thread_id].get("id")
+            elif chat_type:
+                chat_type_lower = chat_type.lower()
+                if chat_type_lower in ["group", "broadcast"]:
+                    if group_name and group_name.strip():
+                        person_name = group_name.strip()
+                        person_id = (msg.group_id or "").strip() if msg.group_id else None
+                    elif thread_id and thread_id in thread_group_map:
+                        person_name = thread_group_map[thread_id]["name"]
+                        person_id = thread_group_map[thread_id].get("id")
+                elif chat_type_lower == "one on one":
+                    if sender_name and sender_name.strip():
+                        person_name = sender_name.strip()
+                        person_id = sender_id if sender_id and sender_id.strip() else None
+            
+            if not person_name:
+                if direction_lower in ['outgoing', 'sent']:
+                    if recipient_name and recipient_name.strip():
+                        recipient_name_clean = recipient_name.strip()
+                        if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
+                            if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+                                person_name = recipient_id.strip()
+                                person_id = recipient_id.strip()
+                            elif thread_id and thread_id in thread_person_map:
+                                person_name = thread_person_map[thread_id]["name"]
+                                person_id = thread_person_map[thread_id].get("id")
+                            else:
+                                continue
                         else:
-                            continue
+                            person_name = recipient_name_clean
+                            person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                    elif recipient_id and recipient_id.strip():
+                        recipient_id_clean = recipient_id.strip()
+                        if len(recipient_id_clean) > 50:
+                            if thread_id and thread_id in thread_person_map:
+                                person_name = thread_person_map[thread_id]["name"]
+                                person_id = thread_person_map[thread_id].get("id")
+                            else:
+                                continue
+                        else:
+                            person_name = recipient_id_clean
+                            person_id = recipient_id_clean
                     else:
-                        person_name = recipient_name_clean
-                        person_id = recipient_id if recipient_id and recipient_id.strip() else None
-                elif recipient_id and recipient_id.strip():
-                    recipient_id_clean = recipient_id.strip()
-                    if len(recipient_id_clean) > 50:
                         if thread_id and thread_id in thread_person_map:
                             person_name = thread_person_map[thread_id]["name"]
                             person_id = thread_person_map[thread_id].get("id")
                         else:
                             continue
-                    else:
-                        person_name = recipient_id_clean
-                        person_id = recipient_id_clean
-                else:
-                    if thread_id and thread_id in thread_person_map:
-                        person_name = thread_person_map[thread_id]["name"]
-                        person_id = thread_person_map[thread_id].get("id")
+                elif direction_lower in ['incoming', 'received']:
+                    if sender_name and sender_name.strip():
+                        person_name = sender_name.strip()
+                        person_id = sender_id if sender_id and sender_id.strip() else None
+                    elif sender_id and sender_id.strip():
+                        sender_id_clean = sender_id.strip()
+                        if len(sender_id_clean) > 50:
+                            continue
+                        person_name = sender_id_clean
+                        person_id = sender_id_clean
                     else:
                         continue
-            elif direction_lower in ['incoming', 'received']:
-                if sender_name and sender_name.strip():
-                    person_name = sender_name.strip()
-                    person_id = sender_id if sender_id and sender_id.strip() else None
-                elif sender_id and sender_id.strip():
-                    sender_id_clean = sender_id.strip()
-                    if len(sender_id_clean) > 50:
-                        continue
-                    person_name = sender_id_clean
-                    person_id = sender_id_clean
-                else:
-                    continue
                 
                 if thread_id and person_name:
                     if thread_id not in thread_person_map:
@@ -874,11 +948,19 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                 person_key = person_name.strip()
                 if person_key:
                     thread_id = (msg.thread_id or msg.chat_id or "").strip()
-                    
+                    if thread_id and thread_id in thread_group_map:
+                        person_key = thread_group_map[thread_id]["name"].strip()
+                        person_name = person_key  # Update person_name to match
                     thread_person_messages[thread_id][person_key].append(msg)
-                    
                     stored_person_id = ""
-                    if direction_lower in ['incoming', 'received']:
+                    
+                    if chat_type and chat_type.lower() in ["group", "broadcast"]:
+                        if msg.group_id:
+                            stored_person_id = (msg.group_id or "").strip()
+                    elif chat_type and chat_type.lower() == "one on one":
+                        if person_id:
+                            stored_person_id = person_id
+                    elif direction_lower in ['incoming', 'received']:
                         sender_check = msg.from_name or ""
                         if sender_check and device_owner_name:
                             sender_check_lower = sender_check.strip().lower()
@@ -903,10 +985,6 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                             person_info[person_key]["id"] = stored_person_id
         
         person_intensity = defaultdict(int)
-        person_thread_info = defaultdict(list)
-        
-        thread_primary_person = {}
-        
         for thread_id, persons in thread_person_messages.items():
             person_keys_in_thread = list(persons.keys())
             if person_keys_in_thread:
@@ -923,10 +1001,29 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                 if not primary_key:
                     primary_key = max(person_keys_in_thread, key=lambda pk: len(persons[pk]))
                 
-                thread_primary_person[thread_id] = primary_key
                 all_messages_in_thread = []
                 merged_name = None
                 merged_id = None
+                
+                thread_chat_type = None
+                thread_group_name = None
+                thread_group_id = None
+                
+                if thread_id and thread_id in thread_group_map:
+                    thread_chat_type = "group"
+                    thread_group_name = thread_group_map[thread_id]["name"]
+                    thread_group_id = thread_group_map[thread_id].get("id")
+                elif person_keys_in_thread:
+                    first_person_messages = persons[person_keys_in_thread[0]]
+                    if first_person_messages:
+                        first_msg = first_person_messages[0]
+                        msg_chat_type = (first_msg.chat_type or "").strip() if first_msg.chat_type else None
+                        if msg_chat_type:
+                            msg_chat_type_lower = msg_chat_type.lower()
+                            if msg_chat_type_lower in ["group", "broadcast"]:
+                                thread_chat_type = msg_chat_type_lower
+                                thread_group_name = (first_msg.group_name or "").strip() if first_msg.group_name else None
+                                thread_group_id = (first_msg.group_id or "").strip() if first_msg.group_id else None
                 
                 for person_key in person_keys_in_thread:
                     messages = persons[person_key]
@@ -935,7 +1032,11 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                     person_data = person_info.get(person_key, {})
                     name_val = person_data.get("name", person_key)
                     id_val = person_data.get("id", "")
-                    if not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
+                    
+                    if thread_chat_type in ["group", "broadcast"] and thread_group_name:
+                        if not merged_name or (thread_group_name and not thread_group_name.strip().isdigit() and len(thread_group_name.strip()) > 3):
+                            merged_name = thread_group_name
+                    elif not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
                         merged_name = name_val if name_val else merged_name
                 
                 for msg in all_messages_in_thread:
@@ -943,6 +1044,11 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                     if direction in ['incoming', 'received']:
                         sender_id = msg.sender_number or ""
                         sender_name = (msg.from_name or "").strip()
+                        
+                        if thread_chat_type in ["group", "broadcast"] and thread_group_id:
+                            if not merged_id:
+                                merged_id = thread_group_id
+                            break
                         
                         device_owner_name = None
                         for d in devices:
@@ -983,74 +1089,16 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                         "id": merged_id or ""
                     }
                 
-                message_count = len(all_messages_in_thread)
-                person_intensity[primary_key] += message_count
-                person_thread_info[primary_key].append({
-                    "thread_id": thread_id,
-                    "count": message_count
-                })
-                
-                if not person_info[primary_key]["id"]:
-                    for msg in all_messages_in_thread:
-                        direction = (msg.direction or "").strip().lower()
-                        
-                        if direction not in ['incoming', 'received']:
-                            continue
-                        
-                        device_owner_name = None
-                        for d in devices:
-                            if d.file_id == msg.file_id:
-                                device_owner_name = (d.owner_name or "").strip().lower()
-                                break
-                        
-                        sender_name = (msg.from_name or "").strip()
-                        sender_id = msg.sender_number or ""
-                        
-                        if sender_name:
-                            sender_name_lower = sender_name.strip().lower()
-                            is_person_sender = False
-                            
-                            if device_owner_name:
-                                is_person_sender = (
-                                    sender_name_lower != device_owner_name and
-                                    device_owner_name not in sender_name_lower and
-                                    sender_name_lower not in device_owner_name and
-                                    not (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
-                                )
-                            else:
-                                is_person_sender = True
-                            
-                            if is_person_sender and sender_id and sender_id.strip():
-                                sender_id_clean = sender_id.strip()
-                                if len(sender_id_clean) <= 50:
-                                    person_info[primary_key]["id"] = sender_id_clean
-                                    break
+                person_intensity[primary_key] += len(all_messages_in_thread)
         
         intensity_list = []
-        for person_key, intensity in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
+        for person_key, intensity_value in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
             person_data = person_info.get(person_key, {})
             person_name = person_data.get("name", person_key)
             person_id_value = person_data.get("id", "")
             
             if (not person_name or person_name.strip() == "") and person_id_value:
                 person_name = person_id_value
-            
-            is_device_owner = False
-            person_name_lower = (person_name or "").strip().lower()
-            for d in devices:
-                device_owner_name = (d.owner_name or "").strip().lower()
-                if device_owner_name:
-                    if person_name_lower == device_owner_name:
-                        is_device_owner = True
-                        break
-                    if (device_owner_name in person_name_lower or 
-                        person_name_lower in device_owner_name or
-                        (len(set(device_owner_name.split()) & set(person_name_lower.split())) > 0)):
-                        is_device_owner = True
-                        break
-            
-            if is_device_owner:
-                continue
             
             if not person_id_value or not person_id_value.strip():
                 person_id_value = None
@@ -1060,7 +1108,7 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             intensity_list.append({
                 "person": person_name,
                 "person_id": person_id_value,
-                "intensity": intensity
+                "intensity": intensity_value
             })
         
         platform_display = platform
