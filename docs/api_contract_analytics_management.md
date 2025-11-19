@@ -1338,10 +1338,25 @@ Content-Type: application/json
 | `platform` | string | Yes | Platform name: `"Instagram"`, `"Telegram"`, `"WhatsApp"`, `"Facebook"`, `"X"`, `"TikTok"` (case-insensitive) |
 | `device_id` | integer | No | Filter berdasarkan device ID. Jika tidak disediakan, akan mengambil data dari semua device yang terhubung dengan analytic |
 
-**Logika Penentuan Person Name:**
-- Jika `chat_type` adalah **"Group"** atau **"Broadcast"**: `person` value diambil dari field `group_name` pada table `chat_messages`
-- Jika `chat_type` adalah **"One On One"**: `person` value diambil dari field `from_name` pada table `chat_messages`
+**Logika Penentuan Person Name dan Person ID:**
+- Jika `chat_type` adalah **"Group"** atau **"Broadcast"**: 
+  - `person` value diambil dari field `group_name` pada table `chat_messages`
+  - `person_id` value diambil dari field `group_id` pada table `chat_messages`
+- Jika `chat_type` adalah **"One On One"**: 
+  - Jika `direction` adalah **"outgoing"** atau **"sent"**: 
+    - `person` value diambil dari field `to_name` pada table `chat_messages`
+    - `person_id` value diambil dari field `recipient_number` pada table `chat_messages`
+  - Jika `direction` adalah **"incoming"** atau **"received"**: 
+    - `person` value diambil dari field `from_name` pada table `chat_messages`
+    - `person_id` value diambil dari field `sender_number` pada table `chat_messages`
 - Jika `chat_type` adalah `null`: menggunakan logika default yang sudah ada (berdasarkan direction dan field lainnya)
+- **Fallback Logic**: 
+  - Jika `person` tidak ada atau kosong, maka `person_id` akan digunakan sebagai `person`
+  - Jika `person_id` tidak ada atau kosong, maka `person_id` akan di-set menjadi `null`
+- **Direction Field**: 
+  - Setiap item dalam `intensity_list` akan memiliki field `direction` yang menunjukkan arah komunikasi dominan untuk person tersebut
+  - Nilai `direction` dapat berupa: `"Incoming"` (pesan masuk), `"Outgoing"` (pesan keluar), atau `"Unknown"` (tidak dapat ditentukan)
+  - Untuk thread dengan multiple messages, direction ditentukan berdasarkan jumlah pesan incoming vs outgoing (yang lebih banyak akan menjadi direction dominan)
 
 **Response (200 OK - With Data):**
 ```json
@@ -1356,12 +1371,14 @@ Content-Type: application/json
       {
         "person": "Jane Smith",
         "person_id": "+628987654321",
-        "intensity": 75
+        "intensity": 75,
+        "direction": "Incoming"
       },
       {
         "person": "John Doe",
         "person_id": null,
-        "intensity": 42
+        "intensity": 42,
+        "direction": "Outgoing"
       }
     ],
     "summary": "Lorem Ipsum is simply dummy text..."
@@ -1489,37 +1506,92 @@ Content-Type: application/json
 
 *Catatan: Minimal salah satu dari `person_name` atau `search` harus disediakan.
 
-**Response (200 OK - With Messages):**
+**Response (200 OK - With Messages - Group/Broadcast):**
 ```json
 {
   "status": 200,
   "message": "Chat detail retrieved successfully",
   "data": {
-    "person_name": "Jane Smith",
-    "person_id": "+628987654321",
-    "platform": "Instagram",
-    "intensity": 25,
+    "group_name": "Youth Bandung Reborn",
+    "group_id": "1692479054",
+    "platform": "Telegram",
+    "intensity": 65,
+    "chat_type": "Group",
     "chat_messages": [
       {
-        "message_id": 1,
-        "timestamp": "2025-12-12T10:30:00Z",
-        "times": "10:30",
+        "message_id": 15,
+        "chat_id": "9",
+        "timestamp": "2025-10-20T14:35:02+07:00",
+        "times": "14:35",
         "direction": "Incoming",
-        "sender": "Jane Smith",
-        "recipient": "John Doe",
-        "sender_id": "+628987654321",
-        "recipient_id": "+628123456789",
-        "message_text": "Hello, how are you?",
-        "message_type": "text",
-        "platform": "Instagram",
-        "thread_id": "thread_123",
-        "chat_id": "chat_123"
+        "recipient": [
+          {
+            "recipient_name": "Nurcahya Hikari",
+            "recipient_id": "8229898490"
+          }
+        ],
+        "from": [
+          {
+            "thread_id": "1692479054",
+            "sender": "tibo",
+            "sender_id": "7172473346",
+            "message_text": "yu"
+          }
+        ]
       }
     ],
     "summary": null
   }
 }
 ```
+
+**Response (200 OK - With Messages - One On One):**
+```json
+{
+  "status": 200,
+  "message": "Chat detail retrieved successfully",
+  "data": {
+    "platform": "Telegram",
+    "intensity": 1,
+    "chat_type": "One On One",
+    "chat_messages": [
+      {
+        "message_id": 2,
+        "chat_id": "2",
+        "timestamp": "2025-10-20T14:30:59+07:00",
+        "times": "14:30",
+        "direction": "Outgoing",
+        "recipient": [
+          {
+            "recipient_name": "cihuy",
+            "recipient_id": "5039016218"
+          }
+        ],
+        "from": [
+          {
+            "thread_id": "5039016218",
+            "sender": "Nurcahya Hikari",
+            "sender_id": "8229898490",
+            "message_text": "Hai"
+          }
+        ]
+      }
+    ],
+    "summary": null
+  }
+}
+```
+
+**Catatan:**
+- **Untuk Group/Broadcast**: Response menggunakan `group_name` dan `group_id` (bukan `person_name` dan `person_id`).
+- **Untuk One On One**: Response **tidak** menggunakan `person_name` dan `person_id` (field ini tidak ditampilkan di response).
+- Setiap message dalam `chat_messages` memiliki struktur baru:
+  - `recipient`: Array berisi objek dengan `recipient_name` dan `recipient_id`
+  - `from`: Array berisi objek dengan `thread_id`, `sender`, `sender_id`, dan `message_text`
+  - Field `sender`, `recipient`, `sender_id`, `recipient_id`, `message_text` di level atas dihapus (sekarang dalam array `from` dan `recipient`)
+- **Filtering berdasarkan chat_type**: 
+  - Jika `chat_type` adalah "One On One", hanya pesan dengan `chat_type` "One On One" yang ditampilkan (pesan Group/Broadcast dikecualikan).
+  - Jika `chat_type` adalah "Group" atau "Broadcast", hanya pesan dengan `chat_type` yang sesuai yang ditampilkan.
 
 **Response (200 OK - No Devices Linked):**
 ```json

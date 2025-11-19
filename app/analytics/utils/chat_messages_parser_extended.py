@@ -71,7 +71,6 @@ class ChatMessagesParserExtended:
         
         return platform_map.get(platform_lower, platform)
     
-
     def _is_whatsapp_system_message(self, message_text: str, sender_id: str = None, sender_name: str = None) -> bool:
         if not message_text:
             return False
@@ -163,7 +162,8 @@ class ChatMessagesParserExtended:
                     "recipient_number": (msg.get("recipient_number") or "").strip() or None,
                     "timestamp": msg.get("timestamp"),
                     "thread_id": msg.get("thread_id"),
-                    "message_id": msg.get("thread_id"),
+                    "chat_id": msg.get("chat_id") or msg.get("thread_id"),
+                    "message_id": msg.get("message_id") or msg.get("thread_id"),
                     "message_type": msg.get("type", "Unknown"),
                     "chat_type": msg.get("chat_type"),
                     "status": msg.get("status"),
@@ -247,6 +247,12 @@ class ChatMessagesParserExtended:
                         non_owner_full = participants_lines[1]
                     if not non_owner_full:
                         non_owner_full = "Unknown"
+                    
+                    source = self._clean(row.get("Source"))
+                    platform = self._clean(row.get("Platform"))
+                    platform_lower = f"{source} {platform}".lower() if source and platform else ""
+                    is_twitter = "x" in platform_lower or "twitter" in platform_lower
+                    
 
                     group_name_value = self._clean(row.get("Name")) or self._clean(row.get("name"))
                     
@@ -283,18 +289,21 @@ class ChatMessagesParserExtended:
                         skipped_count += 1
                         continue
 
-                    source = self._clean(row.get("Source"))
-                    platform = self._clean(row.get("Platform"))
                     if not source or not platform:
-                        skip_reasons["no_source_type"] += 1
-                        skipped_count += 1
-                        continue
+                        source = self._clean(row.get("Source"))
+                        platform = self._clean(row.get("Platform"))
+                        if not source or not platform:
+                            skip_reasons["no_source_type"] += 1
+                            skipped_count += 1
+                            continue
 
                     platform_text = f"{source} {platform}".lower()
                     if not any(p in platform_text for p in allowed_platforms):
                         skip_reasons["unsupported_platform"] += 1
                         skipped_count += 1
                         continue
+    
+                    is_twitter = "x" in platform_text or "twitter" in platform_text
 
                     chat_type_raw = self._clean(row.get("Chat Type")) or self._clean(row.get("chat type")) or self._clean(row.get("Chat type"))
                     chat_type = None
@@ -312,11 +321,49 @@ class ChatMessagesParserExtended:
                         else:
                             chat_type = chat_type_raw
 
-                    sender_number, from_name = self._split_name_number(from_field)
-                    from_name = self._safe_clean_name(from_name)
+                    platform_lower = (source or "").lower()
+                    is_twitter = "x" in platform_lower or "twitter" in platform_lower
+                    is_instagram = "instagram" in platform_lower
+                    
+                    if is_twitter:
+                        username_part, name_part = self._split_twitter_username_name(from_field)
+                        if username_part and name_part:
+                            sender_number = username_part
+                            from_name = self._safe_clean_name(name_part)
+                        else:
+                            id_part, name_part = self._split_twitter_id_name(from_field)
+                            sender_number = id_part
+                            from_name = self._safe_clean_name(name_part) if name_part else "Unknown"
+                        
+                        username_part, name_part = self._split_twitter_username_name(receiver)
+                        if username_part and name_part:
+                            recipient_number = username_part
+                            to_name = self._safe_clean_name(name_part)
+                        else:
+                            id_part, name_part = self._split_twitter_id_name(receiver)
+                            if id_part and name_part:
+                                recipient_number = id_part
+                                to_name = self._safe_clean_name(name_part)
+                            else:
+                                to_name = self._safe_clean_name(receiver)
+                                recipient_number = None
+                    elif is_instagram:
+                        sender_number, from_name = self._split_twitter_username_name(from_field)
+                        from_name = self._safe_clean_name(from_name)
 
-                    recipient_number, to_name = self._split_name_number(receiver)
-                    to_name = self._safe_clean_name(to_name)
+                        username_part, name_part = self._split_twitter_username_name(receiver)
+                        if username_part and name_part:
+                            to_name = self._safe_clean_name(name_part)
+                            recipient_number = username_part
+                        else:
+                            to_name = self._safe_clean_name(receiver)
+                            recipient_number = None
+                    else:
+                        sender_number, from_name = self._split_name_number(from_field)
+                        from_name = self._safe_clean_name(from_name)
+
+                        recipient_number, to_name = self._split_name_number(receiver)
+                        to_name = self._safe_clean_name(to_name)
 
                     body = self._clean(row.get("Body"))
                     if not sender or not body:
@@ -325,6 +372,20 @@ class ChatMessagesParserExtended:
                         continue
 
                     thread_id = self._clean(row.get("Identifier"))
+
+                    chat_id_value = None
+                    for col_name in ["Chat #", "chat #", "Chat#", "chat#"]:
+                        if col_name in row.index:
+                            chat_id_value = self._clean(row.get(col_name))
+                            if chat_id_value:
+                                break
+                    
+                    instant_message_id = None
+                    for col_name in ["Instant Message #", "instant message #", "Instant Message#", "instant message#"]:
+                        if col_name in row.index:
+                            instant_message_id = self._clean(row.get(col_name))
+                            if instant_message_id:
+                                break
                     
                     group_id_value = None
                     if chat_type and chat_type.lower() in ["group", "broadcast"]:
@@ -345,6 +406,8 @@ class ChatMessagesParserExtended:
                         "recipient_number": recipient_number,
                         "details": None,
                         "thread_id": thread_id,
+                        "chat_id": chat_id_value if chat_id_value else thread_id,
+                        "message_id": instant_message_id if instant_message_id else None,
                         "chat_type": chat_type,
                         "status": status_value,
                         "account_name": account_name,
@@ -407,6 +470,44 @@ class ChatMessagesParserExtended:
                     return None, self._safe_clean_name(possible_username)
 
         return None, self._safe_clean_name(val)
+
+    def _split_twitter_id_name(self, raw_value: str) -> Tuple[Optional[str], str]:
+        if not raw_value or not str(raw_value).strip():
+            return None, "Unknown"
+        
+        val = str(raw_value).strip()
+        val = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', val)
+        val = val.strip()
+        
+        parts = val.split(" ", 1)
+        
+        if len(parts) == 2:
+            id_candidate = parts[0].strip()
+            name = parts[1].strip()
+            
+            if id_candidate and name and re.match(r'^\d{10,}$', id_candidate):
+                return id_candidate, name
+        
+        return None, val
+
+    def _split_twitter_username_name(self, raw_value: str) -> Tuple[Optional[str], str]:
+        if not raw_value or not str(raw_value).strip():
+            return None, "Unknown"
+        
+        val = str(raw_value).strip()
+        val = re.sub(r'[\u200b\u200c\u200d\ufeff\xa0]', '', val)
+        val = val.strip()
+        
+        parts = val.split(" ", 1)
+        
+        if len(parts) == 2:
+            username = parts[0].strip()
+            name = parts[1].strip()
+            
+            if username and name:
+                return username, name
+        
+        return None, val
 
     def _clean_whatsapp_format(self, value: Optional[str]) -> Optional[str]:
         if not value:
@@ -1500,7 +1601,6 @@ class ChatMessagesParserExtended:
                 
                 if source_col:
                     source_val = self._clean(row[source_col] if source_col in row.index else None)
-                    # Only skip if it's actually a header keyword, not a platform name
                     if source_val and source_val.lower() in ['source', 'type', 'direction']:
                         skip_reasons['header_row'] += 1
                         continue
@@ -2480,7 +2580,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_instagram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
@@ -2578,7 +2677,6 @@ class ChatMessagesParserExtended:
         
         return results
 
-
     def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         
@@ -2651,7 +2749,6 @@ class ChatMessagesParserExtended:
             print(f"Error parsing TikTok messages: {e}")
         
         return results
-
 
     def _parse_twitter_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -2744,7 +2841,6 @@ class ChatMessagesParserExtended:
             print(f"Error parsing Twitter messages: {e}")
         
         return results
-
 
     def _parse_facebook_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -2879,7 +2975,6 @@ class ChatMessagesParserExtended:
             print(f"Error parsing Facebook messages: {e}")
         
         return results
-
 
     def _parse_whatsapp_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []

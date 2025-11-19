@@ -255,6 +255,33 @@ async def upload_data(
         if total_size > 104_857_600:
             return JSONResponse({"status": 400, "message": "File size exceeds 100MB limit"}, status_code=400)
 
+        db: Session = next(get_db())
+        try:
+            existing_file = db.query(File).filter(
+                File.file_name == file_name,
+                File.tools == tools,
+                File.method == method
+            ).first()
+            
+            if existing_file:
+                created_at_iso = None
+                if existing_file.created_at is not None:
+                    created_at_iso = existing_file.created_at.isoformat()
+                
+                return JSONResponse({
+                    "status": 409,
+                    "message": "File already exists",
+                    "data": {
+                        "file_id": existing_file.id,
+                        "file_name": existing_file.file_name,
+                        "tools": existing_file.tools,
+                        "method": existing_file.method,
+                        "created_at": created_at_iso
+                    }
+                }, status_code=409)
+        finally:
+            db.close()
+
         user_fullname = getattr(current_user, 'fullname', '') or ''
         user_email = getattr(current_user, 'email', '') or ''
         created_by = f"Created by: {user_fullname} ({user_email})" if user_fullname or user_email else ""
