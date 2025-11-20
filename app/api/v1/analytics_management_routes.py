@@ -538,29 +538,31 @@ def start_data_extraction(
 @router.get("/analytics/get-all-analytic")
 def get_all_analytic(
     search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
-    method: Optional[str] = Query(None, description="Filter by method"),
+    method: Optional[List[str]] = Query(None, description="Filter by one or more methods"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
         query = db.query(Analytic)
-        
+
+        # Restriction for non-admin
         user_role = getattr(current_user, 'role', None)
         if user_role != "admin":
             user_fullname = getattr(current_user, 'fullname', '') or ''
             user_email = getattr(current_user, 'email', '') or ''
-            if user_fullname or user_email:
-                query = query.filter(
-                    or_(
-                        Analytic.analytic_name.ilike(f"%{user_fullname}%"),
-                        Analytic.analytic_name.ilike(f"%{user_email}%"),
-                        Analytic.summary.ilike(f"%{user_fullname}%"),
-                        Analytic.summary.ilike(f"%{user_email}%"),
-                        Analytic.created_by.ilike(f"%{user_fullname}%"),
-                        Analytic.created_by.ilike(f"%{user_email}%")
-                    )
-                )
 
+            query = query.filter(
+                or_(
+                    Analytic.analytic_name.ilike(f"%{user_fullname}%"),
+                    Analytic.analytic_name.ilike(f"%{user_email}%"),
+                    Analytic.summary.ilike(f"%{user_fullname}%"),
+                    Analytic.summary.ilike(f"%{user_email}%"),
+                    Analytic.created_by.ilike(f"%{user_fullname}%"),
+                    Analytic.created_by.ilike(f"%{user_email}%")
+                )
+            )
+
+        # Search filter
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
@@ -571,8 +573,19 @@ def get_all_analytic(
                 )
             )
 
+        # Method filter → now supports multiple
         if method:
-            query = query.filter(Analytic.method == method)
+            # convert "a,b,c" string into array
+            parsed_methods = []
+            for m in method:
+                if "," in m:
+                    parsed_methods.extend(m.split(","))
+                else:
+                    parsed_methods.append(m)
+
+            parsed_methods = [m.strip() for m in parsed_methods]
+
+            query = query.filter(Analytic.method.in_(parsed_methods))
 
         analytics = query.order_by(Analytic.created_at.desc()).all()
 
@@ -582,30 +595,24 @@ def get_all_analytic(
                 "analytic_name": a.analytic_name,
                 "method": a.method,
                 "summary": a.summary,
-                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at is not None else None
+                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at else None # type: ignore
             }
             for a in analytics
         ]
 
-        return JSONResponse(
-            content={
-                "status": 200,
-                "message": f"Retrieved {len(formatted_analytics)} analytics successfully",
-                "data": formatted_analytics
-            },
-            status_code=200
-        )
+        return {
+            "status": 200,
+            "message": f"Retrieved {len(formatted_analytics)} analytics successfully",
+            "data": formatted_analytics
+        }
 
     except Exception as e:
         logger.error(f"Error getting all analytics: {str(e)}")
-        return JSONResponse(
-            content={
-                "status": 500,
-                "message": f"Gagal mengambil data: {str(e)}",
-                "data": None
-            },
-            status_code=500
-        )
+        return {
+            "status": 500,
+            "message": f"Gagal mengambil data: {str(e)}",
+            "data": None
+        }
 
 __all__ = ["router", "hashfile_router"]
 
