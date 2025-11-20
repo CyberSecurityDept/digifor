@@ -454,69 +454,44 @@ Authorization: Bearer <access_token>
   "status": 200,
   "message": "Chat detail retrieved successfully",
   "data": {
+    "person_name": "Elsa Polban",
+    "person_id": "6285179525600",
     "platform": "WhatsApp",
-    "intensity": 17,
+    "intensity": 1,
     "chat_type": "One On One",
-    "chat_messages": [
+    "conversation_history": [
       {
-        "message_id": 763,
         "chat_id": "59",
         "timestamp": "2023-10-26T02:06:54+07:00",
         "times": "02:06",
         "direction": "Outgoing",
-        "recipient": [
+        "recipient": {
+          "recipient_name": "Elsa Polban",
+          "recipient_id": "6285179525600"
+        },
+        "messages": [
           {
-            "recipient_name": "Elsa Polban",
-            "recipient_id": "6285179525600"
-          }
-        ],
-        "from": [
-          {
+            "message_id": 763,
             "thread_id": "6285179525600",
             "sender": "Hikari",
             "sender_id": "6285176996014",
+            "direction": "Outgoing",
             "message_text": "P"
-          }
-        ]
-      },
-      {
-        "message_id": 764,
-        "chat_id": "59",
-        "timestamp": "2023-10-26T02:07:10+07:00",
-        "times": "02:07",
-        "direction": "Outgoing",
-        "recipient": [
+          },
           {
-            "recipient_name": "Elsa Polban",
-            "recipient_id": "6285179525600"
-          }
-        ],
-        "from": [
-          {
+            "message_id": 764,
             "thread_id": "6285179525600",
             "sender": "Hikari",
             "sender_id": "6285176996014",
+            "direction": "Outgoing",
             "message_text": "Elsa ya?"
-          }
-        ]
-      },
-      {
-        "message_id": 765,
-        "chat_id": "59",
-        "timestamp": "2023-10-26T02:07:59+07:00",
-        "times": "02:07",
-        "direction": "Incoming",
-        "recipient": [
+          },
           {
-            "recipient_name": "Hikari",
-            "recipient_id": "6285176996014"
-          }
-        ],
-        "from": [
-          {
+            "message_id": 765,
             "thread_id": "6285179525600",
             "sender": "Elsa Polban",
             "sender_id": "6285179525600",
+            "direction": "Incoming",
             "message_text": "Iya"
           }
         ]
@@ -533,30 +508,37 @@ Authorization: Bearer <access_token>
   "status": 200,
   "message": "Chat detail retrieved successfully",
   "data": {
-    "group_name": "Youth Bandung Reborn",
-    "group_id": "1692479054",
+    "group_name": "CUAN CEPAT",
+    "group_id": "1638057280",
     "platform": "Telegram",
-    "intensity": 65,
+    "intensity": 167,
     "chat_type": "Group",
-    "chat_messages": [
+    "conversation_history": [
       {
-        "message_id": 15,
-        "chat_id": "9",
-        "timestamp": "2025-10-20T14:35:02+07:00",
-        "times": "14:35",
+        "chat_id": "40",
+        "timestamp": "2025-03-19T22:51:40+07:00",
+        "times": "22:51",
         "direction": "Incoming",
-        "recipient": [
+        "recipient": {
+          "recipient_name": "Nurcahya Hikari",
+          "recipient_id": "8229898490"
+        },
+        "messages": [
           {
-            "recipient_name": "Nurcahya Hikari",
-            "recipient_id": "8229898490"
-          }
-        ],
-        "from": [
+            "message_id": 560,
+            "thread_id": "1638057280",
+            "sender": "Andrew",
+            "sender_id": "1492837434",
+            "direction": "Incoming",
+            "message_text": "CUAAAN GESSS 💸💸💸💸✨✨✨"
+          },
           {
-            "thread_id": "1692479054",
-            "sender": "tibo",
-            "sender_id": "7172473346",
-            "message_text": "yu"
+            "message_id": 561,
+            "thread_id": "1638057280",
+            "sender": "Andrew",
+            "sender_id": "1492837434",
+            "direction": "Incoming",
+            "message_text": "Oia lupa ges tadi pas live sayaa ada yg langsung WD gess 💸💸💸 dan saya pun setiap live pasti saya kasih edukasi tipis2 untuk teman2 yg membutuhkan 🙌 Kalo mau lebih lanjut dan ingin belajar serius , teman teman chat sayaa yaa ⬇️⬇️⬇️ karna pas banget momen nya besok saya bakal kasih edukasi teknikal 🙌"
           }
         ]
       }
@@ -574,38 +556,41 @@ Authorization: Bearer <access_token>
 - `data` (object): Response data object
 
 **data (for One On One):**
+- `person_name` (string): Person name (only present for One On One chat type)
+- `person_id` (string): Person ID (only present for One On One chat type)
 - `platform` (string): Platform name
-- `intensity` (integer): Total number of messages
+- `intensity` (integer): Total number of conversation entries
 - `chat_type` (string): Chat type - "One On One", "Group", or "Broadcast"
-- `chat_messages` (array): Array of chat messages
+- `conversation_history` (array): Array of conversation entries grouped by chat_id
 - `summary` (string|null): Summary text for the analytic
 
 **data (for Group/Broadcast):**
 - `group_name` (string): Group name (only present for Group/Broadcast chat types)
 - `group_id` (string): Group ID (only present for Group/Broadcast chat types)
 - `platform` (string): Platform name
-- `intensity` (integer): Total number of messages
+- `intensity` (integer): Total number of conversation entries
 - `chat_type` (string): Chat type - "One On One", "Group", or "Broadcast"
-- `chat_messages` (array): Array of chat messages
+- `conversation_history` (array): Array of conversation entries grouped by chat_id
 - `summary` (string|null): Summary text for the analytic
 
-**data.chat_messages[]:**
-- `message_id` (integer): Unique message ID
+**data.conversation_history[]:**
 - `chat_id` (string): Chat/thread ID
-- `timestamp` (string): Full timestamp in ISO 8601 format with timezone
+- `timestamp` (string): Full timestamp in ISO 8601 format with timezone (from first message in group)
 - `times` (string): Time portion (HH:mm format)
 - `direction` (string): Message direction - "Incoming", "Outgoing", or "Unknown"
-- `recipient` (array): Array of recipient information
-- `from` (array): Array of sender information
+- `recipient` (object): Recipient information (object, not array)
+- `messages` (array): Array of messages in this conversation group
 
-**data.chat_messages[].recipient[]:**
+**data.conversation_history[].recipient:**
 - `recipient_name` (string): Name of the recipient
 - `recipient_id` (string): ID of the recipient
 
-**data.chat_messages[].from[]:**
+**data.conversation_history[].messages[]:**
+- `message_id` (integer): Unique message ID
 - `thread_id` (string): Thread/chat ID
 - `sender` (string): Name of the sender
 - `sender_id` (string): ID of the sender
+- `direction` (string): Message direction - "Incoming", "Outgoing", or "Unknown"
 - `message_text` (string): Content of the message
 
 ### Error Responses

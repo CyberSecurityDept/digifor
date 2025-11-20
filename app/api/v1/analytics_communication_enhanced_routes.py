@@ -2000,9 +2000,11 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
             
             from_array = []
             from_item = {
+                "message_id": msg.id,
                 "thread_id": msg.thread_id or "",
                 "sender": msg.from_name or msg.sender_number or "Unknown",
                 "sender_id": sender_id_value or "",
+                "direction": direction or "Unknown",
                 "message_text": cleaned_message_text
             }
             from_array.append(from_item)
@@ -2130,21 +2132,66 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
         else:
             filtered_chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=True)
         
-        intensity = len(filtered_chat_messages)
+        grouped_messages = {}
+        for msg in filtered_chat_messages:
+            chat_id = msg.get("chat_id", "") or msg.get("thread_id", "")
+            
+            if chat_id not in grouped_messages:
+                recipient_obj = {}
+                recipient_array = msg.get("recipient", [])
+                if recipient_array and len(recipient_array) > 0:
+                    recipient_obj = recipient_array[0]
+                elif not recipient_array:
+                    recipient_obj = {
+                        "recipient_name": "Unknown",
+                        "recipient_id": ""
+                    }
+                
+                grouped_messages[chat_id] = {
+                    "chat_id": chat_id,
+                    "timestamp": msg.get("timestamp", ""),
+                    "times": msg.get("times", ""),
+                    "direction": msg.get("direction", "Unknown"),
+                    "recipient": recipient_obj,
+                    "messages": []
+                }
+            
+            from_array = msg.get("from", [])
+            if from_array and len(from_array) > 0:
+                from_item = from_array[0].copy()
+                if "message_id" not in from_item:
+                    from_item["message_id"] = msg.get("message_id")
+                if "direction" not in from_item:
+                    from_item["direction"] = msg.get("direction", "Unknown")
+                grouped_messages[chat_id]["messages"].append(from_item)
+        
+        final_chat_messages = list(grouped_messages.values())
+        
+        if person_name:
+            final_chat_messages.sort(key=lambda x: x.get("timestamp") or "", reverse=False)
+        else:
+            final_chat_messages.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+        
+        intensity = len(final_chat_messages)
         
         summary_value = analytic.summary if analytic.summary else None
 
         response_data = {
-                    "platform": platform,
-                    "intensity": intensity,
+            "platform": platform,
+            "intensity": intensity,
             "chat_type": chat_type_determined,
-            "chat_messages": filtered_chat_messages,
-                    "summary": summary_value
-                }
+            "conversation_history": final_chat_messages,
+            "summary": summary_value
+        }
 
         if chat_type_determined and chat_type_determined.lower() in ["group", "broadcast"]:
             response_data["group_name"] = group_name_determined
             response_data["group_id"] = group_id_determined
+        elif chat_type_determined and chat_type_determined.lower() == "one on one":
+            if person_name_determined:
+                response_data["person_name"] = person_name_determined
+            if person_id_determined:
+                response_data["person_id"] = person_id_determined
 
         return JSONResponse(
             content={
