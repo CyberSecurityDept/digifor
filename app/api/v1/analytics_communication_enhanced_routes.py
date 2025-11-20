@@ -226,7 +226,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 status_code=400
             )
 
-        if device_id:
+        if device_id is not None:
             if device_id not in device_ids:
                 return JSONResponse(
                     content={
@@ -825,7 +825,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                                 "direction": thread_direction
                             }
                         
-                        person_intensity[primary_key] += len(all_messages_in_thread)
+                        person_intensity[primary_key] += len(persons.get(primary_key, []))
                 
                 intensity_list = []
                 for person_key, intensity_value in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
@@ -1584,7 +1584,7 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                         "direction": thread_direction
                     }
                 
-                person_intensity[primary_key] += len(all_messages_in_thread)
+                person_intensity[primary_key] += len(persons.get(primary_key, []))
         
         intensity_list = []
         for person_key, intensity_value in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
@@ -2166,4 +2166,3 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
             },
             status_code=500
         )
-
