@@ -6,6 +6,9 @@ from app.analytics.shared.models import Device, File, Analytic, AnalyticDevice
 from app.utils.timezone import get_indonesia_time
 from typing import Optional
 from sqlalchemy import or_
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
@@ -29,6 +32,7 @@ async def add_device(
     file_id: int = Form(...),
     name: str = Form(...),
     phone_number: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -38,6 +42,12 @@ async def add_device(
             return JSONResponse(
                 {"status": 404, "message": "No analytic found. Please create an analytic first.", "data": []},
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(latest_analytic, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                status_code=403
             )
         
         analytic_id = latest_analytic.id
@@ -184,6 +194,7 @@ async def add_device(
 @router.get("/analytics/get-devices")
 def get_devices_by_analytic_id(
     analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -193,6 +204,24 @@ def get_devices_by_analytic_id(
                 {"status": 404, "message": "Analytic not found", "data": []},
                 status_code=404
             )
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            analytic_name = analytic.analytic_name or ''
+            analytic_summary = analytic.summary or ''
+            analytic_created_by = analytic.created_by or ''
+            if not (user_fullname.lower() in analytic_name.lower() or 
+                    user_email.lower() in analytic_name.lower() or
+                    user_fullname.lower() in analytic_summary.lower() or 
+                    user_email.lower() in analytic_summary.lower() or
+                    user_fullname.lower() in analytic_created_by.lower() or 
+                    user_email.lower() in analytic_created_by.lower()):
+                return JSONResponse(
+                    {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                    status_code=403
+                )
         
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id

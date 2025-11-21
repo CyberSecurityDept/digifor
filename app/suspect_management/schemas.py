@@ -26,7 +26,11 @@ class SuspectBase(BaseModel):
     notes: Optional[str] = Field(None, description="Additional notes")
 
 class SuspectCreate(SuspectBase):
-    pass
+    case_id: Optional[int] = Field(None, description="Case ID")
+    is_unknown: Optional[bool] = Field(False, description="Is unknown person")
+    evidence_number: Optional[str] = Field(None, description="Evidence number")
+    evidence_source: Optional[str] = Field(None, description="Evidence source")
+    created_by: Optional[str] = Field(None, description="Created by user")
 
 class SuspectUpdate(BaseModel):
     name: Optional[str] = None

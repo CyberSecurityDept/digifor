@@ -11,10 +11,12 @@
 
 1. [Authentication](#authentication)
 2. [Case Management](#case-management)
-3. [Evidence Management](#evidence-management)
-4. [Suspect Management (Person Management)](#suspect-management-person-management)
-5. [Error Responses](#error-responses)
-6. [Role-Based Access Control](#role-based-access-control)
+3. [Case Log Management](#case-log-management)
+4. [Reports Management](#reports-management)
+5. [Evidence Management](#evidence-management)
+6. [Suspect Management (Person Management)](#suspect-management-person-management)
+7. [Error Responses](#error-responses)
+8. [Role-Based Access Control](#role-based-access-control)
 
 ---
 
@@ -202,6 +204,72 @@ curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
 
 ---
 
+### Get Current User Profile
+**Endpoint:** `GET /api/v1/auth/me`
+
+**Description:** Get current authenticated user profile information. Returns user details including id, email, fullname, tag, role, and password.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User profile retrieved successfully",
+  "data": {
+    "id": 1,
+    "email": "admin@gmail.com",
+    "fullname": "Admin Forensic",
+    "tag": "Admin",
+    "role": "admin",
+    "password": "admin.admin"
+  }
+}
+```
+
+**Response Data Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | User ID |
+| `email` | string | User email address |
+| `fullname` | string | User full name |
+| `tag` | string | User tag/category (e.g., "Admin", "Investigator", "Ahli Forensic") |
+| `role` | string | User role (e.g., "admin", "user") |
+| `password` | string | User password in plain text |
+
+**Security Note:** The `password` field contains the user's password in plain text. Returning plain text passwords in API responses is highly discouraged for security reasons. It is recommended not to use this feature in production environments.
+
+**Error Responses:**
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**401 Unauthorized (Expired Token):**
+```json
+{
+  "status": 401,
+  "message": "Expired token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve user profile",
+  "data": null
+}
+```
+
+---
+
 ### Logout
 **Endpoint:** `POST /api/v1/auth/logout`
 
@@ -240,56 +308,29 @@ curl -X POST "http://localhost:8000/api/v1/auth/refresh" \
 
 ---
 
-### Get Current User Profile
-**Endpoint:** `GET /api/v1/auth/me`
+## 👥 User Management
 
-**Description:** Get current authenticated user profile information. Returns user details including id, email, fullname, tag, and role.
+### Overview
 
-**Headers:** `Authorization: Bearer <access_token>`
+**Access Control:**
 
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "User profile retrieved successfully",
-  "data": {
-    "id": 1,
-    "email": "admin@gmail.com",
-    "fullname": "Admin Forensic",
-    "tag": "Admin",
-    "role": "admin"
-  }
-}
-```
+**User Management Endpoints:**
+- **Admin Role Only**: Only users with `role: "admin"` can access user management endpoints (create, update, delete, and list all users).
+- **Regular Users**: Users with `role: "user"` can only view their own profile using `/api/v1/auth/me`.
+- **403 Forbidden**: Non-admin users attempting to access user management endpoints will receive a 403 Forbidden error.
 
-**Response Data Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | integer | User ID |
-| `email` | string | User email address |
-| `fullname` | string | User full name |
-| `tag` | string | User tag/category (e.g., "Admin", "Investigator", "Ahli Forensic") |
-| `role` | string | User role (e.g., "admin", "user") |
+**Dashboard Access Control:**
+- **Admin Role**: Can view dashboard statistics for **all cases** in the system (via `/api/v1/cases/statistics/summary`).
+- **Regular User Role**: Can only view dashboard statistics for **cases where they are the main investigator** (cases where `main_investigator` matches user's fullname or email).
 
-**Error Responses:**
+**Available Endpoints:**
+- `GET /api/v1/auth/me` - Get current user profile (All authenticated users) - See [Get Current User Profile](#get-current-user-profile) in Authentication section for details
+- `GET /api/v1/auth/get-all-users` - List all users (Admin only)
+- `POST /api/v1/auth/create-user` - Create new user (Admin only)
+- `PUT /api/v1/auth/update-user/{user_id}` - Update user (Admin only)
+- `DELETE /api/v1/auth/delete-user/{user_id}` - Delete user (Admin only)
 
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**401 Unauthorized (Expired Token):**
-```json
-{
-  "status": 401,
-  "message": "Expired token",
-  "data": null
-}
-```
+---
 
 **401 Unauthorized (Inactive User):**
 ```json
@@ -329,7 +370,7 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 ### Create User (Admin Only)
 **Endpoint:** `POST /api/v1/auth/create-user`
 
-**Description:** Create a new user. Only admin can access this endpoint.
+**Description:** Create a new user. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error.
 
 **Headers:** 
 - `Authorization: Bearer <admin_access_token>`
@@ -338,9 +379,10 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 **Request Body:**
 ```json
 {
+  "fullname": "New User",
   "email": "newuser@example.com",
   "password": "password123",
-  "fullname": "New User",
+  "confirm_password": "password123",
   "tag": "Investigator"
 }
 ```
@@ -350,11 +392,12 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 |-------|------|----------|-------------|------------|
 | `email` | string | Yes | User email address | Must be valid email format |
 | `password` | string | Yes | User password | Minimum 8 characters, maximum 128 characters |
+| `confirm_password` | string | Yes | Password confirmation | Must match `password` field exactly |
 | `fullname` | string | Yes | User full name | - |
 | `tag` | string | Yes | User tag/category | Options: `"Admin"`, `"Investigator"`, `"Ahli Forensic"`, or other tags |
 
 **Note:** 
-- `confirm_password` field is **NOT** sent to the API. It's only used for frontend validation to ensure password matches.
+- `confirm_password` must match `password` exactly. If they don't match, API will return a validation error.
 - The `role` is automatically mapped from the `tag` field (see mapping below).
 
 **Tag to Role Mapping:**
@@ -370,10 +413,10 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
   "message": "User created successfully",
   "data": {
     "id": 4,
-    "email": "newuser@example.com",
     "fullname": "New User",
-    "tag": "Investigator",
+    "email": "newuser@example.com",
     "role": "user",
+    "tag": "Investigator",
     "is_active": true,
     "created_at": "2025-01-15T10:30:00Z"
   }
@@ -387,6 +430,15 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 {
   "status": 400,
   "message": "Validation error",
+  "data": null
+}
+```
+
+**400 Bad Request (Password Mismatch):**
+```json
+{
+  "status": 400,
+  "message": "Password and confirm password do not match",
   "data": null
 }
 ```
@@ -409,6 +461,15 @@ curl -X GET "http://localhost:8000/api/v1/auth/me" \
 }
 ```
 
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to create user",
+  "data": null
+}
+```
+
 **Example Request (cURL):**
 ```bash
 curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
@@ -417,6 +478,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
   -d '{
     "email": "investigator@example.com",
     "password": "securepass123",
+    "confirm_password": "securepass123",
     "fullname": "John Investigator",
     "tag": "Investigator"
   }'
@@ -433,6 +495,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/create-user" \
    {
      "email": "investigator@example.com",
      "password": "securepass123",
+     "confirm_password": "securepass123",
      "fullname": "John Investigator",
      "tag": "Investigator"
    }
@@ -447,7 +510,7 @@ The "Add User" form in the UI contains the following fields:
 | **Name** | `fullname` | Yes | User's full name |
 | **Email** | `email` | Yes | Must be valid email format |
 | **Password** | `password` | Yes | Min 8 chars, max 128 chars |
-| **Confirm Password** | - | No | Frontend validation only, **NOT sent to API** |
+| **Confirm Password** | `confirm_password` | Yes | Must match `password` exactly |
 | **Tag** (dropdown) | `tag` | Yes | Select from: `"Admin"`, `"Investigator"`, `"Ahli Forensic"` |
 
 **Frontend Validation (Before API Call):**
@@ -459,6 +522,7 @@ The "Add User" form in the UI contains the following fields:
 **Backend Validation:**
 - ✅ Email format validation
 - ✅ Password length: 8-128 characters
+- ✅ Password and confirm_password must match
 - ✅ Email uniqueness check
 - ✅ Admin role check (only admin can create users)
 
@@ -468,7 +532,7 @@ The "Add User" form in the UI contains the following fields:
 
 **Endpoint:** `GET /api/v1/auth/get-all-users`
 
-**Description:** Get paginated list of all users. Only admin can access this endpoint. **Results are sorted by newest first (descending order by ID or created_at).**
+**Description:** Get paginated list of all users. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. **Results are sorted by newest first (descending order by ID or created_at).**
 
 **Headers:** `Authorization: Bearer <admin_access_token>`
 
@@ -492,34 +556,25 @@ The "Add User" form in the UI contains the following fields:
   "message": "Users retrieved successfully",
   "data": [
     {
-      "id": 3,
-      "email": "ahliforensic@gmail.com",
-      "fullname": "Ahli Forensic",
-      "tag": "Ahli Forensic",
-      "role": "user",
-      "is_active": true,
-      "created_at": "2025-11-06T18:50:13.382112Z"
-    },
-    {
       "id": 2,
-      "email": "investigator@gmail.com",
       "fullname": "Investigator",
-      "tag": "Investigator",
+      "email": "investigator@gmail.com",
       "role": "user",
+      "tag": "Investigator",
       "is_active": true,
-      "created_at": "2025-11-06T18:50:13.382105Z"
+      "created_at": "2025-11-13T17:24:58.612660"
     },
     {
       "id": 1,
-      "email": "admin@gmail.com",
       "fullname": "Admin Forensic",
-      "tag": "Admin",
+      "email": "admin@gmail.com",
       "role": "admin",
+      "tag": "Admin",
       "is_active": true,
-      "created_at": "2025-11-06T18:50:13.38197Z"
+      "created_at": "2025-11-12T02:33:42.246135"
     }
   ],
-  "total": 3,
+  "total": 2,
   "page": 1,
   "size": 10
 }
@@ -546,6 +601,215 @@ GET /api/v1/auth/get-all-users?tag=Admin&limit=20
 GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 ```
 
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to retrieve users",
+  "data": null
+}
+```
+
+---
+
+### Update User (Admin Only)
+
+**Endpoint:** `PUT /api/v1/auth/update-user/{user_id}`
+
+**Description:** Update user information. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. **All fields are required.**
+
+**Headers:** 
+- `Authorization: Bearer <admin_access_token>`
+- `Content-Type: application/json`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `user_id` | integer | Yes | User ID to update |
+
+**Request Body:**
+```json
+{
+  "fullname": "Updated User Name",
+  "email": "updated@example.com",
+  "password": "newpassword123",
+  "confirm_password": "newpassword123",
+  "tag": "Investigator"
+}
+```
+
+**Request Body Fields:**
+| Field | Type | Required | Description | Validation |
+|-------|------|----------|-------------|------------|
+| `fullname` | string | Yes | User full name | - |
+| `email` | string | Yes | User email address | Must be valid email format |
+| `password` | string | Yes | User password | Minimum 8 characters, maximum 128 characters |
+| `confirm_password` | string | Yes | Password confirmation | Must match `password` field exactly |
+| `tag` | string | Yes | User tag/category | Options: `"Admin"`, `"Investigator"`, `"Ahli Forensic"`, or other tags |
+
+**Note:** 
+- **All fields are required** - you must provide all fields when updating a user.
+- `is_active` field is **NOT** included in the request body. User's active status cannot be changed via this endpoint.
+- `confirm_password` must match `password` exactly. If they don't match, API will return a validation error.
+- The `role` is automatically mapped from the `tag` field (see mapping below).
+- Password will be hashed automatically.
+
+**Tag to Role Mapping:**
+- `"Admin"` → `role: "admin"`
+- `"Investigator"` → `role: "user"`
+- `"Ahli Forensic"` → `role: "user"`
+- Other tags → `role: "user"` (default)
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User updated successfully",
+  "data": {
+    "id": 4,
+    "fullname": "Updated User Name",
+    "email": "updated@example.com",
+    "role": "user",
+    "tag": "Investigator",
+    "is_active": true,
+    "created_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (Invalid Input):**
+```json
+{
+  "status": 400,
+  "message": "Validation error",
+  "data": null
+}
+```
+
+**400 Bad Request (Password Mismatch):**
+```json
+{
+  "status": 400,
+  "message": "Password and confirm password do not match",
+  "data": null
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "User with ID {user_id} not found",
+  "data": null
+}
+```
+
+**409 Conflict (Email Already Exists):**
+```json
+{
+  "status": 409,
+  "message": "User with this email already exists",
+  "data": null
+}
+```
+
+**403 Forbidden (Not Admin):**
+```json
+{
+  "status": 403,
+  "message": "Access denied. Admin role required.",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to update user",
+  "data": null
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/auth/update-user/4" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullname": "Updated User Name",
+    "email": "updated@example.com",
+    "password": "newpassword123",
+    "confirm_password": "newpassword123",
+    "tag": "Investigator"
+  }'
+```
+
+---
+
+### Delete User (Admin Only)
+
+**Endpoint:** `DELETE /api/v1/auth/delete-user/{user_id}`
+
+**Description:** Delete a user. **Only users with admin role can access this endpoint.** Non-admin users will receive a 403 Forbidden error. This will also delete all associated refresh tokens (cascade delete).
+
+**Headers:** `Authorization: Bearer <admin_access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `user_id` | integer | Yes | User ID to delete |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "User deleted successfully",
+  "data": null
+}
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "User with ID {user_id} not found",
+  "data": null
+}
+```
+
+**403 Forbidden (Not Admin):**
+```json
+{
+  "status": 403,
+  "message": "Access denied. Admin role required.",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Failed to delete user",
+  "data": null
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/auth/delete-user/4" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Note:**
+- Deleting a user will automatically delete all associated refresh tokens (cascade delete).
+- This action cannot be undone.
+
 ---
 
 ## 📁 Case Management
@@ -557,7 +821,7 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 
 **Endpoint:** `GET /api/v1/cases/statistics/summary`
 
-**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating).
+**Description:** Get summary statistics of cases by status (Open, Closed, Reopen, Investigating). **Full Access**: All roles can see statistics for all cases. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -631,8 +895,8 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 - Jika `sort_by` tidak disediakan: Default sort by **ID descending**
 
 **RBAC Behavior:**
-- **Admin:** Sees all cases
-- **User:** Only sees cases where `main_investigator` matches their `fullname`
+- **Admin:** Sees all cases in the database
+- **User:** Only sees cases where `main_investigator` matches their `fullname` or `email` (case-insensitive matching)
 
 **Response (200 OK):**
 ```json
@@ -771,7 +1035,7 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 **Endpoint:** `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}`
 
-**Description:** Get comprehensive details of a specific case including persons of interest and case logs.
+**Description:** Get comprehensive details of a specific case including persons of interest and case logs. **Full Access**: All roles can access details of all cases. No filtering or access restrictions.
 
 **Note:** Field `case_notes` dalam response akan berisi nilai notes jika sudah disimpan melalui endpoint `/api/v1/cases/save-notes` atau `/api/v1/cases/edit-notes`, atau `null` jika belum ada notes.
 
@@ -1063,7 +1327,7 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 **Endpoint:** `PUT /api/v1/cases/update-case/{case_id}`
 
-**Description:** Update an existing case. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
+**Description:** Update an existing case. **Full Access**: All roles can update all cases. No filtering or access restrictions. All fields in request body are optional (partial update). Only fields provided in the request body will be updated.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1247,7 +1511,7 @@ Body (raw JSON):
 
 **Endpoint:** `GET /api/v1/cases/export-case-details-pdf/{case_id}`
 
-**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir.
+**Description:** Export detail kasus secara lengkap sebagai dokumen PDF. PDF mencakup informasi kasus, person of interest beserta evidence mereka, dan catatan kasus. Dokumen memiliki format profesional dengan header dan footer di setiap halaman, pagination yang benar, dan layout yang terorganisir. **Full Access**: All roles can export PDF for all cases. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1353,7 +1617,7 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `POST /api/v1/cases/save-notes`
 
-**Description:** Save or update notes for a specific case.
+**Description:** Save or update notes for a specific case. **Full Access**: All roles can save notes for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1426,7 +1690,7 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Endpoint:** `PUT /api/v1/cases/edit-notes`
 
-**Description:** Update notes for a specific case.
+**Description:** Edit existing notes for a specific case. **Full Access**: All roles can edit notes for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -1533,7 +1797,7 @@ Content-Type: application/json
 
 **Endpoint:** `GET /api/v1/case-logs/case/logs/{case_id}`
 
-**Description:** Retrieve all log entries for a specific case with pagination support.
+**Description:** Retrieve all log entries for a specific case with pagination support. **Full Access**: All roles can access logs for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -1701,7 +1965,7 @@ curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10"
 
 **Endpoint:** `GET /api/v1/case-logs/log/{log_id}`
 
-**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog.
+**Description:** Get detail of a specific case log entry including notes. This endpoint is specifically designed to retrieve case log details when the "Notes" button is clicked in the case log UI, displaying the notes content in a modal dialog. **Full Access**: All roles can access log details for all cases. No filtering or access restrictions.
 
 **Important:** Endpoint ini **HANYA** untuk action yang memiliki notes (Open, Closed, Re-Open). **TIDAK digunakan** untuk action "Edit" karena action "Edit" tidak memiliki notes field.
 
@@ -1787,12 +2051,27 @@ curl -X GET "http://localhost:8000/api/v1/case-logs/case/logs/1?skip=0&limit=10"
 
 **Error Responses:**
 
-**404 Not Found:**
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to access this log"
+}
+```
+
+**404 Not Found (Case log not found):**
 ```json
 {
   "status": 404,
-  "message": "Case log not found",
-  "data": null
+  "detail": "Case log not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
 }
 ```
 
@@ -1894,7 +2173,7 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **Endpoint:** `PUT /api/v1/case-logs/change-log/{case_id}`
 
-**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array.
+**Description:** Update case status and automatically create a new case log entry with required notes/alasan. This endpoint updates the case status in the `cases` table and creates a log entry to track the status change. **Notes/alasan is required** when changing the case status - users must provide a reason for the status change. The notes will be saved in the case log entry and will appear in the case detail's case_log array. **Full Access**: All roles can update case status and create logs for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - Tab **Authorization**: 
@@ -1960,6 +2239,14 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **Error Responses:**
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to update log for this case"
+}
+```
+
 **400 Bad Request (Invalid Status):**
 ```json
 {
@@ -1973,7 +2260,7 @@ const showNotesButton = hasNotes && !isEditAction;
 ```json
 {
   "status": 400,
-  "message": "Notes/alasan wajib diisi ketika mengubah status case",
+  "message": "Notes/reason is required when changing case status",
   "data": null
 }
 ```
@@ -1982,7 +2269,7 @@ const showNotesButton = hasNotes && !isEditAction;
 ```json
 {
   "status": 404,
-  "message": "Case not found",
+  "message": "Case with ID {case_id} not found",
   "data": null
 }
 ```
@@ -2073,6 +2360,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 ---
 
+
 ## 🔍 Evidence Management
 
 ### Base Path
@@ -2082,7 +2370,7 @@ curl -X PUT "http://localhost:8000/api/v1/case-logs/change-log/1" \
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-list`
 
-**Description:** Get paginated list of evidences with search, filter, and sorting support.
+**Description:** Get paginated list of evidences with search, filter, and sorting support. **Full Access**: All roles can see all evidence in the database. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2179,7 +2467,7 @@ GET /api/v1/evidence/get-evidence-list?search=Evidence&sort_by=created_at&sort_o
 
 **Endpoint:** `GET /api/v1/evidence/get-evidence-summary`
 
-**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**.
+**Description:** Get evidence management summary statistics. Returns total case count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Evidence Management**. **Full Access**: All roles can see statistics for all cases and evidence. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -2227,7 +2515,7 @@ Authorization: Bearer <access_token>
 
 **Endpoint:** `POST /api/v1/evidence/create-evidence`
 
-**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. 
+**Description:** Create a new evidence item and associate it with a case. Supports file upload and can be associated with a person of interest. **Endpoint ini digunakan dari form "Add Evidence" di Case Details**. **Full Access**: All roles can create evidence for all cases. No filtering or access restrictions. 
 
 **Logika Linking Evidence ke Person:**
 - Jika `person_name` disediakan dan `is_unknown_person = false`:
@@ -2237,11 +2525,8 @@ Authorization: Bearer <access_token>
 - Jika `is_unknown_person = true`: Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama. Jika ada, evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru). Jika belum ada, sistem akan membuat suspect "Unknown" baru dan evidence akan ter-link ke suspect tersebut.
 
 **Headers:** 
-- Tab **Authorization**: 
-  - Type: `Bearer Token`
-  - Token: `{access_token}`
-- Tab **Body**: 
-  - Select: `form-data`
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
 **Request Body (form-data):**
 | Field | Type | Required | Description |
@@ -2526,1064 +2811,132 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 ---
 
-### 4. Get Evidence Details by ID
 
-**Endpoint:** `GET /api/v1/evidence/get-evidence-by-id`
 
-**Description:** Get comprehensive details of a specific evidence item including notes, chain of custody, investigation hypothesis, tools used, and analysis results.
+### 4. Update Evidence
 
-**Headers:** `Authorization: Bearer <access_token>`
+**Endpoint:** `PUT /api/v1/evidence/update-evidence/{evidence_id}`
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Evidence retrieved successfully",
-  "data": {
-    "id": 1,
-    "evidence_number": "EVID-001",
-    "title": "Handphone A",
-    "description": "Smartphone dari tersangka",
-    "source": "Handphone",
-    "investigator": "Solehun",
-    "date_created": "20/12/2025",
-    "person_related": "Dwiky",
-    "case_related": "Buronan Maroko Interpol",
-    "case_id": 1,
-    "evidence_type": "File",
-    "evidence_detail": "081902938201",
-    "created_at": "2025-12-20T10:00:00Z",
-    "updated_at": "2025-12-20T10:00:00Z",
-    "notes": {
-      "id": "33242352",
-      "thumbnail": "/data/thumbnails/evidence_1_map.png",
-      "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
-    },
-    "chain_of_custody": {
-      "acquisition": {
-        "date": "16 Mei 2025, 12:00",
-        "investigator": "Solehun",
-        "location": "Bandara Soekarno Hatta Terminal 1",
-        "status": "Recorded"
-      },
-      "preparation": {
-        "date": "16 Mei 2025, 14:00",
-        "investigator": "Solehun",
-        "location": "Forensic Lab",
-        "status": "Recorded"
-      },
-      "extraction": {
-        "date": "17 Mei 2025, 10:00",
-        "investigator": "Solehun",
-        "location": "Forensic Lab",
-        "status": "Recorded"
-      },
-      "analysis": {
-        "date": "18 Mei 2025, 15:00",
-        "investigator": "Solehun",
-        "location": "Forensic Lab",
-        "status": "Recorded"
-      }
-    },
-    "current_stage": {
-      "stage": "Preparation",
-      "location": "Bandara Soekarno Hatta Terminal 1",
-      "investigation_hypothesis": [
-        "1. Perangkat seluler tersangka kemungkinan besar menyimpan data GPS yang menunjukkan lokasi pada saat kejadian",
-        "2. Data GPS dapat digunakan untuk membuktikan keberadaan tersangka di TKP",
-        "3. Perangkat seluler mungkin terhubung dengan perangkat lain yang relevan dengan kasus"
-      ],
-      "tools_used": [
-        "Google Earth",
-        "Axiom Magnet Forensics",
-        "Power BI"
-      ],
-      "extraction_results": {
-        "file_name": "Handphone A",
-        "file_size": "67 Gb",
-        "file_path": "/data/extractions/evidence_1_extraction.zip"
-      },
-      "analysis_results": {
-        "hypothesis": "Menemukan hubungan tersangka dengan temannya.",
-        "result": "Tersangka terkait dengan suspect A, B, dan C.",
-        "report_file": {
-          "file_name": "PDF Report",
-          "file_size": "14 Mb",
-          "file_path": "/data/reports/evidence_1_analysis.pdf"
-        }
-      },
-      "notes": "Penting untuk memastikan dokumentasi lengkap dan chain of custody yang jelas untuk menjaga integritas bukti digital."
-    },
-    "gallery": [
-      {
-        "id": 1,
-        "url": "/data/gallery/evidence_1_photo1.jpg",
-        "thumbnail": "/data/gallery/thumbnails/evidence_1_photo1_thumb.jpg",
-        "description": "Evidence bag sealed"
-      },
-      {
-        "id": 2,
-        "url": "/data/gallery/evidence_1_photo2.jpg",
-        "thumbnail": "/data/gallery/thumbnails/evidence_1_photo2_thumb.jpg",
-        "description": "Device in evidence bag"
-      }
-    ]
-  }
-}
-```
-
-**Catatan:**
-- Field `chain_of_custody` berisi tracking Chain of Custody dengan 4 tahap: `acquisition`, `preparation`, `extraction`, `analysis`
-- Setiap tahap berisi: `date` (format Indonesia), `investigator`, `location`, `status` ("Recorded" jika ada data, `null` jika belum ada)
-- Data diambil dari `CustodyLog` berdasarkan `event_type` dan diurutkan berdasarkan `event_date`
-- Field `current_stage` berisi informasi tahap saat ini (Preparation, Extraction, Analysis) beserta investigation hypothesis, tools used, extraction results, analysis results, dan notes
-- Field `gallery` berisi array gambar evidence dengan thumbnail dan description
-- Field `notes` berisi object dengan `id`, `thumbnail`, dan `text` untuk menampilkan peta atau visualisasi
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 5. Log Custody Event
-
-**Endpoint:** `POST /api/v1/evidence/custody-events`
-
-**Description:** Log a chain of custody event for an evidence item.
+**Description:** Update evidence information. All fields are optional (partial update). Supports file upload for evidence files. **Endpoint ini digunakan dari form "Edit Evidence"**. **Full Access**: All roles can update all evidence. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body (all fields required, including `evidence_id`):**
-```json
-{
-  "evidence_id": 1,
-  "event_type": "Acquisition",
-  "event_date": "2025-05-16T12:00:00Z",
-  "person_name": "Solehan",
-  "person_title": "Investigator",
-  "person_id": 1,
-  "location": "Bandara Soekarno Hatta Terminal 1",
-  "location_type": "Airport",
-  "action_description": "Seizure of evidence",
-  "tools_used": "Evidence bag, Camera",
-  "conditions": "Perangkat seluler tidak tersambung ke internet",
-  "duration": "2 hours",
-  "transferred_to": "Forensic Lab",
-  "transferred_from": "Crime Scene",
-  "transfer_reason": "For analysis",
-  "witness_name": "John Doe",
-  "witness_signature": "signature_hash",
-  "verification_method": "Digital signature",
-  "created_by": "admin@gmail.com",
-  "notes": "Evidence properly sealed and documented"
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "status": 201,
-  "message": "Custody event logged successfully",
-  "data": {
-    "evidence_id": 1,
-    "event_type": "Acquisition",
-    "event_date": "2025-05-16T12:00:00Z",
-    "person_name": "Solehan",
-    "location": "Bandara Soekarno Hatta Terminal 1",
-    "action_description": "Seizure of evidence",
-    "is_immutable": true,
-    "is_verified": false,
-    "log_hash": "sha256_hash_here",
-    "created_at": "2025-05-16T12:00:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
-```json
-{
-  "status": 400,
-  "message": "Validation error",
-  "data": null
-}
-```
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 6. Get Custody Chain
-
-**Endpoint:** `GET /api/v1/evidence/custody-chain`
-
-**Description:** Get complete chain of custody for an evidence item.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier |
-
-**Response (200 OK):**
-```json
-{
-  "evidence_id": 1,
-  "evidence_number": "EVID-001",
-  "evidence_title": "Handphone A",
-  "custody_chain": [
-    {
-      "id": 1,
-      "evidence_id": 1,
-      "event_type": "Acquisition",
-      "event_date": "2025-05-16T12:00:00Z",
-      "person_name": "Solehan",
-      "location": "Bandara Soekarno Hatta Terminal 1",
-      "action_description": "Seizure of evidence",
-      "tools_used": "Evidence bag, Camera",
-      "is_verified": false,
-      "created_at": "2025-05-16T12:00:00Z"
-    },
-    {
-      "id": 2,
-      "evidence_id": 1,
-      "event_type": "Preparation",
-      "event_date": "2025-05-16T14:00:00Z",
-      "person_name": "Solehan",
-      "location": "Forensic Lab",
-      "action_description": "Evidence preparation",
-      "tools_used": "Write blocker",
-      "is_verified": true,
-      "created_at": "2025-05-16T14:00:00Z"
-    }
-  ],
-  "chain_integrity": true,
-  "total_events": 2,
-  "first_event": { /* first event object */ },
-  "last_event": { /* last event object */ }
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 7. Get Custody Events
-
-**Endpoint:** `GET /api/v1/evidence/custody-events`
-
-**Description:** Get paginated list of custody events for an evidence item.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier |
-
-**Query Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `skip` | integer | No | 0 | Number of records to skip |
-| `limit` | integer | No | 50 | Number of records per page (max: 100) |
-| `event_type` | string | No | - | Filter by event type |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Custody events retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "evidence_id": 1,
-      "event_type": "Acquisition",
-      "event_date": "2025-05-16T12:00:00Z",
-      "person_name": "Solehan",
-      "location": "Bandara Soekarno Hatta Terminal 1",
-      "action_description": "Seizure of evidence",
-      "tools_used": "Evidence bag, Camera",
-      "is_verified": false,
-      "created_at": "2025-05-16T12:00:00Z"
-    }
-  ],
-  "total": 5,
-  "page": 1,
-  "size": 50
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 8. Update Custody Event
-
-**Endpoint:** `PUT /api/v1/evidence/custody-events`
-
-**Description:** Update a custody event (limited fields, maintains immutability).
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body (all fields optional, but `evidence_id` and `custody_id` are required):**
-```json
-{
-  "evidence_id": 1,
-  "custody_id": 1,
-  "is_verified": true,
-  "notes": "Updated notes"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Custody event updated successfully",
-  "data": {
-    "id": 1,
-    "evidence_id": 1,
-    "updated_fields": {
-      "is_verified": true,
-      "notes": "Updated notes"
-    }
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
-```json
-{
-  "status": 400,
-  "message": "Validation error",
-  "data": null
-}
-```
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found or Custody event with ID {custody_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 9. Generate Custody Report
-
-**Endpoint:** `POST /api/v1/evidence/{evidence_id}/custody-report`
-
-**Description:** Generate custody report untuk evidence item. Report akan menyimpan chain of custody lengkap dari evidence tersebut ke dalam database.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
 **Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
+| `evidence_id` | integer | **Yes** | Evidence ID yang akan di-update |
 
-**Request Body:**
-```json
-{
-  "report_type": "standard",
-  "report_title": "Evidence Custody Report - EVID-001",
-  "report_description": "Complete chain of custody documentation",
-  "compliance_standard": "ISO 27037",
-  "generated_by": "admin@gmail.com"
-}
-```
-
-**Request Body Fields:**
+**Request Body (form-data, all fields optional):**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `report_type` | string | No | Tipe report (default: "standard"). Opsi: "standard", "iso_27037", "nist" |
-| `report_title` | string | Yes | Judul report |
-| `report_description` | string | No | Deskripsi report |
-| `compliance_standard` | string | No | Standar compliance (contoh: "ISO 27037", "NIST", "custom") |
-| `generated_by` | string | Yes | User yang membuat report (jika tidak disediakan, akan menggunakan current_user) |
+| `case_id` | integer | No | Case ID (jika ingin mengubah case yang terkait) |
+| `evidence_number` | string | No | Evidence number (jika disediakan, tidak boleh kosong) |
+| `type` | string | No | Evidence type name (text input dari form UI). **Jika disediakan, sistem akan mencari atau membuat EvidenceType baru secara otomatis** |
+| `source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
+| `evidence_file` | file | No | Evidence file upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
+| `evidence_summary` | string | No | Evidence summary/description (disimpan ke field `description` di database) |
+| `investigator` | string | No | Investigator name (who collected/analyzed the evidence) |
+| `person_name` | string | Conditional | Person of interest name. **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI)**. Jika disediakan dan `suspect_id` tidak disediakan, sistem akan mencari existing suspect dengan nama tersebut. Jika tidak ditemukan, sistem akan otomatis membuat suspect baru dengan nama tersebut dan link evidence_number ke suspect tersebut |
+| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih)** |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** Sistem akan cek apakah sudah ada suspect "Unknown" dengan `case_id` yang sama. Jika `suspect_id` disediakan, evidence akan ter-link ke suspect "Unknown" dengan `suspect_id` tersebut. Jika `suspect_id` tidak disediakan, evidence akan ter-link ke suspect "Unknown" yang sudah ada (yang paling baru) atau membuat suspect "Unknown" baru jika belum ada |
+| `suspect_id` | integer | No | Suspect ID untuk memilih suspect tertentu. **Jika `suspect_id` disediakan, evidence akan ter-link ke suspect dengan `suspect_id` tersebut (harus merupakan suspect dengan `case_id` yang sama). Jika `person_name` dan/atau `suspect_status` juga disediakan, suspect tersebut akan di-update dengan nilai baru (tidak membuat suspect baru)** |
 
-**Catatan:**
-- Field `evidence_id` diambil dari path parameter, tidak perlu dikirim di request body
-- Field `generated_by` bersifat opsional - jika tidak disediakan, akan menggunakan `current_user.fullname` atau `current_user.email`
-- Report akan otomatis menyimpan chain of custody data dari evidence ke field `report_data`
-- Report disimpan ke database dengan status `is_verified: false` dan `is_active: true`
+**Catatan:** 
+- Semua field bersifat opsional (partial update)
+- Jika `evidence_file` disediakan, file lama akan diganti dengan file baru
+- Field `file_path`, `file_size`, `file_hash`, `file_type`, dan `file_extension` akan otomatis di-update setelah file di-upload
+- Jika `evidence_number` disediakan secara manual, tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
+- Jika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate), akan mengembalikan error 400 dengan pesan yang menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut
+- Jika `evidence_number` yang ingin diupdate sama dengan `evidence_number` yang sudah ada di evidence yang sedang diupdate, tidak akan ada error (tidak perlu update)
+- `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
+- `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
+- `suspect_status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
 
-**Response (201 Created):**
+**Example Request (form-data):**
+```
+case_id: 1
+evidence_number: 32342223
+type: Dokumen
+source: Handphone
+evidence_summary: Updated GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.
+investigator: Solehun
+person_name: Dwiky
+suspect_status: Witness
+evidence_file: [file]
+```
+
+**Response (200 OK):**
 ```json
 {
-  "status": 201,
-  "message": "Custody report generated successfully",
+  "status": 200,
+  "message": "Evidence updated successfully",
   "data": {
     "id": 1,
-    "evidence_id": 1,
-    "report_type": "standard",
-    "report_title": "Evidence Custody Report - EVID-001",
-    "report_description": "Complete chain of custody documentation",
-    "generated_by": "admin@gmail.com",
-    "generated_date": "2025-01-15T14:30:22Z",
-    "report_file_path": null,
-    "is_verified": false,
-    "created_at": "2025-01-15T14:30:22Z"
+    "case_id": 1,
+    "evidence_number": "32342223",
+    "source": "Handphone",
+    "file_path": "data/evidence/evidence_20251111_163602_32342223.png",
+    "description": "Updated GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+    "title": "Buronan Maroko Interpol",
+    "investigator": "Solehun",
+    "agency": "Trikora",
+    "person_name": "Dwiky",
+    "updated_at": "11/11/2025"
   }
 }
 ```
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (Empty evidence_number):**
 ```json
 {
   "status": 400,
-  "message": "Validation error",
-  "data": null
+  "detail": "evidence_number cannot be empty when provided manually"
 }
 ```
 
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 10. Get Custody Reports
-
-**Endpoint:** `GET /api/v1/evidence/{evidence_id}/custody-reports`
-
-**Description:** Get list of custody reports untuk evidence item dengan pagination dan filter.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Path Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
-
-**Query Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `skip` | integer | No | 0 | Number of records to skip |
-| `limit` | integer | No | 10 | Number of records per page (max: 50) |
-| `report_type` | string | No | - | Filter by report type (opsional) |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Custody reports retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "evidence_id": 1,
-      "report_type": "standard",
-      "report_title": "Evidence Custody Report - EVID-001",
-      "report_description": "Complete chain of custody documentation",
-      "generated_by": "admin@gmail.com",
-      "generated_date": "2025-01-15T14:30:22Z",
-      "report_file_path": null,
-      "is_verified": false,
-      "created_at": "2025-01-15T14:30:22Z"
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "size": 10
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 10. Get Custody Report by ID
-
-**Endpoint:** `GET /api/v1/evidence/{evidence_id}/custody-report/{report_id}`
-
-**Description:** Get detail custody report berdasarkan ID.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Path Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier (di URL path) |
-| `report_id` | integer | Yes | Unique custody report identifier (di URL path) |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Custody report retrieved successfully",
-  "data": {
-    "id": 1,
-    "evidence_id": 1,
-    "report_type": "standard",
-    "report_title": "Evidence Custody Report - EVID-001",
-    "report_description": "Complete chain of custody documentation",
-    "generated_by": "admin@gmail.com",
-    "generated_date": "2025-01-15T14:30:22Z",
-    "report_file_path": null,
-    "report_file_hash": null,
-    "report_data": {
-      "custody_chain": [...],
-      "chain_integrity": true
-    },
-    "compliance_standard": "ISO 27037",
-    "is_verified": false,
-    "verified_by": null,
-    "verification_date": null,
-    "created_at": "2025-01-15T14:30:22Z",
-    "is_active": true
-  }
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**404 Not Found (Report):**
-```json
-{
-  "status": 404,
-  "message": "Custody report with ID {report_id} not found for evidence {evidence_id}",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 11. Get Evidence Types
-
-**Endpoint:** `GET /api/v1/evidence/types`
-
-**Description:** Get list of available evidence types (for dropdown selection in forms).
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Evidence types retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "name": "File"
-    },
-    {
-      "id": 2,
-      "name": "Device"
-    },
-    {
-      "id": 3,
-      "name": "Document"
-    },
-    {
-      "id": 4,
-      "name": "Image"
-    },
-    {
-      "id": 5,
-      "name": "Video"
-    }
-  ]
-}
-```
-
-**Error Responses:**
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 11. Get Evidence Sources
-
-**Endpoint:** `GET /api/v1/evidence/sources`
-
-**Description:** Get list of available evidence sources (for dropdown selection in forms).
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Evidence sources retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "name": "Handphone"
-    },
-    {
-      "id": 2,
-      "name": "CCTV"
-    },
-    {
-      "id": 3,
-      "name": "Computer"
-    },
-    {
-      "id": 4,
-      "name": "Server"
-    },
-    {
-      "id": 5,
-      "name": "Network Device"
-    }
-  ]
-}
-```
-
-**Error Responses:**
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 12. Export Evidence Details PDF
-
-**Endpoint:** `GET /api/v1/evidence/export-evidence-details-pdf`
-
-**Description:** Export comprehensive evidence details as PDF document. Includes evidence information, notes, chain of custody, investigation hypothesis, tools used, analysis results, and gallery.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `evidence_id` | integer | Yes | Unique evidence identifier |
-
-**Response (200 OK):**
-- **Content-Type:** `application/pdf`
-- **Content-Disposition:** `attachment; filename="evidence_details_{evidence_id}_{timestamp}.pdf"`
-
-The response is a PDF file that can be downloaded directly.
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
-**Example Request:**
-```
-GET /api/v1/evidence/export-evidence-details-pdf/1
-Authorization: Bearer {access_token}
-```
-
-**Note:** This endpoint generates a comprehensive PDF report including all evidence details, chain of custody stages (Acquisition, Preparation, Extraction, Analysis), investigation hypothesis, tools used, and analysis results.
-
----
-
-### 13. Save Evidence Notes
-
-**Endpoint:** `POST /api/v1/evidence/save-notes`
-
-**Description:** Save or update notes for a specific evidence item.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "evidence_id": 1,
-  "notes": {
-    "id": "33242352",
-    "thumbnail": "/data/thumbnails/evidence_1_map.png",
-    "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
-  }
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-    "message": "Evidence notes saved successfully",
-  "data": {
-    "evidence_id": 1,
-    "evidence_number": "EVID-001",
-    "evidence_title": "Handphone A",
-    "notes": {
-      "id": "33242352",
-      "thumbnail": "/data/thumbnails/evidence_1_map.png",
-      "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
-    },
-    "updated_at": "2025-12-20T14:30:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
+**400 Bad Request (Duplicate evidence_number):**
 ```json
 {
   "status": 400,
-  "message": "Notes cannot be empty",
-  "data": null
+  "detail": "Evidence number '454950045' already exists for another evidence (ID: 1)"
 }
 ```
 
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
-}
-```
+**Catatan:** Error ini terjadi ketika `evidence_number` yang ingin diupdate sudah digunakan oleh evidence lain (bukan evidence yang sedang diupdate). Pesan error akan menampilkan ID evidence yang sudah menggunakan `evidence_number` tersebut untuk membantu troubleshooting.
 
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Failed to save evidence notes: {error_message}",
-  "data": null
-}
-```
-
----
-
-### 14. Edit Evidence Notes
-
-**Endpoint:** `PUT /api/v1/evidence/edit-notes`
-
-**Description:** Update notes for a specific evidence item.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "evidence_id": 1,
-  "notes": {
-    "id": "33242352",
-    "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
-    "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
-  }
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-    "message": "Evidence notes updated successfully",
-  "data": {
-    "evidence_id": 1,
-    "evidence_number": "EVID-001",
-    "evidence_title": "Handphone A",
-    "notes": {
-      "id": "33242352",
-      "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
-      "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
-    },
-    "updated_at": "2025-12-20T15:45:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
+**400 Bad Request (Invalid file type):**
 ```json
 {
   "status": 400,
-  "message": "Notes cannot be empty and must be a JSON object",
-  "data": null
+  "detail": "File type tidak didukung. Hanya file PDF dan Image yang diperbolehkan (extensions: pdf, jpg, jpeg, png, gif, bmp, webp)"
 }
 ```
 
-**404 Not Found:**
+**404 Not Found (Evidence not found):**
 ```json
 {
   "status": 404,
-  "message": "Evidence with ID {evidence_id} not found",
-  "data": null
+  "detail": "Evidence with ID {evidence_id} not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "detail": "Case with ID {case_id} not found"
+}
+```
+
+**404 Not Found (Suspect not found):**
+```json
+{
+  "status": 404,
+  "detail": "Suspect with ID {suspect_id} not found for this case"
 }
 ```
 
@@ -3600,46 +2953,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to edit evidence notes: {error_message}",
-  "data": null
-}
-```
-
-**Note:**
-- Endpoint `save-notes` dan `edit-notes` memiliki fungsi yang sama (save atau update notes)
-- Gunakan `save-notes` untuk membuat notes baru atau mengupdate notes yang sudah ada
-- Gunakan `edit-notes` untuk mengupdate notes yang sudah ada (lebih eksplisit untuk operasi update)
-- **Evidence notes berbentuk JSON object** dengan struktur: `{"id": "...", "thumbnail": "...", "text": "..."}`
-
-**Example Request:**
-```
-POST http://localhost:8000/api/v1/evidence/save-notes
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "evidence_id": 1,
-  "notes": {
-    "id": "33242352",
-    "thumbnail": "/data/thumbnails/evidence_1_map.png",
-    "text": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian."
-  }
-}
-```
-
-**Example Request (Edit Notes):**
-```
-PUT http://localhost:8000/api/v1/evidence/edit-notes
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "evidence_id": 1,
-  "notes": {
-    "id": "33242352",
-    "thumbnail": "/data/thumbnails/evidence_1_map_updated.png",
-    "text": "Updated: GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian. Analisis lebih lanjut menunjukkan pergerakan mencurigakan."
-  }
+  "detail": "Unexpected server error: {error_message}"
 }
 ```
 
@@ -3736,7 +3050,7 @@ GET /api/v1/suspects/?skip=10&limit=5&search=Data%20Breach
 
 **Endpoint:** `GET /api/v1/suspects/get-suspect-summary`
 
-**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**.
+**Description:** Get suspect management summary statistics. Returns total person count and total evidence count. **Endpoint ini digunakan untuk menampilkan summary di dashboard Suspect Management**. **Full Access**: All roles can see statistics for all suspects and evidence. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -3780,11 +3094,115 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 3. Create Suspect
+### 3. Get Suspect Detail
+
+**Endpoint:** `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+
+**Description:** Get detailed information of a specific suspect by ID. **Endpoint ini digunakan untuk menampilkan detail suspect di halaman detail suspect**. Returns suspect details including name, case information, investigator, status, evidence information, and timestamps. **Full Access**: All roles can view details of all suspects. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Suspect detail retrieved successfully",
+  "data": {
+    "id": 1,
+    "person_name": "Bombom",
+    "suspect_status": "Reported",
+    "investigator": "Solehun",
+    "case_name": "Kasus kriminal pembunuhan di terminal pasar minggu",
+    "created_at_case": "20/12/2025",
+    "evidence": [
+      {
+        "evidence_count": "2",
+        "list_evidence": [
+          {
+            "id": 1,
+            "evidence_number": "EVID-1-20251116-0001",
+            "evidence_summary": "Handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
+            "file_path": "data/evidence/evidence_20251116_211231_EVID-1-20251116-0001.png",
+            "created_at": "2025-11-16T21:12:31.214904+07:00",
+            "updated_at": "2025-11-16T21:27:35.722355+07:00"
+          },
+          {
+            "id": 2,
+            "evidence_number": "33242352",
+            "evidence_summary": "Terdapat dialog seputar pembakaran dengan suspect lain.",
+            "file_path": "data/evidence/evidence_20251116_211231_EVID-1-20251116-0002.png",
+            "created_at": "2025-11-16T21:12:31.214904+07:00",
+            "updated_at": "2025-11-16T21:27:35.722355+07:00"
+          }
+        ]
+      }
+    ],
+    "suspect_notes": null
+  }
+}
+```
+
+**Example Request:**
+```
+GET /api/v1/suspects/get-suspect-detail/7
+Authorization: Bearer <access_token>
+```
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
+}
+```
+
+**Note:**
+- Field `person_name` adalah nama suspect (bisa "Unknown" jika `is_unknown = true`)
+- Field `suspect_status` bisa `null` jika suspect adalah unknown person
+- Field `created_at_case` adalah tanggal pembuatan case dalam format DD/MM/YYYY
+- Field `evidence` berisi array dengan:
+  - `evidence_count`: Jumlah total evidence yang terhubung dengan suspect (dalam format string)
+  - `list_evidence`: Array dari evidence records yang terhubung dengan suspect, berisi:
+    - `id`: Evidence ID
+    - `evidence_number`: Nomor evidence
+    - `evidence_summary`: Ringkasan/deskripsi evidence (dari field `description` di Evidence)
+    - `file_path`: Path file evidence
+    - `created_at`: Timestamp pembuatan evidence dalam format ISO 8601 dengan timezone
+    - `updated_at`: Timestamp update evidence dalam format ISO 8601 dengan timezone
+- Field `suspect_notes`: Catatan tentang suspect (dari field `notes` di Suspect atau Evidence, jika tersedia). Akan mengembalikan `null` jika tidak ada notes atau notes kosong
+
+---
+
+### 4. Create Suspect
 
 **Endpoint:** `POST /api/v1/suspects/create-suspect`
 
-**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru.
+**Description:** Create a new suspect record. Supports file upload for evidence files. **Endpoint ini digunakan dari form "Add Suspect"**. Jika `evidence_number` disediakan, sistem akan mencari existing evidence dengan `evidence_number` tersebut. Jika ditemukan, suspect akan di-link ke evidence tersebut. Jika tidak ditemukan dan ada `evidence_file`, sistem akan membuat evidence baru. **Full Access**: All roles can create suspect for all cases. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -3794,32 +3212,32 @@ Authorization: Bearer <access_token>
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `case_id` | integer | **Yes** | Case ID where suspect will be added |
-| `person_name` | string | Conditional | Person name. **Wajib jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih |
-| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **Hanya digunakan jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
+| `person_name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** - field ini tidak akan ditampilkan di UI jika "Unknown Person" dipilih |
+| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan dibuat dengan nama "Unknown", dan `suspect_status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` dan `suspect_status` wajib diisi |
 | `evidence_number` | string | **Conditional** | Evidence number (can be generated automatically or manually input). **WAJIB disediakan jika `evidence_file` tidak ada**. **If provided manually, cannot be empty** |
 | `evidence_file` | file | **Conditional** | Evidence file upload. **WAJIB disediakan jika `evidence_number` tidak ada**. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`). File akan disimpan ke `data/evidence/` directory dengan SHA256 hash |
 | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
 | `evidence_summary` | string | No | Evidence summary/description |
-| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan dibuat dengan nama "Unknown", dan `suspect_status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` wajib diisi, `suspect_status` optional (default: `false`) |
 
 **Catatan Field Required:**
 - **Required (Wajib):** `case_id`
-- **Conditional Required:** `person_name` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
-- **Conditional Required:** `suspect_status` wajib jika `is_unknown_person = false`, tidak perlu jika `is_unknown_person = true`
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `person_name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `suspect_status` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `suspect_status` tidak diisi, akan mengembalikan error 400: "suspect_status is required when is_unknown_person is false"
 - **Conditional Required (Wajib minimal salah satu):** `evidence_file` **ATAU** `evidence_number` harus disediakan. Jika keduanya tidak disediakan, akan mengembalikan error 400: "evidence_file atau evidence_number harus disediakan untuk create suspect"
 - **Optional (Opsional):** `evidence_source`, `evidence_summary`, `is_unknown_person`
 
-**Catatan tentang `is_unknown_person` dan `suspect_status`:**
+**Catatan tentang `is_unknown_person` dan Validasi:**
 - **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
   - Di UI **TIDAK menampilkan** kolom `person_name` dan `suspect_status` (field ini tidak perlu diisi)
   - `person_name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
   - `suspect_status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
   - `name` di database = "Unknown"
-  - `suspect_status` di database = `null`
+  - `status` di database = `null`
 - **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
   - Di UI menampilkan kolom `person_name` dan `suspect_status`
-  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "name is required when is_unknown_person is false")
-  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "status is required when is_unknown_person is false")
+  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
+  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "suspect_status is required when is_unknown_person is false")
   - `name` di database = `person_name` (wajib)
   - `status` di database = `suspect_status` (wajib)
 
@@ -3847,32 +3265,45 @@ Jika radio "Generating" dipilih atau `evidence_number` tidak disediakan dan `evi
   - **Jika Evidence TIDAK ada dan ada `evidence_file`:** Membuat record Evidence baru dengan `evidence_number` yang diberikan
   - **Jika Evidence TIDAK ada dan tidak ada `evidence_file`:** Gunakan `evidence_number` yang diberikan (suspect.evidence_id = evidence_number, tapi evidence record tidak dibuat)
 
-**Example Request (form-data) - Manual Evidence Number:**
+**Example Request (form-data) - Manual Evidence Number (Person Name):**
 ```
 case_id: 1
 person_name: John Doe
 suspect_status: Suspect
+is_unknown_person: false
 evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Smartphone dari tersangka
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Auto-Generate Evidence Number:**
+**Example Request (form-data) - Auto-Generate Evidence Number (Person Name):**
 ```
 case_id: 1
 person_name: John Doe
 suspect_status: Witness
+is_unknown_person: false
 evidence_source: Handphone
 evidence_summary: Test evidence summary
 evidence_file: [file]
 ```
 
-**Example Request (form-data) - Link to Existing Evidence:**
+**Example Request (form-data) - Unknown Person:**
+```
+case_id: 1
+is_unknown_person: true
+evidence_number: 32342223
+evidence_source: Handphone
+evidence_summary: Evidence for unknown person
+evidence_file: [file]
+```
+
+**Example Request (form-data) - Link to Existing Evidence (Person Name):**
 ```
 case_id: 1
 person_name: Nathalie
 suspect_status: Witness
+is_unknown_person: false
 evidence_number: 32342223
 evidence_source: Handphone
 evidence_summary: Link to existing evidence
@@ -3992,199 +3423,84 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 ---
 
-### 4. Get Suspect by ID
+### 5. Update Suspect
 
-**Endpoint:** `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`
+**Endpoint:** `PUT /api/v1/suspects/update-suspect/{suspect_id}`
 
-**Description:** Get comprehensive details of a specific suspect including personal information, case association, risk assessment, dan evidence-related fields.
+**Description:** Update suspect information. **Endpoint ini digunakan dari form "Edit Suspect"**. Endpoint ini hanya menerima field: `case_id`, `person_name` (dan `suspect_status`), atau `is_unknown_person`. Field evidence tidak dapat diupdate melalui endpoint ini. **Full Access**: All roles can update all suspects. No filtering or access restrictions.
 
-**Headers:** `Authorization: Bearer <access_token>`
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/x-www-form-urlencoded` atau `multipart/form-data`
 
 **Path Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier (di URL path) |
+| `suspect_id` | integer | **Yes** | Suspect ID yang akan di-update |
 
-**Contoh Request:**
-```
-GET http://localhost:8000/api/v1/suspects/get-suspect-by-id/1
-Authorization: Bearer <access_token>
-```
+**Request Body (form-data, all fields optional):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `case_id` | integer | No | Case ID (jika ingin mengubah case yang terkait). Jika diubah, `case_name` dan `investigator` akan diupdate otomatis dari case |
+| `person_name` | string | Conditional | Person name. **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI). Tidak perlu diisi jika `is_unknown_person = true` (radio button "Unknown Person" dipilih)** |
+| `is_unknown_person` | boolean | No | Flag yang menandakan apakah person tersebut unknown/tidak diketahui. **Jika `true` (radio button "Unknown Person" dipilih di UI):** `person_name` dan `suspect_status` tidak perlu diisi (tidak akan ditampilkan di UI), suspect akan diubah menjadi "Unknown", dan `suspect_status` akan di-set ke `null`. **Jika `false` (radio button "Person Name" dipilih):** `person_name` wajib diisi, `suspect_status` wajib diisi |
+| `suspect_status` | string | Conditional | Suspect status: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (must be selected from UI, no default). **WAJIB diisi jika `is_unknown_person = false` (radio button "Person Name" dipilih). Jika `is_unknown_person = true`, field ini tidak akan ditampilkan di UI dan akan di-set ke `null`** |
 
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Suspect retrieved successfully",
-  "data": {
-    "id": 1,
-    "name": "John Doe",
-    "case_name": "Data Breach",
-    "case_id": 1,
-    "investigator": "Solehun",
-    "status": "Witness",
-    "is_unknown": false,
-    "custody_stage": null,
-    "evidence_number": "32342223",
-    "evidence_source": "Handphone",
-    "evidence_summary": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
-    "created_by": "admin@gmail.com",
-    "date_of_birth": "1995-01-01",
-    "place_of_birth": "Medan",
-    "nationality": "Indonesian",
-    "phone_number": "+628123456785",
-    "email": "john@example.com",
-    "address": "Medan, Indonesia",
-    "height": 170,
-    "weight": 65,
-    "eye_color": "Brown",
-    "hair_color": "Black",
-    "distinguishing_marks": null,
-    "has_criminal_record": false,
-    "criminal_record_details": null,
-    "risk_level": "low",
-    "risk_assessment_notes": null,
-    "is_confidential": false,
-    "notes": null,
-    "created_at": "2025-12-11T08:00:00Z",
-    "updated_at": "2025-12-11T08:00:00Z"
-  }
-}
-```
+**Catatan Field Required:**
+- **Required (Wajib):** `suspect_id` (di path parameter)
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `person_name` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `person_name` tidak diisi, akan mengembalikan error 400: "person_name is required when is_unknown_person is false"
+- **Conditional Required (Wajib jika `is_unknown_person = false`):** `suspect_status` wajib diisi jika `is_unknown_person = false`. Jika `is_unknown_person = false` dan `suspect_status` tidak diisi, akan mengembalikan error 400: "suspect_status is required when is_unknown_person is false"
+- **Optional (Opsional):** `case_id`, `is_unknown_person`
 
-**Catatan:**
-- Field `status` tidak memiliki default value - harus dipilih dari UI (Witness, Reported, Suspected, Suspect, Defendant)
-- Field `evidence_id`, `evidence_source`, `evidence_summary` berasal dari Person model yang sudah digabung ke Suspect
-- Field `is_unknown` menunjukkan apakah suspect adalah "Unknown" atau memiliki nama
-- Field `custody_stage` menunjukkan tahap penahanan suspect
-- Field `created_by` menunjukkan user yang membuat record suspect
+**Catatan Penting:**
+- Field evidence (`evidence_number`, `evidence_source`, `evidence_file`, `evidence_summary`) **TIDAK dapat diupdate** melalui endpoint ini
+- Jika `case_id` diubah, `case_name` dan `investigator` akan diupdate otomatis dari case yang dipilih
 
-**Error Responses:**
+**Catatan tentang `is_unknown_person` dan `suspect_status`:**
+- **Jika `is_unknown_person = true` (radio button "Unknown Person" dipilih di UI):** 
+  - Di UI **TIDAK menampilkan** kolom `person_name` dan `suspect_status` (field ini tidak perlu diisi)
+  - `person_name` tidak perlu diisi (akan diabaikan dan di-set menjadi "Unknown")
+  - `suspect_status` tidak perlu diisi (akan diabaikan dan di-set ke `null`)
+  - `name` di database = "Unknown"
+  - `status` di database = `null`
+- **Jika `is_unknown_person = false` (radio button "Person Name" dipilih di UI):**
+  - Di UI menampilkan kolom `person_name` dan `suspect_status`
+  - `person_name` **WAJIB diisi** (jika tidak diisi, akan error 400: "person_name is required when is_unknown_person is false")
+  - `suspect_status` **WAJIB diisi** (jika tidak diisi, akan error 400: "suspect_status is required when is_unknown_person is false")
+  - `name` di database = `person_name` (wajib)
+  - `status` di database = `suspect_status` (wajib)
 
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 5. Update Suspect
-
-**Endpoint:** `PUT /api/v1/suspects/update-suspect`
-
-**Description:** Update suspect information. Uses the same form as Create Suspect. All fields are optional (partial update). Supports file upload for evidence files.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: multipart/form-data` (when evidence file is included) or `application/json`
-
-**Request Body (multipart/form-data or JSON - all fields optional, but `suspect_id` is required):**
-
-**Form Fields Mapping (same as Create Suspect):**
-| UI Field | API Field | Type | Required | Description |
-|----------|-----------|------|----------|-------------|
-| Case Name (dropdown) | `case_id` | integer | No | Case ID selected from dropdown |
-| Person of Interest (radio) | `is_unknown` | boolean | No | `true` for "Unknown", `false` for "Person Name" |
-| Person Name | `name` | string | No | Full name of the suspect |
-| Status (dropdown) | `status` | string | No | Suspect status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
-| Evidence Number (radio: Generating) | - | - | No | If selected, `evidence_number` should NOT be provided (will auto-generate) |
-| Evidence Number (radio: Manual Input) | - | - | No | If selected, `evidence_number` MUST be provided and cannot be empty |
-| Evidence Number (text input) | `evidence_number` | string | No | Manual Evidence Number (required if Manual Input selected, cannot be empty) |
-| Evidence Source (dropdown) | `evidence_source` | string | No | Evidence source: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR" |
-| Evidence (file upload) | `evidence_file` | file | No | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
-| Investigator | `investigator` | string | No | Investigator name |
-| Date of Birth | `date_of_birth` | date | No | Date of birth (YYYY-MM-DD) |
-| Place of Birth | `place_of_birth` | string | No | Place of birth |
-| Nationality | `nationality` | string | No | Nationality |
-| Phone Number | `phone_number` | string | No | Phone number |
-| Email | `email` | string | No | Email address |
-| Address | `address` | string | No | Address |
-| Height | `height` | integer | No | Height in cm |
-| Weight | `weight` | integer | No | Weight in kg |
-| Eye Color | `eye_color` | string | No | Eye color |
-| Hair Color | `hair_color` | string | No | Hair color |
-| Distinguishing Marks | `distinguishing_marks` | string | No | Distinguishing marks |
-| Has Criminal Record | `has_criminal_record` | boolean | No | Has criminal record |
-| Criminal Record Details | `criminal_record_details` | string | No | Criminal record details |
-| Risk Level | `risk_level` | string | No | Risk level: `"low"`, `"medium"`, `"high"` |
-| Risk Assessment Notes | `risk_assessment_notes` | string | No | Risk assessment notes |
-| Is Confidential | `is_confidential` | boolean | No | Is confidential |
-| Notes | `notes` | string | No | Additional notes |
-
-**Example Request (multipart/form-data):**
+**Example Request (form-data) - Person Name:**
 ```
 case_id: 1
-is_unknown: false
-name: "Updated Name"
-status: "Defendant"
-evidence_id_generating: true
-evidence_source: "Handphone"
-evidence_file: [file]
-risk_level: "high"
-notes: "Updated notes"
+person_name: John Doe
+suspect_status: Defendant
+is_unknown_person: false
 ```
 
-**Example Request (JSON - without file upload):**
-```json
-{
-  "suspect_id": 1,
-  "case_id": 1,
-  "is_unknown": false,
-  "name": "Updated Name",
-  "case_name": "Data Breach",
-  "investigator": "Solehun",
-  "status": "Defendant",
-  "evidence_number": "32342223",
-  "evidence_source": "Handphone",
-  "date_of_birth": "1995-01-01",
-  "place_of_birth": "Medan",
-  "nationality": "Indonesian",
-  "phone_number": "+628123456785",
-  "email": "updated@example.com",
-  "address": "Medan, Indonesia",
-  "height": 170,
-  "weight": 65,
-  "eye_color": "Brown",
-  "hair_color": "Black",
-  "has_criminal_record": false,
-  "risk_level": "high",
-  "notes": "Updated notes"
-}
+**Example Request (form-data) - Unknown Person:**
+```
+case_id: 1
+is_unknown_person: true
+```
+
+**Example Request (form-data) - Update case_id only:**
+```
+case_id: 2
+```
+
+**Example Request (form-data) - Update person_name and suspect_status only:**
+```
+person_name: Jane Smith
+suspect_status: Suspect
 ```
 
 **Catatan:** 
-- Jika `evidence_file` disediakan, gunakan content type `multipart/form-data`
-- Semua field bersifat opsional (partial update)
-- Field `evidence_number` bersifat **opsional**:
-  - **Jika TIDAK disediakan + file ada:** Otomatis membuat `EVID-{case_id}-{YYYYMMDD}-{sequence:04d}` dan membuat record Evidence
-  - **Jika TIDAK disediakan + tidak ada file:** `evidence_number = null` (opsional, tidak membuat record Evidence)
-  - **Jika disediakan secara manual:** Tidak boleh kosong (mengembalikan error 400: "evidence_number cannot be empty when provided manually")
-  - **Linking:** Jika record Evidence sudah ada dengan `evidence_number` yang sama, person akan dihubungkan ke Evidence yang sudah ada
+- Semua field bersifat opsional (partial update), tetapi ada conditional requirements berdasarkan `is_unknown_person`
+- Jika `case_id` diubah, `case_name` dan `investigator` akan diupdate otomatis dari case yang dipilih
 - `case_id` harus dipilih dari dropdown cases (gunakan `GET /api/v1/cases/get-all-cases` untuk mendapatkan cases yang tersedia)
-- `evidence_source` harus dipilih dari sumber evidence: "Handphone", "SSD", "Harddisk", "PC", "Laptop", "DVR"
 - `suspect_status` harus dipilih dari: "Witness", "Reported", "Suspected", "Suspect", "Defendant" (tidak ada default, bisa null)
+- Field evidence (`evidence_number`, `evidence_source`, `evidence_file`, `evidence_summary`) **TIDAK dapat diupdate** melalui endpoint ini. Gunakan endpoint evidence management untuk update evidence
 
 **Response (200 OK):**
 ```json
@@ -4192,399 +3508,74 @@ notes: "Updated notes"
   "status": 200,
   "message": "Suspect updated successfully",
   "data": {
-    "id": 1,
-    "name": "Updated Name",
-    "status": "Defendant",
-    "risk_level": "high",
-    "updated_at": "2025-12-16T15:00:00Z"
+    "id": 7,
+    "name": "Doyo Wati Jo Sa Li",
+    "case_name": "Kasus kriminal pembunuhan di terminal pasar minggu",
+    "investigator": "Solehun",
+    "status": "Reported",
+    "evidence_number": "45495004534839",
+    "evidence_source": "SSD",
+    "created_at": "2025-11-16T22:20:01.709015+07:00",
+    "updated_at": "2025-11-17T15:44:34.479614+07:00"
   }
 }
 ```
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (person_name required):**
 ```json
 {
   "status": 400,
-  "message": "Validation error",
-  "data": null
+  "message": "person_name is required when is_unknown_person is false"
 }
 ```
 
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 6. Delete Suspect
-
-**Endpoint:** `DELETE /api/v1/suspects/delete-suspect`
-
-**Description:** Delete a suspect record.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Suspect deleted successfully"
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 7. Get Suspect Statuses
-
-**Endpoint:** `GET /api/v1/suspects/statuses`
-
-**Description:** Get list of available suspect statuses (for dropdown selection in forms).
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Suspect statuses retrieved successfully",
-  "data": [
-    {
-      "value": "Witness",
-      "label": "Witness",
-      "color": "green"
-    },
-    {
-      "value": "Suspected",
-      "label": "Suspected",
-      "color": "orange"
-    },
-    {
-      "value": "Reported",
-      "label": "Reported",
-      "color": "yellow"
-    },
-    {
-      "value": "Suspect",
-      "label": "Suspect",
-      "color": "red"
-    },
-    {
-      "value": "Defendant",
-      "label": "Defendant",
-      "color": "dark-red"
-    }
-  ]
-}
-```
-
-**Error Responses:**
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 8. Export Suspect Details PDF
-
-**Endpoint:** `GET /api/v1/suspects/export-suspect-details-pdf`
-
-**Description:** Export comprehensive suspect details as PDF document. Includes suspect information, personal details, case information, risk assessment, and related data.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
-
-**Response (200 OK):**
-- **Content-Type:** `application/pdf`
-- **Content-Disposition:** `attachment; filename="suspect_details_{suspect_id}_{timestamp}.pdf"`
-
-The response is a PDF file that can be downloaded directly.
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
-**Example Request:**
-```
-GET /api/v1/suspects/export-suspect-details-pdf?suspect_id=1
-Authorization: Bearer {access_token}
-```
-
-**Note:** This endpoint generates a comprehensive PDF report including all suspect information, personal details, case association, risk level assessment, and related evidence.
-
----
-
-### 7. Get Suspect Statistics
-
-**Endpoint:** `GET /api/v1/suspects/statistics`
-
-**Description:** Get summary statistics for Suspect Management dashboard (Total Person, Total Evidence).
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Statistics retrieved successfully",
-  "data": {
-    "total_persons": 21,
-    "total_evidence": 21
-  }
-}
-```
-
-**Error Responses:**
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 8. Get Evidence by Suspect ID
-
-**Endpoint:** `GET /api/v1/suspects/evidence`
-
-**Description:** Get all evidence associated with a specific suspect.
-
-**Headers:** `Authorization: Bearer <access_token>`
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-  "message": "Evidence retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "evidence_number": "EVID-001",
-      "title": "Handphone A",
-      "thumbnail": "/data/thumbnails/evidence_1_map.png",
-      "notes": "Notes 33242352",
-      "description": "GPS handphone suspect menyatakan posisi yang berada di TKP pada saat kejadian.",
-      "created_at": "2025-12-20T10:00:00Z"
-    },
-    {
-      "id": 2,
-      "evidence_number": "EVID-002",
-      "title": "Phone Screen",
-      "thumbnail": "/data/thumbnails/evidence_2_phone.png",
-      "notes": "Notes 33242352",
-      "description": "Terdapat dialog seputar pembakaran dengan suspect lain.",
-      "created_at": "2025-12-20T11:00:00Z"
-    }
-  ],
-  "total": 12
-}
-```
-
-**Error Responses:**
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 9. Add Evidence to Suspect
-
-**Endpoint:** `POST /api/v1/suspects/evidence`
-
-**Description:** Add new evidence to an existing suspect. Supports file upload for evidence files.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: multipart/form-data`
-
-**Request Body (multipart/form-data - all fields required, including `suspect_id`):**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `suspect_id` | integer | Yes | Unique suspect identifier |
-| `evidence_number` | string | No | Evidence Number (if manual input) |
-| `evidence_source` | string | Yes | Evidence source (e.g., "Handphone", "CCTV") |
-| `evidence_file` | file | Yes | Evidence file to upload. **Hanya file PDF dan Image yang diperbolehkan** (extensions: `pdf`, `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`) |
-| `notes` | string | No | Evidence notes |
-| `description` | string | No | Evidence description |
-
-**Response (201 Created):**
-```json
-{
-  "status": 201,
-  "message": "Evidence added to suspect successfully",
-  "data": {
-    "id": 13,
-    "evidence_number": "EVID-013",
-    "title": "New Evidence",
-      "notes": "Notes 33242353",
-    "description": "New evidence description",
-    "suspect_id": 1,
-    "created_at": "2025-12-20T12:00:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
+**400 Bad Request (suspect_status required):**
 ```json
 {
   "status": 400,
-  "message": "Validation error: {error_details}",
-  "data": null
+  "message": "suspect_status is required when is_unknown_person is false"
 }
 ```
 
-**404 Not Found:**
+**400 Bad Request (person_name cannot be empty):**
+```json
+{
+  "status": 400,
+  "message": "person_name cannot be empty"
+}
+```
+
+**400 Bad Request (suspect_status cannot be empty):**
+```json
+{
+  "status": 400,
+  "message": "suspect_status cannot be empty"
+}
+```
+
+**400 Bad Request (Invalid suspect_status):**
+```json
+{
+  "status": 400,
+  "message": "Invalid suspect_status value: 'InvalidStatus'. Valid values are: Witness, Reported, Suspected, Suspect, Defendant"
+}
+```
+
+**404 Not Found (Suspect not found):**
 ```json
 {
   "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**404 Not Found (Case not found):**
+```json
+{
+  "status": 404,
+  "message": "Case with ID {case_id} not found"
 }
 ```
 
@@ -4597,32 +3588,140 @@ Authorization: Bearer {access_token}
 }
 ```
 
-**500 Internal Server Error:**
+**500 Internal Server Error (Database error):**
 ```json
 {
   "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
+  "message": "Database error: {error_str}"
+}
+```
+
+**500 Internal Server Error (Unexpected error):**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
 }
 ```
 
 ---
 
-### 10. Update Suspect Notes
+### 6. Save Suspect Notes
 
-**Endpoint:** `PUT /api/v1/suspects/notes`
+**Endpoint:** `POST /api/v1/suspects/save-suspect-notes`
 
-**Description:** Update notes for a specific suspect.
+**Description:** Save new notes for a suspect. **Endpoint ini digunakan untuk menyimpan catatan baru tentang suspect**. Endpoint ini hanya dapat digunakan untuk menyimpan notes baru jika suspect belum memiliki notes. Jika notes sudah ada, gunakan endpoint `PUT /api/v1/suspects/edit-suspect-notes` untuk mengupdate notes yang sudah ada.
+
+Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can save notes for all suspects. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
 - `Content-Type: application/json`
 
-**Request Body (all fields required, including `suspect_id`):**
+**Request Body (JSON):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+| `notes` | string | **Yes** | Notes text to save for the suspect |
+
+**Example Request:**
 ```json
 {
   "suspect_id": 1,
   "notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": 201,
+  "message": "Suspect notes saved successfully",
+  "data": {
+    "suspect_id": 1,
+    "notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan."
+  }
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request (No evidence found):**
+```json
+{
+  "status": 400,
+  "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+}
+```
+
+**400 Bad Request (Notes already exist):**
+```json
+{
+  "status": 400,
+  "message": "Notes already exist for this suspect. Use PUT /api/v1/suspects/edit-suspect-notes to update existing notes."
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "status": 404,
+  "message": "Suspect with ID {suspect_id} not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "status": 401,
+  "message": "Invalid token",
+  "data": null
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "status": 500,
+  "message": "Unexpected server error: {error_message}"
+}
+```
+
+**Note:**
+- Endpoint ini hanya untuk **menyimpan notes baru**. Jika notes sudah ada, endpoint akan mengembalikan error 400
+- Notes akan disimpan di field `notes` dari evidence pertama yang terhubung dengan suspect
+- Notes disimpan sebagai JSON dengan key `suspect_notes`
+- Jika evidence sudah memiliki notes (dict atau string), notes baru akan ditambahkan sebagai `suspect_notes`, tetapi notes lain di dalam dict tidak akan dihapus
+- Endpoint ini secara otomatis membuat case log entry ketika notes di-save
+- Notes yang disimpan akan muncul di endpoint `get-suspect-detail` di field `suspect_notes`
+- Untuk melihat notes yang sudah disimpan, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+- Untuk mengupdate notes yang sudah ada, gunakan endpoint `PUT /api/v1/suspects/edit-suspect-notes`
+
+---
+
+### 7. Edit Suspect Notes
+
+**Endpoint:** `PUT /api/v1/suspects/edit-suspect-notes`
+
+**Description:** Edit existing notes for a suspect. **Endpoint ini digunakan untuk mengupdate catatan yang sudah ada tentang suspect**. Endpoint ini hanya dapat digunakan untuk mengupdate notes yang sudah ada. Jika notes belum ada, gunakan endpoint `POST /api/v1/suspects/save-suspect-notes` untuk membuat notes baru.
+
+Notes akan diupdate di field `notes` dari evidence pertama yang terhubung dengan suspect sebagai JSON dengan key `suspect_notes`. Jika tidak ada evidence yang terhubung dengan suspect, endpoint akan mengembalikan error. **Full Access**: All roles can edit notes for all suspects. No filtering or access restrictions.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Body (JSON):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+| `notes` | string | **Yes** | Notes text to update for the suspect |
+
+**Example Request:**
+```json
+{
+  "suspect_id": 1,
+  "notes": "Updated notes: Dokumentasi detail telah diperbarui dengan informasi tambahan tentang isolasi jaringan dan chain of custody."
 }
 ```
 
@@ -4632,93 +3731,27 @@ Authorization: Bearer {access_token}
   "status": 200,
   "message": "Suspect notes updated successfully",
   "data": {
-    "id": 1,
-    "notes": "Dokumentasi detail, isolasi jaringan, serta pencatatan chain of custody sangat penting untuk memastikan integritas bukti GPS handphone dan dapat dipertanggungjawabkan di pengadilan.",
-    "updated_at": "2025-12-20T13:00:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
-```json
-{
-  "status": 400,
-  "message": "Validation error",
-  "data": null
-}
-```
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Unexpected server error, please try again later",
-  "data": null
-}
-```
-
----
-
-### 11. Save Suspect Notes
-
-**Endpoint:** `POST /api/v1/suspects/save-notes`
-
-**Description:** Save or update notes for a specific suspect.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "suspect_id": 1,
-  "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran."
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-    "message": "Suspect notes saved successfully",
-  "data": {
     "suspect_id": 1,
-    "suspect_name": "John Doe",
-    "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran.",
-    "updated_at": "2025-12-20T14:30:00Z"
+    "notes": "Updated notes: Dokumentasi detail telah diperbarui dengan informasi tambahan tentang isolasi jaringan dan chain of custody."
   }
 }
 ```
 
 **Error Responses:**
 
-**400 Bad Request:**
+**400 Bad Request (No evidence found):**
 ```json
 {
   "status": 400,
-  "message": "Notes cannot be empty",
-  "data": null
+  "message": "Cannot edit notes: No evidence found for this suspect. Please create evidence first."
+}
+```
+
+**400 Bad Request (No notes found):**
+```json
+{
+  "status": 400,
+  "message": "No notes found for this suspect. Use POST /api/v1/suspects/save-suspect-notes to create new notes."
 }
 ```
 
@@ -4726,8 +3759,7 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
+  "message": "Suspect with ID {suspect_id} not found"
 }
 ```
 
@@ -4744,114 +3776,22 @@ Authorization: Bearer {access_token}
 ```json
 {
   "status": 500,
-  "message": "Failed to save suspect notes: {error_message}",
-  "data": null
-}
-```
-
----
-
-### 12. Edit Suspect Notes
-
-**Endpoint:** `PUT /api/v1/suspects/edit-notes`
-
-**Description:** Update notes for a specific suspect.
-
-**Headers:** 
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "suspect_id": 1,
-  "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan."
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": 200,
-    "message": "Suspect notes updated successfully",
-  "data": {
-    "suspect_id": 1,
-    "suspect_name": "John Doe",
-    "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan.",
-    "updated_at": "2025-12-20T15:45:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 Bad Request:**
-```json
-{
-  "status": 400,
-  "message": "Notes cannot be empty",
-  "data": null
-}
-```
-
-**404 Not Found:**
-```json
-{
-  "status": 404,
-  "message": "Suspect with ID {suspect_id} not found",
-  "data": null
-}
-```
-
-**401 Unauthorized:**
-```json
-{
-  "status": 401,
-  "message": "Invalid token",
-  "data": null
-}
-```
-
-**500 Internal Server Error:**
-```json
-{
-  "status": 500,
-  "message": "Failed to edit suspect notes: {error_message}",
-  "data": null
+  "message": "Unexpected server error: {error_message}"
 }
 ```
 
 **Note:**
-- Endpoint `save-notes` dan `edit-notes` memiliki fungsi yang sama (save atau update notes)
-- Gunakan `save-notes` untuk membuat notes baru atau mengupdate notes yang sudah ada
-- Gunakan `edit-notes` untuk mengupdate notes yang sudah ada (lebih eksplisit untuk operasi update)
-- **Suspect notes berbentuk string** (plain text)
-
-**Example Request:**
-```
-POST http://localhost:8000/api/v1/suspects/save-notes
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "suspect_id": 1,
-  "notes": "Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran."
-}
-```
-
-**Example Request (Edit Notes):**
-```
-PUT http://localhost:8000/api/v1/suspects/edit-notes
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "suspect_id": 1,
-  "notes": "Updated: Suspect teridentifikasi melalui analisis GPS handphone yang menunjukkan posisi di TKP pada saat kejadian. Terdapat bukti komunikasi dengan tersangka lain terkait pembakaran. Investigasi lebih lanjut menunjukkan pola pergerakan mencurigakan."
-}
-```
+- Endpoint ini hanya untuk **mengupdate notes yang sudah ada**. Jika notes belum ada, endpoint akan mengembalikan error 400
+- Notes akan diupdate di field `notes` dari evidence pertama yang terhubung dengan suspect
+- Notes disimpan sebagai JSON dengan key `suspect_notes`
+- Notes baru akan menggantikan nilai `suspect_notes` yang lama, tetapi notes lain di dalam dict tidak akan dihapus
+- Endpoint ini secara otomatis membuat case log entry ketika notes di-update
+- Notes yang diupdate akan muncul di endpoint `get-suspect-detail` di field `suspect_notes`
+- Untuk melihat notes yang sudah disimpan, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
+- Untuk membuat notes baru, gunakan endpoint `POST /api/v1/suspects/save-suspect-notes`
 
 ---
+
 
 ## 👤 Person Management (Legacy)
 
@@ -4862,14 +3802,11 @@ Content-Type: application/json
 
 **Endpoint:** `POST /api/v1/persons/create-person`
 
-**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama).
+**Description:** Add a person of interest (suspect/witness) to a case. **Endpoint ini HARUS membuat suspect + evidence bersamaan (1 person, 1 evidence)**. Endpoint ini digunakan dari form "Add Person" di Case Details. Endpoint ini selalu membuat suspect baru (tidak mengecek existing suspect dengan nama yang sama). **Full Access**: All roles can create person for all cases. No filtering or access restrictions.
 
 **Headers:** 
-- Tab **Authorization**: 
-  - Type: `Bearer Token`
-  - Token: `{access_token}`
-- Tab **Body**: 
-  - Select: `form-data`
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (untuk upload file) atau `application/x-www-form-urlencoded`
 
 **Request Body (form-data):**
 | Field | Type | Required | Description |
@@ -5116,6 +4053,14 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 }
 ```
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to create person for this case"
+}
+```
+
 **404 Not Found (Case not found):**
 ```json
 {
@@ -5182,7 +4127,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 **Catatan:** 
 - Endpoint `get-person` dan `get-persons-by-case` sudah tidak digunakan karena data person/suspect sudah ditampilkan di endpoint `get-case-detail-comprehensive`.
 - Untuk mendapatkan detail person/suspect, gunakan endpoint `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` yang akan menampilkan semua persons of interest dalam response `persons_of_interest`.
-- Untuk mendapatkan detail suspect lengkap, gunakan endpoint `GET /api/v1/suspects/get-suspect-by-id/{suspect_id}`.
+- Untuk mendapatkan detail suspect lengkap, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`.
 
 ---
 
@@ -5190,7 +4135,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 
 **Endpoint:** `PUT /api/v1/persons/update-person/{person_id}`
 
-**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**.
+**Description:** Update person information. All fields are optional (partial update). **Endpoint ini digunakan dari form "Edit Person of Interest"**. **Full Access**: All roles can update all persons. No filtering or access restrictions.
 
 **Headers:** 
 - `Authorization: Bearer <access_token>`
@@ -5293,6 +4238,14 @@ is_unknown_person: true
 }
 ```
 
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to update this person"
+}
+```
+
 **404 Not Found:**
 ```json
 {
@@ -5325,7 +4278,7 @@ is_unknown_person: true
 
 **Endpoint:** `DELETE /api/v1/persons/delete-person/{person_id}`
 
-**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail.
+**Description:** Delete a person of interest. **Endpoint ini digunakan dari dialog "Delete Person"**. Evidence yang terhubung dengan person ini TIDAK akan dihapus, hanya link ke person yang dihapus. Evidence akan muncul sebagai "Unknown" di case detail. **Full Access**: All roles can delete all persons. No filtering or access restrictions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -5361,6 +4314,14 @@ is_unknown_person: true
 - Person ID dikirim sebagai path parameter
 
 **Error Responses:**
+
+**403 Forbidden (Access Denied):**
+```json
+{
+  "status": 403,
+  "detail": "You do not have permission to delete this person"
+}
+```
 
 **404 Not Found:**
 ```json
@@ -5469,14 +4430,54 @@ All error responses follow this structure:
 ## 🔒 Role-Based Access Control (RBAC)
 
 ### Overview
-The API implements Role-Based Access Control (RBAC) to restrict data access based on user roles.
+The API implements Role-Based Access Control (RBAC) for different modules:
+- **Case Management Modules (Case, Evidence, Suspect, Person, Case Log, Reports)**: **Full Access** - All roles can access all data
+- **User Management**: **Admin Only** - Only admin role can access user management endpoints
+- **Analytics Management**: **Role-Based** - Access control based on user roles (see Analytics Management documentation)
+
+### How Access Control Works?
+
+**1. Role vs Tag - Important Difference:**
+
+| Concept | Function | Usage |
+|---------|----------|-------|
+| **Role** | Determines data access level | Used for **access control** - determines if user can see all data or only their own data |
+| **Tag** | User category/position | Used for **display** and **mapping to role** when creating user, **NOT used for data filtering** |
+
+**2. Tag to Role Mapping:**
+
+When creating a new user, tag is automatically mapped to role:
+
+| User Tag | Resulting Role | Case Management Access | User Management Access |
+|----------|----------------|------------------------|------------------------|
+| `"Admin"` | `admin` | ✅ Full Access (all data) | ✅ Full Access (can manage users) |
+| `"Investigator"` | `user` | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
+| `"Ahli Forensic"` | `user` | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
+| Other tags | `user` (default) | ✅ Full Access (all data) | ❌ No Access (403 Forbidden) |
+
+**3. Access Control by Module:**
+
+**Case Management Modules (Full Access):**
+- **All Roles**: Can access, view, create, update, delete all cases, evidence, suspects, persons, case logs, and reports
+- **No Filtering**: No restrictions based on `main_investigator` or user information
+- **No 403 Errors**: All roles can access all data without permission errors
+
+**User Management (Admin Only):**
+- **Admin Role**: Can access, view, create, update, delete all users
+- **Regular User Role**: Cannot access user management endpoints (403 Forbidden)
+
+**Analytics Management (Role-Based):**
+- See Analytics Management documentation for detailed access control rules
+- Uses filtering based on `analytic_name`, `summary`, or `created_by` containing user's `fullname` or `email`
+
+**Note:** The old data filtering mechanism (based on `main_investigator` matching user's `fullname` or `email`) **no longer applies** to Case Management modules. All Case Management modules now have full access for all roles.
 
 ### Roles
 
-| Role | Description | Access Level |
-|------|-------------|--------------|
-| `admin` | Administrator | Full access to all data |
-| `user` | Regular user | Limited access (own data only) |
+| Role | Description | Case Management Access | User Management Access |
+|------|-------------|------------------------|------------------------|
+| `admin` | Administrator | Full access to all data | Full access (can manage users) |
+| `user` | Regular user | Full access to all data | No access (403 Forbidden) |
 
 ### Role Mapping from Tags
 
@@ -5489,31 +4490,218 @@ When creating a user, the role is automatically mapped from the tag:
 | `"Ahli Forensic"` | `user` |
 | Other tags | `user` (default) |
 
+### Practical Examples
+
+**Scenario 1: User with Admin Role**
+```
+User: {
+  fullname: "Admin User",
+  email: "admin@example.com",
+  tag: "Admin",
+  role: "admin"
+}
+
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+User Management: ✅ Can access, create, update, delete all users
+```
+
+**Scenario 2: User with User Role (Tag: Investigator)**
+```
+User: {
+  fullname: "Investigator A",
+  email: "investigator@example.com",
+  tag: "Investigator",
+  role: "user"
+}
+
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+  - Case 1 (main_investigator: "Investigator A"): ✅ CAN ACCESS
+  - Case 2 (main_investigator: "Investigator B"): ✅ CAN ACCESS
+  - Case 3 (main_investigator: "Ahli Forensic X"): ✅ CAN ACCESS
+  - All cases accessible regardless of main_investigator value
+
+User Management: ❌ Cannot access (403 Forbidden)
+  - GET /api/v1/auth/get-all-users: ❌ 403 Forbidden
+  - POST /api/v1/auth/create-user: ❌ 403 Forbidden
+```
+
+**Scenario 3: User with User Role (Tag: Ahli Forensic)**
+```
+User: {
+  fullname: "Ahli Forensic X",
+  email: "forensic@example.com",
+  tag: "Ahli Forensic",
+  role: "user"
+}
+
+Case Management: ✅ Can access ALL cases, evidence, suspects, persons, case logs, and reports
+  - Case 1 (main_investigator: "Ahli Forensic X"): ✅ CAN ACCESS
+  - Case 2 (main_investigator: "Ahli Forensic Y"): ✅ CAN ACCESS
+  - Case 3 (main_investigator: "Investigator A"): ✅ CAN ACCESS
+  - All cases accessible regardless of main_investigator value
+
+User Management: ❌ Cannot access (403 Forbidden)
+```
+
+**Important Points:**
+- Tags `"Investigator"` and `"Ahli Forensic"` **both result in role `"user"`**
+- Both have **full access** to Case Management modules (all data)
+- Both have **no access** to User Management (admin only)
+- Tag difference is only for **display/organization purposes**, not for access control
+- **No filtering** is applied to Case Management modules - all roles see all data
+
+### Access Control Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    USER LOGIN                                │
+│  { fullname, email, tag, role }                             │
+└────────────────────┬──────────────────────────────────────┘
+                     │
+                     ▼
+         ┌───────────────────────┐
+         │  Check Module Type    │
+         └───────┬───────────────┘
+                 │
+        ┌────────┴────────┐
+        │                 │
+        ▼                 ▼
+┌──────────────┐   ┌──────────────┐
+│ Case Mgmt    │   │ User Mgmt    │
+│ Modules      │   │              │
+└──────┬───────┘   └──────┬───────┘
+       │                  │
+       │                  │
+       ▼                  ▼
+┌──────────────┐   ┌──────────────┐
+│ Full Access  │   │ Check Role   │
+│ All Roles    │   └──────┬───────┘
+│              │          │
+│ ✅ Admin     │          │
+│ ✅ User      │          ▼
+│              │   ┌──────────────┐
+│ No Filtering │   │ admin?       │
+│ No 403       │   └──────┬───────┘
+└──────────────┘          │
+                          │
+                  ┌───────┴───────┐
+                  │               │
+                  ▼               ▼
+            ┌─────────┐     ┌──────────┐
+            │  Yes    │     │   No     │
+            │ ✅ Allow│     │ ❌ 403   │
+            └─────────┘     └──────────┘
+```
+
+### Summary
+
+| Aspect | Explanation |
+|--------|-------------|
+| **Case Management Modules** | **Full Access** - All roles (admin/user) can access all data |
+| **User Management** | **Admin Only** - Only admin role can access user management endpoints |
+| **Access Control Based On** | **Module Type** - Different modules have different access rules |
+| **Tag Used For** | Display and mapping to role when creating user |
+| **Case Management Filtering** | **No Filtering** - All roles see all data |
+| **User Management Filtering** | **Role-Based** - Only admin can access |
+| **Tag "Investigator" vs "Ahli Forensic"** | Both result in role "user" with full access to Case Management, no access to User Management |
+
 ### Access Rules
 
 #### Case Management
 
-**Get All Cases (`GET /api/v1/cases/get-all-cases`):**
-- **Admin:** Sees all cases in the database
-- **User:** Only sees cases where `main_investigator` matches their `fullname`
+**All Case Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, delete, and export all cases. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `GET /api/v1/cases/get-all-cases` - All cases accessible to all roles
+- `GET /api/v1/cases/get-case-detail-comprehensive/{case_id}` - All case details accessible to all roles
+- `PUT /api/v1/cases/update-case/{case_id}` - All cases can be updated by all roles
+- `GET /api/v1/cases/export-case-details-pdf/{case_id}` - All cases can be exported by all roles
+- `POST /api/v1/cases/save-notes` - Notes can be saved for all cases by all roles
+- `PUT /api/v1/cases/edit-notes` - Notes can be edited for all cases by all roles
+- `GET /api/v1/cases/statistics/summary` - All statistics accessible to all roles
 
 **Example:**
-- User with `fullname = "Investigator"` only sees cases with `main_investigator = "Investigator"`
-- User with `fullname = "Ahli Forensic"` only sees cases with `main_investigator = "Ahli Forensic"`
+- User with any role can access all cases regardless of `main_investigator` value
+- No 403 Forbidden errors for accessing cases from other users
+
+#### Evidence Management
+
+**All Evidence Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, and create evidence for all cases. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `GET /api/v1/evidence/get-evidence-list` - All evidence accessible to all roles
+- `GET /api/v1/evidence/get-evidence-summary` - All statistics accessible to all roles
+- `POST /api/v1/evidence/create-evidence` - Evidence can be created for all cases by all roles
+- `GET /api/v1/evidence/get-evidence-by-id{evidence_id}` - All evidence details accessible to all roles
+
+#### Suspect Management
+
+**All Suspect Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, and delete all suspects. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `GET /api/v1/suspects/` - All suspects accessible to all roles
+- `GET /api/v1/suspects/get-suspect-summary` - All statistics accessible to all roles
+- `GET /api/v1/suspects/get-suspect-detail/{suspect_id}` - All suspect details accessible to all roles
+- `POST /api/v1/suspects/create-suspect` - Suspects can be created for all cases by all roles
+- `PUT /api/v1/suspects/update-suspect/{suspect_id}` - All suspects can be updated by all roles
+- `POST /api/v1/suspects/save-suspect-notes` - All roles can save notes for all suspects
+- `PUT /api/v1/suspects/edit-suspect-notes` - All roles can edit notes for all suspects
+
+#### Person Management (Legacy)
+
+**All Person Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, create, update, and delete all persons. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `POST /api/v1/persons/create-person` - Persons can be created for all cases by all roles
+- `PUT /api/v1/persons/update-person/{person_id}` - All persons can be updated by all roles
+- `DELETE /api/v1/persons/delete-person/{person_id}` - All persons can be deleted by all roles
+
+**Note:** Person Management endpoints are legacy endpoints that work similarly to Suspect Management. Both endpoints manage the same underlying data (Suspect model).
+
+#### Case Log Management
+
+**All Case Log Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access, view, and update case logs for all cases. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `GET /api/v1/case-logs/case/logs/{case_id}` - All case logs accessible to all roles
+- `GET /api/v1/case-logs/log/{log_id}` - All log details accessible to all roles
+- `PUT /api/v1/case-logs/change-log/{case_id}` - Case status can be updated for all cases by all roles
+
+#### Reports Management
+
+**All Reports Management Endpoints:**
+- **Full Access**: All roles (Admin, Investigator, Ahli Forensic) can access all case summary and evidence chain reports. No filtering or access restrictions based on `main_investigator`.
+
+**Affected Endpoints:**
+- `GET /api/v1/reports/case-summary/{case_id}` - All case summary reports accessible to all roles
+- `GET /api/v1/reports/evidence-chain/{evidence_id}` - All evidence chain reports accessible to all roles
 
 #### User Management
 
-**Create User (`POST /api/v1/auth/create-user`):**
-- **Admin:** ✅ Can create users
-- **User:** ❌ Cannot create users (403 Forbidden)
+**All User Management Endpoints:**
+- **Admin Role**: ✅ Can access, view, create, update, and delete all users.
+- **Regular User Role**: ❌ Cannot access user management endpoints (403 Forbidden). Only admin can manage users.
+
+**Affected Endpoints:**
+- `GET /api/v1/auth/get-all-users` - Admin only
+- `POST /api/v1/auth/create-user` - Admin only
+- `PUT /api/v1/auth/update-user/{user_id}` - Admin only
+- `DELETE /api/v1/auth/delete-user/{user_id}` - Admin only
+
+**Note:** User Management is the only module with restricted access. All other modules (Case, Evidence, Suspect, Person, Case Log, Reports) have full access for all roles.
 
 ### Important Notes
 
-1. **Matching Criteria:** User role filtering uses exact match: `Case.main_investigator == User.fullname`
-   - Case-sensitive
-   - Must match exactly (including spaces and special characters)
+1. **Full Access for Case Management Modules:** All Case Management, Evidence Management, Suspect Management, Person Management, Case Log Management, and Reports Management endpoints have **full access** for all roles. No filtering or access restrictions are applied.
 
-2. **Admin Bypass:** Admin users bypass all filters and see all data
+2. **User Management Restriction:** Only Admin role can access User Management endpoints. Regular users (Investigator, Ahli Forensic) will receive 403 Forbidden when attempting to access user management endpoints.
+
+3. **No 403 Forbidden Errors:** Regular users will NOT receive 403 Forbidden errors when accessing Case Management, Evidence Management, Suspect Management, Person Management, Case Log Management, or Reports Management endpoints, as all roles have full access to these modules.
 
 3. **Token Validation:** All protected endpoints validate:
    - Token signature

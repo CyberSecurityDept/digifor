@@ -9,6 +9,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         response = await call_next(request)
         process_time = time.time() - start_time
+
+        if request.url.path == "/api/v1/auth/login" and response.status_code == 401:
+            return response
+        
         client_ip = request.client.host if request.client else "unknown"
         log_message = f"{request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s) [Client: {client_ip}]"
         if response.status_code >= 500:

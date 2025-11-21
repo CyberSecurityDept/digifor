@@ -1,5 +1,5 @@
 
-Senin 13 November 2025
+Laporan Pekerjaan Senin 13 November 2025
 
 Case Management
 
@@ -48,3 +48,96 @@ Case Management
 
 
 
+{
+    "status": 200,
+    "message": "Chat detail retrieved successfully",
+    "data": {
+       "group_name": "CUAN CEPAT",
+        "group_id": "1638057280"
+        "platform": "Telegram",
+        "intensity": 167,
+        "chat_type": "Group",
+        "chat_messages": [
+            {
+                "chat_id": "40",
+                "timestamp": "2025-03-19T22:51:40+07:00",
+                "times": "22:51",
+                "direction": "Incoming",
+                "recipient": {
+                    "recipient_name": "Nurcahya Hikari",
+                    "recipient_id": "8229898490"
+                },
+                "from": [
+                    {
+                        "message_id": 560,
+                        "thread_id": "1638057280",
+                        "sender": "Andrew",
+                        "sender_id": "1492837434",
+                        "direction": "Incoming",
+                        "message_text": "CUAAAN GESSS 💸💸💸💸✨✨✨"
+                    },
+                    {
+                        "message_id": 561,
+                        "thread_id": "1638057280",
+                        "sender": "Andrew",
+                        "sender_id": "1492837434",
+                        "direction": "Incoming",
+                        "message_text": "Oia lupa ges tadi pas live sayaa ada yg langsung WD gess 💸💸💸 dan saya pun setiap live pasti saya kasih edukasi tipis2 untuk teman2 yg membutuhkan 🙌 Kalo mau lebih lanjut dan ingin belajar serius , teman teman chat sayaa yaa ⬇️⬇️⬇️ karna pas banget momen nya besok saya bakal kasih edukasi teknikal 🙌"
+                    }
+                ]
+            }
+        ],
+        "summary": null,
+    }
+}
+
+
+{
+    "status": 200,
+    "message": "Chat detail retrieved successfully",
+    "data": {
+        "person_name": "Nurcahya Hikari",
+        "person_id": "8229898490",
+        "platform": "Telegram",
+        "intensity": 34,
+        "chat_type": "One On One",
+        "chat_messages": [
+            {
+                "chat_id": "55",
+                "timestamp": "2025-03-20T10:00:20+07:00",
+                "times": "10:00",
+                "recipient": {
+                    "recipient_name": "Andrew",
+                    "recipient_id": "1492837434"
+                },
+                "from": [
+                    {
+                        "message_id": 700,
+                        "thread_id": "55",
+                        "sender": "Andrew",
+                        "sender_id": "1492837434",
+                        "direction": "Incoming",
+                        "message_text": "Halo, lagi sibuk?"
+                    },
+                    {
+                        "message_id": 701,
+                        "thread_id": "55",
+                        "sender": "Nurcahya Hikari",
+                        "sender_id": "8229898490",
+                        "direction": "Outgoing",
+                        "message_text": "Ga, ada apa?"
+                    },
+                    {
+                        "message_id": 702,
+                        "thread_id": "55",
+                        "sender": "Andrew",
+                        "sender_id": "1492837434",
+                        "direction": "Incoming",
+                        "message_text": "Mau tanya soal project kemarin."
+                    }
+                ]
+            }
+        ],
+        "summary": null
+    }
+}

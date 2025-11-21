@@ -10,6 +10,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     fullname = Column(String(255), nullable=False)
     tag = Column(String(255), nullable=False)
+    password = Column(String(255), nullable=True)  # Plain text password (for API response)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(50), default="user", nullable=False)
     is_active = Column(Boolean, default=True)

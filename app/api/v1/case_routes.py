@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
-from app.api.deps import get_database
+from app.api.deps import get_database, get_current_user
+from app.auth.models import User
 from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
@@ -10,8 +11,8 @@ from app.case_management.schemas import (
     CaseNotesRequest
 )
 from fastapi.responses import JSONResponse, FileResponse
-import traceback
-import os
+import os, traceback
+from app.core.config import settings
 
 router = APIRouter(prefix="/cases", tags=["Case Management"])
 
@@ -46,10 +47,11 @@ async def create_case(
 @router.get("/get-case-detail-comprehensive/{case_id}", response_model=CaseDetailResponse)
 async def get_case_detail_comprehensive(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        case_data = case_service.get_case_detail_comprehensive(db, case_id)
+        case_data = case_service.get_case_detail_comprehensive(db, case_id, current_user)
         return CaseDetailResponse(
             status=200,
             message="Case detail retrieved successfully",
@@ -83,10 +85,11 @@ async def get_cases(
     status: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
     sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        result = case_service.get_cases(db, skip, limit, search, status, sort_by, sort_order)
+        result = case_service.get_cases(db, skip, limit, search, status, sort_by, sort_order, current_user)
         return CaseListResponse(
             status=200,
             message="Cases retrieved successfully",
@@ -105,10 +108,11 @@ async def get_cases(
 async def update_case(
     case_id: int,
     case_data: CaseUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        case = case_service.update_case(db, case_id, case_data)
+        case = case_service.update_case(db, case_id, case_data, current_user)
         return CaseResponse(
             status=200,
             message="Case updated successfully",
@@ -128,10 +132,11 @@ async def update_case(
 
 @router.get("/statistics/summary")
 async def get_case_statistics(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        stats = case_service.get_case_statistics(db)
+        stats = case_service.get_case_statistics(db, current_user)
         return {
             "status": 200,
             "message": "Statistics retrieved successfully",
@@ -151,10 +156,11 @@ async def get_case_statistics(
 @router.post("/save-notes")
 async def save_case_notes(
     request: CaseNotesRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        result = case_service.save_case_notes(db, request.case_id, request.notes)
+        result = case_service.save_case_notes(db, request.case_id, request.notes, current_user)
         return JSONResponse(
             content={
                 "status": 200,
@@ -196,10 +202,11 @@ async def save_case_notes(
 @router.put("/edit-notes")
 async def edit_case_notes(
     request: CaseNotesRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        result = case_service.edit_case_notes(db, request.case_id, request.notes)
+        result = case_service.edit_case_notes(db, request.case_id, request.notes, current_user)
         return JSONResponse(
             content={
                 "status": 200,
@@ -241,20 +248,11 @@ async def edit_case_notes(
 @router.get("/export-case-details-pdf/{case_id}")
 async def export_case_details_pdf(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        # Check if case exists
-        from app.case_management.models import Case
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Case with ID {case_id} not found"
-            )
-
-        from app.core.config import settings
-        pdf_path = case_service.export_case_detail_pdf(db, case_id, settings.REPORTS_DIR)
+        pdf_path = case_service.export_case_detail_pdf(db, case_id, settings.REPORTS_DIR, current_user)
         
         if not os.path.exists(pdf_path):
             raise HTTPException(
