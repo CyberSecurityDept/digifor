@@ -571,11 +571,18 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     if person_name and device_owner_name:
                         person_name_lower = person_name.strip().lower()
                         device_owner_lower = device_owner_name.lower()
-                        if (person_name_lower == device_owner_lower or
-                            device_owner_lower in person_name_lower or
-                            person_name_lower in device_owner_lower or
-                            (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
-                            continue
+                        person_name_len = len(person_name_lower.strip())
+                        device_owner_len = len(device_owner_lower.strip())
+                        
+                        if person_name_len <= 2 or device_owner_len <= 2:
+                            if person_name_lower == device_owner_lower:
+                                continue
+                        else:
+                            if (person_name_lower == device_owner_lower or
+                                device_owner_lower in person_name_lower or
+                                person_name_lower in device_owner_lower or
+                                (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
+                                continue
                     
                     if person_name:
                         person_key = person_name.strip()
@@ -1330,11 +1337,18 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             if person_name and device_owner_name:
                 person_name_lower = person_name.strip().lower()
                 device_owner_lower = device_owner_name.lower()
-                if (person_name_lower == device_owner_lower or
-                    device_owner_lower in person_name_lower or
-                    person_name_lower in device_owner_lower or
-                    (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
-                    continue
+                person_name_len = len(person_name_lower.strip())
+                device_owner_len = len(device_owner_lower.strip())
+                
+                if person_name_len <= 2 or device_owner_len <= 2:
+                    if person_name_lower == device_owner_lower:
+                        continue
+                else:
+                    if (person_name_lower == device_owner_lower or
+                        device_owner_lower in person_name_lower or
+                        person_name_lower in device_owner_lower or
+                        (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
+                        continue
             
             if person_name:
                 person_key = person_name.strip()
@@ -1804,9 +1818,15 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                             group_name = (msg.group_name or "").strip() if msg.group_name else None
                             if group_name and group_name.strip():
                                 group_name_lower = group_name.strip().lower()
-                                if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
-                                    if thread_id not in thread_group_map:
-                                        thread_group_map[thread_id] = group_name.strip()
+                                person_name_len = len(person_name_normalized.strip())
+                                if person_name_len <= 2:
+                                    if group_name_lower == person_name_normalized:
+                                        if thread_id not in thread_group_map:
+                                            thread_group_map[thread_id] = group_name.strip()
+                                else:
+                                    if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                        if thread_id not in thread_group_map:
+                                            thread_group_map[thread_id] = group_name.strip()
         
         if person_name_normalized:
             for msg in messages:
@@ -1824,9 +1844,15 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 direction = (msg.direction or "").strip().lower()
                 if direction in ['incoming', 'received']:
                     sender_name = (msg.from_name or "").strip().lower()
-                    if sender_name == person_name_normalized or person_name_normalized in sender_name:
-                        if thread_id:
-                            thread_person_map[thread_id] = person_name_normalized
+                    person_name_len = len(person_name_normalized.strip())
+                    if person_name_len <= 2:
+                        if sender_name == person_name_normalized:
+                            if thread_id:
+                                thread_person_map[thread_id] = person_name_normalized
+                    else:
+                        if sender_name == person_name_normalized or person_name_normalized in sender_name:
+                            if thread_id:
+                                thread_person_map[thread_id] = person_name_normalized
         
         for msg in messages:
             if normalized_platform:
@@ -1848,20 +1874,34 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 group_name = (msg.group_name or "").strip() if msg.group_name else None
                 
                 group_match = False
+                person_name_len = len(person_name_normalized.strip()) if person_name_normalized else 0
                 if thread_id and thread_id in thread_group_map:
                     group_name_from_map = thread_group_map[thread_id].lower()
-                    if group_name_from_map == person_name_normalized or person_name_normalized in group_name_from_map:
-                        group_match = True
+                    if person_name_len <= 2:
+                        if group_name_from_map == person_name_normalized:
+                            group_match = True
+                    else:
+                        if group_name_from_map == person_name_normalized or person_name_normalized in group_name_from_map:
+                            group_match = True
                 elif chat_type and chat_type.lower() in ["group", "broadcast"]:
                     if group_name:
                         group_name_lower = group_name.strip().lower()
-                        if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
-                            group_match = True
+                        if person_name_len <= 2:
+                            if group_name_lower == person_name_normalized:
+                                group_match = True
+                        else:
+                            if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                group_match = True
                 
                 sender_match = sender_name == person_name_normalized
                 recipient_match = recipient_name == person_name_normalized
                 
-                if not sender_match:
+                if person_name_normalized:
+                    person_name_len = len(person_name_normalized.strip())
+                else:
+                    person_name_len = 0
+                
+                if not sender_match and person_name_len > 2:
                     if person_name_normalized in sender_name:
                         sender_match = True
                     elif sender_name in person_name_normalized and len(sender_name) >= 3:
@@ -1875,8 +1915,14 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                             common_words = query_words_set & sender_words_set
                             if len(common_words) >= 2 or (len(query_words) == 2 and len(common_words) == 2):
                                 sender_match = True
+                elif not sender_match and person_name_len <= 2:
+                    sender_words = sender_name.split()
+                    for word in sender_words:
+                        if word.strip().lower() == person_name_normalized:
+                            sender_match = True
+                            break
                 
-                if not recipient_match:
+                if not recipient_match and person_name_len > 2:
                     if person_name_normalized in recipient_name:
                         recipient_match = True
                     elif recipient_name in person_name_normalized and len(recipient_name) >= 3:
@@ -1890,6 +1936,12 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                             common_words = query_words_set & recipient_words_set
                             if len(common_words) >= 2 or (len(query_words) == 2 and len(common_words) == 2):
                                 recipient_match = True
+                elif not recipient_match and person_name_len <= 2:
+                    recipient_words = recipient_name.split()
+                    for word in recipient_words:
+                        if word.strip().lower() == person_name_normalized:
+                            recipient_match = True
+                            break
                 
                 thread_match = False
                 if thread_id and thread_id in thread_person_map:
@@ -2038,12 +2090,22 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                     if msg_group_name:
                         if person_name_normalized:
                             group_name_lower = msg_group_name.strip().lower()
-                            if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
-                                chat_type_determined = msg_chat_type
-                                group_name_determined = msg_group_name.strip()
-                                if msg_group_id and msg_group_id.strip():
-                                    group_id_determined = msg_group_id.strip()
-                                break
+                            person_name_len = len(person_name_normalized.strip())
+                            
+                            if person_name_len <= 2:
+                                if group_name_lower == person_name_normalized:
+                                    chat_type_determined = msg_chat_type
+                                    group_name_determined = msg_group_name.strip()
+                                    if msg_group_id and msg_group_id.strip():
+                                        group_id_determined = msg_group_id.strip()
+                                    break
+                            else:
+                                if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                    chat_type_determined = msg_chat_type
+                                    group_name_determined = msg_group_name.strip()
+                                    if msg_group_id and msg_group_id.strip():
+                                        group_id_determined = msg_group_id.strip()
+                                    break
                         else:
                             chat_type_determined = msg_chat_type
                             group_name_determined = msg_group_name.strip()
@@ -2053,22 +2115,37 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 elif person_name_normalized:
                     sender_name_val = (msg.from_name or "").strip().lower()
                     recipient_name_val = (msg.to_name or "").strip().lower()
+                    person_name_len = len(person_name_normalized.strip())
                     
                     sender_matches = sender_name_val == person_name_normalized
-                    if not sender_matches:
+                    if not sender_matches and person_name_len > 2:
                         sender_matches = (
                             person_name_normalized in sender_name_val or
                             sender_name_val in person_name_normalized or
                             (len(set(person_name_normalized.split()) & set(sender_name_val.split())) > 0)
                         )
+                    elif not sender_matches and person_name_len <= 2:
+                        # For 1-2 character names, use word boundary matching
+                        sender_words = sender_name_val.split()
+                        for word in sender_words:
+                            if word.strip().lower() == person_name_normalized:
+                                sender_matches = True
+                                break
                     
                     recipient_matches = recipient_name_val == person_name_normalized
-                    if not recipient_matches:
+                    if not recipient_matches and person_name_len > 2:
                         recipient_matches = (
                             person_name_normalized in recipient_name_val or
                             recipient_name_val in person_name_normalized or
                             (len(set(person_name_normalized.split()) & set(recipient_name_val.split())) > 0)
                         )
+                    elif not recipient_matches and person_name_len <= 2:
+                        # For 1-2 character names, use word boundary matching
+                        recipient_words = recipient_name_val.split()
+                        for word in recipient_words:
+                            if word.strip().lower() == person_name_normalized:
+                                recipient_matches = True
+                                break
                     
                     if sender_matches:
                         chat_type_determined = msg_chat_type or "One On One"
