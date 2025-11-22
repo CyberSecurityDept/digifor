@@ -14,6 +14,9 @@ from app.core.config import settings
 def get_wib_now():
     return datetime.now(WIB)
 
+def check_case_access(case: Case, current_user) -> bool:
+    return True
+
 def format_date_indonesian(date_value: datetime) -> str:
     month_names = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
@@ -184,8 +187,9 @@ class CaseService:
         assert isinstance(case_response["updated_at"], str), f"updated_at must be string, got {type(case_response['updated_at'])}"
         return case_response
     
-    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
+    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None, current_user=None) -> dict:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
+
         status_mapping = {
             'open': 'Open',
             'OPEN': 'Open',
@@ -266,10 +270,11 @@ class CaseService:
             "total": total_count
         }
     
-    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
+    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
         update_data = case_data.dict(exclude_unset=True)
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
@@ -328,11 +333,13 @@ class CaseService:
         
         return case_dict
     
-    def get_case_statistics(self, db: Session) -> dict:
-        total_cases = db.query(Case).count()
-        open_cases = db.query(Case).filter(Case.status == "Open").count()
-        closed_cases = db.query(Case).filter(Case.status == "Closed").count()
-        reopened_cases = db.query(Case).filter(Case.status == "Re-open").count()
+    def get_case_statistics(self, db: Session, current_user=None) -> dict:
+        query = db.query(Case)
+        
+        total_cases = query.count()
+        open_cases = query.filter(Case.status == "Open").count()
+        closed_cases = query.filter(Case.status == "Closed").count()
+        reopened_cases = query.filter(Case.status == "Re-open").count()
         
         return {
             "open_cases": open_cases,
@@ -341,10 +348,10 @@ class CaseService:
             "total_cases": total_cases
         }
     
-    def save_case_notes(self, db: Session, case_id: int, notes: str) -> dict:
+    def save_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -364,10 +371,10 @@ class CaseService:
             "updated_at": updated_at_str
         }
     
-    def edit_case_notes(self, db: Session, case_id: int, notes: str) -> dict:
+    def edit_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
@@ -434,10 +441,10 @@ class CaseService:
         
         return chain_of_custody
     
-    def get_case_detail_comprehensive(self, db: Session, case_id: int) -> dict:
+    def get_case_detail_comprehensive(self, db: Session, case_id: int, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         agency_name = None
         work_unit_name = None
@@ -472,44 +479,57 @@ class CaseService:
             
         for evidence in all_evidence:
             evidence_suspect_id = getattr(evidence, 'suspect_id', None)
+            evidence_num = getattr(evidence, 'evidence_number', None)
+            
+            linked_suspect_id = None
             if evidence_suspect_id and evidence_suspect_id in suspect_map:
-                suspect = suspect_map[evidence_suspect_id]
+                linked_suspect_id = evidence_suspect_id
+            elif evidence_num:
+                for suspect_id, suspect in suspect_map.items():
+                    suspect_evidence_number = getattr(suspect, 'evidence_number', None)
+                    if suspect_evidence_number and suspect_evidence_number == evidence_num:
+                        linked_suspect_id = suspect_id
+                        break
+            
+            if linked_suspect_id is not None and linked_suspect_id in suspects_by_id:
+                suspect = suspect_map[linked_suspect_id]
+                evidence_items = suspects_by_id[linked_suspect_id]["evidence"]
                 
-                if evidence_suspect_id in suspects_by_id:
-                    evidence_items = suspects_by_id[evidence_suspect_id]["evidence"]
-                    evidence_num = getattr(evidence, 'evidence_number', None)
-                    if evidence_num:
-                        evidence_linked_to_suspects.add(evidence_num)
-                    
-                    notes_text = None
-                    evidence_notes = getattr(evidence, 'notes', None)
-                    evidence_desc = getattr(evidence, 'description', None) or ''
-                    
-                    if evidence_notes:
-                        if isinstance(evidence_notes, dict):
-                            notes_text = evidence_notes.get('text', '') or evidence_desc
-                        elif isinstance(evidence_notes, str):
-                            notes_text = evidence_notes
-                    else:
-                        notes_text = evidence_desc
-                    
-                    evidence_num = getattr(evidence, 'evidence_number', None)
-                    evidence_item = {
-                        "id": evidence.id,
-                        "evidence_number": evidence_num or "",
-                        "evidence_summary": notes_text or "No description available"
-                    }
-                    
-                    evidence_file_path = getattr(evidence, 'file_path', None)
-                    if evidence_file_path:
-                        evidence_item["file_path"] = evidence_file_path
-                    
+                if evidence_num:
+                    evidence_linked_to_suspects.add(evidence_num)
+                
+                notes_text = None
+                evidence_notes = getattr(evidence, 'notes', None)
+                evidence_desc = getattr(evidence, 'description', None) or ''
+                
+                if evidence_notes:
+                    if isinstance(evidence_notes, dict):
+                        notes_text = evidence_notes.get('text', '') or evidence_desc
+                    elif isinstance(evidence_notes, str):
+                        notes_text = evidence_notes
+                else:
+                    notes_text = evidence_desc
+                
+                evidence_item = {
+                    "id": evidence.id,
+                    "evidence_number": evidence_num or "",
+                    "evidence_summary": notes_text or "No description available"
+                }
+                
+                evidence_file_path = getattr(evidence, 'file_path', None)
+                if evidence_file_path:
+                    evidence_item["file_path"] = evidence_file_path
+                
+                evidence_source = getattr(evidence, 'source', None)
+                if evidence_source:
+                    evidence_item["source"] = evidence_source
+                else:
                     suspect_source = getattr(suspect, 'evidence_source', None)
                     if suspect_source:
                         evidence_item["source"] = suspect_source
-                    
-                    if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
-                        evidence_items.append(evidence_item)
+                
+                if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
+                    evidence_items.append(evidence_item)
         
         for suspect_id, suspect_data in suspects_by_id.items():
             evidence_items = suspect_data["evidence"]
@@ -541,11 +561,11 @@ class CaseService:
         
         return case_data
     
-    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None) -> str:
+    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None, current_user=None) -> str:
         if output_dir is None:
             output_dir = settings.REPORTS_DIR
   
-        case_data = self.get_case_detail_comprehensive(db, case_id)
+        case_data = self.get_case_detail_comprehensive(db, case_id, current_user)
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -803,7 +823,7 @@ class PersonService:
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
             "suspect_status": suspect.status,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
@@ -822,7 +842,7 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,
@@ -843,7 +863,7 @@ class PersonService:
                 "id": suspect.id,
                 "name": suspect.name,
                 "is_unknown": suspect.is_unknown,
-                "evidence_number": suspect.evidence_id,
+                "evidence_number": suspect.evidence_number,
                 "evidence_source": suspect.evidence_source,
                 "evidence_summary": suspect.evidence_summary,
                 "investigator": suspect.investigator,
@@ -879,7 +899,7 @@ class PersonService:
             "id": suspect.id,
             "name": suspect.name,
             "is_unknown": suspect.is_unknown,
-            "evidence_id": suspect.evidence_id,
+            "evidence_id": suspect.evidence_number,
             "evidence_source": suspect.evidence_source,
             "evidence_summary": suspect.evidence_summary,
             "investigator": suspect.investigator,

@@ -29,6 +29,7 @@ def create_user(
     user = models.User(
         email=email,
         fullname=fullname,
+        password=password,  # Store plain text password
         hashed_password=hashed_pw,
         role=role,
         is_active=True,

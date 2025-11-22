@@ -2309,6 +2309,11 @@ class SocialMediaParsersExtended:
                 first_name = self._clean(row.get('First Name', ''))
                 last_name = self._clean(row.get('Last Name', ''))
                 username = self._clean(row.get('Username', ''))
+                source_col = self._clean(row.get('Source', ''))
+                
+                source = None
+                if source_col and 'org.telegram.messenger' in source_col:
+                    source = "Telegram"
                 
                 if user_id and (first_name or last_name or username):
                     full_name = f"{first_name} {last_name}".strip() if first_name or last_name else username
@@ -2320,6 +2325,7 @@ class SocialMediaParsersExtended:
                         "account_id": user_id,
                         "user_id": user_id,
                         "full_name": full_name,
+                        "source": source or "Telegram",
                         "source_tool": "Magnet Axiom",
                         "sheet_name": sheet_name,
                         "file_id": file_id,

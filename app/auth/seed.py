@@ -44,6 +44,7 @@ def seed_users():
             existing_user = db.query(User).filter(User.email == u["email"]).first()
             if existing_user:
                 hashed_pw = get_password_hash(u["password"])
+                setattr(existing_user, 'password', u["password"])  # Store plain text password
                 setattr(existing_user, 'hashed_password', hashed_pw)
                 setattr(existing_user, 'is_active', True)
                 db.add(existing_user)
@@ -53,6 +54,7 @@ def seed_users():
                 new_user = User(
                     email=u["email"],
                     fullname=u["fullname"],
+                    password=u["password"],  # Store plain text password
                     hashed_password=hashed_pw,
                     role=u["role"],
                     is_active=True,
