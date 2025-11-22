@@ -22,12 +22,19 @@ services:
     depends_on:
       - db
 
+  migrate:
+    build: .
+    container_name: digifor-migrate
+    depends_on:
+      - db
+    command: bash -c "dockerize -wait tcp://db:5432 -timeout 30s && alembic upgrade head"
+
   seed:
     build: .
     container_name: digifor-seed
     restart: "no"
     depends_on:
-      - db
+      - migrate
     command: bash -c "dockerize -wait tcp://db:5432 -timeout 30s && python -m app.auth.seed"
 
 
