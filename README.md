@@ -420,6 +420,25 @@ alembic upgrade head
 
 # 11. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# docker
+- docker network create digifor-network
+- docker network connect digifor-network digiforapp
+- docker run --name digiforapp -e POSTGRES_USER=digifordb -e POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL -e POSTGRES_DB=digifor -p 5432:5432 -d postgres
+- docker-compose up --build
+
+
+# stop container
+- docker-compose down
+
+# stop container postgre
+- docker stop digiforapp
+- docker rm digiforapp
+- docker rm digiforapp
+
+# hapus network
+- docker network rm digifor-network
+
 ```
 
 #### 🐧 Linux (Ubuntu/Debian)

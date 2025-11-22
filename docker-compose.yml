@@ -1,36 +1,24 @@
-services:
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: digifordb
-      POSTGRES_PASSWORD: Grz6ayTrBXPnFkwL
-      POSTGRES_DB: digifor
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U digifordb -d digifor"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+version: '3.9'
 
+services:
   app:
     build: .
     env_file: .env
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+    restart: "no"
+    networks:
+      - digifor-network
 
   seed:
     build: .
     depends_on:
-      app:
-        condition: service_started
-    command: python -m app.auth.seed
+      - app
+    command: ["python", "-m", "app.auth.seed"]
     restart: "no"
+    networks:
+      - digifor-network
 
-volumes:
-  postgres_data:
+networks:
+  digifor-network:
+    external: true
