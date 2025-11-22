@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File, Body
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from typing import Optional
 from datetime import datetime, timezone
+from pydantic import BaseModel, Field
 from app.evidence_management.models import Evidence
 from app.case_management.models import Case, CaseLog
 from app.suspect_management.models import Suspect
@@ -11,7 +13,9 @@ from fastapi.responses import JSONResponse
 import traceback, os, hashlib
 from app.case_management.service import check_case_access
 
-# Valid enum values for suspect_status
+class SuspectNotesBody(BaseModel):
+    notes: str = Field(..., description="Suspect notes text")
+
 VALID_SUSPECT_STATUSES = ["Witness", "Reported", "Suspected", "Suspect", "Defendant"]
 
 def normalize_suspect_status(status: Optional[str]) -> Optional[str]:
@@ -132,14 +136,22 @@ async def create_person(
         
         suspect_id_value = None
         if is_unknown_person:
+            final_name = person_name.strip() if person_name and person_name.strip() else "Unknown"
+            final_suspect_status = normalize_suspect_status(suspect_status) if suspect_status else None
+            if suspect_status and final_suspect_status is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                )
+            
             suspect_dict = {
-                "name": "Unknown",
+                "name": final_name,
                 "case_id": case_id,
                 "case_name": case.title if case else None,
                 "investigator": investigator_name,
-                "status": None,
+                "status": final_suspect_status,
                 "is_unknown": True,
-                "evidence_id": evidence_number,
+                "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
                 "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
             }
@@ -158,7 +170,7 @@ async def create_person(
                     case_id=case_id,
                     action="Edit",
                     changed_by=f"By: {changed_by}",
-                    change_detail=f"Change: Adding person Unknown",
+                    change_detail=f"Change: Adding person {final_name}",
                     notes="",
                     status=current_status
                 )
@@ -182,7 +194,7 @@ async def create_person(
                 "investigator": investigator_name,
                 "status": final_suspect_status,
                 "is_unknown": False,
-                "evidence_id": evidence_number,
+                "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
                 "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
             }
@@ -486,5 +498,284 @@ async def delete_person(
         raise HTTPException(
             status_code=500, 
             detail=f"Unexpected server error: {str(e)}"
+        )
+
+@router.post("/save-suspect-notes/{suspect_id}")
+async def save_suspect_notes(
+    suspect_id: int,
+    request: SuspectNotesBody = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        notes = request.notes
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {suspect_id} not found"
+                }
+            )
+        
+        if suspect.case_id is not None:
+            case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case and not check_case_access(case, current_user):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "status": 403,
+                        "message": "You do not have permission to access this case"
+                    }
+                )
+        
+        notes_trimmed = notes.strip() if notes else ""
+        if not notes_trimmed:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Notes cannot be empty"
+                }
+            )
+        
+        evidence_list = []
+        if suspect_id is not None:
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
+            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
+                evidence_by_number = db.query(Evidence).filter(
+                    Evidence.evidence_number == suspect.evidence_number,
+                    Evidence.case_id == suspect.case_id
+                ).order_by(Evidence.id.asc()).all()
+                evidence_ids = {e.id for e in evidence_records}
+                for evidence in evidence_by_number:
+                    if evidence.id not in evidence_ids:
+                        evidence_records.append(evidence)
+
+            evidence_list = sorted(evidence_records, key=lambda x: x.id)
+        
+        if not evidence_list or len(evidence_list) == 0:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+                }
+            )
+        
+        first_evidence = evidence_list[0]
+        current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
+        
+        existing_notes = None
+        if isinstance(current_notes, dict):
+            existing_notes = current_notes.get('suspect_notes')
+        elif isinstance(current_notes, str):
+            existing_notes = current_notes
+        
+        if existing_notes is not None and str(existing_notes).strip():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": f"Notes already exist for this suspect. Use PUT /api/v1/persons/edit-suspect-notes/{suspect_id} to update existing notes."
+                }
+            )
+        
+        if isinstance(current_notes, dict):
+            current_notes['suspect_notes'] = notes_trimmed
+        elif isinstance(current_notes, str):
+            current_notes = {'suspect_notes': notes_trimmed, 'text': current_notes}
+        else:
+            current_notes = {'suspect_notes': notes_trimmed}
+        
+        setattr(first_evidence, 'notes', current_notes)
+        flag_modified(first_evidence, 'notes')
+        db.commit()
+        db.refresh(first_evidence)
+        
+        try:
+            case = None
+            if suspect.case_id is not None:
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case:
+                current_status = case.status if case else "Open"
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                case_log = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Added notes for suspect {suspect.name}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+                db.commit()
+        except Exception as e:
+            print(f"Warning: Could not create case log: {str(e)}")
+        
+        return JSONResponse(
+            status_code=201,
+            content={
+                "status": 201,
+                "message": "Suspect notes saved successfully",
+                "data": {
+                    "suspect_id": suspect_id,
+                    "notes": notes_trimmed
+                }
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": f"Unexpected server error: {str(e)}"
+            }
+        )
+
+@router.put("/edit-suspect-notes/{suspect_id}")
+async def edit_suspect_notes(
+    suspect_id: int,
+    request: SuspectNotesBody = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        notes = request.notes
+        
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": 404,
+                    "message": f"Suspect with ID {suspect_id} not found"
+                }
+            )
+        
+        if suspect.case_id is not None:
+            case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case and not check_case_access(case, current_user):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "status": 403,
+                        "message": "You do not have permission to access this case"
+                    }
+                )
+        
+        notes_trimmed = notes.strip() if notes else ""
+        if not notes_trimmed:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Notes cannot be empty"
+                }
+            )
+        
+        evidence_list = []
+        if suspect_id is not None:
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
+            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
+                evidence_by_number = db.query(Evidence).filter(
+                    Evidence.evidence_number == suspect.evidence_number,
+                    Evidence.case_id == suspect.case_id
+                ).order_by(Evidence.id.asc()).all()
+                evidence_ids = {e.id for e in evidence_records}
+                for evidence in evidence_by_number:
+                    if evidence.id not in evidence_ids:
+                        evidence_records.append(evidence)
+            # Sort by ID to ensure consistent ordering
+            evidence_list = sorted(evidence_records, key=lambda x: x.id)
+        
+        if not evidence_list or len(evidence_list) == 0:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": "Cannot edit notes: No evidence found for this suspect. Please create evidence first."
+                }
+            )
+        
+        first_evidence = evidence_list[0]
+        current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
+        
+        existing_notes = None
+        if isinstance(current_notes, dict):
+            existing_notes = current_notes.get('suspect_notes')
+        elif isinstance(current_notes, str):
+            existing_notes = current_notes
+        
+        if existing_notes is None or not str(existing_notes).strip():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": 400,
+                    "message": f"No notes found for this suspect. Use POST /api/v1/persons/save-suspect-notes/{suspect_id} to create new notes."
+                }
+            )
+        
+        if isinstance(current_notes, dict):
+            current_notes['suspect_notes'] = notes_trimmed
+        elif isinstance(current_notes, str):
+            current_notes = {'suspect_notes': notes_trimmed, 'text': current_notes}
+        else:
+            current_notes = {'suspect_notes': notes_trimmed}
+        
+        setattr(first_evidence, 'notes', current_notes)
+        flag_modified(first_evidence, 'notes')
+        db.add(first_evidence)
+        db.flush()
+        db.commit()
+        db.refresh(first_evidence)
+        
+        try:
+            case = None
+            if suspect.case_id is not None:
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case:
+                current_status = case.status if case else "Open"
+                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                case_log = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Updated notes for suspect {suspect.name}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+                db.commit()
+        except Exception as e:
+            print(f"Warning: Could not create case log: {str(e)}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": 200,
+                "message": "Suspect notes updated successfully",
+                "data": {
+                    "suspect_id": suspect_id,
+                    "notes": notes_trimmed
+                }
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": 500,
+                "message": f"Unexpected server error: {str(e)}"
+            }
         )
 

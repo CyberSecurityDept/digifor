@@ -353,18 +353,21 @@ async def get_suspect_detail(
                     pass
         
         evidence_list = []
+        evidence_records = []
         if suspect_id is not None:
-            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
             if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
                 evidence_by_number = db.query(Evidence).filter(
                     Evidence.evidence_number == suspect.evidence_number,
                     Evidence.case_id == suspect.case_id
-                ).all()
+                ).order_by(Evidence.id.asc()).all()
                 
                 evidence_ids = {e.id for e in evidence_records}
                 for evidence in evidence_by_number:
                     if evidence.id not in evidence_ids:
                         evidence_records.append(evidence)
+                        
+            evidence_records = sorted(evidence_records, key=lambda x: x.id)
             
             for evidence in evidence_records:
                 evidence_created_at_str = None
@@ -390,7 +393,7 @@ async def get_suspect_detail(
                 
                 evidence_list.append({
                     "id": evidence.id,
-                    "evidence_number": evidence.evidence_number,
+                    "evidence_number": f"Summary {evidence.evidence_number}" if evidence.evidence_number else None,
                     "evidence_summary": evidence.description if hasattr(evidence, 'description') else None,
                     "file_path": evidence.file_path if hasattr(evidence, 'file_path') else None,
                     "created_at": evidence_created_at_str,
@@ -408,18 +411,26 @@ async def get_suspect_detail(
             else:
                 suspect_notes = str(suspect.notes) if suspect.notes else None
         else:
-            if evidence_list and len(evidence_list) > 0:
+            # Use evidence_records if available (already sorted by ID), otherwise query from evidence_list
+            if evidence_records and len(evidence_records) > 0:
+                first_evidence = evidence_records[0]
+            elif evidence_list and len(evidence_list) > 0:
                 first_evidence = db.query(Evidence).filter(Evidence.id == evidence_list[0]["id"]).first()
-                if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
-                    if isinstance(first_evidence.notes, dict):
-                        suspect_notes = first_evidence.notes.get('suspect_notes') or first_evidence.notes.get('text')
-                        if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
-                            suspect_notes = None
-                    elif isinstance(first_evidence.notes, str):
-                        suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
-                    else:
-                        notes_value = first_evidence.notes
-                        suspect_notes = str(notes_value) if notes_value is not None else None
+            else:
+                first_evidence = None
+                
+            if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
+                if isinstance(first_evidence.notes, dict):
+                    suspect_notes = first_evidence.notes.get('suspect_notes')
+                    if suspect_notes is None:
+                        suspect_notes = first_evidence.notes.get('text')
+                    if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                        suspect_notes = None
+                elif isinstance(first_evidence.notes, str):
+                    suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
+                else:
+                    notes_value = first_evidence.notes
+                    suspect_notes = str(notes_value) if notes_value is not None else None
         
         suspect_detail = {
             "id": suspect.id,
