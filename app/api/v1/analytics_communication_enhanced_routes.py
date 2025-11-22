@@ -124,7 +124,6 @@ def get_chat_messages_for_analytic(
 
     if platform:
         normalized_platform = normalize_platform_name(platform)
-        # For platform X, also match Twitter
         if normalized_platform == 'x':
             query = query.filter(
                 or_(
@@ -1844,26 +1843,36 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 direction = (msg.direction or "").strip().lower()
                 if direction in ['incoming', 'received']:
                     sender_name = (msg.from_name or "").strip().lower()
+                    sender_number = (msg.sender_number or "").strip()
                     person_name_len = len(person_name_normalized.strip())
+                    
+                    is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
+                    
+                    name_matched = False
                     if person_name_len == 1:
                         if sender_name == person_name_normalized:
-                            if thread_id:
-                                thread_person_map[thread_id] = person_name_normalized
+                            name_matched = True
                     elif person_name_len == 2:
                         if sender_name == person_name_normalized:
-                            if thread_id:
-                                thread_person_map[thread_id] = person_name_normalized
+                            name_matched = True
                         else:
                             sender_words = sender_name.split()
                             for word in sender_words:
                                 if word.strip().lower() == person_name_normalized:
-                                    if thread_id:
-                                        thread_person_map[thread_id] = person_name_normalized
+                                    name_matched = True
                                     break
                     else:
                         if sender_name == person_name_normalized or person_name_normalized in sender_name:
-                            if thread_id:
-                                thread_person_map[thread_id] = person_name_normalized
+                            name_matched = True
+                    
+                    number_matched = False
+                    if is_likely_id and sender_number and sender_number.strip():
+                        sender_number_normalized = sender_number.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            number_matched = True
+                    
+                    if (name_matched or number_matched) and thread_id:
+                        thread_person_map[thread_id] = person_name_normalized
         
         for msg in messages:
             if normalized_platform:
@@ -1912,6 +1921,21 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 
                 sender_match = sender_name == person_name_normalized
                 recipient_match = recipient_name == person_name_normalized
+                
+                sender_number = (msg.sender_number or "").strip()
+                recipient_number = (msg.recipient_number or "").strip()
+                
+                is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
+                
+                if is_likely_id:
+                    if sender_number and sender_number.strip():
+                        sender_number_normalized = sender_number.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            sender_match = True
+                    if recipient_number and recipient_number.strip():
+                        recipient_number_normalized = recipient_number.strip().lower()
+                        if recipient_number_normalized == person_name_normalized:
+                            recipient_match = True
                 
                 if person_name_normalized:
                     person_name_len = len(person_name_normalized.strip())
@@ -2072,10 +2096,20 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 })
             
             from_array = []
+            sender_name_value = msg.from_name or msg.sender_number or "Unknown"
+            if sender_name_value and sender_name_value != "Unknown":
+                cleaned_sender = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', sender_name_value)
+                if cleaned_sender:
+                    sender_name_value = sender_name_value.strip()
+                else:
+                    sender_name_value = None
+            elif sender_name_value == "Unknown":
+                sender_name_value = None
+            
             from_item = {
                 "message_id": msg.id,
                 "thread_id": msg.thread_id or "",
-                "sender": msg.from_name or msg.sender_number or "Unknown",
+                "sender": sender_name_value,
                 "sender_id": sender_id_value or "",
                 "direction": direction or "Unknown",
                 "message_text": cleaned_message_text
@@ -2143,7 +2177,11 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                 elif person_name_normalized:
                     sender_name_val = (msg.from_name or "").strip().lower()
                     recipient_name_val = (msg.to_name or "").strip().lower()
+                    sender_number_val = (msg.sender_number or "").strip()
+                    recipient_number_val = (msg.recipient_number or "").strip()
                     person_name_len = len(person_name_normalized.strip())
+                    
+                    is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
                     
                     sender_matches = sender_name_val == person_name_normalized
                     if not sender_matches and person_name_len > 2:
@@ -2161,6 +2199,11 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                                 sender_matches = True
                                 break
                     
+                    if is_likely_id and not sender_matches and sender_number_val and sender_number_val.strip():
+                        sender_number_normalized = sender_number_val.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            sender_matches = True
+                    
                     recipient_matches = recipient_name_val == person_name_normalized
                     if not recipient_matches and person_name_len > 2:
                         recipient_matches = (
@@ -2176,6 +2219,11 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
                             if word.strip().lower() == person_name_normalized:
                                 recipient_matches = True
                                 break
+                    
+                    if is_likely_id and not recipient_matches and recipient_number_val and recipient_number_val.strip():
+                        recipient_number_normalized = recipient_number_val.strip().lower()
+                        if recipient_number_normalized == person_name_normalized:
+                            recipient_matches = True
                     
                     if sender_matches:
                         chat_type_determined = msg_chat_type or "One On One"
@@ -2296,7 +2344,11 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
             response_data["group_id"] = group_id_determined
         elif chat_type_determined and chat_type_determined.lower() == "one on one":
             if person_name_determined:
-                response_data["person_name"] = person_name_determined
+                person_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_name_determined)
+                if person_name_cleaned:
+                    response_data["person_name"] = person_name_determined.strip()
+                else:
+                    response_data["person_name"] = None
             if person_id_determined:
                 response_data["person_id"] = person_id_determined
 
