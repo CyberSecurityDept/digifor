@@ -168,3 +168,26 @@ class CustodyReportListResponse(BaseModel):
 class EvidenceNotesRequest(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")
     notes: Dict[str, Any] = Field(..., description="Evidence notes as JSON object with id, thumbnail, and text")
+
+class CustodyCommon(BaseModel):
+    investigator: str = Field(..., description="Investigator handling the evidence")
+    location: Optional[str] = Field(None, description="Event location")
+    evidence_source: Optional[str] = Field(None, description="Source of evidence")
+    evidence_type: Optional[str] = Field(None, description="Type of evidence")
+    evidence_detail: Optional[str] = Field(None, description="Detailed notes")
+    notes: Optional[str] = Field(None, description="General notes")
+
+class CustodyAcquisitionRequest(CustodyCommon):
+    steps: List[str] = Field(..., description="List of steps performed")
+
+class CustodyPreparationRequest(CustodyCommon):
+    hypothesis: List[str] = Field(..., description="List of hypotheses")
+    tools: List[str] = Field(..., description="Tools used per hypothesis")
+
+class CustodyAnalysisRequest(CustodyCommon):
+    hypothesis: List[str] = Field(..., description="List of hypotheses")
+    tools: List[str] = Field(..., description="Tools used per hypothesis")
+    result: List[str] = Field(..., description="Results per hypothesis")
+
+class CustodyExtractionRequest(CustodyCommon):
+    pass
