@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -19,9 +20,34 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('chat_messages', sa.Column('name', sa.String(), nullable=True))
+    # Check if chat_messages table exists
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    tables = inspector.get_table_names()
+    
+    if 'chat_messages' not in tables:
+        # Table doesn't exist yet, skip this migration
+        return
+    
+    # Check if column already exists
+    columns = [col['name'] for col in inspector.get_columns('chat_messages')]
+    
+    if 'name' not in columns:
+        op.add_column('chat_messages', sa.Column('name', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column('chat_messages', 'name')
+    # Check if chat_messages table exists
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    tables = inspector.get_table_names()
+    
+    if 'chat_messages' not in tables:
+        return
+    
+    # Check if column exists before dropping
+    columns = [col['name'] for col in inspector.get_columns('chat_messages')]
+    
+    if 'name' in columns:
+        op.drop_column('chat_messages', 'name')
 

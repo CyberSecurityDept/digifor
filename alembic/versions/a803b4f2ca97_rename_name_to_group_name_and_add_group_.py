@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -19,17 +20,44 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Rename column 'name' to 'group_name'
-    op.alter_column('chat_messages', 'name', new_column_name='group_name')
+    # Check if chat_messages table exists
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    tables = inspector.get_table_names()
     
-    # Add column 'group_id'
-    op.add_column('chat_messages', sa.Column('group_id', sa.String(), nullable=True))
+    if 'chat_messages' not in tables:
+        # Table doesn't exist yet, skip this migration
+        return
+    
+    # Check columns
+    columns = [col['name'] for col in inspector.get_columns('chat_messages')]
+    
+    # Rename column 'name' to 'group_name' if 'name' exists and 'group_name' doesn't
+    if 'name' in columns and 'group_name' not in columns:
+        op.alter_column('chat_messages', 'name', new_column_name='group_name')
+    
+    # Add column 'group_id' if it doesn't exist
+    if 'group_id' not in columns:
+        op.add_column('chat_messages', sa.Column('group_id', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
-    # Remove column 'group_id'
-    op.drop_column('chat_messages', 'group_id')
+    # Check if chat_messages table exists
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    tables = inspector.get_table_names()
     
-    # Rename column 'group_name' back to 'name'
-    op.alter_column('chat_messages', 'group_name', new_column_name='name')
+    if 'chat_messages' not in tables:
+        return
+    
+    # Check columns
+    columns = [col['name'] for col in inspector.get_columns('chat_messages')]
+    
+    # Remove column 'group_id' if it exists
+    if 'group_id' in columns:
+        op.drop_column('chat_messages', 'group_id')
+    
+    # Rename 'group_name' back to 'name' if 'group_name' exists and 'name' doesn't
+    if 'group_name' in columns and 'name' not in columns:
+        op.alter_column('chat_messages', 'group_name', new_column_name='name')
 
