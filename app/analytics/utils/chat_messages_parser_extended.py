@@ -2796,7 +2796,7 @@ class ChatMessagesParserExtended:
 
 
         # ============================================================
-        # 2. TikTok Contacts — User Name fallback ke Nickname
+        # 2. TikTok Contacts — User Name fallback ke Nickname → fallback ID
         # ============================================================
         contacts_map = {}
 
@@ -2822,16 +2822,15 @@ class ChatMessagesParserExtended:
                     if not uid:
                         continue
 
-                    # Ambil User Name
                     uname = str(row.get(user_col, "")).strip() if user_col else ""
 
-                    # Jika kosong → fallback Nickname
+                    # fallback nickname
                     if (not uname or uname.lower() == "nan") and nick_col:
                         uname = str(row.get(nick_col, "")).strip()
 
-                    # Jika tetap kosong skip
+                    # Jika tetap kosong → gunakan UID
                     if not uname or uname.lower() == "nan":
-                        continue
+                        uname = uid
 
                     contacts_map[uid] = uname
 
@@ -2846,17 +2845,21 @@ class ChatMessagesParserExtended:
         # ============================================================
         df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl", dtype=str)
 
-        INVALID_TYPES = ["system", "call"]   # <--- tambahkan CALL
+        INVALID_TYPES = ["system", "call"]
 
         for idx, row in df.iterrows():
 
             # =====================================================
-            # MESSAGE FILTERING
+            # MESSAGE TEXT FILTERING
             # =====================================================
             message_text = row.get("Message", "")
             if not self._not_na(message_text):
                 continue
+
             message_text = str(message_text).strip()
+
+            if not message_text:
+                continue
 
             # Skip system / call message types
             message_type_raw = str(row.get("Message Type", "")).strip().lower()
@@ -2864,14 +2867,34 @@ class ChatMessagesParserExtended:
                 continue
 
             # =====================================================
+            # TIMESTAMP
+            # =====================================================
+            timestamp = ""
+            timestamp_columns = [
+                "Created Date/Time - UTC+00:00 (dd/MM/yyyy)",
+                "Message Date/Time - UTC+00:00 (dd/MM/yyyy)",
+                "Message Sent Date/Time - UTC+00:00 (dd/MM/yyyy)",
+                "Timestamp",
+                "Date/Time"
+            ]
+
+            for col in timestamp_columns:
+                if col in df.columns:
+                    ts = row.get(col, "")
+                    if self._not_na(ts):
+                        timestamp = str(ts).strip()
+                        if timestamp:
+                            break
+
+            # =====================================================
             # BASIC FIELDS
             # =====================================================
             sender_id = str(row.get("Sender", "")).strip()
             recipient_id = str(row.get("Recipient", "")).strip()
 
-            # Ambil nama dari contacts_map
-            from_name = contacts_map.get(sender_id, "")
-            to_name = contacts_map.get(recipient_id, "")
+            # ambil nama dari contacts_map → fallback ke ID
+            from_name = contacts_map.get(sender_id, sender_id if sender_id else "Unknown")
+            to_name = contacts_map.get(recipient_id, recipient_id if recipient_id else "Unknown")
 
             raw_thread = str(row.get("_ThreadID", "")).strip()
 
@@ -2918,7 +2941,7 @@ class ChatMessagesParserExtended:
                 elif uid2 in account_ids:
                     account_uid = uid2
 
-                # other UID (lawan bicara)
+                # tentukan other uid
                 if account_uid == sender_id:
                     other_uid = recipient_id
                 elif account_uid == recipient_id:
@@ -2926,6 +2949,7 @@ class ChatMessagesParserExtended:
                 else:
                     other_uid = uid2 if uid1 == account_uid else uid1
 
+                # fallback
                 if not account_uid:
                     account_uid = sender_id or uid1
                 if not other_uid:
@@ -2954,7 +2978,7 @@ class ChatMessagesParserExtended:
                 "sender_number": sender_id,
                 "to_name": to_name,
                 "recipient_number": recipient_id,
-                "timestamp": "",
+                "timestamp": timestamp,
                 "thread_id": new_thread_id,
                 "chat_id": "",
                 "message_id": message_id,
