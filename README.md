@@ -421,23 +421,50 @@ alembic upgrade head
 # 11. Run server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# docker
-- docker network create digifor-network
-- docker network connect digifor-network digiforapp
-- docker run --name digiforapp -e POSTGRES_USER=digifordb -e POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL -e POSTGRES_DB=digifor -p 5432:5432 -d postgres
-- docker-compose up --build
+##### Option A: Using Docker (Recommended)
 
+```cmd
+# 1. Create Docker network
+docker network create digifor-network
 
-# stop container
-- docker-compose down
+# 2. Create and start PostgreSQL container
+docker run --name digiforapp --network digifor-network -e POSTGRES_USER=digifordb -e POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL -e POSTGRES_DB=digifor -p 5432:5432 -d postgres:16
 
-# stop container postgre
-- docker stop digiforapp
-- docker rm digiforapp
-- docker rm digiforapp
+# 3. Create .env file
+copy env.example .env
+# Edit .env file with your database credentials:
+# POSTGRES_HOST=db
+# POSTGRES_PORT=5432
+# POSTGRES_USER=digifordb
+# POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL
+# POSTGRES_DB=digifor
 
-# hapus network
-- docker network rm digifor-network
+# 4. Build and start all services (db, migrate, seed, app)
+docker-compose up --build
+
+# This will:
+# - Create PostgreSQL database container
+# - Run database migrations automatically
+# - Seed initial data (admin user)
+# - Start the application on http://localhost:8000
+
+# Stop all containers
+docker-compose down
+
+# Stop and remove all containers and volumes
+docker-compose down -v
+
+# Stop PostgreSQL container only
+docker stop digiforapp
+docker rm digiforapp
+
+# Remove Docker network
+docker network rm digifor-network
+
+# View logs
+docker-compose logs -f app
+docker-compose logs -f db
+```
 
 ```
 
@@ -600,7 +627,7 @@ Once the server is running, you can access:
 
 | Document                | Description                                                                                                                                          | Link                                                                                                   |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Case Management API** | Detailed API documentation for case management                                                                                                       | [`docs/CASE_MANAGEMENT_API_DOCUMENTATION.md`](docs/CASE_MANAGEMENT_API_DOCUMENTATION.md)               |
+| **Case Management API** | Detailed API documentation for case management                                                                                                       | [`docs/api_contract_cases_management.md`](docs/api_contract_cases_management.md)               |
 | **Analytics API**       | Complete analytics API documentation (Contact Correlation, Hashfile Analytics, Social Media Correlation, Deep Communication Analytics, APK Analysis) | [`docs/Digital_Forensics_API_Contract_Analytics.md`](docs/Digital_Forensics_API_Contract_Analytics.md) |
 
 ** Digital Forensics **
