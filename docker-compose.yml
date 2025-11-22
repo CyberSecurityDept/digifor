@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16
+    container_name: digifor-db
+    restart: always
+    environment:
+      POSTGRES_USER: digifordb
+      POSTGRES_PASSWORD: Grz6ayTrBXPnFkwL
+      POSTGRES_DB: digifor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: digifor-app
+    restart: always
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  seed:
+    build: .
+    container_name: digifor-seed
+    restart: "no"
+    depends_on:
+      - db
+    command: bash -c "dockerize -wait tcp://db:5432 -timeout 30s && python -m app.auth.seed"
+
+
+volumes:
+  postgres_data:

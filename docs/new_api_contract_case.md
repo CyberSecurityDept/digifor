@@ -12,6 +12,7 @@
 
 1. [Save Suspect Notes](#1-save-suspect-notes)
 2. [Edit Suspect Notes](#2-edit-suspect-notes)
+3. [Export Suspect Detail PDF](#3-export-suspect-detail-pdf)
 
 ---
 
@@ -250,6 +251,119 @@ Authorization: Bearer <access_token>
 - Untuk melihat notes yang sudah disimpan, gunakan endpoint `GET /api/v1/suspects/get-suspect-detail/{suspect_id}`
 - Untuk membuat notes baru, gunakan endpoint `POST /api/v1/persons/save-suspect-notes/{suspect_id}`
 - Sistem akan mencari evidence berdasarkan `suspect_id` dan `evidence_number` dari suspect, kemudian mengurutkan berdasarkan ID untuk memastikan evidence yang sama digunakan untuk menyimpan dan membaca notes
+
+---
+
+## 3. Export Suspect Detail PDF
+
+**Endpoint:** `GET /api/v1/suspects/export-suspect-detail-pdf/{suspect_id}`
+
+**Description:** Export suspect detail to PDF format. **Endpoint ini digunakan untuk mengekspor detail suspect ke dalam format PDF**. PDF yang dihasilkan berisi informasi lengkap tentang suspect, termasuk evidence yang terhubung dan notes.
+
+PDF yang dihasilkan memiliki format yang sama dengan case detail PDF, dengan struktur sebagai berikut:
+- Header dengan logo dan "Case Analytics Platform"
+- Suspect name sebagai title utama
+- Case name
+- Status button (Defendant/Suspect/etc) di kanan atas
+- Metadata: Investigator, Date Created, Total Evidence
+- Tabel Evidence dengan kolom: Picture, Evidence ID, Summary
+- Notes section di bawah tabel
+- Footer dengan case name - suspect name dan page number
+
+**Access Control:** User harus terautentikasi untuk mengakses endpoint ini.
+
+**Headers:** 
+- `Authorization: Bearer <access_token>`
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `suspect_id` | integer | **Yes** | Suspect ID |
+
+**Example Request:**
+```
+GET /api/v1/suspects/export-suspect-detail-pdf/1
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK - PDF File):**
+- Content-Type: `application/pdf`
+- File akan di-download dengan nama: `suspect_detail_{suspect_id}_{timestamp}.pdf`
+- Format PDF: A4 size dengan margin yang sesuai
+
+**PDF Content Structure:**
+
+1. **Header Section:**
+   - Logo (jika tersedia)
+   - "Case Analytics Platform" title
+   - Export date dan time (format: DD/MM/YYYY HH:MM WIB)
+
+2. **Main Content:**
+   - **Suspect Name** (large title, bold)
+   - **Case Name** (subtitle)
+   - **Status Button** (Defendant/Suspect/etc) - di kanan atas
+   - **Investigator:** {investigator_name}
+   - **Date Created:** {created_date}
+   - **Total Evidence:** {count} Evidence
+
+3. **Evidence Table:**
+   - Kolom: Picture, Evidence ID, Summary
+   - Setiap baris menampilkan:
+     - Picture: Gambar evidence (jika tersedia) atau "No image"
+     - Evidence ID: Nomor evidence (format asli, tanpa prefix "Summary")
+     - Summary: Deskripsi evidence
+
+4. **Notes Section:**
+   - Title: "Notes"
+   - Content: Suspect notes (jika tersedia) atau "No notes available"
+
+5. **Footer:**
+   - Case name - Suspect name
+   - Page number (format: "Page X of Y")
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "detail": "Suspect with ID 1 not found"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "detail": "Failed to export suspect detail PDF: {error_message}"
+}
+```
+
+**Notes:**
+- PDF akan di-generate secara dinamis berdasarkan data suspect terbaru dari database
+- Evidence yang ditampilkan diurutkan berdasarkan ID ascending untuk konsistensi
+- Jika evidence memiliki file_path dan file tersedia, gambar akan ditampilkan di kolom Picture
+- Jika gambar tidak tersedia atau error, akan ditampilkan placeholder "No image" atau "Error"
+- Evidence ID di PDF menggunakan format asli (tanpa prefix "Summary"), berbeda dengan response JSON API
+- Notes diambil dari evidence pertama yang terhubung dengan suspect (menggunakan logika yang sama dengan endpoint get-suspect-detail)
+- PDF file disimpan di `REPORTS_DIR` dengan format nama: `suspect_detail_{suspect_id}_{timestamp}.pdf`
+- File PDF dapat di-download langsung oleh user melalui browser
+
+**Example PDF Filename:**
+- `suspect_detail_1_20251231_143022.pdf`
+
+**Technical Details:**
+- PDF generation menggunakan ReportLab library
+- Format: A4 (210mm x 297mm)
+- Margins: Left 24pt, Right 30pt, Top 170pt, Bottom 50pt
+- Font: Helvetica (regular dan bold)
+- Colors: Primary blue (#1a2b63), Header grey (#f5f5f5), Table header (#466086)
+- Images: Resized dengan aspect ratio preservation, max width sesuai kolom Picture
 
 ---
 
