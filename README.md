@@ -464,6 +464,45 @@ docker network rm digifor-network
 # View logs
 docker-compose logs -f app
 docker-compose logs -f db
+
+# Access PostgreSQL container shell
+docker exec -it digiforapp bash
+
+# Access PostgreSQL database (from inside container)
+psql -U digifordb -d digifor
+
+# Access application container shell
+docker exec -it digifor-app-1 bash
+
+# Database Migration Commands (if there are table changes)
+# Create new migration after modifying database models
+docker exec -it digifor-app-1 alembic revision --autogenerate -m "description_of_changes"
+
+# Apply all pending migrations
+docker exec -it digifor-app-1 alembic upgrade head
+
+# Check current migration status
+docker exec -it digifor-app-1 alembic current
+
+# View migration history
+docker exec -it digifor-app-1 alembic history
+
+# Rollback to previous migration (if needed)
+docker exec -it digifor-app-1 alembic downgrade -1
+
+# Update Commands (if there are code/script changes)
+# Rebuild and restart all containers after code changes
+docker-compose up --build -d
+
+# Rebuild only the app container
+docker-compose build app
+docker-compose up -d app
+
+# Restart only the app container (without rebuild)
+docker-compose restart app
+
+# View real-time logs after update
+docker-compose logs -f app
 ```
 
 ```
