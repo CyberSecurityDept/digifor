@@ -10,9 +10,11 @@ from app.suspect_management.service import suspect_service
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate, SuspectResponse, SuspectListResponse, SuspectNotesRequest
 from app.case_management.models import Case, CaseLog
 from app.auth.models import User
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from app.evidence_management.models import Evidence
 from app.suspect_management.models import Suspect
+from app.case_management.pdf_export import generate_suspect_detail_pdf
+from app.core.config import settings
 
 router = APIRouter(prefix="/suspects", tags=["Suspect Management"])
 
@@ -353,18 +355,21 @@ async def get_suspect_detail(
                     pass
         
         evidence_list = []
+        evidence_records = []
         if suspect_id is not None:
-            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
             if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
                 evidence_by_number = db.query(Evidence).filter(
                     Evidence.evidence_number == suspect.evidence_number,
                     Evidence.case_id == suspect.case_id
-                ).all()
+                ).order_by(Evidence.id.asc()).all()
                 
                 evidence_ids = {e.id for e in evidence_records}
                 for evidence in evidence_by_number:
                     if evidence.id not in evidence_ids:
                         evidence_records.append(evidence)
+                        
+            evidence_records = sorted(evidence_records, key=lambda x: x.id)
             
             for evidence in evidence_records:
                 evidence_created_at_str = None
@@ -390,7 +395,7 @@ async def get_suspect_detail(
                 
                 evidence_list.append({
                     "id": evidence.id,
-                    "evidence_number": evidence.evidence_number,
+                    "evidence_number": f"Summary {evidence.evidence_number}" if evidence.evidence_number else None,
                     "evidence_summary": evidence.description if hasattr(evidence, 'description') else None,
                     "file_path": evidence.file_path if hasattr(evidence, 'file_path') else None,
                     "created_at": evidence_created_at_str,
@@ -408,18 +413,25 @@ async def get_suspect_detail(
             else:
                 suspect_notes = str(suspect.notes) if suspect.notes else None
         else:
-            if evidence_list and len(evidence_list) > 0:
+            if evidence_records and len(evidence_records) > 0:
+                first_evidence = evidence_records[0]
+            elif evidence_list and len(evidence_list) > 0:
                 first_evidence = db.query(Evidence).filter(Evidence.id == evidence_list[0]["id"]).first()
-                if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
-                    if isinstance(first_evidence.notes, dict):
-                        suspect_notes = first_evidence.notes.get('suspect_notes') or first_evidence.notes.get('text')
-                        if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
-                            suspect_notes = None
-                    elif isinstance(first_evidence.notes, str):
-                        suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
-                    else:
-                        notes_value = first_evidence.notes
-                        suspect_notes = str(notes_value) if notes_value is not None else None
+            else:
+                first_evidence = None
+                
+            if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
+                if isinstance(first_evidence.notes, dict):
+                    suspect_notes = first_evidence.notes.get('suspect_notes')
+                    if suspect_notes is None:
+                        suspect_notes = first_evidence.notes.get('text')
+                    if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                        suspect_notes = None
+                elif isinstance(first_evidence.notes, str):
+                    suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
+                else:
+                    notes_value = first_evidence.notes
+                    suspect_notes = str(notes_value) if notes_value is not None else None
         
         suspect_detail = {
             "id": suspect.id,
@@ -453,6 +465,133 @@ async def get_suspect_detail(
                 "status": 500,
                 "message": f"Unexpected server error: {str(e)}"
             }
+        )
+
+@router.get("/export-suspect-detail-pdf/{suspect_id}")
+async def export_suspect_detail_pdf(
+    suspect_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
+        if not suspect:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Suspect with ID {suspect_id} not found"
+            )
+
+        case = None
+        created_at_case_str = None
+        if suspect.case_id is not None:
+            case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case is not None and hasattr(case, 'created_at') and case.created_at is not None:
+                try:
+                    if isinstance(case.created_at, datetime):
+                        created_at_case_str = case.created_at.strftime("%d/%m/%Y")
+                    else:
+                        created_at_case_str = str(case.created_at)
+                except (AttributeError, TypeError):
+                    pass
+        
+        evidence_list = []
+        evidence_records = []
+        if suspect_id is not None:
+            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
+            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
+                evidence_by_number = db.query(Evidence).filter(
+                    Evidence.evidence_number == suspect.evidence_number,
+                    Evidence.case_id == suspect.case_id
+                ).order_by(Evidence.id.asc()).all()
+                
+                evidence_ids = {e.id for e in evidence_records}
+                for evidence in evidence_by_number:
+                    if evidence.id not in evidence_ids:
+                        evidence_records.append(evidence)
+                        
+            evidence_records = sorted(evidence_records, key=lambda x: x.id)
+            
+            for evidence in evidence_records:
+                evidence_list.append({
+                    "id": evidence.id,
+                    "evidence_number": evidence.evidence_number,  # Use original format for PDF
+                    "evidence_summary": evidence.description if hasattr(evidence, 'description') else None,
+                    "file_path": evidence.file_path if hasattr(evidence, 'file_path') else None,
+                })
+        
+        suspect_notes = None
+        if hasattr(suspect, 'notes') and suspect.notes is not None:
+            if isinstance(suspect.notes, str) and suspect.notes.strip():
+                suspect_notes = suspect.notes.strip()
+            elif isinstance(suspect.notes, dict):
+                suspect_notes = suspect.notes.get('suspect_notes') or suspect.notes.get('text')
+                if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                    suspect_notes = None
+            else:
+                suspect_notes = str(suspect.notes) if suspect.notes else None
+        else:
+            if evidence_records and len(evidence_records) > 0:
+                first_evidence = evidence_records[0]
+            elif evidence_list and len(evidence_list) > 0:
+                first_evidence = db.query(Evidence).filter(Evidence.id == evidence_list[0]["id"]).first()
+            else:
+                first_evidence = None
+                
+            if first_evidence is not None and hasattr(first_evidence, 'notes') and first_evidence.notes is not None:
+                if isinstance(first_evidence.notes, dict):
+                    suspect_notes = first_evidence.notes.get('suspect_notes')
+                    if suspect_notes is None:
+                        suspect_notes = first_evidence.notes.get('text')
+                    if suspect_notes and isinstance(suspect_notes, str) and not suspect_notes.strip():
+                        suspect_notes = None
+                elif isinstance(first_evidence.notes, str):
+                    suspect_notes = first_evidence.notes.strip() if first_evidence.notes.strip() else None
+                else:
+                    notes_value = first_evidence.notes
+                    suspect_notes = str(notes_value) if notes_value is not None else None
+        
+        suspect_detail = {
+            "person_name": suspect.name,
+            "suspect_status": suspect.status or "Unknown",
+            "investigator": suspect.investigator or "N/A",
+            "case_name": suspect.case_name or "Unknown Case",
+            "created_at_case": created_at_case_str or "N/A",
+            "evidence": [
+                {
+                    "evidence_count": str(len(evidence_list)),
+                    "list_evidence": evidence_list
+                }
+            ],
+            "suspect_notes": suspect_notes
+        }
+
+        os.makedirs(settings.REPORTS_DIR, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"suspect_detail_{suspect_id}_{timestamp}.pdf"
+        output_path = os.path.join(settings.REPORTS_DIR, filename)
+
+        pdf_path = generate_suspect_detail_pdf(suspect_detail, output_path)
+        
+        if not os.path.exists(pdf_path):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate PDF file"
+            )
+
+        return FileResponse(
+            path=pdf_path,
+            filename=filename,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export suspect detail PDF: {str(e)}"
         )
 
 @router.put("/update-suspect/{suspect_id}", response_model=SuspectResponse)
