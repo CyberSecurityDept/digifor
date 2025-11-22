@@ -22,5 +22,14 @@ services:
     depends_on:
       - db
 
+  seed:
+    build: .
+    container_name: digifor-seed
+    restart: "no"
+    depends_on:
+      - db
+    command: bash -c "dockerize -wait tcp://db:5432 -timeout 30s && python -m app.auth.seed"
+
+
 volumes:
   postgres_data:

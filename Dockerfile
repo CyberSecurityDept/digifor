@@ -1,20 +1,23 @@
-# Gunakan base image Python
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
-
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Copy semua source code
+# Install dockerize
+RUN apt-get update && apt-get install -y wget
+RUN wget https://github.com/jwilder/dockerize/releases/download/v0.6.1/dockerize-linux-amd64-v0.6.1.tar.gz
+RUN tar -xzvf dockerize-linux-amd64-v0.6.1.tar.gz && mv dockerize /usr/local/bin/
+
+# Copy the application code
 COPY . .
 
-# Expose port (misalnya FastAPI/uvicorn di 8000)
 EXPOSE 8000
 
-# Jalankan aplikasi (ubah sesuai entrypoint kamu)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Wait for the DB to be ready and then run seed.py before starting uvicorn
+CMD dockerize -wait tcp://db:5432 -timeout 30s && \
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 & \
+    python -m app.auth.seed && \
+    wait
