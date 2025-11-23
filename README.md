@@ -423,58 +423,123 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ##### Option A: Using Docker (Recommended)
 
-```cmd
-# 1. Create Docker network
+**Prerequisites:**
+- Docker and Docker Compose installed
+- Port 8000 and 5432 available
+
+**Setup Steps (First Time Only):**
+
+```bash
+# 1. Create Docker network (required for services to communicate)
 docker network create digifor-network
 
-# 2. Create and start PostgreSQL container
-docker run --name digiforapp --network digifor-network -e POSTGRES_USER=digifordb -e POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL -e POSTGRES_DB=digifor -p 5432:5432 -d postgres:16
+# 2. Create and start PostgreSQL container with auto-restart
+docker run --name digiforapp \
+  --network digifor-network \
+  -e POSTGRES_USER=digifordb \
+  -e POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL \
+  -e POSTGRES_DB=digifor \
+  -p 5432:5432 \
+  -d \
+  --restart always \
+  postgres:16
 
-# 3. Create .env file
-copy env.example .env
-# Edit .env file with your database credentials:
-# POSTGRES_HOST=db
+# 3. Create .env file from template
+# macOS/Linux:
+cp env.example .env
+
+# Windows:
+# copy env.example .env
+
+# 4. Verify .env file has correct database settings:
+# POSTGRES_HOST=digiforapp  (container name, not 'db' or 'localhost')
 # POSTGRES_PORT=5432
 # POSTGRES_USER=digifordb
 # POSTGRES_PASSWORD=Grz6ayTrBXPnFkwL
 # POSTGRES_DB=digifor
+```
 
-# 4. Build and start all services (db, migrate, seed, app)
-docker-compose up --build
+**Starting Services:**
+
+```bash
+# Build and start all services in detached mode (background)
+docker-compose up --build -d
 
 # This will:
-# - Create PostgreSQL database container
-# - Run database migrations automatically
-# - Seed initial data (admin user)
-# - Start the application on http://localhost:8000
+# - Build Docker images (with layer caching for faster rebuilds)
+# - Run database migrations automatically (via Dockerfile CMD)
+# - Start application service on http://localhost:8000
+# - Start seed service to initialize admin user
+# - All services will auto-restart on failure or system reboot (restart: always)
+```
 
-# Stop all containers
+**Checking Status:**
+
+```bash
+# Check status of all docker-compose services
+docker-compose ps
+
+# Check all running containers
+docker ps
+
+# Check if PostgreSQL container is running
+docker ps | grep digiforapp
+
+# View logs (real-time)
+docker-compose logs -f app
+
+# View logs for seed service
+docker-compose logs -f seed
+
+# View all logs
+docker-compose logs -f
+```
+
+**Stopping Services:**
+
+```bash
+# Stop all docker-compose services (keeps containers)
+docker-compose stop
+
+# Stop and remove docker-compose containers (keeps volumes)
 docker-compose down
 
-# Stop and remove all containers and volumes
+# Stop and remove containers and volumes (clean slate)
 docker-compose down -v
 
 # Stop PostgreSQL container only
 docker stop digiforapp
+
+# Remove PostgreSQL container (if needed)
 docker rm digiforapp
 
-# Remove Docker network
+# Remove Docker network (if needed)
 docker network rm digifor-network
+```
 
-# View logs
-docker-compose logs -f app
-docker-compose logs -f db
+**Accessing Containers:**
 
+```bash
 # Access PostgreSQL container shell
 docker exec -it digiforapp bash
 
 # Access PostgreSQL database (from inside container)
-psql -U digifordb -d digifor
+docker exec -it digiforapp psql -U digifordb -d digifor
 
 # Access application container shell
-docker exec -it digifor-app-1 bash
+# Get container name first:
+docker-compose ps
 
-# Database Migration Commands (if there are table changes)
+# Then access (replace 'digifor-app-1' with actual container name):
+docker exec -it digifor-app-1 bash
+```
+
+**Database Migration Commands:**
+
+```bash
+# Get application container name first
+docker-compose ps
+
 # Create new migration after modifying database models
 docker exec -it digifor-app-1 alembic revision --autogenerate -m "description_of_changes"
 
@@ -489,23 +554,132 @@ docker exec -it digifor-app-1 alembic history
 
 # Rollback to previous migration (if needed)
 docker exec -it digifor-app-1 alembic downgrade -1
+```
 
-# Update Commands (if there are code/script changes)
-# Rebuild and restart all containers after code changes
+**Workflow: Updating After Code and Database Changes**
+
+**Scenario 1: Perubahan Code Saja (tanpa perubahan database schema)**
+
+```bash
+# 1. Rebuild dan restart container (Docker akan menggunakan cache untuk requirements jika tidak berubah)
 docker-compose up --build -d
 
-# Rebuild only the app container
+# Atau lebih cepat, rebuild hanya app container:
 docker-compose build app
 docker-compose up -d app
 
-# Restart only the app container (without rebuild)
-docker-compose restart app
-
-# View real-time logs after update
+# 2. Cek logs untuk memastikan aplikasi berjalan dengan baik
 docker-compose logs -f app
 ```
 
+**Scenario 2: Perubahan Database Schema (tabel baru, kolom baru, dll)**
+
+```bash
+# 1. Get container name terlebih dahulu
+docker-compose ps
+
+# 2. Masuk ke container app untuk membuat migration
+docker exec -it digifor-app-1 bash
+
+# 3. Di dalam container, buat migration baru
+alembic revision --autogenerate -m "nama_perubahan_yang_dilakukan"
+# Contoh: alembic revision --autogenerate -m "add_user_email_column"
+
+# 4. Review file migration yang dibuat di alembic/versions/
+# Pastikan perubahan sesuai dengan yang diinginkan
+
+# 5. Apply migration ke database
+alembic upgrade head
+
+# 6. Keluar dari container
+exit
+
+# 7. Rebuild dan restart container untuk memastikan code terbaru terpakai
+docker-compose up --build -d
+
+# 8. Cek logs
+docker-compose logs -f app
 ```
+
+**Scenario 3: Perubahan Code + Database Schema (Paling Umum)**
+
+```bash
+# Langkah 1: Buat migration untuk perubahan database
+docker-compose ps  # Get container name
+docker exec -it digifor-app-1 alembic revision --autogenerate -m "deskripsi_perubahan"
+
+# Langkah 2: Review migration file di alembic/versions/ (opsional, bisa di-review di host)
+
+# Langkah 3: Apply migration
+docker exec -it digifor-app-1 alembic upgrade head
+
+# Langkah 4: Rebuild dan restart container dengan code terbaru
+docker-compose up --build -d
+
+# Langkah 5: Verifikasi semua berjalan dengan baik
+docker-compose logs -f app
+docker-compose ps  # Pastikan semua container status "Up"
+```
+
+**Quick Commands Reference:**
+
+```bash
+# Rebuild dan restart semua services
+docker-compose up --build -d
+
+# Rebuild hanya app container (lebih cepat)
+docker-compose build app
+docker-compose up -d app
+
+# Restart tanpa rebuild (jika hanya perlu restart)
+docker-compose restart
+
+# Buat migration baru (dari host, tanpa masuk container)
+docker exec -it digifor-app-1 alembic revision --autogenerate -m "nama_migration"
+
+# Apply migration (dari host)
+docker exec -it digifor-app-1 alembic upgrade head
+
+# Cek status migration
+docker exec -it digifor-app-1 alembic current
+
+# Rollback migration (jika ada masalah)
+docker exec -it digifor-app-1 alembic downgrade -1
+
+# View logs real-time
+docker-compose logs -f app
+```
+
+**Troubleshooting:**
+
+```bash
+# If container name already exists, remove it first:
+docker rm -f digiforapp
+
+# If network already exists, you can skip network creation or remove it:
+docker network rm digifor-network
+
+# Check container logs for errors
+docker-compose logs app
+docker logs digiforapp
+
+# Restart all services
+docker-compose restart
+
+# Rebuild from scratch (if having issues)
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+**Accessing the Application:**
+
+Once services are running:
+- **API**: `http://localhost:8000`
+- **API Documentation**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+
+**Note:** All services are configured with `restart: always`, so they will automatically restart on failure or after system reboot.
 
 #### 🐧 Linux (Ubuntu/Debian)
 
@@ -666,6 +840,7 @@ Once the server is running, you can access:
 
 | Document                | Description                                                                                                                                          | Link                                                                                                   |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Docker Guide**        | Complete Docker setup and usage guide (setup, container management, database access, troubleshooting)                                                | [`docs/DOCKER_GUIDE.md`](docs/DOCKER_GUIDE.md)                                                         |
 | **Case Management API** | Detailed API documentation for case management                                                                                                       | [`docs/api_contract_cases_management.md`](docs/api_contract_cases_management.md)               |
 | **Analytics API**       | Complete analytics API documentation (Contact Correlation, Hashfile Analytics, Social Media Correlation, Deep Communication Analytics, APK Analysis) | [`docs/Digital_Forensics_API_Contract_Analytics.md`](docs/Digital_Forensics_API_Contract_Analytics.md) |
 
