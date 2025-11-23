@@ -7,6 +7,11 @@ services:
     restart: always
     networks:
       - digifor-network
+    volumes:
+      # Mount data folder to persist evidence, reports, and analysis files
+      - ./data:/app/data
+      # Mount logs folder to persist logs
+      - ./logs:/app/logs
 
   seed:
     build: .

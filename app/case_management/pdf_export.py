@@ -84,7 +84,7 @@ class CaseDetailPageCanvas(canvas.Canvas):
         right_margin = MARGIN_RIGHT
         usable_width = page_width - left_margin - right_margin
 
-        logo_w, logo_h = 130, 45
+        logo_w, logo_h = 175, 30
         logo_x = left_margin - 7
         logo_y = page_height - 30
 
@@ -115,8 +115,8 @@ class CaseDetailPageCanvas(canvas.Canvas):
             self.drawString(logo_x, logo_y + 10, "CYBER SENTINEL")
 
         export_y = page_height - 35
-        self.setFont("Helvetica-Bold", 10)
-        self.setFillColor(COLOR_TEXT_GREY)
+        self.setFont("Helvetica", 10)
+        self.setFillColor(colors.HexColor("#333333"))
         export_text = f"Exported: {self.export_time}"
         self.drawRightString(page_width - right_margin, export_y, export_text)
 
@@ -145,10 +145,10 @@ class CaseDetailPageCanvas(canvas.Canvas):
             title_y = info_y_start - 11
             line_height = 20
 
-            self.setFont("Helvetica-Bold", 17)
+            self.setFont("Helvetica-Bold", 20)
             self.setFillColor(COLOR_TITLE)
             textobject = self.beginText(left_margin, title_y)
-            textobject.setFont("Helvetica-Bold", 17)
+            textobject.setFont("Helvetica-Bold", 20)
             textobject.setFillColor(COLOR_TITLE)
             textobject.setTextOrigin(left_margin, title_y)
 
@@ -157,7 +157,7 @@ class CaseDetailPageCanvas(canvas.Canvas):
             title_lines_count = 0
             for word in words:
                 test_line = line + word + " " if line else word + " "
-                test_width = self.stringWidth(test_line, "Helvetica-Bold", 17)
+                test_width = self.stringWidth(test_line, "Helvetica-Bold", 20)
                 if test_width > col1_width and line:
                     textobject.textLine(line.strip())
                     line = word + " "
@@ -170,8 +170,8 @@ class CaseDetailPageCanvas(canvas.Canvas):
             self.drawText(textobject)
 
             case_id_y = title_y - (title_lines_count * line_height) - 5
-            self.setFont("Helvetica-Bold", 14)
-            self.setFillColor(COLOR_TITLE)
+            self.setFont("Helvetica-Bold", 12)
+            self.setFillColor(colors.HexColor("#333333"))
             self.drawString(left_margin, case_id_y, f"Case ID: {self.case_id}")
 
             if self.case_status:
@@ -195,15 +195,15 @@ class CaseDetailPageCanvas(canvas.Canvas):
            
             grid_case_y = page_height - NEW_TOP_MARGIN + 10
             investigator_y = grid_case_y - 5
-            self.setFont("Helvetica", 14)
-            self.setFillColor(colors.black)
+            self.setFont("Helvetica", 12)
+            self.setFillColor(colors.HexColor("#0C0C0C"))
 
             if self.case_officer:
                 self.drawString(left_margin, investigator_y, f"Investigator: {self.case_officer}")
 
             if self.created_date:
                 date_text = f"Date Created: {self.created_date}"
-                date_x = page_width - right_margin - self.stringWidth(date_text, "Helvetica", 14)
+                date_x = page_width - right_margin - self.stringWidth(date_text, "Helvetica", 12)
                 self.drawString(date_x, investigator_y, date_text)
         
         footer_y = 30
@@ -228,6 +228,10 @@ class CaseDetailPageCanvas(canvas.Canvas):
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
         self.drawString(left_margin_footer, footer_y, footer_text)
+        
+        # Set different style for page number
+        self.setFont("Helvetica", 12)
+        self.setFillColor(colors.HexColor("#0C0C0C"))
         self.drawRightString(page_width - right_margin_footer, footer_y, page_text)
 
 def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
@@ -254,8 +258,11 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
         styles = getSampleStyleSheet()
 
         title_style = ParagraphStyle(
-            "CaseTitle", parent=styles["Heading1"], fontSize=17, textColor=COLOR_TITLE,
+            "CaseTitle", parent=styles["Heading1"], fontSize=20, textColor=COLOR_TITLE,
             spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold", leftIndent=0
+        )
+        case_id_style = ParagraphStyle(
+            "CaseID", fontSize=12, textColor=colors.HexColor("#333333"), spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
         subtitle_style = ParagraphStyle(
             "Subtitle", fontSize=14, textColor=colors.black, spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
@@ -264,35 +271,35 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
             "StatusStyle", fontSize=16, textColor=colors.black, spaceAfter=7, alignment=TA_CENTER, fontName="Helvetica-Bold"
         )
         investigator_style = ParagraphStyle(
-            "Investigator", fontSize=14, textColor=colors.black, spaceAfter=6, alignment=TA_LEFT, fontName="Helvetica", leftIndent=-5
+            "Investigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=6, alignment=TA_LEFT, fontName="Helvetica", leftIndent=-5
         )
         date_created_style = ParagraphStyle(
-            "DateCreated", fontSize=14, textColor=colors.black, spaceAfter=6, alignment=TA_RIGHT, fontName="Helvetica"
+            "DateCreated", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=6, alignment=TA_RIGHT, fontName="Helvetica"
         )
         description_title_style = ParagraphStyle(
-            "DescriptionTitle", fontSize=14, textColor=COLOR_TITLE, spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
+            "DescriptionTitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
         )
         description_text_style = ParagraphStyle(
-            "DescriptionText", fontSize=11, leading=16, alignment=TA_JUSTIFY, textColor=COLOR_TITLE, fontName="Helvetica"
+            "DescriptionText", fontSize=12, leading=16, alignment=TA_JUSTIFY, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
         poi_title_style = ParagraphStyle(
-            "PersonOfInterestTitle", fontSize=14, textColor=COLOR_TITLE, spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
+            "PersonOfInterestTitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
         )
         poi_info_text_style = ParagraphStyle(
-            "PersonInfoText", fontSize=11, leading=16, alignment=TA_LEFT, textColor=COLOR_TITLE, fontName="Helvetica"
+            "PersonInfoText", fontSize=12, leading=16, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
         notes_title_style = ParagraphStyle(
-            "NotesTitle", fontSize=14, textColor=COLOR_TITLE, spaceAfter=8, alignment=TA_LEFT, fontName="Helvetica-Bold"
+            "NotesTitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=8, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
         notes_text_style = ParagraphStyle(
-            "NotesText", fontSize=11, leading=16, alignment=TA_LEFT, textColor=COLOR_TITLE, fontName="Helvetica"
+            "NotesText", fontSize=12, leading=16, alignment=TA_LEFT, textColor=colors.HexColor("#000000"), fontName="Helvetica"
         )
         table_header_style = ParagraphStyle(
-            "TableHeader", parent=styles["Normal"], fontSize=11, alignment=TA_LEFT,
-            fontName="Helvetica-Bold", leading=13, textColor=colors.white
+            "TableHeader", parent=styles["Normal"], fontSize=12, alignment=TA_LEFT,
+            fontName="Helvetica", leading=13, textColor=colors.HexColor("#F4F6F8")
         )
         evidence_summary_style = ParagraphStyle(
-            "EvidenceSummary", fontSize=10, leading=14, alignment=TA_LEFT, textColor=colors.black, fontName="Helvetica"
+            "EvidenceSummary", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
 
         story = []
@@ -318,32 +325,42 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
         ]))
 
         case_info_data = [
-            [Paragraph(case_title, title_style), status_button_table],
-            [Paragraph(f"<b>Case ID:</b> {case_id}", subtitle_style), ""]
+            [Paragraph(case_title, title_style), status_button_table]
         ]
         case_info_table = Table(case_info_data, colWidths=[col1_width, col2_width])
         case_info_table.setStyle(TableStyle([
             ("VALIGN", (0, 0), (0, 0), "TOP"),
-            ("VALIGN", (0, 1), (0, 1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (0, 0), 20),
-            ("TOPPADDING", (0, 1), (0, 1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("SPAN", (1, 0), (1, 1)),
-            ("VALIGN", (1, 0), (1, 1), "MIDDLE"),
-            ("ALIGN", (1, 0), (1, 1), "CENTER"),
-            ("RIGHTPADDING", (1, 0), (1, 1), 15),
-            ("TOPPADDING", (1, 0), (1, 1), 25),
+            ("VALIGN", (1, 0), (1, 0), "MIDDLE"),
+            ("ALIGN", (1, 0), (1, 0), "CENTER"),
+            ("RIGHTPADDING", (1, 0), (1, 0), 15),
+            ("TOPPADDING", (1, 0), (1, 0), 25),
         ]))
         story.append(case_info_table)
+        story.append(Spacer(1, 8))
+        
+        case_id_data = [
+            [Paragraph(f"<b>Case ID:</b> {case_id}", case_id_style)]
+        ]
+        case_id_table = Table(case_id_data, colWidths=[USABLE_WIDTH])
+        case_id_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(case_id_table)
         story.append(Spacer(1, 4))
 
         title_row_height = max(
             (title_style.fontSize * 1.2 + title_style.spaceAfter + 20),
             button_height + 2
         )
-        case_id_row_height = subtitle_style.fontSize * 1.2 + subtitle_style.spaceAfter
+        case_id_row_height = case_id_style.fontSize * 1.2 + case_id_style.spaceAfter
         case_info_table_height = title_row_height + case_id_row_height + 2
 
         story.append(Spacer(1, 20))
@@ -366,7 +383,7 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
             colWidths=[USABLE_WIDTH]
         )
         desc_title_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), COLOR_SECTION_BACKGROUND),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ]))
@@ -392,7 +409,7 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
             colWidths=[USABLE_WIDTH]
         )
         poi_title_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), COLOR_SECTION_BACKGROUND),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ]))
@@ -407,15 +424,16 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
             total_evidence = 0
 
             person_info_table_data = [
-                [Paragraph("Name", poi_info_text_style), Paragraph(f": {person_name}", poi_info_text_style)],
-                [Paragraph("Status", poi_info_text_style), Paragraph(f": {person_type}", poi_info_text_style)],
-                [Paragraph("Total Evidence", poi_info_text_style), Paragraph(f": {total_evidence} Evidence", poi_info_text_style)],
+                [Paragraph("Name", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{person_name}", poi_info_text_style)],
+                [Paragraph("Status", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{person_type}", poi_info_text_style)],
+                [Paragraph("Total Evidence", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{total_evidence} Evidence", poi_info_text_style)],
             ]
             person_info_table = Table(
-                person_info_table_data, colWidths=[USABLE_WIDTH * 0.15, USABLE_WIDTH * 0.85]
+                person_info_table_data, colWidths=[USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.80]
             )
             person_info_table.setStyle(TableStyle([
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (1, 0), (1, -1), 5),
                 ("TOPPADDING", (0, 0), (-1, -1), 0),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]))
@@ -433,34 +451,21 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                 total_evidence = len(evidence_list)
 
                 person_info_table_data = [
-                    [Paragraph("Name", poi_info_text_style), Paragraph(f": {person_name}", poi_info_text_style)],
-                    [Paragraph("Status", poi_info_text_style), Paragraph(f": {person_type}", poi_info_text_style)],
-                    [Paragraph("Total Evidence", poi_info_text_style), Paragraph(f": {total_evidence} Evidence", poi_info_text_style)],
+                    [Paragraph("Name", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{person_name}", poi_info_text_style)],
+                    [Paragraph("Status", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{person_type}", poi_info_text_style)],
+                    [Paragraph("Total Evidence", poi_info_text_style), Paragraph(f":&nbsp;&nbsp;{total_evidence} Evidence", poi_info_text_style)],
                 ]
                 person_info_table = Table(
-                    person_info_table_data, colWidths=[USABLE_WIDTH * 0.15, USABLE_WIDTH * 0.85]
+                    person_info_table_data, colWidths=[USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.80]
                 )
                 person_info_table.setStyle(TableStyle([
                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (1, 0), (1, -1), 10),
                     ("TOPPADDING", (0, 0), (-1, -1), 0),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
                 ]))
 
-                if index > 0:
-                    subtitle_with_info = [
-                        Spacer(1, 25),
-                        poi_title_table,
-                        Spacer(1, 5),
-                        Spacer(1, 10),
-                        person_info_table,
-                        Spacer(1, 10)
-                    ]
-                    story.append(KeepTogether(subtitle_with_info))
-                else:
-                    story.append(Spacer(1, 10))
-                    story.append(person_info_table)
-                    story.append(Spacer(1, 10))
-
+                evidence_table = None
                 if evidence_list:
                     table_data = [[
                         Paragraph('Picture', table_header_style),
@@ -476,32 +481,67 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                         file_path = ev.get("file_path")
                         pic_cell = Paragraph("<i>No image</i>", evidence_summary_style)
 
-                        if file_path and os.path.exists(file_path):
-                            try:
-                                img = PILImage.open(file_path)
-                                original_width, original_height = img.size
-                                aspect_ratio = original_height / original_width
+                        if file_path:
+                            resolved_path = None
+                            if os.path.isabs(file_path):
+                                resolved_path = file_path if os.path.exists(file_path) else None
+                            else:
+                                file_path_clean = file_path.lstrip("./")
+                                base_name = os.path.basename(file_path_clean)
                                 
-                                image_width = picture_col_width - 10
-                                image_height = image_width * aspect_ratio
+                                possible_paths = [
+                                    os.path.join(os.getcwd(), file_path_clean),
+                                ]
                                 
-                                img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
-                                buf = BytesIO()
-                                img.save(buf, format="PNG")
-                                buf.seek(0)
-                                pic_cell = Image(buf, width=image_width, height=image_height)
-                            except Exception as img_e:
-                                logger.warning(f"Failed to process image {file_path}: {img_e}")
+                                if not file_path_clean.startswith("data/"):
+                                    possible_paths.extend([
+                                        os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), file_path_clean),
+                                        os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), base_name),
+                                        os.path.join(os.getcwd(), "data", "uploads", file_path_clean),
+                                        os.path.join(os.getcwd(), "data", "uploads", base_name),
+                                    ])
                                 
-                                placeholder_width = picture_col_width - 10
-                                placeholder_height = placeholder_width
-                                placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
-                                draw = ImageDraw.Draw(placeholder)
-                                draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
-                                buf = BytesIO()
-                                placeholder.save(buf, format="PNG")
-                                buf.seek(0)
-                                pic_cell = Image(buf, width=placeholder_width, height=placeholder_height)
+                                possible_paths.extend([
+                                    os.path.join(os.getcwd(), "data", "evidence", base_name),
+                                    file_path if os.path.exists(file_path) else None,
+                                ])
+                                
+                                for path in possible_paths:
+                                    if path and os.path.exists(path):
+                                        resolved_path = path
+                                        logger.info(f"Found image at: {resolved_path} (original: {file_path})")
+                                        break
+                            
+                            if resolved_path and os.path.exists(resolved_path):
+                                file_path = resolved_path
+                                try:
+                                    img = PILImage.open(file_path)
+                                    
+                                    image_width = 130
+                                    image_height = 78
+                                    
+                                    img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
+                                    buf = BytesIO()
+                                    img.save(buf, format="PNG")
+                                    buf.seek(0)
+                                    pic_cell = Image(buf, width=image_width, height=image_height)
+                                    logger.info(f"Successfully loaded image: {file_path}")
+                                except Exception as img_e:
+                                    logger.warning(f"Failed to process image {file_path}: {img_e}")
+                                    
+                                    placeholder_width = 130
+                                    placeholder_height = 78
+                                    placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
+                                    draw = ImageDraw.Draw(placeholder)
+                                    draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
+                                    buf = BytesIO()
+                                    placeholder.save(buf, format="PNG")
+                                    buf.seek(0)
+                                    pic_cell = Image(buf, width=placeholder_width, height=placeholder_height)
+                            else:
+                                logger.warning(f"Image file not found: {file_path}")
+                        else:
+                            logger.debug(f"No file_path for evidence {evidence_id}")
 
                         table_data.append([
                             pic_cell,
@@ -516,8 +556,8 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                     )
                     evidence_table.setStyle(TableStyle([
                         ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
                         ("ALIGN", (0, 0), (-1, 0), "LEFT"),
                         ("ALIGN", (0, 1), (-1, -1), "LEFT"),
                         ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
@@ -533,12 +573,39 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                         ("LINEBELOW", (0, 0), (-1, 0), 1, colors.black),
                     ]))
 
-                    story.append(Spacer(1, 7))
-                    story.append(evidence_table)
-                    story.append(Spacer(1, 20))
+                if index > 0:
+                    estimated_height = 250 if evidence_table else 150
+                    story.append(CondPageBreak(estimated_height))
+                    person_section_elements = []
+
+                    person_section_elements.append(poi_title_table)
+                    person_section_elements.append(Spacer(1, 5))
+
+                    person_section_elements.append(Spacer(1, 7))
+                    person_section_elements.append(person_info_table)
+                    person_section_elements.append(Spacer(1, 10))
+
+                    if evidence_table:
+                        person_section_elements.append(Spacer(1, 7))
+                        person_section_elements.append(evidence_table)
+                        person_section_elements.append(Spacer(1, 20))
+                    else:
+                        person_section_elements.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
+                        person_section_elements.append(Spacer(1, 20))
+                    
+                    story.append(KeepTogether(person_section_elements))
                 else:
-                    story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
-                    story.append(Spacer(1, 20))
+                    story.append(Spacer(1, 10))
+                    story.append(person_info_table)
+                    story.append(Spacer(1, 10))
+                    
+                    if evidence_table:
+                        story.append(Spacer(1, 7))
+                        story.append(evidence_table)
+                        story.append(Spacer(1, 20))
+                    else:
+                        story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
+                        story.append(Spacer(1, 20))
 
         notes_value = case_notes.strip() if case_notes and case_notes.strip() else "<i>No notes available</i>"
         notes_data = [
@@ -547,7 +614,7 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
         ]
         notes_table = Table(notes_data, colWidths=[USABLE_WIDTH])
         notes_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), COLOR_ROW_BACKGROUND_ODD),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F2F2F2")),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
@@ -560,10 +627,8 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
             notes_table
         ]
         story.append(KeepTogether(notes_elements))
-
         has_notes = bool(case_notes and case_notes.strip())
         has_person_of_interest = bool(persons_of_interest and len(persons_of_interest) > 0)
-        
         canvas_instance = [None]
 
         def canvas_maker(*args, **kwargs):
@@ -640,7 +705,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
         right_margin = MARGIN_RIGHT
         usable_width = page_width - left_margin - right_margin
 
-        logo_w, logo_h = 130, 45
+        logo_w, logo_h = 175, 30
         logo_x = left_margin - 7
         logo_y = page_height - 30
 
@@ -671,7 +736,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
             self.drawString(logo_x, logo_y + 10, "CYBER SENTINEL")
 
         export_y = page_height - 35
-        self.setFont("Helvetica-Bold", 10)
+        self.setFont("Helvetica", 10)
         self.setFillColor(COLOR_TEXT_GREY)
         export_text = f"Exported: {self.export_time}"
         self.drawRightString(page_width - right_margin, export_y, export_text)
@@ -701,10 +766,10 @@ class SuspectDetailPageCanvas(canvas.Canvas):
             title_y = info_y_start - 11
             line_height = 20
 
-            self.setFont("Helvetica-Bold", 17)
+            self.setFont("Helvetica-Bold", 20)
             self.setFillColor(COLOR_TITLE)
             textobject = self.beginText(left_margin, title_y)
-            textobject.setFont("Helvetica-Bold", 17)
+            textobject.setFont("Helvetica-Bold", 20)
             textobject.setFillColor(COLOR_TITLE)
             textobject.setTextOrigin(left_margin, title_y)
 
@@ -713,7 +778,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
             title_lines_count = 0
             for word in words:
                 test_line = line + word + " " if line else word + " "
-                test_width = self.stringWidth(test_line, "Helvetica-Bold", 17)
+                test_width = self.stringWidth(test_line, "Helvetica-Bold", 20)
                 if test_width > col1_width and line:
                     textobject.textLine(line.strip())
                     line = word + " "
@@ -726,9 +791,9 @@ class SuspectDetailPageCanvas(canvas.Canvas):
             self.drawText(textobject)
 
             case_name_y = title_y - (title_lines_count * line_height) - 5
-            self.setFont("Helvetica-Bold", 14)
-            self.setFillColor(COLOR_TITLE)
-            self.drawString(left_margin, case_name_y, f"Case: {self.case_name}")
+            self.setFont("Helvetica-Bold", 12)
+            self.setFillColor(colors.black)
+            self.drawString(left_margin, case_name_y, f"Case Related: {self.case_name}")
 
             if self.suspect_status:
                 status_width = col2_width * 1.1
@@ -751,7 +816,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
            
             grid_suspect_y = page_height - NEW_TOP_MARGIN + 10
             investigator_y = grid_suspect_y - 5
-            self.setFont("Helvetica", 14)
+            self.setFont("Helvetica", 12)
             self.setFillColor(colors.black)
 
             if self.investigator:
@@ -759,7 +824,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
 
             if self.created_date:
                 date_text = f"Date Created: {self.created_date}"
-                date_x = page_width - right_margin - self.stringWidth(date_text, "Helvetica", 14)
+                date_x = page_width - right_margin - self.stringWidth(date_text, "Helvetica", 12)
                 self.drawString(date_x, investigator_y, date_text)
         
         footer_y = 30
@@ -784,6 +849,9 @@ class SuspectDetailPageCanvas(canvas.Canvas):
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
         self.drawString(left_margin_footer, footer_y, footer_text)
+        
+        self.setFont("Helvetica", 12)
+        self.setFillColor(colors.HexColor("#0C0C0C"))
         self.drawRightString(page_width - right_margin_footer, footer_y, page_text)
 
 def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
@@ -815,33 +883,36 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
         styles = getSampleStyleSheet()
 
         title_style = ParagraphStyle(
-            "SuspectTitle", parent=styles["Heading1"], fontSize=17, textColor=COLOR_TITLE,
+            "SuspectTitle", parent=styles["Heading1"], fontSize=20, textColor=COLOR_TITLE,
             spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold", leftIndent=0
         )
         subtitle_style = ParagraphStyle(
             "Subtitle", fontSize=14, textColor=colors.black, spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
+        case_related_style = ParagraphStyle(
+            "CaseRelated", fontSize=12, textColor=colors.black, spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
         status_style = ParagraphStyle(
             "StatusStyle", fontSize=16, textColor=colors.black, spaceAfter=7, alignment=TA_CENTER, fontName="Helvetica-Bold"
         )
         investigator_style = ParagraphStyle(
-            "Investigator", fontSize=14, textColor=colors.black, spaceAfter=6, alignment=TA_LEFT, fontName="Helvetica", leftIndent=-5
+            "Investigator", fontSize=12, textColor=colors.black, spaceAfter=6, alignment=TA_LEFT, fontName="Helvetica", leftIndent=-5
         )
         date_created_style = ParagraphStyle(
-            "DateCreated", fontSize=14, textColor=colors.black, spaceAfter=6, alignment=TA_RIGHT, fontName="Helvetica"
+            "DateCreated", fontSize=12, textColor=colors.black, spaceAfter=6, alignment=TA_RIGHT, fontName="Helvetica"
         )
         notes_title_style = ParagraphStyle(
-            "NotesTitle", fontSize=14, textColor=COLOR_TITLE, spaceAfter=8, alignment=TA_LEFT, fontName="Helvetica-Bold"
+            "NotesTitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=8, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
         notes_text_style = ParagraphStyle(
-            "NotesText", fontSize=11, leading=16, alignment=TA_LEFT, textColor=COLOR_TITLE, fontName="Helvetica"
+            "NotesText", fontSize=12, leading=16, alignment=TA_LEFT, textColor=colors.HexColor("#000000"), fontName="Helvetica"
         )
         table_header_style = ParagraphStyle(
-            "TableHeader", parent=styles["Normal"], fontSize=11, alignment=TA_LEFT,
-            fontName="Helvetica-Bold", leading=13, textColor=colors.white
+            "TableHeader", parent=styles["Normal"], fontSize=12, alignment=TA_LEFT,
+            fontName="Helvetica", leading=13, textColor=colors.HexColor("#F4F6F8")
         )
         evidence_summary_style = ParagraphStyle(
-            "EvidenceSummary", fontSize=10, leading=14, alignment=TA_LEFT, textColor=colors.black, fontName="Helvetica"
+            "EvidenceSummary", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
 
         story = []
@@ -868,7 +939,7 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
 
         suspect_info_data = [
             [Paragraph(suspect_name, title_style), status_button_table],
-            [Paragraph(f"<b>Case Related:</b> {case_name}", subtitle_style), ""]
+            [Paragraph(f"<b>Case Related:</b> {case_name}", case_related_style), ""]
         ]
         suspect_info_table = Table(suspect_info_data, colWidths=[col1_width, col2_width])
         suspect_info_table.setStyle(TableStyle([
@@ -939,11 +1010,9 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
                 if file_path and os.path.exists(file_path):
                     try:
                         img = PILImage.open(file_path)
-                        original_width, original_height = img.size
-                        aspect_ratio = original_height / original_width
-                        
-                        image_width = picture_col_width - 10
-                        image_height = image_width * aspect_ratio
+
+                        image_width = 130
+                        image_height = 78
                         
                         img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
                         buf = BytesIO()
@@ -953,8 +1022,8 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
                     except Exception as img_e:
                         logger.warning(f"Failed to process image {file_path}: {img_e}")
                         
-                        placeholder_width = picture_col_width - 10
-                        placeholder_height = placeholder_width
+                        placeholder_width = 130
+                        placeholder_height = 78
                         placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
                         draw = ImageDraw.Draw(placeholder)
                         draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
@@ -976,8 +1045,8 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
             )
             evidence_table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
                 ("ALIGN", (0, 0), (-1, 0), "LEFT"),
                 ("ALIGN", (0, 1), (-1, -1), "LEFT"),
                 ("VALIGN", (0, 0), (0, -1), "MIDDLE"),

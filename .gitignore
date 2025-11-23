@@ -61,6 +61,12 @@ data/apks/apk/*
 data/.gitkeep
 data/**/.gitkeep
 
+# App Data Directories
+app/data/uploads/
+app/data/reports/
+app/data/evidence/
+app/data/analysis/
+
 # IDE
 .vscode/
 .cursor/
