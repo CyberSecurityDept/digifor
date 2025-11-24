@@ -183,7 +183,16 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 content={
                     "status": 400,
                     "message": f"This endpoint is only for Deep Communication Analytics. Current analytic method is '{method_value}'",
-                    "data": None
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic.analytic_name or "Unknown",
+                            "current_method": str(method_value) if method_value else None
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/api/v1/analytics/start-analyzing",
+                        "instruction": "Please create a new analytic with method 'Deep Communication Analytics'"
+                    }
                 },
                 status_code=400
             )
@@ -228,7 +237,10 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                             "analytic_name": analytic.analytic_name or "Unknown"
                         },
                         "device_count": total_device_count,
-                        "required_minimum": 2
+                        "required_minimum": 2,
+                        "next_action": "add_device",
+                        "redirect_to": "/api/v1/analytics/add-device",
+                        "instruction": "Please add at least 2 devices to continue with Deep Communication Analytics"
                     }
                 },
                 status_code=400
