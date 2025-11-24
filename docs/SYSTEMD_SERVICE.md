@@ -473,6 +473,378 @@ Jika ada masalah koneksi database:
 
 Lihat dokumentasi lengkap di [DATABASE_TROUBLESHOOTING.md](DATABASE_TROUBLESHOOTING.md) untuk troubleshooting database lebih detail.
 
+## PostgreSQL Service Management
+
+Service `digifor-v2` memiliki dependency pada PostgreSQL service. Service ini akan menunggu PostgreSQL berjalan sebelum memulai aplikasi.
+
+### Konfigurasi Dependency
+
+File service (`digifor-v2.service`) dikonfigurasi dengan:
+- **After:** `network.target postgresql.service` - Service akan start setelah network dan PostgreSQL ready
+- **Wants:** `postgresql.service` - Service membutuhkan PostgreSQL (tidak akan gagal jika PostgreSQL tidak ada, tapi akan menunggu)
+
+### Mengelola PostgreSQL Service
+
+#### Cek Status PostgreSQL
+
+```bash
+# Cek status PostgreSQL service
+sudo systemctl status postgresql
+
+# Cek apakah PostgreSQL berjalan
+sudo systemctl is-active postgresql
+
+# Cek apakah PostgreSQL enabled (auto-start on boot)
+sudo systemctl is-enabled postgresql
+```
+
+#### Start/Stop PostgreSQL
+
+```bash
+# Start PostgreSQL service
+sudo systemctl start postgresql
+
+# Stop PostgreSQL service
+sudo systemctl stop postgresql
+
+# Restart PostgreSQL service
+sudo systemctl restart postgresql
+
+# Reload PostgreSQL configuration (tanpa restart)
+sudo systemctl reload postgresql
+```
+
+#### Enable/Disable Auto-Start
+
+```bash
+# Enable PostgreSQL untuk start otomatis saat boot
+sudo systemctl enable postgresql
+
+# Disable auto-start
+sudo systemctl disable postgresql
+```
+
+#### Melihat Logs PostgreSQL
+
+```bash
+# Lihat logs real-time
+sudo journalctl -u postgresql -f
+
+# Lihat logs terakhir (50 baris)
+sudo journalctl -u postgresql -n 50
+
+# Lihat logs sejak hari ini
+sudo journalctl -u postgresql --since today
+
+# Lihat logs dengan filter level
+sudo journalctl -u postgresql -p err
+```
+
+#### Verifikasi Koneksi PostgreSQL
+
+```bash
+# Test koneksi dengan psql
+psql -h localhost -U digifordb -d db_forensics -c "SELECT version();"
+
+# Test koneksi dengan Python script
+python3 scripts/check-db-connection.py
+
+# Verifikasi lengkap
+python3 scripts/verify-db-connection.py
+```
+
+### Troubleshooting PostgreSQL Service
+
+#### PostgreSQL Tidak Berjalan
+
+Jika PostgreSQL service tidak berjalan:
+
+1. **Cek status:**
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+2. **Cek error logs:**
+   ```bash
+   sudo journalctl -u postgresql -n 100 --no-pager
+   ```
+
+3. **Start PostgreSQL:**
+   ```bash
+   sudo systemctl start postgresql
+   ```
+
+4. **Jika masih gagal, cek konfigurasi:**
+   ```bash
+   # Cek file konfigurasi PostgreSQL
+   sudo cat /etc/postgresql/*/main/postgresql.conf | grep -E "^(port|listen_addresses)"
+   
+   # Cek file pg_hba.conf untuk authentication
+   sudo cat /etc/postgresql/*/main/pg_hba.conf
+   ```
+
+#### PostgreSQL Berjalan Tapi Aplikasi Tidak Bisa Connect
+
+1. **Verifikasi koneksi:**
+   ```bash
+   python3 scripts/verify-db-connection.py
+   ```
+
+2. **Cek credentials di .env:**
+   ```bash
+   grep -E "^(POSTGRES_|DATABASE_)" /home/digifor/digifor-v2/.env
+   ```
+
+3. **Test koneksi langsung:**
+   ```bash
+   psql -h 172.15.2.105 -U digifordb -d db_forensics -c "SELECT 1;"
+   ```
+
+4. **Cek firewall:**
+   ```bash
+   # Jika PostgreSQL di server berbeda, pastikan port 5432 terbuka
+   sudo ufw status | grep 5432
+   ```
+
+#### PostgreSQL Crash atau Restart Berulang
+
+1. **Cek logs detail:**
+   ```bash
+   sudo journalctl -u postgresql -n 200 --no-pager
+   ```
+
+2. **Cek disk space:**
+   ```bash
+   df -h
+   ```
+
+3. **Cek memory:**
+   ```bash
+   free -h
+   ```
+
+4. **Cek PostgreSQL data directory:**
+   ```bash
+   sudo du -sh /var/lib/postgresql/*/main
+   ```
+
+## Database Tables Management
+
+Aplikasi menggunakan PostgreSQL sebagai database dan SQLAlchemy sebagai ORM. Semua tabel database dibuat secara otomatis saat pertama kali aplikasi dijalankan atau saat service start.
+
+### Daftar Tabel Database
+
+Aplikasi menggunakan tabel-tabel berikut:
+
+#### Authentication & Authorization
+- **`users`** - Tabel untuk menyimpan data user (email, password, role, dll)
+- **`refresh_tokens`** - Tabel untuk menyimpan refresh token untuk authentication
+- **`blacklisted_tokens`** - Tabel untuk menyimpan token yang sudah di-blacklist
+
+#### Case Management
+- **`agencies`** - Tabel untuk menyimpan data agency/instansi
+- **`work_units`** - Tabel untuk menyimpan data work unit/satuan kerja
+- **`cases`** - Tabel untuk menyimpan data kasus
+- **`case_logs`** - Tabel untuk menyimpan log aktivitas kasus
+
+#### Evidence Management
+- **`evidence_types`** - Tabel untuk menyimpan tipe-tipe evidence
+- **`evidence`** - Tabel untuk menyimpan data evidence
+- **`custody_logs`** - Tabel untuk menyimpan log custody evidence
+- **`custody_reports`** - Tabel untuk menyimpan laporan custody
+
+#### Suspect Management
+- **`suspects`** - Tabel untuk menyimpan data suspect/tersangka
+
+#### Analytics & Device Management
+- **`analytics_history`** - Tabel untuk menyimpan history analytics
+- **`analytic_device`** - Tabel untuk relasi analytics dengan devices
+- **`apk_analytics`** - Tabel untuk menyimpan hasil analisis APK
+- **`devices`** - Tabel untuk menyimpan data device
+- **`files`** - Tabel untuk menyimpan data file dari device
+- **`hash_files`** - Tabel untuk menyimpan hash file
+- **`contacts`** - Tabel untuk menyimpan data kontak dari device
+- **`calls`** - Tabel untuk menyimpan data panggilan dari device
+- **`social_media`** - Tabel untuk menyimpan data social media dari device
+- **`chat_messages`** - Tabel untuk menyimpan data chat messages dari device
+
+### Melihat Daftar Tabel
+
+Untuk melihat semua tabel yang ada di database:
+
+```bash
+# Menggunakan script Python
+python3 scripts/list-tables.py
+
+# Menggunakan psql langsung
+psql -h localhost -U digifordb -d db_forensics -c "\dt"
+
+# Atau dengan detail lebih lengkap
+psql -h localhost -U digifordb -d db_forensics -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
+```
+
+### Update Database Tables
+
+#### Menggunakan Alembic (Recommended)
+
+Aplikasi menggunakan Alembic untuk database migration. Untuk update schema database:
+
+1. **Buat migration baru setelah mengubah model:**
+   ```bash
+   # Masuk ke virtual environment
+   source venv/bin/activate
+   
+   # Buat migration baru
+   alembic revision --autogenerate -m "deskripsi_perubahan"
+   
+   # Review file migration di alembic/versions/
+   # Pastikan perubahan sesuai dengan yang diinginkan
+   ```
+
+2. **Apply migration:**
+   ```bash
+   # Apply semua pending migrations
+   alembic upgrade head
+   
+   # Atau apply satu migration
+   alembic upgrade +1
+   ```
+
+3. **Rollback migration (jika perlu):**
+   ```bash
+   # Rollback satu migration
+   alembic downgrade -1
+   
+   # Rollback ke migration tertentu
+   alembic downgrade <revision_id>
+   ```
+
+4. **Cek status migration:**
+   ```bash
+   # Cek migration yang sudah di-apply
+   alembic current
+   
+   # Lihat history migrations
+   alembic history
+   ```
+
+#### Menggunakan SQLAlchemy create_all (Development Only)
+
+**Peringatan:** Metode ini hanya untuk development. Untuk production, gunakan Alembic.
+
+1. **Update tabel otomatis:**
+   ```bash
+   # Script akan membuat semua tabel yang belum ada
+   python3 scripts/init-database.py
+   ```
+
+2. **Atau menggunakan tool:**
+   ```bash
+   python3 tools/migrate_database.py
+   ```
+
+**Catatan:** `Base.metadata.create_all()` hanya akan membuat tabel baru, tidak akan mengubah struktur tabel yang sudah ada. Untuk mengubah struktur tabel yang sudah ada, gunakan Alembic.
+
+### Backup Database
+
+#### Backup Manual
+
+```bash
+# Backup database ke file SQL
+pg_dump -h localhost -U digifordb -d db_forensics > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Backup dengan format custom (lebih cepat untuk restore)
+pg_dump -h localhost -U digifordb -d db_forensics -F c -f backup_$(date +%Y%m%d_%H%M%S).dump
+
+# Backup hanya schema (tanpa data)
+pg_dump -h localhost -U digifordb -d db_forensics --schema-only > schema_backup.sql
+```
+
+#### Restore Database
+
+```bash
+# Restore dari file SQL
+psql -h localhost -U digifordb -d db_forensics < backup_20250101_120000.sql
+
+# Restore dari format custom
+pg_restore -h localhost -U digifordb -d db_forensics backup_20250101_120000.dump
+
+# Restore hanya schema
+psql -h localhost -U digifordb -d db_forensics < schema_backup.sql
+```
+
+### Maintenance Database
+
+#### Vacuum Database
+
+```bash
+# Vacuum database untuk optimize storage
+psql -h localhost -U digifordb -d db_forensics -c "VACUUM ANALYZE;"
+
+# Vacuum full (lebih agresif, butuh lock table)
+psql -h localhost -U digifordb -d db_forensics -c "VACUUM FULL;"
+```
+
+#### Reindex Database
+
+```bash
+# Reindex semua index
+psql -h localhost -U digifordb -d db_forensics -c "REINDEX DATABASE db_forensics;"
+```
+
+#### Cek Database Size
+
+```bash
+# Cek ukuran database
+psql -h localhost -U digifordb -d db_forensics -c "SELECT pg_size_pretty(pg_database_size('db_forensics'));"
+
+# Cek ukuran setiap tabel
+psql -h localhost -U digifordb -d db_forensics -c "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size FROM pg_tables WHERE schemaname = 'public' ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
+```
+
+### Troubleshooting Database Tables
+
+#### Tabel Tidak Terbuat
+
+Jika tabel tidak terbuat setelah service start:
+
+1. **Cek logs:**
+   ```bash
+   sudo journalctl -u digifor-v2 -n 100 | grep -i "database\|table\|init"
+   ```
+
+2. **Jalankan init database manual:**
+   ```bash
+   python3 scripts/init-database.py
+   ```
+
+3. **Cek permission database user:**
+   ```bash
+   psql -h localhost -U digifordb -d db_forensics -c "\du digifordb"
+   ```
+
+#### Error Migration
+
+Jika ada error saat migration:
+
+1. **Cek migration status:**
+   ```bash
+   alembic current
+   alembic history
+   ```
+
+2. **Cek error detail:**
+   ```bash
+   alembic upgrade head --sql  # Preview SQL tanpa execute
+   ```
+
+3. **Rollback dan coba lagi:**
+   ```bash
+   alembic downgrade -1
+   # Fix migration file
+   alembic upgrade head
+   ```
+
 ---
 
 ## Struktur File Service
@@ -492,5 +864,5 @@ File-file terkait systemd service:
 
 ---
 
-**Terakhir diupdate:** 2025-11-05
+**Terakhir diupdate:** 2025-01-15
 
