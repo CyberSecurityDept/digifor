@@ -7,11 +7,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    Image, PageBreak, KeepTogether, CondPageBreak
+    Image, PageBreak, KeepTogether, CondPageBreak, Flowable
 )
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from PIL import Image as PILImage, ImageDraw
 from app.core.config import settings
 
@@ -44,6 +46,101 @@ USABLE_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
 def get_wib_now() -> datetime:
     return datetime.now(WIB)
 
+class TimelineFlowable(Flowable):
+    def __init__(self, custody_data, width, height=120):
+        Flowable.__init__(self)
+        self.custody_data = custody_data
+        self.width = width
+        self.height = height
+        self._register_noto_sans()
+    
+    def _register_noto_sans(self):
+        try:
+            pdfmetrics.getFont("NotoSans")
+        except:
+            noto_sans_paths = [
+                "/System/Library/Fonts/Supplemental/NotoSans-Regular.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                "C:/Windows/Fonts/NotoSans-Regular.ttf",
+                os.path.join(os.path.dirname(__file__), "fonts", "NotoSans-Regular.ttf"),
+            ]
+            for path in noto_sans_paths:
+                if os.path.exists(path):
+                    try:
+                        pdfmetrics.registerFont(TTFont("NotoSans", path))
+                        break
+                    except:
+                        continue
+
+    def wrap(self, availWidth, availHeight):
+        return self.width, self.height
+    
+    def draw(self):
+        canvas = self.canv
+        canvas.saveState()
+        
+        dot_color = colors.HexColor("#CCCCCC")
+        line_color = colors.HexColor("#CCCCCC")
+        text_color = colors.HexColor("#0C0C0C")
+        text_color_light = colors.HexColor("#666666")
+        
+        num_stages = len(self.custody_data)
+        if num_stages == 0:
+            canvas.restoreState()
+            return
+        
+
+        dot_radius = 6
+        timeline_y = self.height - 20
+        text_y = timeline_y - 35
+        date_y = text_y - 15
+        name_y = date_y - 15
+        
+        margin_left = 70
+        margin_right = 10
+        available_width = self.width - margin_left - margin_right
+        spacing = available_width / (num_stages - 1) if num_stages > 1 else 0
+        start_x = margin_left
+        
+        if num_stages > 1:
+            canvas.setStrokeColor(line_color)
+            canvas.setLineWidth(1)
+            canvas.setDash([5, 3])
+            canvas.line(start_x, timeline_y, start_x + available_width, timeline_y)
+            canvas.setDash()
+        
+        for i, data in enumerate(self.custody_data):
+            x = start_x + (i * spacing)
+            
+            canvas.setFillColor(dot_color)
+            canvas.setStrokeColor(dot_color)
+            canvas.circle(x, timeline_y, dot_radius, fill=1, stroke=1)
+   
+            canvas.setFont("Helvetica", 9.47)
+            canvas.setFillColor(colors.HexColor("#000000"))
+            stage_name = data.get("type", "")
+            text_width = canvas.stringWidth(stage_name, "Helvetica", 9.47)
+            canvas.drawString(x - text_width / 2, text_y, stage_name)
+            
+            canvas.setFont("Helvetica", 6.31)
+            canvas.setFillColor(colors.HexColor("#545454"))
+            date_str = data.get("date", "N/A")
+            date_width = canvas.stringWidth(date_str, "Helvetica", 6.31)
+            canvas.drawString(x - date_width / 2, date_y, date_str)
+
+            name_str = data.get("name", "N/A")
+
+            try:
+                font_name = "NotoSans" if pdfmetrics.getFont("NotoSans") else "Helvetica"
+            except:
+                font_name = "Helvetica"
+            canvas.setFont(font_name, 6.31)  # Medium weight (500), size 6.31px
+            canvas.setFillColor(colors.HexColor("#000000"))
+            name_width = canvas.stringWidth(name_str, font_name, 6.31)
+            canvas.drawString(x - name_width / 2, name_y, name_str)
+        
+        
+        canvas.restoreState()
 class CaseDetailPageCanvas(canvas.Canvas):
     def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
                  case_status: str = "", case_officer: str = "", created_date: str = "",
@@ -1175,9 +1272,8 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
         if self.logo_path and os.path.exists(self.logo_path):
             try:
                 img = PILImage.open(self.logo_path)
-                ratio = min(logo_w / img.width, logo_h / img.height)
-                final_w = img.width * ratio
-                final_h = img.height * ratio
+                final_w = logo_w
+                final_h = logo_h
                 buf = BytesIO()
                 img.save(buf, format="PNG")
                 buf.seek(0)
@@ -1198,7 +1294,6 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
             self.setFillColor(COLOR_PRIMARY_BLUE)
             self.drawString(logo_x, logo_y + 10, "CYBER SENTINEL")
 
-        # Exported text - aligned right, same vertical position as logo
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
         self.drawRightString(page_width - right_margin, header_y, f"Exported: {self.export_time}")
@@ -1213,7 +1308,6 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
         self.setFillColor(colors.HexColor("#0C0C0C"))
         self.drawRightString(page_width - right_margin, 30, page_label)
 
-
 def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
     try:
         evidence_info = evidence_data.get("evidence", {})
@@ -1223,6 +1317,7 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         
         case_title = case_info.get("title") or "Unknown Case"
         case_id = str(case_info.get("case_number") or case_info.get("id") or "N/A")
+        evidence_number = str(evidence_info.get("evidence_number") or "N/A")
         case_officer = case_info.get("case_officer") or evidence_info.get("investigator") or "N/A"
         created_date = case_info.get("created_date") or "N/A"
         person_related = suspect_info.get("name") or "N/A"
@@ -1257,8 +1352,16 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         subtitle_style = ParagraphStyle(
             "Subtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
         )
+        
+        chain_of_custody_subtitle_style = ParagraphStyle(
+            "ChainOfCustodySubtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
+        
+        summary_subtitle_style = ParagraphStyle(
+            "SummarySubtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
         summary_text_style = ParagraphStyle(
-            "SummaryText", fontSize=12, leading=16, alignment=TA_JUSTIFY, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
+            "SummaryText", fontSize=12, leading=16, alignment=TA_JUSTIFY, textColor=colors.HexColor("#000000"), fontName="Helvetica"
         )
         table_header_style = ParagraphStyle(
             "TableHeader", parent=styles["Normal"], fontSize=12, alignment=TA_LEFT,
@@ -1267,35 +1370,39 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         table_text_style = ParagraphStyle(
             "TableText", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
+    
+        person_source_style = ParagraphStyle(
+            "PersonSource", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
+        )
 
         story = []
         story.append(Spacer(1, -140))
         story.append(Spacer(1, 20))
 
-        # Case ID - Large and prominent
-        case_id_large_style = ParagraphStyle(
-            "CaseIDLarge", fontSize=24, textColor=colors.black, spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        evidence_number_style = ParagraphStyle(
+            "EvidenceNumber", fontSize=20, textColor=colors.HexColor("#0C0C0C"), spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
-        case_id_data = [
-            [Paragraph(case_id, case_id_large_style)]
+        evidence_number_data = [
+            [Paragraph(evidence_number, evidence_number_style)]
         ]
-        case_id_table = Table(case_id_data, colWidths=[USABLE_WIDTH])
-        case_id_table.setStyle(TableStyle([
+        evidence_number_table = Table(evidence_number_data, colWidths=[USABLE_WIDTH])
+        evidence_number_table.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
-        story.append(case_id_table)
-        story.append(Spacer(1, 4))
+        story.append(evidence_number_table)
+        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 5))
         
         case_related_style = ParagraphStyle(
-            "CaseRelated", fontSize=12, textColor=colors.black, spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
+            "CaseRelated", fontSize=12, textColor=colors.HexColor("#333333"), spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
         
         case_related_data = [
-            [Paragraph(f"<b>Case Related:</b> {case_title}", case_related_style)]
+            [Paragraph(f"Case Related : {case_title}", case_related_style)]
         ]
         case_related_table = Table(case_related_data, colWidths=[USABLE_WIDTH])
         case_related_table.setStyle(TableStyle([
@@ -1323,33 +1430,35 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         story.append(case_meta_table)
         story.append(Spacer(1, 16))
 
-        person_related_text = f"Person Related: {person_related}"
-        source_text = f"Source: {evidence_source}"
-        person_source_data = [
-            [Paragraph(person_related_text, table_text_style), Paragraph(source_text, table_text_style)]
+        person_related_data = [
+            [Paragraph("Person Related", person_source_style), Paragraph(f": {person_related}", person_source_style)]
         ]
-        person_source_table = Table(person_source_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5])
-        person_source_table.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        person_related_table = Table(person_related_data, colWidths=[USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.80])
+        person_related_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (1, 0), (1, -1), -5),
         ]))
-        story.append(person_source_table)
+        story.append(person_related_table)
+        
+        source_data = [
+            [Paragraph("Source", person_source_style), Paragraph(f": {evidence_source}", person_source_style)]
+        ]
+        source_table = Table(source_data, colWidths=[USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.80])
+        source_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (1, 0), (1, -1), -5),
+        ]))
+        story.append(source_table)
         story.append(Spacer(1, 10))
-
-        summary_title_table = Table(
-            [[Paragraph("Summary", subtitle_style)]],
-            colWidths=[USABLE_WIDTH]
-        )
-        summary_title_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        story.append(summary_title_table)
-        story.append(Spacer(1, 5))
-
-        # Try to load evidence image if file_path exists
+        
         evidence_image = None
         file_path = evidence_info.get("file_path")
         if file_path:
@@ -1387,31 +1496,36 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                 except Exception as e:
                     logger.warning(f"Failed to load evidence image: {e}")
 
-        # Summary content with image embedded inside
-        # Add image and text directly to story after the title
+        summary_table_data = []
+        
+        summary_table_data.append([Paragraph("Summary", summary_subtitle_style), ""])
+        
         if evidence_image:
-            story.append(evidence_image)
-            story.append(Spacer(1, 5))
-        story.append(Paragraph(evidence_description, summary_text_style))
+            summary_table_data.append([evidence_image, Paragraph(evidence_description, summary_text_style)])
+        else:
+            summary_table_data.append(["", Paragraph(evidence_description, summary_text_style)])
+        
+        col_width_1 = USABLE_WIDTH * 0.5
+        col_width_2 = USABLE_WIDTH * 0.5
+        summary_table = Table(summary_table_data, colWidths=[col_width_1, col_width_2])
+        summary_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#466086")),
+            ("SPAN", (0, 0), (1, 0)),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (1, 1), (1, 1), -120),
+            ("TOPPADDING", (0, 0), (0, 0), 8),
+            ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+            ("TOPPADDING", (0, 1), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (0, -2), 5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("VALIGN", (1, 1), (1, 1), "TOP"),
+        ]))
+        story.append(summary_table)
         story.append(Spacer(1, 20))
 
-        # Chain of Custody - Horizontal layout
-        chain_title_table = Table(
-            [[Paragraph("Chain of Custody", subtitle_style)]],
-            colWidths=[USABLE_WIDTH]
-        )
-        chain_title_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        story.append(chain_title_table)
-        story.append(Spacer(1, 5))
-        
         custody_types = ["Acquisition", "Preparation", "Extraction", "Analysis"]
-        custody_header = []
-        custody_date_row = []
-        custody_investigator_row = []
+        custody_timeline_data = []
         
         for custody_type in custody_types:
             report = next((r for r in custody_reports if r.get("custody_type", "").lower() == custody_type.lower()), None)
@@ -1420,37 +1534,57 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                 if isinstance(date_str, str):
                     try:
                         dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        date_str = dt.strftime("%d %B %Y, %H:%M")
+                        month_names = {
+                            1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+                            5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+                            9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+                        }
+                        month_name = month_names.get(dt.month, dt.strftime("%B"))
+                        date_str = f"{dt.day} {month_name} {dt.year}, {dt.strftime('%H:%M')}"
                     except:
                         date_str = "N/A"
                 else:
-                    date_str = date_str.strftime("%d %B %Y, %H:%M") if hasattr(date_str, 'strftime') else str(date_str)
+                    if hasattr(date_str, 'strftime'):
+                        month_names = {
+                            1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+                            5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+                            9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+                        }
+                        month_name = month_names.get(date_str.month, date_str.strftime("%B"))
+                        date_str = f"{date_str.day} {month_name} {date_str.year}, {date_str.strftime('%H:%M')}"
+                    else:
+                        date_str = "N/A"
                 investigator = report.get("investigator", "N/A")
             else:
                 date_str = "N/A"
                 investigator = "N/A"
             
-            custody_header.append(Paragraph(custody_type, table_text_style))
-            custody_date_row.append(Paragraph(date_str, table_text_style))
-            custody_investigator_row.append(Paragraph(investigator, table_text_style))
+            custody_timeline_data.append({
+                "type": custody_type,
+                "date": date_str,
+                "name": investigator
+            })
         
-        if custody_header:
-            custody_table = Table(
-                [custody_header, custody_date_row, custody_investigator_row],
-                colWidths=[USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25]
-            )
-            custody_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.white),
-                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ]))
-            story.append(custody_table)
-            story.append(Spacer(1, 20))
+        chain_table_data = []
+        chain_table_data.append([Paragraph("Chain of Custody", chain_of_custody_subtitle_style)])
+
+        if custody_timeline_data:
+            timeline_width = USABLE_WIDTH - 16 - 70
+            timeline = TimelineFlowable(custody_timeline_data, timeline_width, height=120)
+            chain_table_data.append([timeline])
+        
+        chain_table = Table(chain_table_data, colWidths=[USABLE_WIDTH])
+        chain_table.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (0, 0), 8),
+            ("LINEBELOW", (0, -1), (-1, -1), 1, colors.HexColor("#466086")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(chain_table)
+        story.append(Spacer(1, 20))
 
         evidence_source_details = [
             Paragraph(f"Evidence Source: {evidence_source}", table_text_style),

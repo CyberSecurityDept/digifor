@@ -703,7 +703,7 @@ class CaseLogService:
                 "created_at": formatted_date
             }
             
-            if log_action == "Edit" and log_status == current_case_status:
+            if log_action == "Edit":
                 changed_by = getattr(log, 'changed_by', '') or ''
                 change_detail = getattr(log, 'change_detail', '') or ''
                 if changed_by or change_detail:
@@ -750,7 +750,7 @@ class CaseLogService:
                 "created_at": formatted_date
             }
             
-            if log_action == "Edit" and log_status == current_case_status:
+            if log_action == "Edit":
                 changed_by = getattr(log, 'changed_by', '') or ''
                 change_detail = getattr(log, 'change_detail', '') or ''
                 if changed_by or change_detail:
