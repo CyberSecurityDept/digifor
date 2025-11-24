@@ -50,7 +50,16 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
             content={
                 "status": 400, 
                 "message": f"This endpoint is only for Contact Correlation. Current analytic method is '{method_value}'", 
-                "data": None
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": analytic.analytic_name or "Unknown",
+                        "current_method": str(method_value) if method_value else None
+                    },
+                    "next_action": "create_analytic",
+                    "redirect_to": "/analytics/start-analyzing",
+                    "instruction": "Please create a new analytic with method 'Contact Correlation'"
+                }
             },
             status_code=400,
         )
@@ -62,7 +71,29 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
     device_ids = []
     for link in device_links:
         device_ids.extend(link.device_ids)
-    device_ids = list(set(device_ids)) 
+    device_ids = list(set(device_ids))
+    
+    total_device_count = len(device_ids)
+    if total_device_count < min_devices:
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": f"Contact Correlation requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": analytic.analytic_name or "Unknown"
+                    },
+                    "device_count": total_device_count,
+                    "required_minimum": min_devices,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": f"Please add at least {min_devices} devices to continue with Contact Correlation"
+                }
+            },
+            status_code=400
+        )
+    
     if not device_ids:
         return JSONResponse(
             content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": [], "total_correlations": 0}},

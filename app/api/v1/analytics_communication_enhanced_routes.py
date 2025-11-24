@@ -190,7 +190,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                             "current_method": str(method_value) if method_value else None
                         },
                         "next_action": "create_analytic",
-                        "redirect_to": "/api/v1/analytics/start-analyzing",
+                        "redirect_to": "/analytics/start-analyzing",
                         "instruction": "Please create a new analytic with method 'Deep Communication Analytics'"
                     }
                 },
@@ -239,7 +239,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                         "device_count": total_device_count,
                         "required_minimum": 2,
                         "next_action": "add_device",
-                        "redirect_to": "/api/v1/analytics/add-device",
+                        "redirect_to": "/analytics/devices",
                         "instruction": "Please add at least 2 devices to continue with Deep Communication Analytics"
                     }
                 },

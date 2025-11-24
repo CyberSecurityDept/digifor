@@ -184,13 +184,22 @@ def _get_hashfile_analytics_data(
                 {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
                 status_code=403,
             )
-        method_value = analytic.method
+        method_value = getattr(analytic, 'method', None)
         if method_value is None or str(method_value) != "Hashfile Analytics":
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": f"This endpoint is only for Hashfile Analytics. Current method: '{analytic.method}'",
-                    "data": None,
+                    "message": f"This endpoint is only for Hashfile Analytics. Current method: '{method_value}'",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown",
+                            "current_method": str(method_value) if method_value else None
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": "Please create a new analytic with method 'Hashfile Analytics'"
+                    },
                 },
                 status_code=400,
             )
@@ -200,6 +209,28 @@ def _get_hashfile_analytics_data(
         ).all()
 
         device_ids = list({d for link in device_links for d in link.device_ids})
+        total_device_count = len(device_ids)
+        
+        if total_device_count < min_devices:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": f"Hashfile Analytics requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic.analytic_name or "Unknown"
+                        },
+                        "device_count": total_device_count,
+                        "required_minimum": min_devices,
+                        "next_action": "add_device",
+                        "redirect_to": "/analytics/devices",
+                        "instruction": f"Please add at least {min_devices} devices to continue with Hashfile Analytics"
+                    }
+                },
+                status_code=400,
+            )
+        
         if not device_ids:
             return JSONResponse(
                 {"status": 400, "message": "No devices linked to this analytic", "data": None},
