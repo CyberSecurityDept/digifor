@@ -64,9 +64,41 @@ class SuspectService:
             "updated_at": self._format_datetime(suspect.updated_at)
         }
     
-    def get_suspects(self, db: Session, skip: int = 0, limit: int = 10, search: Optional[str] = None, status: Optional[str] = None, current_user=None) -> Tuple[List[dict], int]:
+    def get_suspects(
+        self, db: Session, skip: int = 0, limit: int = 10,
+        search: Optional[str] = None, status: Optional[List[str]] = None,
+        current_user=None
+    ) -> Tuple[List[dict], int]:
+
         query = db.query(Suspect)
-        
+
+        # ===============================
+        # MULTIPLE STATUS FILTER (AMANKAN SEMUA FORMAT)
+        # ===============================
+        if status:
+
+            # FastAPI bisa mengirim ["A,B,C"] (string di dalam list)
+            # Kita ubah menjadi satu string lalu split
+            if isinstance(status, list):
+                if len(status) == 1 and isinstance(status[0], str) and "," in status[0]:
+                    status = status[0].split(",")
+            elif isinstance(status, str):
+                status = status.split(",")
+
+            # Bersihkan whitespace
+            status = [s.strip() for s in status if s.strip()]
+
+            if len(status) > 0:
+                query = query.filter(Suspect.status.in_(status))
+
+        # ===============================
+        # FILTER YANG BUKAN UNKNOWN
+        # ===============================
+        query = query.filter(Suspect.is_unknown == False)
+
+        # ===============================
+        # SEARCH FILTER
+        # ===============================
         if search:
             search_filter = or_(
                 Suspect.name.ilike(f"%{search}%"),
@@ -74,41 +106,35 @@ class SuspectService:
                 Suspect.investigator.ilike(f"%{search}%")
             )
             query = query.filter(search_filter)
-        if status:
-            query = query.filter(Suspect.status == status)
-        
+
+        # ===============================
+        # ORDER BY TERBARU
+        # ===============================
         query = query.order_by(Suspect.id.desc())
+
+        # Hitung total (setelah filter)
         total = query.count()
+
+        # Pagination
         suspects = query.offset(skip).limit(limit).all()
+
+        # ===============================
+        # BUILD RESPONSE
+        # ===============================
         result = []
         for suspect in suspects:
-            created_at_str = None
-            updated_at_str = None
-            try:
-                created_at_value = getattr(suspect, 'created_at', None)
-                if created_at_value is not None:
-                    created_at_str = created_at_value.isoformat() if hasattr(created_at_value, 'isoformat') else str(created_at_value)
-            except (AttributeError, TypeError):
-                pass
-            try:
-                updated_at_value = getattr(suspect, 'updated_at', None)
-                if updated_at_value is not None:
-                    updated_at_str = updated_at_value.isoformat() if hasattr(updated_at_value, 'isoformat') else str(updated_at_value)
-            except (AttributeError, TypeError):
-                pass
-            
+            created_at_str = suspect.created_at.isoformat() if getattr(suspect, 'created_at', None) else None
+            updated_at_str = suspect.updated_at.isoformat() if getattr(suspect, 'updated_at', None) else None
+
+            # Ambil agency via case
             agency_name = None
-            case_id_value = getattr(suspect, 'case_id', None)
-            if case_id_value is not None:
-                case = db.query(Case).filter(Case.id == case_id_value).first()
-                if case:
-                    agency_id_value = getattr(case, 'agency_id', None)
-                    if agency_id_value is not None:
-                        agency = db.query(Agency).filter(Agency.id == agency_id_value).first()
-                        if agency:
-                            agency_name = getattr(agency, 'name', None)
-            
-            suspect_dict = {
+            case = db.query(Case).filter(Case.id == suspect.case_id).first()
+            if case:
+                agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
+                if agency:
+                    agency_name = agency.name
+
+            result.append({
                 "id": suspect.id,
                 "case_id": suspect.case_id,
                 "person_name": suspect.name,
@@ -118,9 +144,11 @@ class SuspectService:
                 "status": suspect.status,
                 "created_at": created_at_str,
                 "updated_at": updated_at_str
-            }
-            result.append(suspect_dict)
+            })
+
         return result, total
+
+
     
     def update_suspect(self, db: Session, suspect_id: int, suspect_data: SuspectUpdate, current_user=None) -> dict:
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()

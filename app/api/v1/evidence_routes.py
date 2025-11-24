@@ -507,6 +507,7 @@ async def get_evidence_detail(
         }
 
     case_name = evidence.case.title if evidence.case else None
+    case_id = evidence.case.case_number if evidence.case else None
 
     suspect_name = None
     if evidence.suspect_id: # type: ignore
@@ -551,6 +552,7 @@ async def get_evidence_detail(
         "description": evidence.description,
         "suspect_name": suspect_name,
         "case_name": case_name,
+        "case_id": case_id,
         "source": evidence_source,
         "evidence_type": getattr(evidence, 'evidence_type', None),
         "investigator": evidence.investigator,
