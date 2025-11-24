@@ -10,7 +10,7 @@ from app.auth.models import User
 from app.evidence_management.schemas import (
     CustodyLogCreate, CustodyLogUpdate, CustodyLogResponse, 
     CustodyLogListResponse, CustodyChainResponse,
-    CustodyReportCreate, CustodyReportResponse, CustodyReportListResponse,
+    CustodyReportCreate, CustodyReportListResponse,
     EvidenceNotesRequest
 )
 from fastapi.responses import JSONResponse
@@ -20,8 +20,6 @@ from app.case_management.models import CaseLog, Case, Agency
 import traceback, os, hashlib, re
 from app.suspect_management.models import Suspect
 from app.evidence_management.models import EvidenceType
-
-
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
@@ -498,21 +496,94 @@ async def create_evidence(
             detail=f"Unexpected server error: {str(e)}"
         )
 
-@router.get("/get-evidence-by-id{evidence_id}")
-async def get_evidence(
+@router.get("/{evidence_id}/detail")
+async def get_evidence_detail(
     evidence_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
-    evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
+    evidence = (
+        db.query(Evidence)
+        .filter(Evidence.id == evidence_id)
+        .first()
+    )
+
     if not evidence:
-        raise HTTPException(status_code=404, detail=f"Evidence with ID {evidence_id} not found")
-    
+        return {
+            "status": 404,
+            "message": f"Evidence with ID {evidence_id} not found",
+            "data": None
+        }
+
+    # =============== CASE NAME ===============
+    case_name = evidence.case.title if evidence.case else None
+
+    # =============== SUSPECT NAME ===============
+    suspect_name = None
+    if evidence.suspect_id: # type: ignore
+        suspect = db.query(Suspect).filter(Suspect.id == evidence.suspect_id).first()
+        if suspect:
+            suspect_name = suspect.name
+
+    # =============== EVIDENCE TYPE NAME ===============
+    evidence_type_name = None
+    if evidence.evidence_type:
+        # pastikan model EvidenceType punya field 'name'
+        evidence_type_name = evidence.evidence_type.name  
+
+    # =============== CUSTODY LOGS ===============
+    custody_logs = [
+        {
+            "id": log.id,
+            "custody_type": log.custody_type,
+            "notes": log.notes,
+            "created_by": log.created_by,
+            "created_at": log.created_at
+        }
+        for log in evidence.custody_logs
+    ]
+
+    # =============== CUSTODY REPORTS ===============
+    custody_reports = [
+        {
+            "id": rpt.id,
+            "custody_type": rpt.custody_type,
+            "investigator": rpt.investigator,
+            "location": rpt.location,
+            "notes": rpt.notes,
+            "details": rpt.details,
+            "evidence_source": rpt.evidence_source,
+            "evidence_type": rpt.evidence_type,
+            "evidence_detail": rpt.evidence_detail,
+            "created_at": rpt.created_at,
+            "updated_at": rpt.updated_at,
+        }
+        for rpt in evidence.custody_reports
+    ]
+
+    # =============== BUILD RESPONSE ===============
+    data = {
+        "id": evidence.id,
+        "evidence_number": evidence.evidence_number,
+        "title": evidence.title,
+        "description": evidence.description,
+        "suspect_name": suspect_name,
+        "case_name": case_name,
+        "evidence_type": evidence_type_name,
+        "investigator": evidence.investigator,
+        "notes": evidence.notes,
+        "created_at": evidence.created_at,
+        "updated_at": evidence.updated_at,
+        "custody_logs": custody_logs,
+        "custody_reports": custody_reports
+    }
+
     return {
         "status": 200,
-        "message": "Evidence retrieved successfully",
-        "data": {"id": evidence_id}
+        "message": "Success",
+        "data": data
     }
+
 
 @router.put("/update-evidence/{evidence_id}")
 async def update_evidence(
@@ -996,26 +1067,46 @@ def get_custody_reports(
         CustodyReport.evidence_id == evidence_id
     )
 
+    # jika type ada → filter
     if type:
         query = query.filter(CustodyReport.custody_type == type)
+        report = query.order_by(CustodyReport.created_at.asc()).first()
 
-    report = query.order_by(CustodyReport.created_at.asc()).first()
-
-    if not report:
         return {
             "status": 200,
             "message": "Success",
-            "data": {}
+            "data": report if report else {}
         }
+
+    # jika type tidak ada → ambil semua
+    reports = query.order_by(CustodyReport.created_at.asc()).all()
 
     return {
         "status": 200,
         "message": "Success",
-        "data": report
+        "data": reports
     }
 
+def sa_to_dict(obj):
+    return {
+        c.key: getattr(obj, c.key)
+        for c in obj.__table__.columns
+    }
+
+def human_readable_size(size_bytes: int):
+    if size_bytes == 0:
+        return "0B"
+
+    size_name = ("B", "KB", "MB", "GB", "TB")
+    i = 0
+    p = 1024
+    while size_bytes >= p and i < len(size_name) - 1:
+        size_bytes /= p
+        i += 1
+    return f"{size_bytes:.2f} {size_name[i]}"
+
 @router.post("/{evidence_id}/custody/acquisition")
-async def create_acquisition(
+async def create_acquisition_report(
     evidence_id: int,
     investigator: str = Form(...),
     location: Optional[str] = Form(None),
@@ -1043,7 +1134,8 @@ async def create_acquisition(
             "steps": step,
             "photo": photo_paths[idx] if idx < len(photo_paths) else None
         })
-
+    if evidence_source == None :
+        evidence_source = 'Hp'
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="acquisition",
@@ -1072,7 +1164,7 @@ async def create_acquisition(
     return {
         "status": 201,
         "message": "Success",
-        "data": report
+        "data": sa_to_dict(report)
     }
 
 @router.post("/{evidence_id}/custody/preparation")
@@ -1106,7 +1198,8 @@ async def create_preparation_report(
             "hypothesis": hypothesis[i] if i < len(hypothesis) else None,
             "tools": tools[i] if i < len(tools) else None
         })
-
+    if evidence_source == None :
+        evidence_source = 'Hp'
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="preparation",
@@ -1135,20 +1228,8 @@ async def create_preparation_report(
     return {
         "status": 201,
         "message": "Success",
-        "data": report
+        "data": sa_to_dict(report)
     }
-
-def human_readable_size(size_bytes: int):
-    if size_bytes == 0:
-        return "0B"
-
-    size_name = ("B", "KB", "MB", "GB", "TB")
-    i = 0
-    p = 1024
-    while size_bytes >= p and i < len(size_name) - 1:
-        size_bytes /= p
-        i += 1
-    return f"{size_bytes:.2f} {size_name[i]}"
 
 @router.post("/{evidence_id}/custody/extraction")
 async def create_extraction_report(
@@ -1185,7 +1266,8 @@ async def create_extraction_report(
         "file_name": file_name,
         "file_size": file_size_human,
     }
-
+    if evidence_source == None :
+        evidence_source = 'Hp'
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="extraction",
@@ -1214,7 +1296,7 @@ async def create_extraction_report(
     return {
         "status": 200,
         "message": "Extraction custody report created",
-        "data": report
+        "data": sa_to_dict(report)
     }
 
 @router.post("/{evidence_id}/custody/analysis")
@@ -1230,7 +1312,7 @@ async def create_analysis_report(
     hypothesis: List[str] = Form(...),
     tools: List[str] = Form(...),
     result: List[str] = Form(...),
-
+    files: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_database)
 ):
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
@@ -1241,16 +1323,40 @@ async def create_analysis_report(
             "data": None
         }
 
-    details = []
+    # ===== BUILD RESULTS =====
+    results = []
     max_items = max(len(hypothesis), len(tools), len(result))
-
     for i in range(max_items):
-        details.append({
+        results.append({
             "hypothesis": hypothesis[i] if i < len(hypothesis) else None,
             "tools": tools[i] if i < len(tools) else None,
             "result": result[i] if i < len(result) else None
         })
 
+    # ===== SIMPAN FILES =====
+    files_meta = []
+    print("DEBUG FILES:", files)   # <=== TAMBAH DEBUG
+
+    for f in files:
+        saved_path = save_uploaded_file(f, "analysis")
+
+        f.file.seek(0, 2)
+        file_size = f.file.tell()
+        f.file.seek(0)
+
+        files_meta.append({
+            "file_name": f.filename,
+            "file_size": human_readable_size(file_size),
+            "file_path": saved_path
+        })
+
+    # ===== FINAL DETAILS =====
+    details = {
+        "results": results,
+        "files": files_meta
+    }
+    if evidence_source == None :
+        evidence_source = 'Hp'
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="analysis",
@@ -1267,18 +1373,63 @@ async def create_analysis_report(
     db.commit()
     db.refresh(report)
 
-    log = CustodyLog(
+    # LOG
+    db.add(CustodyLog(
         evidence_id=evidence_id,
         custody_type="analysis",
         notes=notes,
         created_by=investigator
-    )
-    db.add(log)
+    ))
     db.commit()
 
     return {
         "status": 201,
-        "message": "Success",
-        "data": report
+        "message": "Analysis report created",
+        "data": sa_to_dict(report)
     }
 
+@router.put("/{evidence_id}/custody/{report_id}/notes")
+async def update_custody_notes(
+    evidence_id: int,
+    report_id: int,
+    notes: str = Form(...),
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
+):
+    # cek evidence
+    evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
+    if not evidence:
+        return {
+            "status": 404,
+            "message": "Evidence not found",
+            "data": None
+        }
+
+    # cek custody report
+    report = (
+        db.query(CustodyReport)
+        .filter(CustodyReport.id == report_id, CustodyReport.evidence_id == evidence_id)
+        .first()
+    )
+
+    if not report:
+        return {
+            "status": 404,
+            "message": "Custody report not found",
+            "data": None
+        }
+
+    # update
+    report.notes = notes # type: ignore
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "status": 200,
+        "message": "Notes updated",
+        "data": {
+            "id": report.id,
+            "notes": report.notes,
+            "updated_at": report.updated_at
+        }
+    }
