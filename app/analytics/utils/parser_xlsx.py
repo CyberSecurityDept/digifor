@@ -1,13 +1,12 @@
 from pathlib import Path
 import pandas as pd
-import re
-import warnings
+import re, warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
 from app.analytics.shared.models import Device, Contact, Call
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
-Base.metadata.create_all(bind=engine)
+
 
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(axis=1, how='all')
