@@ -26,7 +26,7 @@ def create_sample_data():
                 db.add(agency)
         
         db.commit()
-        
+
         suspects = [
             Suspect(
                 name="Rafi Ahmad",

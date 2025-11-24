@@ -47,6 +47,6 @@ def migrate_database():
         import traceback
         traceback.print_exc()
         raise
-    
+
 if __name__ == "__main__":
     migrate_database()

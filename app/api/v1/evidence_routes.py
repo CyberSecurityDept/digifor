@@ -560,7 +560,7 @@ async def get_evidence_detail(
         "custody_logs": custody_logs,
         "custody_reports": custody_reports
     }
-
+    
     return {
         "status": 200,
         "message": "Success",
@@ -1158,7 +1158,6 @@ def get_custody_reports(
     if type:
         query = query.filter(CustodyReport.custody_type == type)
         report = query.order_by(CustodyReport.created_at.asc()).first()
-
         return {
             "status": 200,
             "message": "Success",
