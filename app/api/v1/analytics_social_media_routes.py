@@ -31,12 +31,22 @@ def _get_social_media_correlation_data(
                 status_code=403,
             )
 
-    if analytic.method is None or str(analytic.method) != "Social Media Correlation":
+    method_value = getattr(analytic, 'method', None)
+    if method_value is None or str(method_value) != "Social Media Correlation":
         return JSONResponse(
             {
                 "status": 400,
-                "message": f"This endpoint is only for Social Media Correlation. Current analytic method is '{analytic.method}'",
-                "data": None,
+                "message": f"This endpoint is only for Social Media Correlation. Current analytic method is '{method_value}'",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown",
+                        "current_method": str(method_value) if method_value else None
+                    },
+                    "next_action": "create_analytic",
+                    "redirect_to": "/analytics/start-analyzing",
+                    "instruction": "Please create a new analytic with method 'Social Media Correlation'"
+                },
             },
             status_code=400,
         )
@@ -56,6 +66,28 @@ def _get_social_media_correlation_data(
     for link in device_links:
         device_ids.extend(link.device_ids)
     device_ids = list(set(device_ids))
+    
+    min_devices = 2
+    total_device_count = len(device_ids)
+    if total_device_count < min_devices:
+        return JSONResponse(
+            {
+                "status": 400,
+                "message": f"Social Media Correlation requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": analytic.analytic_name or "Unknown"
+                    },
+                    "device_count": total_device_count,
+                    "required_minimum": min_devices,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": f"Please add at least {min_devices} devices to continue with Social Media Correlation"
+                }
+            },
+            status_code=400
+        )
 
     devices = (
         db.query(Device)
