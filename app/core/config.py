@@ -1,9 +1,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import AnyHttpUrl, field_validator
 from typing import List
-import secrets
-import json
-
+import secrets, json
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -67,6 +65,5 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"
         case_sensitive = True
-
 
 settings = Settings()

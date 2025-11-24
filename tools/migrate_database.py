@@ -4,7 +4,7 @@ from app.db.base import Base
 from app.db.session import engine, init_db
 from app.core.config import settings
 from app.case_management.models import Agency, Case, CaseLog, WorkUnit
-from app.evidence_management.models import Evidence, EvidenceType, CustodyLog, CustodyReport
+from app.evidence_management.models import Evidence, CustodyLog, CustodyReport
 from app.suspect_management.models import Suspect
 from app.auth.models import User
 try:
@@ -25,7 +25,6 @@ def migrate_database():
         print("- cases")
         print("- case_logs")
         print("- suspects")
-        print("- evidence_types")
         print("- evidence")
         print("- custody_logs")
         print("- custody_reports")

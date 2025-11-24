@@ -13,13 +13,14 @@ from app.evidence_management.schemas import (
     CustodyReportCreate, CustodyReportListResponse,
     EvidenceNotesRequest
 )
-from fastapi.responses import JSONResponse
-from app.evidence_management.models import Evidence, CustodyLog, EvidenceType, CustodyReport
+from fastapi.responses import JSONResponse, FileResponse
+from app.evidence_management.models import Evidence, CustodyLog, CustodyReport
 from app.evidence_management.custody_service import CustodyService
 from app.case_management.models import CaseLog, Case, Agency
+from app.case_management.pdf_export import generate_evidence_detail_pdf
+from app.core.config import settings
 import traceback, os, hashlib, re
 from app.suspect_management.models import Suspect
-from app.evidence_management.models import EvidenceType
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
@@ -174,7 +175,6 @@ async def create_evidence(
     case_id: int = Form(...),
     evidence_number: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
-    type: Optional[str] = Form(None),
     source: Optional[str] = Form(None),
     evidence_file: Optional[UploadFile] = File(None),
     evidence_summary: Optional[str] = Form(None),
@@ -225,18 +225,6 @@ async def create_evidence(
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_id).count()
             evidence_number = f"EVID-{case_id}-{date_str}-{evidence_count + 1:04d}"
         evidence_title = case.title if case else evidence_number
-        evidence_type_id = None
-        if type:
-            type_name = type.strip()
-            if type_name:
-                
-                evidence_type = db.query(EvidenceType).filter(EvidenceType.name.ilike(type_name)).first()
-                if not evidence_type:
-                    evidence_type = EvidenceType(name=type_name, is_active=True)
-                    db.add(evidence_type)
-                    db.commit()
-                    db.refresh(evidence_type)
-                evidence_type_id = evidence_type.id
         
         file_path = None
         file_size = None
@@ -272,11 +260,14 @@ async def create_evidence(
             file_hash = hashlib.sha256(file_content).hexdigest()
             file_type = evidence_file.content_type or 'application/octet-stream'
         
+        source_value = source.strip() if source and isinstance(source, str) and source.strip() else None
+        
         evidence_dict = {
             "evidence_number": evidence_number,
             "title": evidence_title,
             "description": evidence_summary,
-            "evidence_type_id": evidence_type_id,
+            "source": source_value,
+            "evidence_type": None,
             "case_id": case_id,
             "file_path": file_path,
             "file_size": file_size,
@@ -515,23 +506,16 @@ async def get_evidence_detail(
             "data": None
         }
 
-    # =============== CASE NAME ===============
     case_name = evidence.case.title if evidence.case else None
 
-    # =============== SUSPECT NAME ===============
     suspect_name = None
     if evidence.suspect_id: # type: ignore
         suspect = db.query(Suspect).filter(Suspect.id == evidence.suspect_id).first()
         if suspect:
             suspect_name = suspect.name
 
-    # =============== EVIDENCE TYPE NAME ===============
-    evidence_type_name = None
-    if evidence.evidence_type:
-        # pastikan model EvidenceType punya field 'name'
-        evidence_type_name = evidence.evidence_type.name  
+    evidence_source = getattr(evidence, 'source', None)  
 
-    # =============== CUSTODY LOGS ===============
     custody_logs = [
         {
             "id": log.id,
@@ -543,7 +527,6 @@ async def get_evidence_detail(
         for log in evidence.custody_logs
     ]
 
-    # =============== CUSTODY REPORTS ===============
     custody_reports = [
         {
             "id": rpt.id,
@@ -561,7 +544,6 @@ async def get_evidence_detail(
         for rpt in evidence.custody_reports
     ]
 
-    # =============== BUILD RESPONSE ===============
     data = {
         "id": evidence.id,
         "evidence_number": evidence.evidence_number,
@@ -569,7 +551,8 @@ async def get_evidence_detail(
         "description": evidence.description,
         "suspect_name": suspect_name,
         "case_name": case_name,
-        "evidence_type": evidence_type_name,
+        "source": evidence_source,
+        "evidence_type": getattr(evidence, 'evidence_type', None),
         "investigator": evidence.investigator,
         "notes": evidence.notes,
         "created_at": evidence.created_at,
@@ -584,6 +567,119 @@ async def get_evidence_detail(
         "data": data
     }
 
+@router.get("/export-evidence-detail-pdf/{evidence_id}")
+async def export_evidence_detail_pdf(
+    evidence_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        evidence = (
+            db.query(Evidence)
+            .options(joinedload(Evidence.case))
+            .filter(Evidence.id == evidence_id)
+            .first()
+        )
+
+        if not evidence:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evidence with ID {evidence_id} not found"
+            )
+
+        case = evidence.case
+        if not case:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Case not found for evidence {evidence_id}"
+            )
+
+        suspect = None
+        if getattr(evidence, 'suspect_id', None) is not None:
+            suspect = db.query(Suspect).filter(Suspect.id == evidence.suspect_id).first()
+
+        custody_reports = db.query(CustodyReport).filter(
+            CustodyReport.evidence_id == evidence_id
+        ).order_by(CustodyReport.created_at.asc()).all()
+
+        case_created_date = "N/A"
+        if case.created_at:
+            try:
+                if isinstance(case.created_at, datetime):
+                    case_created_date = case.created_at.strftime("%d/%m/%Y")
+                else:
+                    case_created_date = str(case.created_at)
+            except (AttributeError, TypeError):
+                case_created_date = "N/A"
+
+        evidence_data = {
+            "evidence": {
+                "id": evidence.id,
+                "evidence_number": evidence.evidence_number,
+                "title": evidence.title,
+                "description": evidence.description or "No description available",
+                "investigator": evidence.investigator or "N/A",
+                "source": getattr(evidence, 'source', None),
+                "evidence_type": getattr(evidence, 'evidence_type', None),
+                "evidence_detail": getattr(evidence, 'evidence_detail', None),
+                "file_path": evidence.file_path,
+                "file_size": evidence.file_size,
+            },
+            "case": {
+                "id": case.id,
+                "title": case.title,
+                "case_number": getattr(case, 'case_number', None) or str(case.id),
+                "case_officer": getattr(case, 'case_officer', None) or evidence.investigator or "N/A",
+                "created_date": case_created_date,
+            },
+            "suspect": {
+                "name": suspect.name if suspect else "N/A",
+            },
+            "custody_reports": [
+                {
+                    "id": report.id,
+                    "custody_type": report.custody_type,
+                    "investigator": report.investigator,
+                    "location": report.location,
+                    "notes": report.notes,
+                    "details": report.details if isinstance(report.details, dict) else {},
+                    "evidence_source": report.evidence_source,
+                    "evidence_type": report.evidence_type,
+                    "evidence_detail": report.evidence_detail,
+                    "created_at": report.created_at.isoformat() if getattr(report, 'created_at', None) is not None else None,
+                    "updated_at": report.updated_at.isoformat() if getattr(report, 'updated_at', None) is not None else None,
+                }
+                for report in custody_reports
+            ]
+        }
+
+        os.makedirs(settings.REPORTS_DIR, exist_ok=True)
+        pdf_filename = f"evidence_detail_{evidence_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        pdf_path = os.path.join(settings.REPORTS_DIR, pdf_filename)
+
+        generate_evidence_detail_pdf(evidence_data, pdf_path)
+
+        if not os.path.exists(pdf_path):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate PDF file"
+            )
+
+        return FileResponse(
+            path=pdf_path,
+            filename=pdf_filename,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={pdf_filename}"}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export evidence detail PDF: {str(e)}"
+        )
 
 @router.put("/update-evidence/{evidence_id}")
 async def update_evidence(
@@ -639,14 +735,7 @@ async def update_evidence(
         if type is not None:
             type_name = type.strip()
             if type_name:
-                
-                evidence_type = db.query(EvidenceType).filter(EvidenceType.name.ilike(type_name)).first()
-                if not evidence_type:
-                    evidence_type = EvidenceType(name=type_name, is_active=True)
-                    db.add(evidence_type)
-                    db.commit()
-                    db.refresh(evidence_type)
-                setattr(evidence, 'evidence_type_id', evidence_type.id)
+                setattr(evidence, 'evidence_type', type_name)
         
         if source is not None:
             setattr(evidence, 'source', source)
@@ -1054,7 +1143,6 @@ def get_custody_reports(
     type: Optional[str] = Query(None),
     db: Session = Depends(get_database)
 ):
-
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
     if not evidence:
         return {
@@ -1067,7 +1155,6 @@ def get_custody_reports(
         CustodyReport.evidence_id == evidence_id
     )
 
-    # jika type ada → filter
     if type:
         query = query.filter(CustodyReport.custody_type == type)
         report = query.order_by(CustodyReport.created_at.asc()).first()
@@ -1078,7 +1165,6 @@ def get_custody_reports(
             "data": report if report else {}
         }
 
-    # jika type tidak ada → ambil semua
     reports = query.order_by(CustodyReport.created_at.asc()).all()
 
     return {
@@ -1323,7 +1409,6 @@ async def create_analysis_report(
             "data": None
         }
 
-    # ===== BUILD RESULTS =====
     results = []
     max_items = max(len(hypothesis), len(tools), len(result))
     for i in range(max_items):
@@ -1333,10 +1418,8 @@ async def create_analysis_report(
             "result": result[i] if i < len(result) else None
         })
 
-    # ===== SIMPAN FILES =====
     files_meta = []
-    print("DEBUG FILES:", files)   # <=== TAMBAH DEBUG
-
+    print("DEBUG FILES:", files)
     for f in files:
         saved_path = save_uploaded_file(f, "analysis")
 
@@ -1350,7 +1433,6 @@ async def create_analysis_report(
             "file_path": saved_path
         })
 
-    # ===== FINAL DETAILS =====
     details = {
         "results": results,
         "files": files_meta
@@ -1396,7 +1478,6 @@ async def update_custody_notes(
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
-    # cek evidence
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
     if not evidence:
         return {
@@ -1405,7 +1486,6 @@ async def update_custody_notes(
             "data": None
         }
 
-    # cek custody report
     report = (
         db.query(CustodyReport)
         .filter(CustodyReport.id == report_id, CustodyReport.evidence_id == evidence_id)
@@ -1419,7 +1499,6 @@ async def update_custody_notes(
             "data": None
         }
 
-    # update
     report.notes = notes # type: ignore
     db.commit()
     db.refresh(report)

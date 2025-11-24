@@ -229,14 +229,21 @@ async def create_person(
                 setattr(existing_evidence, 'file_hash', file_hash)
                 setattr(existing_evidence, 'file_type', file_type)
                 setattr(existing_evidence, 'file_extension', file_extension)
+            if evidence_source:
+                source_value = evidence_source.strip() if isinstance(evidence_source, str) and evidence_source.strip() else None
+                setattr(existing_evidence, 'source', source_value)
             setattr(existing_evidence, 'suspect_id', suspect_id_value)
             db.commit()
             evidence = existing_evidence
         else:
+            source_value = evidence_source.strip() if evidence_source and isinstance(evidence_source, str) and evidence_source.strip() else None
+            
             evidence_dict = {
                 "evidence_number": evidence_number,
                 "title": evidence_title,
                 "description": evidence_summary,
+                "source": source_value,
+                "evidence_type": None,
                 "case_id": case_id,
                 "suspect_id": suspect_id_value,
                 "file_path": file_path,

@@ -514,30 +514,30 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                             
                             if resolved_path and os.path.exists(resolved_path):
                                 file_path = resolved_path
-                                try:
-                                    img = PILImage.open(file_path)
-                                    
-                                    image_width = 130
-                                    image_height = 78
-                                    
-                                    img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
-                                    buf = BytesIO()
-                                    img.save(buf, format="PNG")
-                                    buf.seek(0)
-                                    pic_cell = Image(buf, width=image_width, height=image_height)
-                                    logger.info(f"Successfully loaded image: {file_path}")
-                                except Exception as img_e:
-                                    logger.warning(f"Failed to process image {file_path}: {img_e}")
-                                    
-                                    placeholder_width = 130
-                                    placeholder_height = 78
-                                    placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
-                                    draw = ImageDraw.Draw(placeholder)
-                                    draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
-                                    buf = BytesIO()
-                                    placeholder.save(buf, format="PNG")
-                                    buf.seek(0)
-                                    pic_cell = Image(buf, width=placeholder_width, height=placeholder_height)
+                            try:
+                                img = PILImage.open(file_path)
+                                
+                                image_width = 130
+                                image_height = 78
+                                
+                                img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
+                                buf = BytesIO()
+                                img.save(buf, format="PNG")
+                                buf.seek(0)
+                                pic_cell = Image(buf, width=image_width, height=image_height)
+                                logger.info(f"Successfully loaded image: {file_path}")
+                            except Exception as img_e:
+                                logger.warning(f"Failed to process image {file_path}: {img_e}")
+                                
+                                placeholder_width = 130
+                                placeholder_height = 78
+                                placeholder = PILImage.new('RGB', (int(placeholder_width), int(placeholder_height)), color='gray')
+                                draw = ImageDraw.Draw(placeholder)
+                                draw.text((10, int(placeholder_height/2) - 10), "Error", fill='white')
+                                buf = BytesIO()
+                                placeholder.save(buf, format="PNG")
+                                buf.seek(0)
+                                pic_cell = Image(buf, width=placeholder_width, height=placeholder_height)
                             else:
                                 logger.warning(f"Image file not found: {file_path}")
                         else:
@@ -1010,7 +1010,7 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
                 if file_path and os.path.exists(file_path):
                     try:
                         img = PILImage.open(file_path)
-
+                        
                         image_width = 130
                         image_height = 78
                         
@@ -1127,4 +1127,657 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
 
     except Exception as e:
         logger.error(f"Error generating suspect detail PDF: {str(e)}", exc_info=True)
+        raise
+
+
+class EvidenceDetailPageCanvas(canvas.Canvas):
+    def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
+                 case_officer: str = "", created_date: str = "", person_related: str = "",
+                 evidence_source: str = "", logo_path: str = "", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.case_title = case_title
+        self.case_id = case_id
+        self.export_time = export_time
+        self.case_officer = case_officer
+        self.created_date = created_date
+        self.person_related = person_related
+        self.evidence_source = evidence_source
+        self.logo_path = logo_path
+        self._page_number = 1
+        self.pages = []
+
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()  # type: ignore[reportAttributeAccessIssue]
+        self._page_number += 1
+
+    def save(self):
+        total_pages = len(self.pages)
+        
+        for page_number, page_dict in enumerate(self.pages, start=1):
+            self.__dict__.update(page_dict)
+            self._draw_header_footer(page_number, str(total_pages))
+            super().showPage()
+        
+        super().save()
+
+    def _draw_header_footer(self, current_page: int, total_pages_placeholder: str):
+        page_width, page_height = A4
+        left_margin = MARGIN_LEFT
+        right_margin = MARGIN_RIGHT
+        usable_width = page_width - left_margin - right_margin
+
+        logo_w, logo_h = 175, 30
+        logo_x = left_margin - 7
+        header_y = page_height - 30
+        logo_y = header_y
+
+        if self.logo_path and os.path.exists(self.logo_path):
+            try:
+                img = PILImage.open(self.logo_path)
+                ratio = min(logo_w / img.width, logo_h / img.height)
+                final_w = img.width * ratio
+                final_h = img.height * ratio
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                reportlab_img = Image(buf, width=final_w, height=final_h)
+                
+                logo_y_aligned = logo_y - final_h + 12
+                self.saveState()
+                self.setStrokeColor(colors.white)
+                self.setLineWidth(0)
+                reportlab_img.drawOn(self, logo_x, logo_y_aligned)
+                self.restoreState()
+            except Exception:
+                self.setFont("Helvetica-Bold", 14)
+                self.setFillColor(COLOR_PRIMARY_BLUE)
+                self.drawString(logo_x, logo_y + 10, "CYBER SENTINEL")
+        else:
+            self.setFont("Helvetica-Bold", 14)
+            self.setFillColor(COLOR_PRIMARY_BLUE)
+            self.drawString(logo_x, logo_y + 10, "CYBER SENTINEL")
+
+        # Exported text - aligned right, same vertical position as logo
+        self.setFont("Helvetica", 10)
+        self.setFillColor(colors.HexColor("#333333"))
+        self.drawRightString(page_width - right_margin, header_y, f"Exported: {self.export_time}")
+
+        footer_text = f"{self.case_title} - {self.case_id}"
+        self.setFont("Helvetica", 10)
+        self.setFillColor(colors.HexColor("#333333"))
+        self.drawString(left_margin, 30, footer_text)
+
+        page_label = f"Page {current_page}"
+        self.setFont("Helvetica", 12)
+        self.setFillColor(colors.HexColor("#0C0C0C"))
+        self.drawRightString(page_width - right_margin, 30, page_label)
+
+
+def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
+    try:
+        evidence_info = evidence_data.get("evidence", {})
+        case_info = evidence_data.get("case", {})
+        suspect_info = evidence_data.get("suspect", {})
+        custody_reports = evidence_data.get("custody_reports", [])
+        
+        case_title = case_info.get("title") or "Unknown Case"
+        case_id = str(case_info.get("case_number") or case_info.get("id") or "N/A")
+        case_officer = case_info.get("case_officer") or evidence_info.get("investigator") or "N/A"
+        created_date = case_info.get("created_date") or "N/A"
+        person_related = suspect_info.get("name") or "N/A"
+        evidence_source = evidence_info.get("source") or custody_reports[0].get("evidence_source") if custody_reports else "N/A"
+        evidence_description = evidence_info.get("description") or "No description available"
+        export_time = get_wib_now().strftime("%d/%m/%Y %H:%M WIB")
+
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=A4,
+            leftMargin=MARGIN_LEFT,
+            rightMargin=MARGIN_RIGHT,
+            topMargin=NEW_TOP_MARGIN,
+            bottomMargin=MARGIN_BOTTOM,
+        )
+
+        styles = getSampleStyleSheet()
+
+        title_style = ParagraphStyle(
+            "CaseTitle", parent=styles["Heading1"], fontSize=20, textColor=COLOR_TITLE,
+            spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold", leftIndent=0
+        )
+        case_id_style = ParagraphStyle(
+            "CaseID", fontSize=12, textColor=colors.HexColor("#333333"), spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
+        investigator_style = ParagraphStyle(
+            "Investigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=6, alignment=TA_LEFT, fontName="Helvetica", leftIndent=-5
+        )
+        date_created_style = ParagraphStyle(
+            "DateCreated", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=6, alignment=TA_RIGHT, fontName="Helvetica"
+        )
+        subtitle_style = ParagraphStyle(
+            "Subtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
+        )
+        summary_text_style = ParagraphStyle(
+            "SummaryText", fontSize=12, leading=16, alignment=TA_JUSTIFY, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
+        )
+        table_header_style = ParagraphStyle(
+            "TableHeader", parent=styles["Normal"], fontSize=12, alignment=TA_LEFT,
+            fontName="Helvetica", leading=13, textColor=colors.HexColor("#F4F6F8")
+        )
+        table_text_style = ParagraphStyle(
+            "TableText", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
+        )
+
+        story = []
+        story.append(Spacer(1, -140))
+        story.append(Spacer(1, 20))
+
+        # Case ID - Large and prominent
+        case_id_large_style = ParagraphStyle(
+            "CaseIDLarge", fontSize=24, textColor=colors.black, spaceAfter=4, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
+        case_id_data = [
+            [Paragraph(case_id, case_id_large_style)]
+        ]
+        case_id_table = Table(case_id_data, colWidths=[USABLE_WIDTH])
+        case_id_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(case_id_table)
+        story.append(Spacer(1, 4))
+        
+        case_related_style = ParagraphStyle(
+            "CaseRelated", fontSize=12, textColor=colors.black, spaceAfter=7, alignment=TA_LEFT, fontName="Helvetica-Bold"
+        )
+        
+        case_related_data = [
+            [Paragraph(f"<b>Case Related:</b> {case_title}", case_related_style)]
+        ]
+        case_related_table = Table(case_related_data, colWidths=[USABLE_WIDTH])
+        case_related_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(case_related_table)
+        story.append(Spacer(1, 4))
+
+        story.append(Spacer(1, 20))
+        investigator_table = Table([[Paragraph(f"Investigator: {case_officer}", investigator_style)]],
+                                   colWidths=[USABLE_WIDTH * 0.5])
+        date_created_table = Table([[Paragraph(f"Date Created: {created_date}", date_created_style)]],
+                                   colWidths=[USABLE_WIDTH * 0.5])
+        case_meta_data = [[investigator_table, date_created_table]]
+        case_meta_table = Table(case_meta_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5])
+        case_meta_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (0, -1), 0),
+            ("RIGHTPADDING", (1, 0), (1, -1), 0),
+        ]))
+        story.append(case_meta_table)
+        story.append(Spacer(1, 16))
+
+        person_related_text = f"Person Related: {person_related}"
+        source_text = f"Source: {evidence_source}"
+        person_source_data = [
+            [Paragraph(person_related_text, table_text_style), Paragraph(source_text, table_text_style)]
+        ]
+        person_source_table = Table(person_source_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5])
+        person_source_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(person_source_table)
+        story.append(Spacer(1, 10))
+
+        summary_title_table = Table(
+            [[Paragraph("Summary", subtitle_style)]],
+            colWidths=[USABLE_WIDTH]
+        )
+        summary_title_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(summary_title_table)
+        story.append(Spacer(1, 5))
+
+        # Try to load evidence image if file_path exists
+        evidence_image = None
+        file_path = evidence_info.get("file_path")
+        if file_path:
+            resolved_path = None
+            if os.path.isabs(file_path):
+                resolved_path = file_path if os.path.exists(file_path) else None
+            else:
+                file_path_clean = file_path.lstrip("./")
+                base_name = os.path.basename(file_path_clean)
+                
+                possible_paths = [
+                    os.path.join(os.getcwd(), file_path_clean),
+                    os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), file_path_clean),
+                    os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), base_name),
+                    os.path.join(os.getcwd(), "data", "uploads", file_path_clean),
+                    os.path.join(os.getcwd(), "data", "uploads", base_name),
+                    os.path.join(os.getcwd(), "data", "evidence", base_name),
+                ]
+                
+                for path in possible_paths:
+                    if path and os.path.exists(path):
+                        resolved_path = path
+                        break
+            
+            if resolved_path and os.path.exists(resolved_path):
+                try:
+                    img = PILImage.open(resolved_path)
+                    image_width = 130
+                    image_height = 78
+                    img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    buf.seek(0)
+                    evidence_image = Image(buf, width=image_width, height=image_height)
+                except Exception as e:
+                    logger.warning(f"Failed to load evidence image: {e}")
+
+        # Summary content with image embedded inside
+        # Add image and text directly to story after the title
+        if evidence_image:
+            story.append(evidence_image)
+            story.append(Spacer(1, 5))
+        story.append(Paragraph(evidence_description, summary_text_style))
+        story.append(Spacer(1, 20))
+
+        # Chain of Custody - Horizontal layout
+        chain_title_table = Table(
+            [[Paragraph("Chain of Custody", subtitle_style)]],
+            colWidths=[USABLE_WIDTH]
+        )
+        chain_title_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(chain_title_table)
+        story.append(Spacer(1, 5))
+        
+        custody_types = ["Acquisition", "Preparation", "Extraction", "Analysis"]
+        custody_header = []
+        custody_date_row = []
+        custody_investigator_row = []
+        
+        for custody_type in custody_types:
+            report = next((r for r in custody_reports if r.get("custody_type", "").lower() == custody_type.lower()), None)
+            if report:
+                date_str = report.get("created_at", "")
+                if isinstance(date_str, str):
+                    try:
+                        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        date_str = dt.strftime("%d %B %Y, %H:%M")
+                    except:
+                        date_str = "N/A"
+                else:
+                    date_str = date_str.strftime("%d %B %Y, %H:%M") if hasattr(date_str, 'strftime') else str(date_str)
+                investigator = report.get("investigator", "N/A")
+            else:
+                date_str = "N/A"
+                investigator = "N/A"
+            
+            custody_header.append(Paragraph(custody_type, table_text_style))
+            custody_date_row.append(Paragraph(date_str, table_text_style))
+            custody_investigator_row.append(Paragraph(investigator, table_text_style))
+        
+        if custody_header:
+            custody_table = Table(
+                [custody_header, custody_date_row, custody_investigator_row],
+                colWidths=[USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.25]
+            )
+            custody_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            story.append(custody_table)
+            story.append(Spacer(1, 20))
+
+        evidence_source_details = [
+            Paragraph(f"Evidence Source: {evidence_source}", table_text_style),
+            Paragraph(f"Evidence Type: {evidence_info.get('evidence_type', 'N/A')}", table_text_style),
+            Paragraph(f"Evidence Detail: {evidence_info.get('evidence_detail', 'N/A')}", table_text_style),
+        ]
+        for detail in evidence_source_details:
+            story.append(detail)
+        story.append(Spacer(1, 20))
+
+        for custody_type in custody_types:
+            report = next((r for r in custody_reports if r.get("custody_type", "").lower() == custody_type.lower()), None)
+            if not report:
+                continue
+
+            date_str = report.get("created_at", "")
+            if isinstance(date_str, str):
+                try:
+                    dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    date_str = dt.strftime("%d %B %Y, %H:%M")
+                except:
+                    date_str = "N/A"
+            else:
+                date_str = date_str.strftime("%d %B %Y, %H:%M") if hasattr(date_str, 'strftime') else str(date_str)
+            investigator = report.get("investigator", "N/A")
+            
+            date_investigator_text = f"{date_str} {investigator}"
+            date_investigator_style = ParagraphStyle(
+                "DateInvestigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+            )
+            
+            section_title_data = [
+                [Paragraph(custody_type, subtitle_style), Paragraph(date_investigator_text, date_investigator_style)]
+            ]
+            section_title_table = Table(
+                section_title_data,
+                colWidths=[USABLE_WIDTH * 0.7, USABLE_WIDTH * 0.3]
+            )
+            section_title_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (1, 0), (1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            story.append(section_title_table)
+            story.append(Spacer(1, 10))
+
+            details = report.get("details", {})
+            if isinstance(details, dict):
+                if custody_type.lower() == "acquisition" and details:
+                    steps_title_table = Table(
+                        [[Paragraph("Steps for Confiscating Evidence", subtitle_style)]],
+                        colWidths=[USABLE_WIDTH]
+                    )
+                    steps_title_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), COLOR_TABLE_HEADER_BG),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#F4F6F8")),
+                    ]))
+                    story.append(steps_title_table)
+                    story.append(Spacer(1, 5))
+                    
+                    steps_table_data = [[
+                        Paragraph("Image", table_header_style),
+                        Paragraph("Steps for Confiscating Evidence", table_header_style)
+                    ]]
+
+                    steps_list = details if isinstance(details, list) else details.get("steps", [])
+                    for step_item in steps_list:
+                        if isinstance(step_item, dict):
+                            step_text = step_item.get("steps", step_item.get("text", ""))
+                            step_image_path = step_item.get("photo", step_item.get("image_path"))
+                        else:
+                            step_text = str(step_item)
+                            step_image_path = None
+                        
+                        pic_cell = Paragraph("<i>Image not available</i>", table_text_style)
+                        if step_image_path:
+                            resolved_path = None
+                            if os.path.isabs(step_image_path):
+                                resolved_path = step_image_path if os.path.exists(step_image_path) else None
+                            else:
+                                file_path_clean = step_image_path.lstrip("./")
+                                base_name = os.path.basename(file_path_clean)
+                                
+                                possible_paths = [
+                                    os.path.join(os.getcwd(), file_path_clean),
+                                    os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), file_path_clean),
+                                    os.path.join(os.getcwd(), settings.UPLOAD_DIR.lstrip("./"), base_name),
+                                    os.path.join(os.getcwd(), "data", "uploads", file_path_clean),
+                                    os.path.join(os.getcwd(), "data", "uploads", base_name),
+                                    os.path.join(os.getcwd(), "data", "evidence", base_name),
+                                ]
+                                
+                                for path in possible_paths:
+                                    if path and os.path.exists(path):
+                                        resolved_path = path
+                                        break
+                            
+                            if resolved_path and os.path.exists(resolved_path):
+                                try:
+                                    img = PILImage.open(resolved_path)
+                                    image_width = 130
+                                    image_height = 78
+                                    img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
+                                    buf = BytesIO()
+                                    img.save(buf, format="PNG")
+                                    buf.seek(0)
+                                    pic_cell = Image(buf, width=image_width, height=image_height)
+                                except Exception as e:
+                                    logger.warning(f"Failed to load step image: {e}")
+                        
+                        steps_table_data.append([pic_cell, Paragraph(step_text, table_text_style)])
+                    
+                    steps_table = Table(steps_table_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
+                    steps_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                    ]))
+                    story.append(steps_table)
+                    story.append(Spacer(1, 20))
+                
+                elif custody_type.lower() == "preparation" and details:
+                    tools_title_table = Table(
+                        [[Paragraph("Tools and Investigation Hypothesis", subtitle_style)]],
+                        colWidths=[USABLE_WIDTH]
+                    )
+                    tools_title_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(tools_title_table)
+                    story.append(Spacer(1, 5))
+
+                    tools_data = [["Tools", "Investigation Hypothesis"]]
+                    tools_list = details if isinstance(details, list) else details.get("tools", [])
+                    for item in tools_list:
+                        if isinstance(item, dict):
+                            tool_name = item.get("tools", item.get("name", ""))
+                            hypothesis = item.get("hypothesis", "")
+                        else:
+                            tool_name = str(item) if item else ""
+                            hypothesis = ""
+                        tools_data.append([
+                            Paragraph(tool_name, table_text_style),
+                            Paragraph(hypothesis, table_text_style)
+                        ])
+                    
+                    tools_table = Table(tools_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
+                    tools_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(tools_table)
+                    story.append(Spacer(1, 20))
+                
+                elif custody_type.lower() == "extraction" and details:
+                    files_title_table = Table(
+                        [[Paragraph("File Details", subtitle_style)]],
+                        colWidths=[USABLE_WIDTH]
+                    )
+                    files_title_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(files_title_table)
+                    story.append(Spacer(1, 5))
+
+                    files_data = [["File Size", "File Name"]]
+                    if isinstance(details, dict) and "extraction_file" in details:
+                        file_size = details.get("file_size", "N/A")
+                        file_name = details.get("file_name", "N/A")
+                        files_data.append([
+                            Paragraph(str(file_size), table_text_style),
+                            Paragraph(file_name, table_text_style)
+                        ])
+                    elif isinstance(details, dict) and "files" in details:
+                        for file_info in details.get("files", []):
+                            file_size = file_info.get("size", "N/A")
+                            file_name = file_info.get("name", "N/A")
+                            files_data.append([
+                                Paragraph(str(file_size), table_text_style),
+                                Paragraph(file_name, table_text_style)
+                            ])
+                    else:
+                        file_size = evidence_info.get("file_size", 0)
+                        if file_size:
+                            size_name = ("B", "KB", "MB", "GB", "TB")
+                            i = 0
+                            p = 1024
+                            while file_size >= p and i < len(size_name) - 1:
+                                file_size /= p
+                                i += 1
+                            file_size_str = f"{file_size:.2f} {size_name[i]}"
+                        else:
+                            file_size_str = "N/A"
+                        file_name = evidence_info.get("file_path", "N/A")
+                        if file_name and file_name != "N/A":
+                            file_name = os.path.basename(file_name)
+                        files_data.append([
+                            Paragraph(file_size_str, table_text_style),
+                            Paragraph(file_name, table_text_style)
+                        ])
+                    
+                    files_table = Table(files_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
+                    files_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(files_table)
+                    story.append(Spacer(1, 20))
+                
+                elif custody_type.lower() == "analysis" and details:
+                    results_title_table = Table(
+                        [[Paragraph("Investigation Hypothesis and Analysis Result", subtitle_style)]],
+                        colWidths=[USABLE_WIDTH]
+                    )
+                    results_title_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(results_title_table)
+                    story.append(Spacer(1, 5))
+
+                    results_data = [["Investigation Hypothesis", "Analysis Result"]]
+                    results_list = details if isinstance(details, list) else details.get("results", [])
+                    for item in results_list:
+                        if isinstance(item, dict):
+                            hypothesis = item.get("hypothesis", "")
+                            analysis_result = item.get("result", "")
+                        else:
+                            hypothesis = str(item) if item else ""
+                            analysis_result = ""
+                        results_data.append([
+                            Paragraph(hypothesis, table_text_style),
+                            Paragraph(analysis_result, table_text_style)
+                        ])
+                    
+                    results_table = Table(results_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5])
+                    results_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(results_table)
+                    story.append(Spacer(1, 20))
+
+            story.append(Spacer(1, 10))
+            summary_section_title_table = Table(
+                [[Paragraph("Summary", subtitle_style)]],
+                colWidths=[USABLE_WIDTH]
+            )
+            summary_section_title_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            story.append(summary_section_title_table)
+            story.append(Spacer(1, 5))
+            story.append(Paragraph(evidence_description, summary_text_style))
+            story.append(Spacer(1, 20))
+
+        logo_path = settings.LOGO_PATH
+        if not os.path.isabs(logo_path):
+            logo_path = os.path.join(os.getcwd(), logo_path.lstrip("./"))
+
+        canvas_instance = [None]
+
+        def canvas_maker(*args, **kwargs):
+            canvas_obj = EvidenceDetailPageCanvas(
+                *args, case_title=case_title,
+                case_id=case_id,
+                export_time=export_time,
+                case_officer=case_officer,
+                created_date=created_date,
+                person_related=person_related,
+                evidence_source=evidence_source,
+                logo_path=logo_path,
+                **kwargs
+            )
+            canvas_instance[0] = canvas_obj
+            return canvas_obj
+
+        doc.build(
+            story,
+            canvasmaker=canvas_maker
+        )
+
+        logger.info(f"Evidence detail PDF generated successfully: {output_path}")
+        return output_path
+
+    except Exception as e:
+        logger.error(f"Error generating evidence detail PDF: {str(e)}", exc_info=True)
         raise

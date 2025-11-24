@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timezone, timedelta
-
 from app.db.session import get_db
 from app.core.config import settings
 
@@ -12,7 +11,6 @@ def get_wib_now():
     return datetime.now(WIB)
 
 router = APIRouter()
-
 
 @router.get("/health")
 async def health_check(db: Session = Depends(get_db)):
@@ -33,14 +31,12 @@ async def health_check(db: Session = Depends(get_db)):
         }
     }
 
-
 @router.get("/health/ready")
 async def readiness_check():
     return {
         "status": "ready",
         "timestamp": datetime.utcnow().isoformat()
     }
-
 
 @router.get("/health/live")
 async def liveness_check():

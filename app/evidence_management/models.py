@@ -3,22 +3,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
 
-class EvidenceType(Base):
-    __tablename__ = "evidence_types"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
-    description = Column(Text)
-    category = Column(String(50))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    evidence = relationship("Evidence", back_populates="evidence_type")
-    
-    def __repr__(self):
-        return f"<EvidenceType(id={self.id}, name='{self.name}')>"
-
 class Evidence(Base):
     __tablename__ = "evidence"
 
@@ -26,7 +10,8 @@ class Evidence(Base):
     evidence_number = Column(String(50), unique=True, index=True, nullable=False)
     title = Column(String(200), nullable=False)
     description = Column(Text)
-    evidence_type_id = Column(Integer, ForeignKey("evidence_types.id"))
+    source = Column(String(100), nullable=True)
+    evidence_type = Column(String(100), nullable=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     suspect_id = Column(Integer, ForeignKey("suspects.id"), nullable=True)
     file_path = Column(String(500))
@@ -44,7 +29,6 @@ class Evidence(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     case = relationship("Case", back_populates="evidence")
-    evidence_type = relationship("EvidenceType", back_populates="evidence")
     custody_logs = relationship("CustodyLog", back_populates="evidence", cascade="all, delete-orphan")
     custody_reports = relationship("CustodyReport", back_populates="evidence", cascade="all, delete-orphan")
     
@@ -56,7 +40,7 @@ class CustodyLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
-    custody_type = Column(String(50), nullable=False) # acquisition, preparation, extraction, result
+    custody_type = Column(String(50), nullable=False)
     notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     created_by = Column(String(100))
