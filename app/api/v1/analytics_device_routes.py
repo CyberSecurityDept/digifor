@@ -6,6 +6,9 @@ from app.analytics.shared.models import Device, File, Analytic, AnalyticDevice
 from app.utils.timezone import get_indonesia_time
 from typing import Optional
 from sqlalchemy import or_
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
@@ -29,6 +32,7 @@ async def add_device(
     file_id: int = Form(...),
     name: str = Form(...),
     phone_number: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -38,6 +42,12 @@ async def add_device(
             return JSONResponse(
                 {"status": 404, "message": "No analytic found. Please create an analytic first.", "data": []},
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(latest_analytic, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                status_code=403
             )
         
         analytic_id = latest_analytic.id
@@ -50,7 +60,9 @@ async def add_device(
                 status_code=404
             )
         
-        if file_record.method != analytic.method:
+        file_method = str(file_record.method) if file_record.method is not None else ""
+        analytic_method = str(analytic.method) if analytic.method is not None else ""
+        if file_method != analytic_method:
             return JSONResponse(
                 {
                     "status": 400, 
@@ -98,10 +110,11 @@ async def add_device(
 
         if existing_link:
             current_ids = list(existing_link.device_ids or [])
-            if device.id not in current_ids:
-                current_ids.append(device.id)
-                existing_link.device_ids = current_ids
-                existing_link.updated_at = get_indonesia_time()
+            device_id_value = int(device.id) if device.id is not None else None
+            if device_id_value is not None and device_id_value not in current_ids:
+                current_ids.append(device_id_value)
+                setattr(existing_link, 'device_ids', current_ids)  # type: ignore[reportAttributeAccessIssue]
+                setattr(existing_link, 'updated_at', get_indonesia_time())  # type: ignore[reportAttributeAccessIssue]
                 db.add(existing_link)
         else:
             new_link = AnalyticDevice(
@@ -122,7 +135,11 @@ async def add_device(
         if linked_device_ids:
             devices_q = db.query(Device).filter(Device.id.in_(linked_device_ids)).order_by(Device.id).all()
             labels = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
-            idx = next((i for i, d in enumerate(devices_q) if d.id == device.id), None)
+            device_id_value = int(device.id) if device.id is not None else None
+            if device_id_value is not None:
+                idx = next((i for i, d in enumerate(devices_q) if d.id is not None and int(d.id) == device_id_value), None)
+            else:
+                idx = None
             if idx is not None:
                 if idx < len(labels):
                     label = labels[idx]
@@ -152,7 +169,7 @@ async def add_device(
                 "tools": file_record.tools,
                 "method": file_record.method,
                 "total_size": file_record.total_size,
-                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None
+                "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size is not None else None
             }
         }]
 
@@ -174,77 +191,10 @@ async def add_device(
             status_code=500
         )
 
-# @router.get("/analytics/latest/files")
-# def get_files_by_latest_analytic_method(
-#     search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
-#     dropdown: Optional[str] = Query("All", description='Method filter: "Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
-#     db: Session = Depends(get_db)
-# ):
-#     try:
-#         allowed_methods = {"Deep Communication", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"}
-
-#         query = db.query(File)
-
-#         if dropdown and dropdown in allowed_methods and dropdown != "All":
-#             query = query.filter(File.method == dropdown)
-
-#         if search:
-#             term = f"%{search.strip()}%"
-#             query = query.filter(
-#                 or_(
-#                     File.file_name.ilike(term),
-#                     File.notes.ilike(term),
-#                     File.tools.ilike(term),
-#                     File.method.ilike(term),
-#                 )
-#             )
-
-#         files = query.order_by(File.created_at.desc()).all()
-
-#         files_data = []
-#         for file_record in files:
-#             files_data.append({
-#                 "id": file_record.id,
-#                 "file_name": file_record.file_name,
-#                 "notes": file_record.notes,
-#                 "type": file_record.type,
-#                 "tools": file_record.tools,
-#                 "method": file_record.method,
-#                 "total_size": file_record.total_size,
-#                 "total_size_formatted": format_file_size(file_record.total_size) if file_record.total_size else None,
-#                 "amount_of_data": file_record.amount_of_data,
-#                 "created_at": str(file_record.created_at),
-#                 "date": file_record.created_at.strftime("%d/%m/%Y") if file_record.created_at else None
-#             })
-
-#         return JSONResponse(
-#             {
-#                 "status": 200,
-#                 "message": f"Retrieved {len(files_data)} files",
-#                 "data": {
-#                     "filters": {
-#                         "search": search,
-#                         "dropdown": dropdown if dropdown in allowed_methods else None
-#                     },
-#                     "files": files_data
-#                 }
-#             },
-#             status_code=200
-#         )
-
-#     except Exception as e:
-#         return JSONResponse(
-#             {
-#                 "status": 500,
-#                 "message": f"Failed to get files: {str(e)}",
-#                 "data": []
-#             },
-#             status_code=500
-#         )
-
-@router.get("/analytics/{analytic_id}/get-devices")
+@router.get("/analytics/get-devices")
 def get_devices_by_analytic_id(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -254,6 +204,24 @@ def get_devices_by_analytic_id(
                 {"status": 404, "message": "Analytic not found", "data": []},
                 status_code=404
             )
+        
+        user_role = getattr(current_user, 'role', None)
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+            analytic_name = analytic.analytic_name or ''
+            analytic_summary = analytic.summary or ''
+            analytic_created_by = analytic.created_by or ''
+            if not (user_fullname.lower() in analytic_name.lower() or 
+                    user_email.lower() in analytic_name.lower() or
+                    user_fullname.lower() in analytic_summary.lower() or 
+                    user_email.lower() in analytic_summary.lower() or
+                    user_fullname.lower() in analytic_created_by.lower() or 
+                    user_email.lower() in analytic_created_by.lower()):
+                return JSONResponse(
+                    {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                    status_code=403
+                )
         
         device_links = db.query(AnalyticDevice).filter(
             AnalyticDevice.analytic_id == analytic_id
@@ -299,11 +267,11 @@ def get_devices_by_analytic_id(
             
             device_card = {
                 "label": device_label,
-                "device_id": str(device.id) if device.id else "",
+                "device_id": str(device.id) if device.id is not None else "",
                 "name": device.owner_name or "",
                 "phone_number": device.phone_number or "",
                 "file_name": file_record.file_name if file_record else "Unknown",
-                "file_size": format_file_size(file_record.total_size) if file_record and file_record.total_size else "0 B"
+                "file_size": format_file_size(file_record.total_size) if file_record is not None and file_record.total_size is not None else "0 B"
             }
             
             device_cards.append(device_card)

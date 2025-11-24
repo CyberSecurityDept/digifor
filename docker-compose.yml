@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "8000:8000"
+    restart: always
+    networks:
+      - digifor-network
+    volumes:
+      # Mount data folder to persist evidence, reports, and analysis files
+      - ./data:/app/data
+      # Mount logs folder to persist logs
+      - ./logs:/app/logs
+
+  seed:
+    build: .
+    depends_on:
+      - app
+    command: ["python", "-m", "app.auth.seed"]
+    restart: always
+    networks:
+      - digifor-network
+
+networks:
+  digifor-network:
+    external: true

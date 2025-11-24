@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# format.py
-=======
->>>>>>> analytics-fix
 import json
 import struct
 import base64
@@ -55,36 +51,20 @@ class SDPHeader:
 class SDPFile:
     @staticmethod
     def write_header(f, header_json):
-        """Write header dengan format [4 bytes length][json]"""
         header_bytes = header_json.encode('utf-8')
         header_len = len(header_bytes)
         
-<<<<<<< HEAD
-        # Write header length (4 bytes, big endian)
         f.write(header_len.to_bytes(4, 'big'))
-        # Write header JSON
-=======
-        f.write(header_len.to_bytes(4, 'big'))
->>>>>>> analytics-fix
         f.write(header_bytes)
     
     @staticmethod
     def read_header(f):
-        """Read dan parse header dari file"""
-<<<<<<< HEAD
-        # Read header length
-=======
->>>>>>> analytics-fix
         header_len_bytes = f.read(4)
         if len(header_len_bytes) != 4:
             raise ValueError("Invalid SDP file: missing header length")
         
         header_len = int.from_bytes(header_len_bytes, 'big')
         
-<<<<<<< HEAD
-        # Read header JSON
-=======
->>>>>>> analytics-fix
         header_json_bytes = f.read(header_len)
         if len(header_json_bytes) != header_len:
             raise ValueError("Invalid SDP file: incomplete header")
@@ -93,12 +73,10 @@ class SDPFile:
     
     @staticmethod
     def write_chunk(f, encrypted_chunk):
-        """Write encrypted chunk dengan format [4 bytes size][data]"""
         chunk_size = len(encrypted_chunk)
         f.write(chunk_size.to_bytes(4, 'big'))
         f.write(encrypted_chunk)
     
     @staticmethod
     def write_footer(f, original_hash):
-        """Write original SHA256 hash sebagai footer"""
         f.write(original_hash)

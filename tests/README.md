@@ -8,7 +8,7 @@ Folder ini berisi semua file test untuk aplikasi Digital Forensics Backend.
 
 - **[test_api.py](test_api.py)** - Automated API testing script
 
-## 🚀 Cara Menjalankan Tests
+## Cara Menjalankan Tests
 
 ### **1. API Testing**
 
@@ -37,7 +37,7 @@ pytest tests/test_auth.py
 pytest tests/ --cov=app
 ```
 
-## 📋 Test Categories
+## Test Categories
 
 ### **1. API Integration Tests**
 
@@ -67,7 +67,7 @@ pytest tests/ --cov=app
 Tests menggunakan environment yang sama dengan aplikasi:
 
 - Database: SQLite3 test database
-- API Base URL: http://localhost:8000
+- API Base URL: http://172.15.2.105
 - Default admin: admin / admin123
 
 ### **Test Data**
@@ -81,44 +81,44 @@ Tests menggunakan environment yang sama dengan aplikasi:
 ### **API Test Output**
 
 ```
-🚀 Starting Digital Forensics Backend API Tests...
+Starting Digital Forensics Backend API Tests...
 ==================================================
-🔍 Testing health endpoint...
-✅ Health check passed
+Testing health endpoint...
+Health check passed
    Response: {'status': 'healthy', 'version': '1.0.0', 'database': 'connected'}
 
 🔐 Testing authentication...
-✅ Login successful
+Login successful
    Token type: bearer
 
 📁 Testing case management...
-✅ Case created successfully
+Case created successfully
    Case ID: 1
    Case Number: TEST-001
 
 🔧 Testing case operations...
-✅ Get case successful
-✅ Update case successful
-✅ Add person successful
-✅ Get case stats successful
+Get case successful
+Update case successful
+Add person successful
+Get case stats successful
 
 Testing report generation...
-✅ Generate comprehensive report successful
+Generate comprehensive report successful
    Filename: case_1_comprehensive_TEST-001.json
-✅ List reports successful
+List reports successful
    Total reports: 1
 
 ==================================================
 🎯 API Testing completed!
-📖 API Documentation: http://localhost:8000/docs
-📚 ReDoc: http://localhost:8000/redoc
+📖 API Documentation: http://172.15.2.105/docs
+📚 ReDoc: http://172.15.2.105/redoc
 ```
 
 ## 🐛 Troubleshooting
 
 ### **Test Failures**
 
-1. Pastikan aplikasi berjalan di http://localhost:8000
+1. Pastikan aplikasi berjalan di http://172.15.2.105
 2. Check database sudah diinitialize
 3. Check admin user sudah dibuat
 4. Check logs untuk error details
@@ -127,7 +127,7 @@ Testing report generation...
 
 ```bash
 # Check if server is running
-curl http://localhost:8000/health
+curl http://172.15.2.105/health
 
 # Restart server if needed
 ./run.sh
@@ -167,21 +167,21 @@ def test_function():
 
 ### **Phase 1: Basic Tests**
 
-- ✅ API integration tests
+- API integration tests
 - 🔄 Authentication tests
 - 🔄 Case management tests
 
 ### **Phase 2: Advanced Tests**
 
-- 📋 Analytics engine tests
-- 📋 Report generation tests
-- 📋 File upload tests
+- Analytics engine tests
+- Report generation tests
+- File upload tests
 
 ### **Phase 3: Performance Tests**
 
-- 📋 Load testing
-- 📋 Stress testing
-- 📋 Database performance tests
+- Load testing
+- Stress testing
+- Database performance tests
 
 ---
 

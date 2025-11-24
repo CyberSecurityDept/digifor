@@ -1,13 +1,4 @@
-#!/bin/bash
 
-# =============================================================================
-# FORENLYTIC ANALYTICS - COMPLETE ANALYSIS SCRIPT
-# =============================================================================
-# Script ini menjalankan analisis forensik lengkap dari awal sampai selesai
-# Menggunakan file dari contoh_dataset dan contoh_hashfile
-# =============================================================================
-
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -15,7 +6,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-BASE_URL="http://localhost:8000"
+BASE_URL="http://172.15.2.105"
 API_BASE="$BASE_URL/api/v1"
 
 # Function to print colored output

@@ -11,6 +11,7 @@ class Analytic(Base):
     analytic_name = Column(String, nullable=False)
     method = Column(String, nullable=True)
     summary = Column(Text, nullable=True)
+    created_by = Column(String, nullable=True)  # Format: "Created by: {fullname} ({email})"
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 

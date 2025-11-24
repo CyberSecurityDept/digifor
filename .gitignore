@@ -21,6 +21,10 @@ wheels/
 *.egg
 MANIFEST
 
+# Alembic (keep migration files, ignore cache)
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
 # Virtual Environment
 venv/
 env/
@@ -47,15 +51,25 @@ logs/
 
 # Data Files
 data/uploads/*
+data/evidence/*
 data/analysis/*
 data/reports/*
 data/apks/apk/*
 !data/uploads/.gitkeep
 !data/analysis/.gitkeep
 !data/reports/.gitkeep
+data/.gitkeep
+data/**/.gitkeep
+
+# App Data Directories
+app/data/uploads/
+app/data/reports/
+app/data/evidence/
+app/data/analysis/
 
 # IDE
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.swo
@@ -226,3 +240,7 @@ sample_file/
 sample_data/
 sample_social_mediaa/
 sample_file_encryptor/
+
+
+# Systemd service files
+digifor-v2.service 

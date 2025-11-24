@@ -8,7 +8,10 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
-import re
+import traceback, re
+from app.auth.models import User
+from app.api.deps import get_current_user
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
@@ -20,7 +23,6 @@ PLATFORM_MAPPING = {
     'x': ['X', 'x', 'Twitter', 'twitter'],
     'tiktok': ['TikTok', 'tiktok', 'TikTok']
 }
-
 
 def normalize_platform_name(platform: str) -> str:
     if not platform:
@@ -44,56 +46,36 @@ def clean_message_text(text: str) -> str:
     if not text:
         return ""
     
-    import re
-    
-    # Remove zero-width spaces and other invisible characters
     cleaned = re.sub(r'[\u200B-\u200D\uFEFF\u00A0\u2060\u200E\u200F]', '', text)
  
-    # Convert literal escape sequences to actual characters
     cleaned = cleaned.replace('\\\\\\\\', '\\\\') 
     cleaned = cleaned.replace('\\\\n', '\n')
     cleaned = cleaned.replace('\\\\r', '\r')
     cleaned = cleaned.replace('\\\\t', ' ')
-    
     cleaned = cleaned.replace('\\n', '\n') 
     cleaned = cleaned.replace('\\r', '\r')
     cleaned = cleaned.replace('\\t', ' ')
-    
-    # Normalize all line breaks to single newline first
     cleaned = cleaned.replace('\r\n', '\n').replace('\r', '\n')
-    
-    # Replace all newlines with spaces
     cleaned = cleaned.replace('\n', ' ')
-    
     cleaned = re.sub(r' {2,}', ' ', cleaned)
-    
     cleaned = cleaned.strip()
-    
+
     result = re.sub(r'\\(?![\'"nrtbfvxuU0-7\\])', '', cleaned)
-    
     if result.endswith('\\') and (len(result) < 2 or result[-2] != '\\'):
         result = result[:-1]
     
     return result
 
-
 def extract_time_from_timestamp(timestamp: str) -> str:
     if not timestamp:
         return ""
-    
-    import re
-    from datetime import datetime
-    
     try:
-        # Try to parse various timestamp formats
-        # Format: "2023-12-12 20:43:26" or "2023-12-12 20:43"
         time_match = re.search(r'(\d{1,2}):(\d{2})(?::\d{2})?', timestamp)
         if time_match:
             hour = time_match.group(1).zfill(2)
             minute = time_match.group(2)
             return f"{hour}:{minute}"
         
-        # Try parsing with datetime
         for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"]:
             try:
                 dt = datetime.strptime(timestamp, fmt)
@@ -104,7 +86,6 @@ def extract_time_from_timestamp(timestamp: str) -> str:
         pass
     
     return ""
-
 
 def is_valid_person_name(name: str) -> bool:
     if not name:
@@ -129,7 +110,6 @@ def is_valid_person_name(name: str) -> bool:
     
     return True
 
-
 def get_chat_messages_for_analytic(
     db: Session,
     analytic_id: int,
@@ -139,28 +119,35 @@ def get_chat_messages_for_analytic(
 ) -> List[ChatMessage]:
     query = db.query(ChatMessage)
     
-    # Filter by file_ids (from Device.file_id)
-    # This is the main filtering mechanism based on device_id
     if file_ids:
         query = query.filter(ChatMessage.file_id.in_(file_ids))
 
-    # Filter by platform if provided
     if platform:
         normalized_platform = normalize_platform_name(platform)
-        query = query.filter(
-            or_(
-                func.lower(ChatMessage.platform) == normalized_platform,
-                func.lower(ChatMessage.platform).like(f"%{normalized_platform}%")
+        if normalized_platform == 'x':
+            query = query.filter(
+                or_(
+                    func.lower(ChatMessage.platform) == 'x',
+                    func.lower(ChatMessage.platform) == 'twitter',
+                    func.lower(ChatMessage.platform).like('%x%'),
+                    func.lower(ChatMessage.platform).like('%twitter%')
+                )
             )
-        )
+        else:
+            query = query.filter(
+                or_(
+                    func.lower(ChatMessage.platform) == normalized_platform,
+                    func.lower(ChatMessage.platform).like(f"%{normalized_platform}%")
+                )
+            )
     
     return query.all()
 
-
-@router.get("/analytic/{analytic_id}/deep-communication-analytics")
-def get_deep_communication_analytics(
-    analytic_id: int,
+@router.get("/analytic/deep-communication-analytics")
+def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
+    analytic_id: int = Query(..., description="Analytic ID"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -172,6 +159,26 @@ def get_deep_communication_analytics(
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
+            )
+
+        method_value = analytic.method
+        if method_value is None or str(method_value) != "Deep Communication Analytics":
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": f"This endpoint is only for Deep Communication Analytics. Current analytic method is '{method_value}'",
+                    "data": None
+                },
+                status_code=400
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -199,8 +206,26 @@ def get_deep_communication_analytics(
                 },
                 status_code=200
             )
+            
+        total_device_count = len(device_ids)
+        if total_device_count < 2:
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": f"Deep Communication Analytics requires minimum 2 devices. Current analytic has {total_device_count} device(s).",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic.analytic_name or "Unknown"
+                        },
+                        "device_count": total_device_count,
+                        "required_minimum": 2
+                    }
+                },
+                status_code=400
+            )
 
-        if device_id:
+        if device_id is not None:
             if device_id not in device_ids:
                 return JSONResponse(
                     content={
@@ -213,11 +238,9 @@ def get_deep_communication_analytics(
 
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
             
-        # Extract file_ids from devices - this is used to filter ChatMessage
         all_file_ids = [d.file_id for d in devices]
         all_messages = get_chat_messages_for_analytic(db, analytic_id, None, None, all_file_ids)
         
-        # Define all supported platforms with display names
         all_platforms = [
             {'key': 'instagram', 'display': 'Instagram'},
             {'key': 'telegram', 'display': 'Telegram'},
@@ -233,7 +256,6 @@ def get_deep_communication_analytics(
             device_file_ids = [device.file_id]
             device_messages = [msg for msg in all_messages if msg.file_id == device.file_id]
             
-            # Build platform cards for this device
             platform_cards = []
             
             for platform_info in all_platforms:
@@ -247,64 +269,84 @@ def get_deep_communication_analytics(
                 
                 message_count = len(platform_messages)
                 has_data = message_count > 0
-                
-                # Use same logic as platform-cards/intensity endpoint
-                # Group messages by thread_id and person, then merge person in same thread
-                thread_person_messages = defaultdict(lambda: defaultdict(list))  # thread_id -> person_key -> [messages]
+  
+                thread_person_messages = defaultdict(lambda: defaultdict(list))
                 person_info = {}
                 device_owner_name = (device.owner_name or "").strip().lower()
                 
-                # Two-pass approach: same as platform-cards/intensity
-                thread_person_map = {}  # thread_id -> {"name": person_name, "id": person_id}
+                thread_person_map = {}
+                thread_group_map = {}
                 
-                # FIRST PASS: Build thread_person_map from incoming messages
+                for msg in platform_messages:
+                    thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                    if thread_id:
+                        chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                        if chat_type:
+                            chat_type_lower = chat_type.lower()
+                            if chat_type_lower in ["group", "broadcast"]:
+                                group_name = (msg.group_name or "").strip() if msg.group_name else None
+                                if group_name and group_name.strip():
+                                    if thread_id not in thread_group_map:
+                                        thread_group_map[thread_id] = {
+                                            "name": group_name.strip(),
+                                            "id": (msg.group_id or "").strip() if msg.group_id else None
+                                        }
+                
                 for msg in platform_messages:
                     direction = (msg.direction or "").strip()
                     direction_lower = direction.lower()
-                    
                     if direction_lower in ['incoming', 'received']:
                         sender_name = msg.from_name or ""
                         sender_id = msg.sender_number or ""
                         thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                        chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                        group_name = (msg.group_name or "").strip() if msg.group_name else None
                         
-                        if sender_name and sender_name.strip():
-                            person_name = sender_name.strip()
-                            person_id = sender_id if sender_id and sender_id.strip() else None
-                        elif sender_id and sender_id.strip():
-                            sender_id_clean = sender_id.strip()
-                            if len(sender_id_clean) <= 50:
-                                person_name = sender_id_clean
-                                person_id = sender_id_clean
+                        person_name = None
+                        person_id = None
+                        
+                        if chat_type:
+                            chat_type_lower = chat_type.lower()
+                            if chat_type_lower in ["group", "broadcast"]:
+                                if group_name and group_name.strip():
+                                    person_name = group_name.strip()
+                                    person_id = (msg.group_id or "").strip() if msg.group_id else None
+                                elif thread_id and thread_id in thread_group_map:
+                                    person_name = thread_group_map[thread_id]["name"]
+                                    person_id = thread_group_map[thread_id].get("id")
+                            elif chat_type_lower == "one on one":
+                                if sender_name and sender_name.strip():
+                                    person_name = sender_name.strip()
+                                    person_id = sender_id if sender_id and sender_id.strip() else None
+                        
+                        if not person_name:
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name.strip()
+                                person_id = sender_id if sender_id and sender_id.strip() else None
+                            elif sender_id and sender_id.strip():
+                                sender_id_clean = sender_id.strip()
+                                if len(sender_id_clean) <= 50:
+                                    person_name = sender_id_clean
+                                    person_id = sender_id_clean
+                                else:
+                                    continue
                             else:
                                 continue
-                        else:
-                            continue
                         
-                        # Store person info in thread_person_map
                         if thread_id and person_name:
-                            # Verify sender is not device owner
-                            sender_name_lower = person_name.strip().lower()
-                            is_not_device_owner = True
-                            if device_owner_name:
-                                is_not_device_owner = (
-                                    sender_name_lower != device_owner_name and
-                                    device_owner_name not in sender_name_lower and
-                                    sender_name_lower not in device_owner_name and
-                                    not (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
-                                )
-                            
-                            if is_not_device_owner and thread_id not in thread_person_map:
+                            if thread_id not in thread_person_map:
                                 thread_person_map[thread_id] = {
                                     "name": person_name,
                                     "id": person_id
                                 }
                 
-                # SECOND PASS: Process all messages and identify person (same logic as intensity endpoint)
                 for msg in platform_messages:
                     sender_name = msg.from_name or ""
                     sender_id = msg.sender_number or ""
                     recipient_name = msg.to_name or ""
                     recipient_id = msg.recipient_number or ""
+                    chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                    group_name = (msg.group_name or "").strip() if msg.group_name else None
                     
                     sender_name_lower = (sender_name or "").strip().lower()
                     recipient_name_lower = (recipient_name or "").strip().lower()
@@ -314,87 +356,253 @@ def get_deep_communication_analytics(
                     
                     person_name = None
                     person_id = None
+                    
                     thread_id = (msg.thread_id or msg.chat_id or "").strip()
                     
-                    # Use direction field to identify person
-                    if direction_lower in ['outgoing', 'sent']:
-                        if recipient_name and recipient_name.strip():
-                            recipient_name_clean = recipient_name.strip()
-                            if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
-                                if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+                    if thread_id and thread_id in thread_group_map:
+                        person_name = thread_group_map[thread_id]["name"]
+                        person_id = thread_group_map[thread_id].get("id")
+                    elif chat_type:
+                        chat_type_lower = chat_type.lower()
+                        if chat_type_lower in ["group", "broadcast"]:
+                            if group_name and group_name.strip():
+                                person_name = group_name.strip()
+                                person_id = (msg.group_id or "").strip() if msg.group_id else None
+                            elif thread_id and thread_id in thread_group_map:
+                                person_name = thread_group_map[thread_id]["name"]
+                                person_id = thread_group_map[thread_id].get("id")
+                        elif chat_type_lower == "one on one":
+                            if direction_lower in ['outgoing', 'sent']:
+                                if recipient_name and recipient_name.strip():
+                                    person_name = recipient_name.strip()
+                                    person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                                elif recipient_id and recipient_id.strip():
                                     person_name = recipient_id.strip()
                                     person_id = recipient_id.strip()
-                                elif thread_id and thread_id in thread_person_map:
-                                    person_name = thread_person_map[thread_id]["name"]
-                                    person_id = thread_person_map[thread_id].get("id")
-                                else:
-                                    continue
                             else:
-                                person_name = recipient_name_clean
-                                person_id = recipient_id if recipient_id and recipient_id.strip() else None
-                        elif recipient_id and recipient_id.strip():
-                            recipient_id_clean = recipient_id.strip()
-                            if len(recipient_id_clean) > 50:
+                                if sender_name and sender_name.strip():
+                                    person_name = sender_name.strip()
+                                    person_id = sender_id if sender_id and sender_id.strip() else None
+                    
+                    if not person_name:
+                        if direction_lower in ['outgoing', 'sent']:
+                            if recipient_name and recipient_name.strip():
+                                recipient_name_clean = recipient_name.strip()
+                                if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
+                                    if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+                                        person_name = recipient_id.strip()
+                                        person_id = recipient_id.strip()
+                                    elif thread_id and thread_id in thread_person_map:
+                                        person_name = thread_person_map[thread_id]["name"]
+                                        person_id = thread_person_map[thread_id].get("id")
+                                    else:
+                                        continue
+                                else:
+                                    person_name = recipient_name_clean
+                                    person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                            elif recipient_id and recipient_id.strip():
+                                recipient_id_clean = recipient_id.strip()
+                                if len(recipient_id_clean) > 50:
+                                    if thread_id and thread_id in thread_person_map:
+                                        person_name = thread_person_map[thread_id]["name"]
+                                        person_id = thread_person_map[thread_id].get("id")
+                                    else:
+                                        continue
+                                else:
+                                    person_name = recipient_id_clean
+                                    person_id = recipient_id_clean
+                            else:
                                 if thread_id and thread_id in thread_person_map:
                                     person_name = thread_person_map[thread_id]["name"]
                                     person_id = thread_person_map[thread_id].get("id")
                                 else:
                                     continue
-                            else:
-                                person_name = recipient_id_clean
-                                person_id = recipient_id_clean
-                        else:
-                            if thread_id and thread_id in thread_person_map:
-                                person_name = thread_person_map[thread_id]["name"]
-                                person_id = thread_person_map[thread_id].get("id")
+                        elif direction_lower in ['incoming', 'received']:
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name.strip()
+                                person_id = sender_id if sender_id and sender_id.strip() else None
+                            elif sender_id and sender_id.strip():
+                                sender_id_clean = sender_id.strip()
+                                if len(sender_id_clean) > 50:
+                                    continue
+                                person_name = sender_id_clean
+                                person_id = sender_id_clean
                             else:
                                 continue
-                    elif direction_lower in ['incoming', 'received']:
-                        if sender_name and sender_name.strip():
-                            person_name = sender_name.strip()
-                            person_id = sender_id if sender_id and sender_id.strip() else None
-                        elif sender_id and sender_id.strip():
-                            sender_id_clean = sender_id.strip()
-                            if len(sender_id_clean) > 50:
-                                continue
-                            person_name = sender_id_clean
-                            person_id = sender_id_clean
-                        else:
-                            continue
-                    else:
-                        # Fallback: use simple matching
-                        sender_name_lower = (sender_name or "").strip().lower()
-                        if sender_name and (not device_owner_name or sender_name_lower != device_owner_name):
-                            person_name = sender_name
-                            person_id = sender_id
-                        elif recipient_name and (not device_owner_name or recipient_name_lower != device_owner_name):
-                            person_name = recipient_name
-                            person_id = recipient_id
-                        elif recipient_name:
-                            person_name = recipient_name
-                            person_id = recipient_id
-                        elif sender_name:
-                            person_name = sender_name
-                            person_id = sender_id
                     
-                    # Exclude device owner
+                    if thread_id and person_name:
+                        if thread_id not in thread_person_map:
+                            thread_person_map[thread_id] = {
+                                "name": person_name,
+                                "id": person_id
+                            }
+                    else:
+                        if direction_lower in ['outgoing', 'sent']:
+                            if recipient_name and recipient_name.strip():
+                                person_name = recipient_name.strip()
+                                person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                            elif recipient_id and recipient_id.strip():
+                                person_name = recipient_id.strip()
+                                person_id = recipient_id.strip()
+                            else:
+                                continue
+                        elif direction_lower in ['incoming', 'received']:
+                            is_device_owner_sender = False
+                            is_device_owner_recipient = False
+                            
+                            if device_owner_name:
+                                is_device_owner_sender = sender_name_lower == device_owner_name
+                                if not is_device_owner_sender:
+                                    is_device_owner_sender = (
+                                        device_owner_name in sender_name_lower or
+                                        sender_name_lower in device_owner_name or
+                                        (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
+                                    )
+                                
+                                is_device_owner_recipient = recipient_name_lower == device_owner_name
+                                if not is_device_owner_recipient:
+                                    is_device_owner_recipient = (
+                                        device_owner_name in recipient_name_lower or
+                                        recipient_name_lower in device_owner_name or
+                                        (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                                    )
+                            
+                            if is_device_owner_sender and is_device_owner_recipient:
+                                continue
+                            
+                            if is_device_owner_sender:
+                                if recipient_name and recipient_name.strip():
+                                    recipient_lower = recipient_name.strip().lower()
+                                    if not device_owner_name or recipient_lower != device_owner_name.lower():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
+                            elif is_device_owner_recipient:
+                                if sender_name and sender_name.strip():
+                                    sender_lower = sender_name.strip().lower()
+                                    if not device_owner_name or sender_lower != device_owner_name.lower():
+                                        person_name = sender_name
+                                        person_id = sender_id
+                            else:
+                                if device_owner_name:
+                                    if sender_name and sender_name.strip():
+                                        sender_lower = sender_name.strip().lower()
+                                        if sender_lower != device_owner_name.lower():
+                                            person_name = sender_name
+                                            person_id = sender_id
+                                        elif recipient_name and recipient_name.strip():
+                                            recipient_lower = recipient_name.strip().lower()
+                                            if recipient_lower != device_owner_name.lower():
+                                                person_name = recipient_name
+                                                person_id = recipient_id
+                                    elif recipient_name and recipient_name.strip():
+                                        recipient_lower = recipient_name.strip().lower()
+                                        if recipient_lower != device_owner_name.lower():
+                                            person_name = recipient_name
+                                            person_id = recipient_id
+                                else:
+                                    if sender_name and sender_name.strip():
+                                        person_name = sender_name
+                                        person_id = sender_id
+                                    elif recipient_name and recipient_name.strip():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
+                        else:
+                            is_device_owner_sender = False
+                            is_device_owner_recipient = False
+                            
+                            if device_owner_name:
+                                is_device_owner_sender = sender_name_lower == device_owner_name
+                                if not is_device_owner_sender:
+                                    is_device_owner_sender = (
+                                        device_owner_name in sender_name_lower or
+                                        sender_name_lower in device_owner_name or
+                                        (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
+                                    )
+                                
+                                is_device_owner_recipient = recipient_name_lower == device_owner_name
+                                if not is_device_owner_recipient:
+                                    is_device_owner_recipient = (
+                                        device_owner_name in recipient_name_lower or
+                                        recipient_name_lower in device_owner_name or
+                                        (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                                    )
+                            
+                            if is_device_owner_sender and is_device_owner_recipient:
+                                continue
+                            
+                            if is_device_owner_sender:
+                                if recipient_name and recipient_name.strip():
+                                    recipient_lower = recipient_name.strip().lower()
+                                    if not device_owner_name or recipient_lower != device_owner_name.lower():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
+                            elif is_device_owner_recipient:
+                                if sender_name and sender_name.strip():
+                                    sender_lower = sender_name.strip().lower()
+                                    if not device_owner_name or sender_lower != device_owner_name.lower():
+                                        person_name = sender_name
+                                        person_id = sender_id
+                            else:
+                                if device_owner_name:
+                                    if sender_name and sender_name.strip():
+                                        sender_lower = sender_name.strip().lower()
+                                        if sender_lower != device_owner_name.lower():
+                                            person_name = sender_name
+                                            person_id = sender_id
+                                        elif recipient_name and recipient_name.strip():
+                                            recipient_lower = recipient_name.strip().lower()
+                                            if recipient_lower != device_owner_name.lower():
+                                                person_name = recipient_name
+                                                person_id = recipient_id
+                                    elif recipient_name and recipient_name.strip():
+                                        recipient_lower = recipient_name.strip().lower()
+                                        if recipient_lower != device_owner_name.lower():
+                                            person_name = recipient_name
+                                            person_id = recipient_id
+                                else:
+                                    if sender_name and sender_name.strip():
+                                        person_name = sender_name
+                                        person_id = sender_id
+                                    elif recipient_name and recipient_name.strip():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
+                    
                     if person_name and device_owner_name:
                         person_name_lower = person_name.strip().lower()
                         device_owner_lower = device_owner_name.lower()
-                        if (person_name_lower == device_owner_lower or
-                            device_owner_lower in person_name_lower or
-                            person_name_lower in device_owner_lower or
-                            (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
-                            continue
+                        person_name_len = len(person_name_lower.strip())
+                        device_owner_len = len(device_owner_lower.strip())
+                        
+                        if person_name_len <= 2 or device_owner_len <= 2:
+                            if person_name_lower == device_owner_lower:
+                                continue
+                        else:
+                            if (person_name_lower == device_owner_lower or
+                                device_owner_lower in person_name_lower or
+                                person_name_lower in device_owner_lower or
+                                (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
+                                continue
                     
-                    # Group messages by thread_id and person
                     if person_name:
                         person_key = person_name.strip()
                         if person_key:
+                            thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                            if thread_id and thread_id in thread_group_map:
+                                person_key = thread_group_map[thread_id]["name"].strip()
+                                person_name = person_key
                             thread_person_messages[thread_id][person_key].append(msg)
-                            if person_key not in person_info:
-                                stored_person_id = ""
-                                if direction_lower in ['incoming', 'received']:
+                            stored_person_id = ""
+                            
+                            if chat_type and chat_type.lower() in ["group", "broadcast"]:
+                                if msg.group_id:
+                                    stored_person_id = (msg.group_id or "").strip()
+                            elif chat_type and chat_type.lower() == "one on one":
+                                if person_id:
+                                    stored_person_id = person_id
+                            elif direction_lower in ['outgoing', 'sent']:
+                                if recipient_id and recipient_id.strip():
+                                    stored_person_id = recipient_id.strip()
+                            elif direction_lower in ['incoming', 'received']:
                                     sender_check = msg.from_name or ""
                                     if sender_check and device_owner_name:
                                         sender_check_lower = sender_check.strip().lower()
@@ -409,33 +617,48 @@ def get_deep_communication_analytics(
                                     elif not device_owner_name and person_id:
                                         stored_person_id = person_id
                                 
+                            person_direction = None
+                            if direction_lower in ['outgoing', 'sent']:
+                                person_direction = "Outgoing"
+                            elif direction_lower in ['incoming', 'received']:
+                                person_direction = "Incoming"
+                            else:
+                                person_direction = "Unknown"
+                            
+                            cleaned_person_name = None
+                            if person_name:
+                                person_name_stripped = person_name.strip()
+                                cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_name_stripped)
+                                if cleaned_check and cleaned_check.strip():
+                                    cleaned_person_name = person_name_stripped
+                            
+                            if not cleaned_person_name and stored_person_id:
+                                cleaned_person_name = stored_person_id.strip() if stored_person_id else None
+                            
+                            if person_key not in person_info:
                                 person_info[person_key] = {
-                                    "name": person_name,
-                                    "id": stored_person_id
+                                    "name": cleaned_person_name or person_key,
+                                    "id": stored_person_id,
+                                    "direction": person_direction
                                 }
                             else:
-                                if not person_info[person_key]["id"] and direction_lower in ['incoming', 'received']:
-                                    sender_check = msg.from_name or ""
-                                    if sender_check and device_owner_name:
-                                        sender_check_lower = sender_check.strip().lower()
-                                        is_not_device_owner = (
-                                            sender_check_lower != device_owner_name and
-                                            device_owner_name not in sender_check_lower and
-                                            sender_check_lower not in device_owner_name and
-                                            not (len(set(device_owner_name.split()) & set(sender_check_lower.split())) > 0)
-                                        )
-                                        if is_not_device_owner and person_id:
-                                            person_info[person_key]["id"] = person_id
-                                    elif not device_owner_name and person_id:
-                                        person_info[person_key]["id"] = person_id
+                                if not person_info[person_key]["id"] and stored_person_id:
+                                    person_info[person_key]["id"] = stored_person_id
+                                
+                                current_name = person_info[person_key].get("name", "")
+                                current_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', current_name) if current_name else ""
+                                if (not current_name or not current_name_cleaned or not current_name_cleaned.strip()) and cleaned_person_name:
+                                    person_info[person_key]["name"] = cleaned_person_name
+                                elif not person_info[person_key].get("name") and cleaned_person_name:
+                                    person_info[person_key]["name"] = cleaned_person_name
+                                if not person_info[person_key].get("direction") or person_direction != "Unknown":
+                                    person_info[person_key]["direction"] = person_direction
                 
-                # Merge person in same thread (same logic as intensity endpoint)
                 person_intensity = defaultdict(int)
                 
                 for thread_id, persons in thread_person_messages.items():
                     person_keys_in_thread = list(persons.keys())
                     if person_keys_in_thread:
-                        # Choose primary person_key (prefer one with proper name)
                         primary_key = None
                         for pk in person_keys_in_thread:
                             person_data = person_info.get(pk, {})
@@ -447,28 +670,101 @@ def get_deep_communication_analytics(
                         if not primary_key:
                             primary_key = max(person_keys_in_thread, key=lambda pk: len(persons[pk]))
                         
-                        # Merge all messages
                         all_messages_in_thread = []
                         merged_name = None
                         merged_id = None
                         
+                        thread_chat_type = None
+                        thread_group_name = None
+                        thread_group_id = None
+                        
+                        if thread_id and thread_id in thread_group_map:
+                            thread_chat_type = "group"
+                            thread_group_name = thread_group_map[thread_id]["name"]
+                            thread_group_id = thread_group_map[thread_id].get("id")
+                        elif person_keys_in_thread:
+                            first_person_messages = persons[person_keys_in_thread[0]]
+                            if first_person_messages:
+                                first_msg = first_person_messages[0]
+                                msg_chat_type = (first_msg.chat_type or "").strip() if first_msg.chat_type else None
+                                if msg_chat_type:
+                                    msg_chat_type_lower = msg_chat_type.lower()
+                                    if msg_chat_type_lower in ["group", "broadcast"]:
+                                        thread_chat_type = msg_chat_type_lower
+                                        thread_group_name = (first_msg.group_name or "").strip() if first_msg.group_name else None
+                                        thread_group_id = (first_msg.group_id or "").strip() if first_msg.group_id else None
+                        
                         for person_key in person_keys_in_thread:
                             messages = persons[person_key]
                             all_messages_in_thread.extend(messages)
+                            
                             person_data = person_info.get(person_key, {})
                             name_val = person_data.get("name", person_key)
-                            if not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
+                            id_val = person_data.get("id", "")
+                            
+                            if thread_chat_type in ["group", "broadcast"] and thread_group_name:
+                                if not merged_name or (thread_group_name and not thread_group_name.strip().isdigit() and len(thread_group_name.strip()) > 3):
+                                    merged_name = thread_group_name
+                            elif not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
                                 merged_name = name_val if name_val else merged_name
                         
-                        # Collect person_id ONLY from incoming messages
+                        for msg in all_messages_in_thread:
+                            msg_direction = (msg.direction or "").strip().lower()
+                            if msg_direction in ['outgoing', 'sent']:
+                                to_name_val = (msg.to_name or "").strip()
+                                if to_name_val and not to_name_val.strip().isdigit() and len(to_name_val.strip()) > 3:
+                                    if not merged_name or merged_name.strip().isdigit() or len(merged_name.strip()) <= 3:
+                                        merged_name = to_name_val
+                                    break
+                        
                         for msg in all_messages_in_thread:
                             direction = (msg.direction or "").strip().lower()
-                            if direction in ['incoming', 'received']:
+                            
+                            if thread_chat_type in ["group", "broadcast"] and thread_group_id:
+                                if not merged_id:
+                                    merged_id = thread_group_id
+                                break
+                            
+                            device_owner_name_local = None
+                            if device.file_id == msg.file_id:
+                                device_owner_name_local = (device.owner_name or "").strip().lower()
+                            else:
+                                for d in devices:
+                                    if d.file_id == msg.file_id:
+                                        device_owner_name_local = (d.owner_name or "").strip().lower()
+                                        break
+                            
+                            if direction in ['outgoing', 'sent']:
+                                recipient_id = msg.recipient_number or ""
+                                recipient_name = (msg.to_name or "").strip()
+                                
+                                if recipient_name:
+                                    recipient_name_lower = recipient_name.strip().lower()
+                                    if device_owner_name:
+                                        is_person = (
+                                            recipient_name_lower != device_owner_name and
+                                            device_owner_name not in recipient_name_lower and
+                                            recipient_name_lower not in device_owner_name and
+                                            not (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                                        )
+                                    else:
+                                        is_person = True
+                                    
+                                    if is_person and recipient_id and recipient_id.strip():
+                                        recipient_id_clean = recipient_id.strip()
+                                        if len(recipient_id_clean) <= 50:
+                                            if not merged_id:
+                                                merged_id = recipient_id_clean
+                                            elif merged_id.strip().isdigit() and not recipient_id_clean.strip().isdigit():
+                                                merged_id = recipient_id_clean
+                                            break
+                            
+                            elif direction in ['incoming', 'received']:
                                 sender_id = msg.sender_number or ""
                                 sender_name = (msg.from_name or "").strip()
+                                
                                 if sender_name:
                                     sender_name_lower = sender_name.strip().lower()
-                                    is_person = True
                                     if device_owner_name:
                                         is_person = (
                                             sender_name_lower != device_owner_name and
@@ -476,6 +772,9 @@ def get_deep_communication_analytics(
                                             sender_name_lower not in device_owner_name and
                                             not (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
                                         )
+                                    else:
+                                        is_person = True
+                                    
                                     if is_person and sender_id and sender_id.strip():
                                         sender_id_clean = sender_id.strip()
                                         if len(sender_id_clean) <= 50:
@@ -485,51 +784,123 @@ def get_deep_communication_analytics(
                                                 merged_id = sender_id_clean
                                             break
                         
-                        # Update person_info
+                        outgoing_count = 0
+                        incoming_count = 0
+                        for msg in all_messages_in_thread:
+                            msg_direction = (msg.direction or "").strip().lower()
+                            if msg_direction in ['outgoing', 'sent']:
+                                outgoing_count += 1
+                            elif msg_direction in ['incoming', 'received']:
+                                incoming_count += 1
+                        
+                        thread_direction = None
+                        if outgoing_count > incoming_count:
+                            thread_direction = "Outgoing"
+                        elif incoming_count > outgoing_count:
+                            thread_direction = "Incoming"
+                        else:
+                            thread_direction = "Unknown"
+                        
+                        cleaned_merged_name = None
+                        if merged_name:
+                            merged_name_stripped = merged_name.strip()
+                            cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', merged_name_stripped)
+                            if cleaned_check and cleaned_check.strip():
+                                cleaned_merged_name = merged_name_stripped
+                        
+                        if not cleaned_merged_name and merged_id:
+                            cleaned_merged_name = merged_id.strip() if merged_id else None
+                        
                         if primary_key in person_info:
-                            if not person_info[primary_key]["name"] or person_info[primary_key]["name"].strip().isdigit():
-                                if merged_name and not merged_name.strip().isdigit():
-                                    person_info[primary_key]["name"] = merged_name
+                            current_name = person_info[primary_key].get("name", "")
+                            current_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', current_name) if current_name else ""
+                            current_name_is_empty = not current_name or not current_name_cleaned or not current_name_cleaned.strip()
+                            if current_name_is_empty or (current_name.strip().isdigit() and cleaned_merged_name and not cleaned_merged_name.strip().isdigit()):
+                                if cleaned_merged_name:
+                                    person_info[primary_key]["name"] = cleaned_merged_name
+                            elif current_name_is_empty and cleaned_merged_name:
+                                person_info[primary_key]["name"] = cleaned_merged_name
                             if not person_info[primary_key]["id"] and merged_id:
                                 person_info[primary_key]["id"] = merged_id
+                            if not person_info[primary_key].get("direction") or thread_direction != "Unknown":
+                                person_info[primary_key]["direction"] = thread_direction
                         else:
                             person_info[primary_key] = {
-                                "name": merged_name or primary_key,
-                                "id": merged_id or ""
+                                "name": cleaned_merged_name or primary_key,
+                                "id": merged_id or "",
+                                "direction": thread_direction
                             }
                         
-                        # Count intensity
-                        person_intensity[primary_key] += len(all_messages_in_thread)
+                        person_intensity[primary_key] += len(persons.get(primary_key, []))
                 
                 intensity_list = []
                 for person_key, intensity_value in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
                     person_data = person_info.get(person_key, {})
                     person_name = person_data.get("name", person_key)
                     person_id_value = person_data.get("id", "")
+                    person_direction = person_data.get("direction", "Unknown")
                     
-                    if (not person_name or person_name.strip() == "") and person_id_value:
-                        person_name = person_id_value
+                    def is_empty_or_whitespace(s):
+                        if not s:
+                            return True
+                        cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', s)
+                        if len(cleaned) == 0:
+                            return True
+                        if not cleaned.strip():
+                            return True
+                        return False
+                    
+                    if person_name:
+                        person_name_cleaned = person_name.strip()
+                        if is_empty_or_whitespace(person_name_cleaned):
+                            person_name = None
+                        else:
+                            person_name = person_name_cleaned
+                    else:
+                        person_name = None
                     
                     if not person_id_value or not person_id_value.strip():
                         person_id_value = None
                     else:
                         person_id_value = person_id_value.strip()
                     
+                    if not person_name and person_id_value:
+                        person_name = person_id_value
+                    
+                    if not person_name:
+                        person_key_cleaned = None
+                        if person_key:
+                            person_key_stripped = person_key.strip()
+                            person_key_cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_key_stripped)
+                            if person_key_cleaned_check and person_key_cleaned_check.strip():
+                                person_key_cleaned = person_key_stripped
+                        
+                        if person_key_cleaned:
+                            person_name = person_key_cleaned
+                    
+                    if not person_name or person_name.strip() == "":
+                        person_name = "Unknown"
+                    
+                    if person_name and person_id_value and person_name == person_id_value:
+                        pass
+                    elif person_name and not person_id_value:
+                        if person_name.isdigit() or (len(person_name) > 10 and person_name.replace('+', '').replace('-', '').isdigit()):
+                            person_id_value = person_name
+                    
                     intensity_list.append({
                         "person": person_name,
-                        "intensity": intensity_value
+                        "person_id": person_id_value,
+                        "intensity": intensity_value,
+                        "direction": person_direction
                     })
                 
-                # Build platform card
                 platform_card = {
                     "platform": platform_display,
-                    "platform_key": platform_key,
                     "has_data": has_data,
                     "message_count": message_count
                 }
                 
                 if has_data:
-                    # Always include intensity_list if has_data (even if empty)
                     platform_card["intensity_list"] = intensity_list
                 else:
                     platform_card["person"] = None
@@ -569,7 +940,6 @@ def get_deep_communication_analytics(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         return JSONResponse(
             content={
@@ -580,12 +950,12 @@ def get_deep_communication_analytics(
             status_code=500
         )
 
-
-@router.get("/analytic/{analytic_id}/platform-cards/intensity")
-def get_platform_cards_intensity(
-    analytic_id: int,
+@router.get("/analytic/platform-cards/intensity")
+def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
+    analytic_id: int = Query(..., description="Analytic ID"),
     platform: str = Query(..., description="Platform name (Instagram, Telegram, WhatsApp, Facebook, X, TikTok)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -617,6 +987,15 @@ def get_platform_cards_intensity(
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -657,8 +1036,6 @@ def get_platform_cards_intensity(
                 )
         device_ids = [device_id]
 
-        # Get devices and extract file_ids
-        # Messages are filtered by file_id from Device table (not device_id directly)
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
         file_ids = [d.file_id for d in devices]
         
@@ -679,10 +1056,6 @@ def get_platform_cards_intensity(
                 status_code=200
             )
         
-        # Filter messages by file_ids (from Device.file_id) and platform
-        # SQL Query pattern equivalent:
-        # SELECT * FROM chat_messages WHERE file_id IN (file_ids) AND platform = ?
-        # Then group by thread_id and person to calculate intensity per thread_id
         normalized_platform = normalize_platform_name(platform)
         messages = get_chat_messages_for_analytic(db, analytic_id, device_id, platform, file_ids)
         
@@ -691,260 +1064,311 @@ def get_platform_cards_intensity(
             if normalize_platform_name(msg.platform or '') == normalized_platform
         ]
         
-        # Group messages by thread_id and person
-        # This is equivalent to: SELECT * FROM chat_messages WHERE thread_id = ? AND file_id = ?
-        # Intensity = number of messages in the same thread_id for each person
-        # Each thread_id is processed separately, then intensity is summed per person
-        thread_person_messages = defaultdict(lambda: defaultdict(list))  # thread_id -> person_key -> [messages]
+        thread_person_messages = defaultdict(lambda: defaultdict(list))
         person_info = {}
         
-        # Two-pass approach:
-        # First pass: Build thread_person_map from incoming messages (most reliable)
-        # Second pass: Use thread_person_map to infer person for outgoing messages with invalid to_name
-        thread_person_map = {}  # thread_id -> {"name": person_name, "id": person_id}
+        thread_person_map = {}
+        thread_group_map = {}
         
-        # FIRST PASS: Process incoming messages to build thread_person_map
         for msg in platform_messages:
-            direction = (msg.direction or "").strip()
-            direction_lower = direction.lower()
-            
-            # Only process incoming messages in first pass
-            if direction_lower in ['incoming', 'received']:
-                sender_name = msg.from_name or ""
-                sender_id = msg.sender_number or ""
-                thread_id = (msg.thread_id or msg.chat_id or "").strip()
-                
-                if sender_name and sender_name.strip():
-                    person_name = sender_name.strip()
-                    person_id = sender_id if sender_id and sender_id.strip() else None
-                elif sender_id and sender_id.strip():
-                    sender_id_clean = sender_id.strip()
-                    if len(sender_id_clean) <= 50:
-                        person_name = sender_id_clean
-                        person_id = sender_id_clean
-                    else:
-                        continue
-                else:
-                    continue
-                
-                # Store person info in thread_person_map
-                if thread_id and person_name:
-                    if thread_id not in thread_person_map:
-                        thread_person_map[thread_id] = {
-                            "name": person_name,
-                            "id": person_id
-                        }
+            thread_id = (msg.thread_id or msg.chat_id or "").strip()
+            if thread_id:
+                chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                if chat_type:
+                    chat_type_lower = chat_type.lower()
+                    if chat_type_lower in ["group", "broadcast"]:
+                        group_name = (msg.group_name or "").strip() if msg.group_name else None
+                        if group_name and group_name.strip():
+                            if thread_id not in thread_group_map:
+                                thread_group_map[thread_id] = {
+                                    "name": group_name.strip(),
+                                    "id": (msg.group_id or "").strip() if msg.group_id else None
+                                }
         
-        # SECOND PASS: Process all messages and identify person
         for msg in platform_messages:
             sender_name = msg.from_name or ""
             sender_id = msg.sender_number or ""
             recipient_name = msg.to_name or ""
             recipient_id = msg.recipient_number or ""
-            
-            device_owner_name = None
-            device_owner_id = None
-            for d in devices:
-                if d.file_id == msg.file_id:
-                    device_owner_name = (d.owner_name or "").strip().lower()
-                    device_owner_id = (d.phone_number or "").strip()
-                    break
+            chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+            group_name = (msg.group_name or "").strip() if msg.group_name else None
             
             sender_name_lower = (sender_name or "").strip().lower()
             recipient_name_lower = (recipient_name or "").strip().lower()
             
-            # Use direction field to identify person more accurately
-            # Outgoing = device owner sent (person is recipient)
-            # Incoming = person sent (device owner received, person is sender)
             direction = (msg.direction or "").strip()
             direction_lower = direction.lower()
             
-            # Identify the person (the one who is NOT the device owner)
             person_name = None
             person_id = None
             
-            # Get thread_id for this message (used for inference)
             thread_id = (msg.thread_id or msg.chat_id or "").strip()
             
-            # First, try to use direction field (most reliable)
-            if direction_lower in ['outgoing', 'sent']:
-                # Device owner sent message → person is recipient (to_name)
-                # Prioritize to_name, fallback to recipient_number only if to_name is empty or invalid
-                if recipient_name and recipient_name.strip():
-                    recipient_name_clean = recipient_name.strip()
-                    # Check if recipient_name looks like a valid person name (not a chat_id/thread_id)
-                    # If too long (>50 chars) or looks like numeric ID, skip it
-                    if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
-                        # This is likely a chat_id or thread_id, not a person name
-                        # Try recipient_number instead, or infer from thread_id if available
-                        if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+            if thread_id and thread_id in thread_group_map:
+                person_name = thread_group_map[thread_id]["name"]
+                person_id = thread_group_map[thread_id].get("id")
+            elif chat_type:
+                chat_type_lower = chat_type.lower()
+                if chat_type_lower in ["group", "broadcast"]:
+                    if group_name and group_name.strip():
+                        person_name = group_name.strip()
+                        person_id = (msg.group_id or "").strip() if msg.group_id else None
+                    elif thread_id and thread_id in thread_group_map:
+                        person_name = thread_group_map[thread_id]["name"]
+                        person_id = thread_group_map[thread_id].get("id")
+                elif chat_type_lower == "one on one":
+                    if direction_lower in ['outgoing', 'sent']:
+                       
+                        if recipient_name and recipient_name.strip():
+                            person_name = recipient_name.strip()
+                            person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                        elif recipient_id and recipient_id.strip():
                             person_name = recipient_id.strip()
                             person_id = recipient_id.strip()
-                        elif thread_id and thread_id in thread_person_map:
-                            # Infer person from incoming messages in the same thread
-                            person_name = thread_person_map[thread_id]["name"]
-                            person_id = thread_person_map[thread_id].get("id")
-                        else:
-                            # No valid recipient info, skip this message (can't infer)
-                            continue
                     else:
-                        person_name = recipient_name_clean
-                        person_id = recipient_id if recipient_id and recipient_id.strip() else None
-                elif recipient_id and recipient_id.strip():
-                    recipient_id_clean = recipient_id.strip()
-                    # Check if recipient_id is valid (not too long)
-                    if len(recipient_id_clean) > 50:
-                        # Try to infer from thread_id
+                        if sender_name and sender_name.strip():
+                            person_name = sender_name.strip()
+                            person_id = sender_id if sender_id and sender_id.strip() else None
+            
+            if not person_name:
+                if direction_lower in ['outgoing', 'sent']:
+                   
+                    if recipient_name and recipient_name.strip():
+                        recipient_name_clean = recipient_name.strip()
+                        if len(recipient_name_clean) > 50 or (recipient_name_clean.isdigit() and len(recipient_name_clean) > 20):
+                            if recipient_id and recipient_id.strip() and len(recipient_id.strip()) <= 50:
+                                person_name = recipient_id.strip()
+                                person_id = recipient_id.strip()
+                            elif thread_id and thread_id in thread_person_map:
+                                person_name = thread_person_map[thread_id]["name"]
+                                person_id = thread_person_map[thread_id].get("id")
+                            else:
+                                continue
+                        else:
+                            person_name = recipient_name_clean
+                            person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                    elif recipient_id and recipient_id.strip():
+                        recipient_id_clean = recipient_id.strip()
+                        if len(recipient_id_clean) > 50:
+                            if thread_id and thread_id in thread_person_map:
+                                person_name = thread_person_map[thread_id]["name"]
+                                person_id = thread_person_map[thread_id].get("id")
+                            else:
+                                continue
+                        else:
+                            person_name = recipient_id_clean
+                            person_id = recipient_id_clean
+                    else:
                         if thread_id and thread_id in thread_person_map:
                             person_name = thread_person_map[thread_id]["name"]
                             person_id = thread_person_map[thread_id].get("id")
                         else:
                             continue
-                    else:
-                        # If recipient_name is empty, use recipient_id as person name
-                        person_name = recipient_id_clean
-                        person_id = recipient_id_clean
-                else:
-                    # Try to infer from thread_id
-                    if thread_id and thread_id in thread_person_map:
-                        person_name = thread_person_map[thread_id]["name"]
-                        person_id = thread_person_map[thread_id].get("id")
-                    else:
-                        continue
-            elif direction_lower in ['incoming', 'received']:
-                # Person sent message → person is sender (from_name)
-                # IMPORTANT: Always prioritize from_name for incoming messages
-                if sender_name and sender_name.strip():
-                    person_name = sender_name.strip()
-                    person_id = sender_id if sender_id and sender_id.strip() else None
-                elif sender_id and sender_id.strip():
-                    # Only use sender_id if from_name is completely empty
-                    # But check if sender_id looks like a valid person ID (not chat_id/thread_id)
-                    sender_id_clean = sender_id.strip()
-                    # If sender_id is too long (likely chat_id/thread_id), skip it
-                    if len(sender_id_clean) > 50:
-                        # This is likely a chat_id or thread_id, not a person ID, skip
-                        continue
-                    person_name = sender_id_clean
-                    person_id = sender_id_clean
-                else:
-                    continue
-                
-                # Store person info in thread_person_map for inference in outgoing messages
-                if thread_id and person_name:
-                    if thread_id not in thread_person_map:
-                        thread_person_map[thread_id] = {
-                            "name": person_name,
-                            "id": person_id
-                        }
-            else:
-                is_device_owner_sender = False
-                is_device_owner_recipient = False
-                
-                if device_owner_name:
-                    is_device_owner_sender = sender_name_lower == device_owner_name
-                    if not is_device_owner_sender:
-                        is_device_owner_sender = (
-                            device_owner_name in sender_name_lower or
-                            sender_name_lower in device_owner_name or
-                            (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
-                        )
-                    
-                    is_device_owner_recipient = recipient_name_lower == device_owner_name
-                    if not is_device_owner_recipient:
-                        is_device_owner_recipient = (
-                            device_owner_name in recipient_name_lower or
-                            recipient_name_lower in device_owner_name or
-                            (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
-                        )
-                
-                # If both sender and recipient are device owners (self message), skip
-                if is_device_owner_sender and is_device_owner_recipient:
-                    continue
-                
-                # Determine person based on who is NOT the device owner
-                if is_device_owner_sender:
-                    # Device owner sent message, person is recipient
-                    if recipient_name and recipient_name.strip():
-                        # Double check: recipient is NOT device owner
-                        recipient_lower = recipient_name.strip().lower()
-                        if not device_owner_name or recipient_lower != device_owner_name.lower():
-                            person_name = recipient_name
-                            person_id = recipient_id
-                elif is_device_owner_recipient:
-                    # Device owner received message, person is sender
+                elif direction_lower in ['incoming', 'received']:
                     if sender_name and sender_name.strip():
-                        # Double check: sender is NOT device owner
-                        sender_lower = sender_name.strip().lower()
-                        if not device_owner_name or sender_lower != device_owner_name.lower():
-                            person_name = sender_name
-                            person_id = sender_id
-                else:
-                    # Neither is clearly device owner (or device owner not identified)
-                    # Choose the one that is definitely NOT device owner
+                        person_name = sender_name.strip()
+                        person_id = sender_id if sender_id and sender_id.strip() else None
+                    elif sender_id and sender_id.strip():
+                        sender_id_clean = sender_id.strip()
+                        if len(sender_id_clean) > 50:
+                            continue
+                        person_name = sender_id_clean
+                        person_id = sender_id_clean
+                    else:
+                        continue
+            
+            if thread_id and person_name:
+                if thread_id not in thread_person_map:
+                    thread_person_map[thread_id] = {
+                        "name": person_name,
+                        "id": person_id
+                    }
+            else:
+                if direction_lower in ['outgoing', 'sent']:
+                   
+                    if recipient_name and recipient_name.strip():
+                        person_name = recipient_name.strip()
+                        person_id = recipient_id if recipient_id and recipient_id.strip() else None
+                    elif recipient_id and recipient_id.strip():
+                        person_name = recipient_id.strip()
+                        person_id = recipient_id.strip()
+                    else:
+                        continue
+                elif direction_lower in ['incoming', 'received']:
+                    device_owner_name = None
+                    for d in devices:
+                        if d.file_id == msg.file_id:
+                            device_owner_name = (d.owner_name or "").strip().lower()
+                            break
+                    
+                    is_device_owner_sender = False
+                    is_device_owner_recipient = False
+                    
                     if device_owner_name:
-                        # If device owner is known, pick the one that doesn't match
+                        is_device_owner_sender = sender_name_lower == device_owner_name
+                        if not is_device_owner_sender:
+                            is_device_owner_sender = (
+                                device_owner_name in sender_name_lower or
+                                sender_name_lower in device_owner_name or
+                                (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
+                            )
+                        
+                        is_device_owner_recipient = recipient_name_lower == device_owner_name
+                        if not is_device_owner_recipient:
+                            is_device_owner_recipient = (
+                                device_owner_name in recipient_name_lower or
+                                recipient_name_lower in device_owner_name or
+                                (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                            )
+                    
+                    if is_device_owner_sender and is_device_owner_recipient:
+                        continue
+                    
+                    if is_device_owner_sender:
+                        if recipient_name and recipient_name.strip():
+                            recipient_lower = recipient_name.strip().lower()
+                            if not device_owner_name or recipient_lower != device_owner_name.lower():
+                                person_name = recipient_name
+                                person_id = recipient_id
+                    elif is_device_owner_recipient:
                         if sender_name and sender_name.strip():
                             sender_lower = sender_name.strip().lower()
-                            if sender_lower != device_owner_name.lower():
+                            if not device_owner_name or sender_lower != device_owner_name.lower():
                                 person_name = sender_name
                                 person_id = sender_id
+                    else:
+                        if device_owner_name:
+                            if sender_name and sender_name.strip():
+                                sender_lower = sender_name.strip().lower()
+                                if sender_lower != device_owner_name.lower():
+                                    person_name = sender_name
+                                    person_id = sender_id
+                                elif recipient_name and recipient_name.strip():
+                                    recipient_lower = recipient_name.strip().lower()
+                                    if recipient_lower != device_owner_name.lower():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
                             elif recipient_name and recipient_name.strip():
                                 recipient_lower = recipient_name.strip().lower()
                                 if recipient_lower != device_owner_name.lower():
                                     person_name = recipient_name
                                     person_id = recipient_id
-                        elif recipient_name and recipient_name.strip():
-                            recipient_lower = recipient_name.strip().lower()
-                            if recipient_lower != device_owner_name.lower():
+                        else:
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name
+                                person_id = sender_id
+                            elif recipient_name and recipient_name.strip():
                                 person_name = recipient_name
                                 person_id = recipient_id
-                    else:
-                        # Device owner not identified, use sender first, then recipient
+                else:
+                    device_owner_name = None
+                    for d in devices:
+                        if d.file_id == msg.file_id:
+                            device_owner_name = (d.owner_name or "").strip().lower()
+                            break
+                    
+                    is_device_owner_sender = False
+                    is_device_owner_recipient = False
+                    
+                    if device_owner_name:
+                        is_device_owner_sender = sender_name_lower == device_owner_name
+                        if not is_device_owner_sender:
+                            is_device_owner_sender = (
+                                device_owner_name in sender_name_lower or
+                                sender_name_lower in device_owner_name or
+                                (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
+                            )
+                        
+                        is_device_owner_recipient = recipient_name_lower == device_owner_name
+                        if not is_device_owner_recipient:
+                            is_device_owner_recipient = (
+                                device_owner_name in recipient_name_lower or
+                                recipient_name_lower in device_owner_name or
+                                (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                            )
+                    
+                    if is_device_owner_sender and is_device_owner_recipient:
+                        continue
+                    
+                    if is_device_owner_sender:
+                        if recipient_name and recipient_name.strip():
+                            recipient_lower = recipient_name.strip().lower()
+                            if not device_owner_name or recipient_lower != device_owner_name.lower():
+                                person_name = recipient_name
+                                person_id = recipient_id
+                    elif is_device_owner_recipient:
                         if sender_name and sender_name.strip():
-                            person_name = sender_name
-                            person_id = sender_id
-                        elif recipient_name and recipient_name.strip():
-                            person_name = recipient_name
-                            person_id = recipient_id
+                            sender_lower = sender_name.strip().lower()
+                            if not device_owner_name or sender_lower != device_owner_name.lower():
+                                person_name = sender_name
+                                person_id = sender_id
+                    else:
+                        if device_owner_name:
+                            if sender_name and sender_name.strip():
+                                sender_lower = sender_name.strip().lower()
+                                if sender_lower != device_owner_name.lower():
+                                    person_name = sender_name
+                                    person_id = sender_id
+                                elif recipient_name and recipient_name.strip():
+                                    recipient_lower = recipient_name.strip().lower()
+                                    if recipient_lower != device_owner_name.lower():
+                                        person_name = recipient_name
+                                        person_id = recipient_id
+                            elif recipient_name and recipient_name.strip():
+                                recipient_lower = recipient_name.strip().lower()
+                                if recipient_lower != device_owner_name.lower():
+                                    person_name = recipient_name
+                                    person_id = recipient_id
+                        else:
+                            if sender_name and sender_name.strip():
+                                person_name = sender_name
+                                person_id = sender_id
+                            elif recipient_name and recipient_name.strip():
+                                person_name = recipient_name
+                                person_id = recipient_id
             
-            # Exclude device owner from intensity_list
-            # Double check that person_name is NOT device owner (with flexible matching)
+            device_owner_name = None
+            for d in devices:
+                if d.file_id == msg.file_id:
+                    device_owner_name = (d.owner_name or "").strip().lower()
+                    break
+            
             if person_name and device_owner_name:
                 person_name_lower = person_name.strip().lower()
                 device_owner_lower = device_owner_name.lower()
+                person_name_len = len(person_name_lower.strip())
+                device_owner_len = len(device_owner_lower.strip())
                 
-                # Exact match
-                if person_name_lower == device_owner_lower:
-                    # This is device owner, skip
-                    continue
-                
-                # Flexible matching - check if person_name matches device owner
-                if (device_owner_lower in person_name_lower or 
-                    person_name_lower in device_owner_lower or
-                    (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
-                    # This appears to be device owner, skip
-                    continue
+                if person_name_len <= 2 or device_owner_len <= 2:
+                    if person_name_lower == device_owner_lower:
+                        continue
+                else:
+                    if (person_name_lower == device_owner_lower or
+                        device_owner_lower in person_name_lower or
+                        person_name_lower in device_owner_lower or
+                        (len(set(device_owner_lower.split()) & set(person_name_lower.split())) > 0)):
+                        continue
             
-            # Group messages by thread_id and person
-            # Intensity = total messages in thread_id for each person
             if person_name:
                 person_key = person_name.strip()
-                # Only process if person_key is not empty after stripping
                 if person_key:
-                    # Use thread_id or chat_id or empty string as thread identifier
                     thread_id = (msg.thread_id or msg.chat_id or "").strip()
-                    
-                    # Store message in thread-person group
+                    if thread_id and thread_id in thread_group_map:
+                        person_key = thread_group_map[thread_id]["name"].strip()
+                        person_name = person_key
                     thread_person_messages[thread_id][person_key].append(msg)
-                    
-                    # Store person info (only once per person)
-                    # IMPORTANT: Only store person_id from incoming messages (where person is sender)
-                    # For outgoing messages, don't store person_id yet (will be set during merge from incoming messages)
                     stored_person_id = ""
-                    if direction_lower in ['incoming', 'received']:
-                        # For incoming messages, person is sender, so use sender_id
-                        # But verify sender is not device owner first
+                    
+                    if chat_type and chat_type.lower() in ["group", "broadcast"]:
+                        if msg.group_id:
+                            stored_person_id = (msg.group_id or "").strip()
+                    elif chat_type and chat_type.lower() == "one on one":
+                        if person_id:
+                            stored_person_id = person_id
+                    elif direction_lower in ['outgoing', 'sent']:
+                        if recipient_id and recipient_id.strip():
+                            stored_person_id = recipient_id.strip()
+                    elif direction_lower in ['incoming', 'received']:
                         sender_check = msg.from_name or ""
                         if sender_check and device_owner_name:
                             sender_check_lower = sender_check.strip().lower()
@@ -957,96 +1381,156 @@ def get_platform_cards_intensity(
                             if is_not_device_owner and person_id:
                                 stored_person_id = person_id
                         elif not device_owner_name and person_id:
-                            # If device owner unknown, trust the person_id
                             stored_person_id = person_id
+                    
+                    person_direction = None
+                    if direction_lower in ['outgoing', 'sent']:
+                        person_direction = "Outgoing"
+                    elif direction_lower in ['incoming', 'received']:
+                        person_direction = "Incoming"
+                    else:
+                        person_direction = "Unknown"
+                    
+                    cleaned_person_name = None
+                    if person_name:
+                        person_name_stripped = person_name.strip()
+                        cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_name_stripped)
+                        if cleaned_check and cleaned_check.strip():
+                            cleaned_person_name = person_name_stripped
+                    
+                    if not cleaned_person_name and stored_person_id:
+                        cleaned_person_name = stored_person_id.strip() if stored_person_id else None
                     
                     if person_key not in person_info:
                         person_info[person_key] = {
-                            "name": person_name,
-                            "id": stored_person_id
+                            "name": cleaned_person_name or person_key,
+                            "id": stored_person_id,
+                            "direction": person_direction
                         }
                     else:
-                        # Update person_id only if current one is empty and we have a new valid one
                         if not person_info[person_key]["id"] and stored_person_id:
                             person_info[person_key]["id"] = stored_person_id
         
-        # Calculate intensity for each person per thread_id
-        # Following SQL query pattern: SELECT * FROM chat_messages WHERE thread_id = ? AND file_id = ?
-        # Each thread_id is processed separately (equivalent to WHERE thread_id = ?)
-        # For each person, sum intensity across all their thread_ids
-        # Intensity = total messages across all thread_ids for this person
-        # IMPORTANT: In the same thread_id, all different person_keys should be merged into one
-        # because they represent the same person using different names/IDs
+                        current_name = person_info[person_key].get("name", "")
+
+                        current_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', current_name) if current_name else ""
+                        if (not current_name or not current_name_cleaned or not current_name_cleaned.strip()) and cleaned_person_name:
+                            person_info[person_key]["name"] = cleaned_person_name
+                        elif not person_info[person_key].get("name") and cleaned_person_name:
+                            person_info[person_key]["name"] = cleaned_person_name
+                        if not person_info[person_key].get("direction") or person_direction != "Unknown":
+                            person_info[person_key]["direction"] = person_direction
+        
         person_intensity = defaultdict(int)
-        person_thread_info = defaultdict(list)  # Track which thread_ids contribute to each person
-        
-        # Map to merge person_keys within the same thread_id
-        # Key: thread_id, Value: primary person_key that represents all persons in that thread
-        thread_primary_person = {}
-        
-        # Process each thread_id separately (SQL pattern: WHERE thread_id = '...')
         for thread_id, persons in thread_person_messages.items():
-            # In the same thread, all person_keys represent the same person
-            # Choose the primary person_key (prefer one with a proper name over ID-only)
             person_keys_in_thread = list(persons.keys())
             if person_keys_in_thread:
-                # Prefer person_key with a proper name (not just numbers/IDs)
                 primary_key = None
                 for pk in person_keys_in_thread:
                     person_data = person_info.get(pk, {})
                     person_name_val = person_data.get("name", pk)
                     person_id_val = person_data.get("id", "")
                     
-                    # Prefer person_key with a real name (not just numeric ID)
                     if person_name_val and not person_name_val.strip().isdigit() and len(person_name_val.strip()) > 3:
                         primary_key = pk
                         break
                 
-                # If no proper name found, use the first one or the one with most messages
                 if not primary_key:
                     primary_key = max(person_keys_in_thread, key=lambda pk: len(persons[pk]))
                 
-                thread_primary_person[thread_id] = primary_key
-                
-                # Merge all messages from all person_keys in this thread to the primary key
                 all_messages_in_thread = []
                 merged_name = None
                 merged_id = None
+                
+                thread_chat_type = None
+                thread_group_name = None
+                thread_group_id = None
+                
+                if thread_id and thread_id in thread_group_map:
+                    thread_chat_type = "group"
+                    thread_group_name = thread_group_map[thread_id]["name"]
+                    thread_group_id = thread_group_map[thread_id].get("id")
+                elif person_keys_in_thread:
+                    first_person_messages = persons[person_keys_in_thread[0]]
+                    if first_person_messages:
+                        first_msg = first_person_messages[0]
+                        msg_chat_type = (first_msg.chat_type or "").strip() if first_msg.chat_type else None
+                        if msg_chat_type:
+                            msg_chat_type_lower = msg_chat_type.lower()
+                            if msg_chat_type_lower in ["group", "broadcast"]:
+                                thread_chat_type = msg_chat_type_lower
+                                thread_group_name = (first_msg.group_name or "").strip() if first_msg.group_name else None
+                                thread_group_id = (first_msg.group_id or "").strip() if first_msg.group_id else None
                 
                 for person_key in person_keys_in_thread:
                     messages = persons[person_key]
                     all_messages_in_thread.extend(messages)
                     
-                    # Collect person info - prefer name over ID
                     person_data = person_info.get(person_key, {})
                     name_val = person_data.get("name", person_key)
                     id_val = person_data.get("id", "")
                     
-                    # Prefer proper name (not just numeric ID) for merged_name
-                    if not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
+                    if thread_chat_type in ["group", "broadcast"] and thread_group_name:
+                        if not merged_name or (thread_group_name and not thread_group_name.strip().isdigit() and len(thread_group_name.strip()) > 3):
+                            merged_name = thread_group_name
+                    elif not merged_name or (name_val and not name_val.strip().isdigit() and len(name_val.strip()) > 3):
                         merged_name = name_val if name_val else merged_name
                 
-                # Collect person_id ONLY from incoming messages (where person is sender)
-                # This ensures we don't accidentally pick device owner's ID from outgoing messages
+                for msg in all_messages_in_thread:
+                    msg_direction = (msg.direction or "").strip().lower()
+                    if msg_direction in ['outgoing', 'sent']:
+                        to_name_val = (msg.to_name or "").strip()
+                        if to_name_val and not to_name_val.strip().isdigit() and len(to_name_val.strip()) > 3:
+                            if not merged_name or merged_name.strip().isdigit() or len(merged_name.strip()) <= 3:
+                                merged_name = to_name_val
+                            break
+                
                 for msg in all_messages_in_thread:
                     direction = (msg.direction or "").strip().lower()
-                    if direction in ['incoming', 'received']:
-                        # In incoming messages, person is sender
+
+                    if thread_chat_type in ["group", "broadcast"] and thread_group_id:
+                        if not merged_id:
+                            merged_id = thread_group_id
+                        break
+                    
+                    device_owner_name = None
+                    for d in devices:
+                        if d.file_id == msg.file_id:
+                            device_owner_name = (d.owner_name or "").strip().lower()
+                            break
+                    
+                    if direction in ['outgoing', 'sent']:
+                        recipient_id = msg.recipient_number or ""
+                        recipient_name = (msg.to_name or "").strip()
+                        
+                        if recipient_name:
+                            recipient_name_lower = recipient_name.strip().lower()
+                            if device_owner_name:
+                                is_person = (
+                                    recipient_name_lower != device_owner_name and
+                                    device_owner_name not in recipient_name_lower and
+                                    recipient_name_lower not in device_owner_name and
+                                    not (len(set(device_owner_name.split()) & set(recipient_name_lower.split())) > 0)
+                                )
+                            else:
+                                is_person = True
+                            
+                            if is_person and recipient_id and recipient_id.strip():
+                                recipient_id_clean = recipient_id.strip()
+                                if len(recipient_id_clean) <= 50:
+                                    if not merged_id:
+                                        merged_id = recipient_id_clean
+                                    elif merged_id.strip().isdigit() and not recipient_id_clean.strip().isdigit():
+                                        merged_id = recipient_id_clean
+                                    break
+
+                    elif direction in ['incoming', 'received']:
                         sender_id = msg.sender_number or ""
                         sender_name = (msg.from_name or "").strip()
                         
-                        # Get device owner to verify sender is not device owner
-                        device_owner_name = None
-                        for d in devices:
-                            if d.file_id == msg.file_id:
-                                device_owner_name = (d.owner_name or "").strip().lower()
-                                break
-                        
-                        # Check if sender is person (not device owner)
                         if sender_name:
                             sender_name_lower = sender_name.strip().lower()
                             if device_owner_name:
-                                # Sender is person if it doesn't match device owner
                                 is_person = (
                                     sender_name_lower != device_owner_name and
                                     device_owner_name not in sender_name_lower and
@@ -1057,121 +1541,125 @@ def get_platform_cards_intensity(
                                 is_person = True
                             
                             if is_person and sender_id and sender_id.strip():
-                                # Only collect person_id from incoming messages where sender is person
                                 sender_id_clean = sender_id.strip()
-                                if len(sender_id_clean) <= 50:  # Valid person ID
+                                if len(sender_id_clean) <= 50:
                                     if not merged_id:
                                         merged_id = sender_id_clean
                                     elif merged_id.strip().isdigit() and not sender_id_clean.strip().isdigit():
-                                        # Prefer non-numeric ID over numeric ID
                                         merged_id = sender_id_clean
-                                    break  # Found valid person_id from incoming message, use it
+                                    break
                 
-                # Update person_info for primary key with best available info
+                outgoing_count = 0
+                incoming_count = 0
+                for msg in all_messages_in_thread:
+                    msg_direction = (msg.direction or "").strip().lower()
+                    if msg_direction in ['outgoing', 'sent']:
+                        outgoing_count += 1
+                    elif msg_direction in ['incoming', 'received']:
+                        incoming_count += 1
+                
+                thread_direction = None
+                if outgoing_count > incoming_count:
+                    thread_direction = "Outgoing"
+                elif incoming_count > outgoing_count:
+                    thread_direction = "Incoming"
+                else:
+                    thread_direction = "Unknown"
+
+                cleaned_merged_name = None
+                if merged_name:
+                    merged_name_stripped = merged_name.strip()
+
+                    cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', merged_name_stripped)
+                    if cleaned_check and cleaned_check.strip():
+                        cleaned_merged_name = merged_name_stripped
+                
+                if not cleaned_merged_name and merged_id:
+                    cleaned_merged_name = merged_id.strip() if merged_id else None
+                
                 if primary_key in person_info:
-                    if not person_info[primary_key]["name"] or person_info[primary_key]["name"].strip().isdigit():
-                        if merged_name and not merged_name.strip().isdigit():
-                            person_info[primary_key]["name"] = merged_name
+                    current_name = person_info[primary_key].get("name", "")
+                    current_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', current_name) if current_name else ""
+                    current_name_is_empty = not current_name or not current_name_cleaned or not current_name_cleaned.strip()
+                    if current_name_is_empty or (current_name.strip().isdigit() and cleaned_merged_name and not cleaned_merged_name.strip().isdigit()):
+                        if cleaned_merged_name:
+                            person_info[primary_key]["name"] = cleaned_merged_name
+                    elif current_name_is_empty and cleaned_merged_name:
+                        person_info[primary_key]["name"] = cleaned_merged_name
                     if not person_info[primary_key]["id"] and merged_id:
                         person_info[primary_key]["id"] = merged_id
+                    if not person_info[primary_key].get("direction") or thread_direction != "Unknown":
+                        person_info[primary_key]["direction"] = thread_direction
                 else:
                     person_info[primary_key] = {
-                        "name": merged_name or primary_key,
-                        "id": merged_id or ""
+                        "name": cleaned_merged_name or primary_key,
+                        "id": merged_id or "",
+                        "direction": thread_direction
                     }
                 
-                # Count all messages in this thread for the primary person
-                message_count = len(all_messages_in_thread)
-                person_intensity[primary_key] += message_count
-                person_thread_info[primary_key].append({
-                    "thread_id": thread_id,
-                    "count": message_count
-                })
-                
-                # Also try to get person_id from the messages if not already set
-                # IMPORTANT: Only get person_id from incoming messages where person is sender
-                # This prevents picking device owner's ID from outgoing messages
-                if not person_info[primary_key]["id"]:
-                    for msg in all_messages_in_thread:
-                        direction = (msg.direction or "").strip().lower()
-                        
-                        # Only check incoming messages (person is sender in incoming)
-                        if direction not in ['incoming', 'received']:
-                            continue
-                        
-                        # Get device owner for this message
-                        device_owner_name = None
-                        for d in devices:
-                            if d.file_id == msg.file_id:
-                                device_owner_name = (d.owner_name or "").strip().lower()
-                                break
-                        
-                        sender_name = (msg.from_name or "").strip()
-                        sender_id = msg.sender_number or ""
-                        
-                        # Verify sender is person (not device owner)
-                        if sender_name:
-                            sender_name_lower = sender_name.strip().lower()
-                            is_person_sender = False
-                            
-                            if device_owner_name:
-                                # Sender is person if it doesn't match device owner
-                                is_person_sender = (
-                                    sender_name_lower != device_owner_name and
-                                    device_owner_name not in sender_name_lower and
-                                    sender_name_lower not in device_owner_name and
-                                    not (len(set(device_owner_name.split()) & set(sender_name_lower.split())) > 0)
-                                )
-                            else:
-                                # If device owner unknown, assume sender could be person
-                                is_person_sender = True
-                            
-                            # Only use sender_id if sender is confirmed as person (not device owner)
-                            if is_person_sender and sender_id and sender_id.strip():
-                                sender_id_clean = sender_id.strip()
-                                if len(sender_id_clean) <= 50:  # Valid person ID
-                                    person_info[primary_key]["id"] = sender_id_clean
-                                    break
+                person_intensity[primary_key] += len(persons.get(primary_key, []))
         
         intensity_list = []
-        for person_key, intensity in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
+        for person_key, intensity_value in sorted(person_intensity.items(), key=lambda x: x[1], reverse=True):
             person_data = person_info.get(person_key, {})
             person_name = person_data.get("name", person_key)
             person_id_value = person_data.get("id", "")
+            person_direction = person_data.get("direction", "Unknown")
             
-            if (not person_name or person_name.strip() == "") and person_id_value:
-                person_name = person_id_value
+            def is_empty_or_whitespace(s):
+                if not s:
+                    return True
+
+                cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', s)
+                if len(cleaned) == 0:
+                    return True
+        
+                if not cleaned.strip():
+                    return True
+                return False
             
-            # Exclude device owner from intensity_list
-            # Check if person_name matches any device owner
-            is_device_owner = False
-            person_name_lower = (person_name or "").strip().lower()
-            for d in devices:
-                device_owner_name = (d.owner_name or "").strip().lower()
-                if device_owner_name:
-                    if person_name_lower == device_owner_name:
-                        is_device_owner = True
-                        break
-                    # Also check flexible matching
-                    if (device_owner_name in person_name_lower or 
-                        person_name_lower in device_owner_name or
-                        (len(set(device_owner_name.split()) & set(person_name_lower.split())) > 0)):
-                        is_device_owner = True
-                        break
+            if person_name:
+                person_name_cleaned = person_name.strip()
+                if is_empty_or_whitespace(person_name_cleaned):
+                    person_name = None
+                else:
+                    person_name = person_name_cleaned
+            else:
+                person_name = None
             
-            if is_device_owner:
-                continue  # Skip device owner
-            
-            # Set person_id to null if empty, otherwise use the value
             if not person_id_value or not person_id_value.strip():
                 person_id_value = None
             else:
                 person_id_value = person_id_value.strip()
             
+            if not person_name and person_id_value:
+                person_name = person_id_value
+            
+            if not person_name:
+                person_key_cleaned = None
+                if person_key:
+                    person_key_stripped = person_key.strip()
+                    person_key_cleaned_check = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_key_stripped)
+                    if person_key_cleaned_check and person_key_cleaned_check.strip():
+                        person_key_cleaned = person_key_stripped
+                
+                if person_key_cleaned:
+                    person_name = person_key_cleaned
+            
+            if not person_name or person_name.strip() == "":
+                person_name = "Unknown"
+            
+            if person_name and person_id_value and person_name == person_id_value:
+                pass
+            elif person_name and not person_id_value:
+                if person_name.isdigit() or (len(person_name) > 10 and person_name.replace('+', '').replace('-', '').isdigit()):
+                    person_id_value = person_name
+            
             intensity_list.append({
                 "person": person_name,
                 "person_id": person_id_value,
-                "intensity": intensity
+                "intensity": intensity_value,
+                "direction": person_direction
             })
         
         platform_display = platform
@@ -1195,7 +1683,6 @@ def get_platform_cards_intensity(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         return JSONResponse(
             content={
@@ -1206,14 +1693,14 @@ def get_platform_cards_intensity(
             status_code=500
         )
 
-
-@router.get("/analytic/{analytic_id}/chat-detail")
-def get_chat_detail(
-    analytic_id: int,
+@router.get("/analytic/chat-detail")
+def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
+    analytic_id: int = Query(..., description="Analytic ID"),
     person_name: Optional[str] = Query(None, description="Person name to filter chat details (optional if using search only)"),
     platform: Optional[str] = Query(None, description="Platform name (optional, can filter by search only)"),
     device_id: Optional[int] = Query(None, description="Filter by device ID"),
     search: Optional[str] = Query(None, description="Search text in messages (optional)"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1242,10 +1729,10 @@ def get_chat_detail(
                 return JSONResponse(
                     content={
                         "status": 400,
-                        "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
-                    },
-                    status_code=400
-                )
+                    "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
+                },
+                status_code=400
+            )
         
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
@@ -1255,6 +1742,15 @@ def get_chat_detail(
                     "message": "Analytic not found"
                 },
                 status_code=404
+            )
+        
+        if current_user is not None and not check_analytic_access(analytic, current_user):
+            return JSONResponse(
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic"
+                },
+                status_code=403
             )
 
         device_links = db.query(AnalyticDevice).filter(
@@ -1297,15 +1793,14 @@ def get_chat_detail(
         messages = get_chat_messages_for_analytic(db, analytic_id, device_id, platform, file_ids)
         
         chat_messages = []
+        filtered_messages = []
         normalized_platform = normalize_platform_name(platform) if platform else None
         person_name_normalized = person_name.strip().lower() if person_name else None
         search_lower = search.lower() if search else None
         
-        # Build thread_person_map: thread_id -> person_name (from incoming messages)
-        # This helps identify all messages in the same thread even if to_name is invalid
-        thread_person_map = {}  # thread_id -> person_name
+        thread_person_map = {}
+        thread_group_map = {}
         
-        # First pass: Build thread_person_map from incoming messages
         if person_name_normalized:
             for msg in messages:
                 if normalized_platform:
@@ -1313,22 +1808,78 @@ def get_chat_detail(
                     if msg_platform_normalized != normalized_platform:
                         continue
                 
+                thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                if thread_id:
+                    chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                    if chat_type:
+                        chat_type_lower = chat_type.lower()
+                        if chat_type_lower in ["group", "broadcast"]:
+                            group_name = (msg.group_name or "").strip() if msg.group_name else None
+                            if group_name and group_name.strip():
+                                group_name_lower = group_name.strip().lower()
+                                person_name_len = len(person_name_normalized.strip())
+                                if person_name_len <= 2:
+                                    if group_name_lower == person_name_normalized:
+                                        if thread_id not in thread_group_map:
+                                            thread_group_map[thread_id] = group_name.strip()
+                                else:
+                                    if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                        if thread_id not in thread_group_map:
+                                            thread_group_map[thread_id] = group_name.strip()
+        
+        if person_name_normalized:
+            for msg in messages:
+                if normalized_platform:
+                    msg_platform_normalized = normalize_platform_name(msg.platform or '')
+                    if msg_platform_normalized != normalized_platform:
+                        continue
+                
+                thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                
+                if thread_id and thread_id in thread_group_map:
+                        continue
+                
                 direction = (msg.direction or "").strip().lower()
                 if direction in ['incoming', 'received']:
                     sender_name = (msg.from_name or "").strip().lower()
-                    if sender_name == person_name_normalized or person_name_normalized in sender_name:
-                        thread_id = (msg.thread_id or msg.chat_id or "").strip()
-                        if thread_id:
-                            thread_person_map[thread_id] = person_name_normalized
+                    sender_number = (msg.sender_number or "").strip()
+                    person_name_len = len(person_name_normalized.strip())
+                    
+                    is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
+                    
+                    name_matched = False
+                    if person_name_len == 1:
+                        if sender_name == person_name_normalized:
+                            name_matched = True
+                    elif person_name_len == 2:
+                        if sender_name == person_name_normalized:
+                            name_matched = True
+                        else:
+                            sender_words = sender_name.split()
+                            for word in sender_words:
+                                if word.strip().lower() == person_name_normalized:
+                                    name_matched = True
+                                    break
+                    else:
+                        if sender_name == person_name_normalized or person_name_normalized in sender_name:
+                            name_matched = True
+                    
+                    number_matched = False
+                    if is_likely_id and sender_number and sender_number.strip():
+                        sender_number_normalized = sender_number.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            number_matched = True
+                    
+                    if (name_matched or number_matched) and thread_id:
+                        thread_person_map[thread_id] = person_name_normalized
         
-        # Second pass: Process all messages
         for msg in messages:
             if normalized_platform:
                 msg_platform_normalized = normalize_platform_name(msg.platform or '')
                 if msg_platform_normalized != normalized_platform:
                     continue
             
-            # Get device owner name for this message
             device_owner_name = None
             for d in devices:
                 if d.file_id == msg.file_id:
@@ -1339,23 +1890,63 @@ def get_chat_detail(
                 sender_name = (msg.from_name or "").strip().lower()
                 recipient_name = (msg.to_name or "").strip().lower()
                 thread_id = (msg.thread_id or msg.chat_id or "").strip()
+                chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                group_name = (msg.group_name or "").strip() if msg.group_name else None
                 
-                # Exact match
+                group_match = False
+                person_name_len = len(person_name_normalized.strip()) if person_name_normalized else 0
+                if thread_id and thread_id in thread_group_map:
+                    group_name_from_map = thread_group_map[thread_id].lower()
+                    if person_name_len == 1:
+                        if group_name_from_map == person_name_normalized:
+                            group_match = True
+                    elif person_name_len == 2:
+                        if group_name_from_map == person_name_normalized:
+                            group_match = True
+                    else:
+                        if group_name_from_map == person_name_normalized or person_name_normalized in group_name_from_map:
+                            group_match = True
+                elif chat_type and chat_type.lower() in ["group", "broadcast"]:
+                    if group_name:
+                        group_name_lower = group_name.strip().lower()
+                        if person_name_len == 1:
+                            if group_name_lower == person_name_normalized:
+                                group_match = True
+                        elif person_name_len == 2:
+                            if group_name_lower == person_name_normalized:
+                                group_match = True
+                        else:
+                            if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                group_match = True
+                
                 sender_match = sender_name == person_name_normalized
                 recipient_match = recipient_name == person_name_normalized
                 
-                # If exact match fails, try substring matching (more strict)
-                if not sender_match:
-                    # Primary: Check if query is substring of sender name (most common case)
-                    # Example: query "info" matches "INFO LOKER BANDUNG"
+                sender_number = (msg.sender_number or "").strip()
+                recipient_number = (msg.recipient_number or "").strip()
+                
+                is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
+                
+                if is_likely_id:
+                    if sender_number and sender_number.strip():
+                        sender_number_normalized = sender_number.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            sender_match = True
+                    if recipient_number and recipient_number.strip():
+                        recipient_number_normalized = recipient_number.strip().lower()
+                        if recipient_number_normalized == person_name_normalized:
+                            recipient_match = True
+                
+                if person_name_normalized:
+                    person_name_len = len(person_name_normalized.strip())
+                else:
+                    person_name_len = 0
+                
+                if not sender_match and person_name_len > 2:
                     if person_name_normalized in sender_name:
                         sender_match = True
-                    # Secondary: Check if sender name is substring of query (less common)
-                    # Example: query "INFO LOKER BANDUNG" matches "INFO LOKER"
                     elif sender_name in person_name_normalized and len(sender_name) >= 3:
                         sender_match = True
-                    # Common words matching - very strict: require at least 2 matching words
-                    # and they must represent majority of query words
                     elif person_name_normalized and sender_name:
                         query_words = [w for w in person_name_normalized.split() if len(w) >= 2]
                         sender_words = [w for w in sender_name.split() if len(w) >= 2]
@@ -1363,12 +1954,18 @@ def get_chat_detail(
                             query_words_set = set(query_words)
                             sender_words_set = set(sender_words)
                             common_words = query_words_set & sender_words_set
-                            # Require at least 2 common words (to avoid single word matches like "bandung")
-                            # or if query has 2 words, require both to match
                             if len(common_words) >= 2 or (len(query_words) == 2 and len(common_words) == 2):
                                 sender_match = True
+                elif not sender_match and person_name_len == 1:
+                    pass
+                elif not sender_match and person_name_len == 2:
+                    sender_words = sender_name.split()
+                    for word in sender_words:
+                        if word.strip().lower() == person_name_normalized:
+                            sender_match = True
+                            break
                 
-                if not recipient_match:
+                if not recipient_match and person_name_len > 2:
                     if person_name_normalized in recipient_name:
                         recipient_match = True
                     elif recipient_name in person_name_normalized and len(recipient_name) >= 3:
@@ -1382,24 +1979,23 @@ def get_chat_detail(
                             common_words = query_words_set & recipient_words_set
                             if len(common_words) >= 2 or (len(query_words) == 2 and len(common_words) == 2):
                                 recipient_match = True
+                elif not recipient_match and person_name_len == 1:
+                    pass
+                elif not recipient_match and person_name_len == 2:
+                    recipient_words = recipient_name.split()
+                    for word in recipient_words:
+                        if word.strip().lower() == person_name_normalized:
+                            recipient_match = True
+                            break
                 
-                # Check if message is in the same thread as person (from thread_person_map)
-                # This handles cases where outgoing messages have invalid to_name
                 thread_match = False
                 if thread_id and thread_id in thread_person_map:
                     thread_match = True
                 
-                # Include message if:
-                # 1. sender/recipient matches person_name, OR
-                # 2. message is in the same thread as person (from incoming messages)
-                if not sender_match and not recipient_match and not thread_match:
+                if not group_match and not sender_match and not recipient_match and not thread_match:
                     continue
                 
-                # If person_name matches, include the message
-                # Device owner verification is optional to avoid missing valid conversations
-                # Only skip if we're certain it's a self-message (both sender and recipient are device owner)
                 if device_owner_name:
-                    # Check if device owner is involved using flexible matching
                     is_device_owner_sender = sender_name == device_owner_name
                     if not is_device_owner_sender:
                         is_device_owner_sender = (
@@ -1416,12 +2012,8 @@ def get_chat_detail(
                             (len(set(device_owner_name.split()) & set(recipient_name.split())) > 0)
                         )
                     
-                    # Only skip if BOTH sender AND recipient are device owner (self-message)
-                    # This prevents showing messages where device owner talks to themselves
                     if is_device_owner_sender and is_device_owner_recipient:
-                        continue  # Skip self-messages
-                    # Otherwise, include the message (person is involved)
-                # If device owner not identified, include all messages with person
+                        continue
             
             if search_lower:
                 message_text = (msg.message_text or "").lower()
@@ -1430,9 +2022,7 @@ def get_chat_detail(
             
             direction = None
             
-            # Determine direction based on who is sender/recipient
             if person_name_normalized and device_owner_name:
-                # Use flexible matching for device owner (same as above check)
                 is_device_owner_sender = sender_name == device_owner_name
                 if not is_device_owner_sender:
                     is_device_owner_sender = (
@@ -1453,27 +2043,20 @@ def get_chat_detail(
                 is_person_recipient = recipient_match
                 
                 if is_person_sender and not is_device_owner_sender:
-                    # Person sent message (device owner received)
                     direction = "Incoming"
                 elif is_device_owner_sender and not is_person_sender:
-                    # Device owner sent message (person received)
                     direction = "Outgoing"
                 elif is_person_recipient and is_device_owner_sender:
-                    # Device owner sent to person
                     direction = "Outgoing"
                 elif is_person_recipient and not is_device_owner_sender:
-                    # Person sent to device owner
                     direction = "Incoming"
                 elif is_person_sender:
-                    # Person is sender, assume incoming
                     direction = "Incoming"
                 elif is_person_recipient:
-                    # Person is recipient, assume outgoing
                     direction = "Outgoing"
                 else:
                     direction = "Unknown"
             elif person_name_normalized:
-                # Device owner not identified, determine based on person position
                 if sender_match:
                     direction = "Incoming"
                 elif recipient_match:
@@ -1489,127 +2072,297 @@ def get_chat_detail(
             
             times_value = extract_time_from_timestamp(msg.timestamp or "")
             
-            # Extract sender_id: use sender_number if available, otherwise check if from_name is ID-like
             sender_id_value = msg.sender_number or ""
             if not sender_id_value and msg.from_name:
                 from_name = msg.from_name.strip()
-                # If from_name looks like an ID (numeric or very long string without spaces), use it
                 if from_name and (from_name.isdigit() or (len(from_name) > 15 and ' ' not in from_name)):
                     sender_id_value = from_name
             
-            # Extract recipient_id: use recipient_number if available, otherwise check if to_name is ID-like
             recipient_id_value = msg.recipient_number or ""
             if not recipient_id_value and msg.to_name:
                 to_name = msg.to_name.strip()
-                # If to_name looks like an ID (numeric or very long string without spaces), use it
                 if to_name and (to_name.isdigit() or (len(to_name) > 15 and ' ' not in to_name)):
                     recipient_id_value = to_name
             
+            chat_type_value = (msg.chat_type or "").strip() if msg.chat_type else None
+            group_name_value = (msg.group_name or "").strip() if msg.group_name else None
+            group_id_value = (msg.group_id or "").strip() if msg.group_id else None
+            
+            recipient_array = []
+            if recipient_id_value or (msg.to_name and msg.to_name.strip() and msg.to_name.strip() != "Unknown"):
+                recipient_array.append({
+                    "recipient_name": msg.to_name or "Unknown",
+                    "recipient_id": recipient_id_value or ""
+                })
+            
+            from_array = []
+            sender_name_value = msg.from_name or msg.sender_number or "Unknown"
+            if sender_name_value and sender_name_value != "Unknown":
+                cleaned_sender = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', sender_name_value)
+                if cleaned_sender:
+                    sender_name_value = sender_name_value.strip()
+                else:
+                    sender_name_value = None
+            elif sender_name_value == "Unknown":
+                sender_name_value = None
+            
+            from_item = {
+                "message_id": msg.id,
+                "thread_id": msg.thread_id or "",
+                "sender": sender_name_value,
+                "sender_id": sender_id_value or "",
+                "direction": direction or "Unknown",
+                "message_text": cleaned_message_text
+            }
+            from_array.append(from_item)
+            
             chat_messages.append({
                 "message_id": msg.id,
+                "chat_id": msg.chat_id or "",
                 "timestamp": msg.timestamp,
                 "times": times_value,
                 "direction": direction or "Unknown",
-                "sender": msg.from_name or msg.sender_number or "Unknown",
-                "recipient": msg.to_name or msg.recipient_number or "Unknown",
-                "sender_id": sender_id_value,
-                "recipient_id": recipient_id_value,
-                "message_text": cleaned_message_text,
-                "message_type": msg.message_type or "text",
-                "platform": msg.platform,
-                "thread_id": msg.thread_id or "",
-                "chat_id": msg.chat_id or ""
+                "recipient": recipient_array,
+                "from": from_array,
+                "_chat_type": chat_type_value
             })
+            
+            filtered_messages.append(msg)
+        
+        chat_type_determined = None
+        group_name_determined = None
+        group_id_determined = None
+        person_name_determined = person_name
+        person_id_determined = None
+        
+        if filtered_messages:
+            for msg in filtered_messages:
+                msg_chat_type = (msg.chat_type or "").strip() if msg.chat_type else None
+                msg_group_name = (msg.group_name or "").strip() if msg.group_name else None
+                msg_group_id = (msg.group_id or "").strip() if msg.group_id else None
+                
+                if msg_chat_type and msg_chat_type.lower() in ["group", "broadcast"]:
+                    if msg_group_name:
+                        if person_name_normalized:
+                            group_name_lower = msg_group_name.strip().lower()
+                            person_name_len = len(person_name_normalized.strip())
+                            
+                            if person_name_len == 1:
+                                if group_name_lower == person_name_normalized:
+                                    chat_type_determined = msg_chat_type
+                                    group_name_determined = msg_group_name.strip()
+                                    if msg_group_id and msg_group_id.strip():
+                                        group_id_determined = msg_group_id.strip()
+                                    break
+                            elif person_name_len == 2:
+                                if group_name_lower == person_name_normalized:
+                                    chat_type_determined = msg_chat_type
+                                    group_name_determined = msg_group_name.strip()
+                                    if msg_group_id and msg_group_id.strip():
+                                        group_id_determined = msg_group_id.strip()
+                                    break
+                            else:
+                                if group_name_lower == person_name_normalized or person_name_normalized in group_name_lower:
+                                    chat_type_determined = msg_chat_type
+                                    group_name_determined = msg_group_name.strip()
+                                    if msg_group_id and msg_group_id.strip():
+                                        group_id_determined = msg_group_id.strip()
+                                    break
+                        else:
+                            chat_type_determined = msg_chat_type
+                            group_name_determined = msg_group_name.strip()
+                            if msg_group_id and msg_group_id.strip():
+                                group_id_determined = msg_group_id.strip()
+                            break
+                elif person_name_normalized:
+                    sender_name_val = (msg.from_name or "").strip().lower()
+                    recipient_name_val = (msg.to_name or "").strip().lower()
+                    sender_number_val = (msg.sender_number or "").strip()
+                    recipient_number_val = (msg.recipient_number or "").strip()
+                    person_name_len = len(person_name_normalized.strip())
+                    
+                    is_likely_id = person_name_normalized.isdigit() or (len(person_name_normalized) >= 5 and person_name_normalized.replace(' ', '').isdigit())
+                    
+                    sender_matches = sender_name_val == person_name_normalized
+                    if not sender_matches and person_name_len > 2:
+                        sender_matches = (
+                            person_name_normalized in sender_name_val or
+                            sender_name_val in person_name_normalized or
+                            (len(set(person_name_normalized.split()) & set(sender_name_val.split())) > 0)
+                        )
+                    elif not sender_matches and person_name_len == 1:
+                        pass
+                    elif not sender_matches and person_name_len == 2:
+                        sender_words = sender_name_val.split()
+                        for word in sender_words:
+                            if word.strip().lower() == person_name_normalized:
+                                sender_matches = True
+                                break
+                    
+                    if is_likely_id and not sender_matches and sender_number_val and sender_number_val.strip():
+                        sender_number_normalized = sender_number_val.strip().lower()
+                        if sender_number_normalized == person_name_normalized:
+                            sender_matches = True
+                    
+                    recipient_matches = recipient_name_val == person_name_normalized
+                    if not recipient_matches and person_name_len > 2:
+                        recipient_matches = (
+                            person_name_normalized in recipient_name_val or
+                            recipient_name_val in person_name_normalized or
+                            (len(set(person_name_normalized.split()) & set(recipient_name_val.split())) > 0)
+                        )
+                    elif not recipient_matches and person_name_len == 1:
+                        pass
+                    elif not recipient_matches and person_name_len == 2:
+                        recipient_words = recipient_name_val.split()
+                        for word in recipient_words:
+                            if word.strip().lower() == person_name_normalized:
+                                recipient_matches = True
+                                break
+                    
+                    if is_likely_id and not recipient_matches and recipient_number_val and recipient_number_val.strip():
+                        recipient_number_normalized = recipient_number_val.strip().lower()
+                        if recipient_number_normalized == person_name_normalized:
+                            recipient_matches = True
+                    
+                    if sender_matches:
+                        chat_type_determined = msg_chat_type or "One On One"
+                        person_name_determined = msg.from_name or person_name
+                        if msg.sender_number and msg.sender_number.strip():
+                            person_id_determined = msg.sender_number.strip()
+                        break
+                    elif recipient_matches:
+                        chat_type_determined = msg_chat_type or "One On One"
+                        person_name_determined = msg.to_name or person_name
+                        if msg.recipient_number and msg.recipient_number.strip():
+                            person_id_determined = msg.recipient_number.strip()
+                        break
+                    else:
+                        chat_type_determined = msg_chat_type or "One On One"
+                        if msg.from_name and msg.from_name.strip() and msg.from_name.strip() != "Unknown":
+                            person_name_determined = msg.from_name.strip()
+                        elif msg.to_name and msg.to_name.strip() and msg.to_name.strip() != "Unknown":
+                            person_name_determined = msg.to_name.strip()
+                        if msg.sender_number and msg.sender_number.strip():
+                            person_id_determined = msg.sender_number.strip()
+                        elif msg.recipient_number and msg.recipient_number.strip():
+                            person_id_determined = msg.recipient_number.strip()
+                        break
+        
+        
+        if not person_id_determined or not person_id_determined.strip():
+            person_id_determined = None
+        else:
+            person_id_determined = person_id_determined.strip()
+        
+        filtered_chat_messages = []
+        if chat_type_determined:
+            chat_type_determined_lower = chat_type_determined.lower()
+            for msg_dict in chat_messages:
+                msg_chat_type = msg_dict.get("_chat_type")
+                if msg_chat_type:
+                    msg_chat_type = msg_chat_type.strip() if isinstance(msg_chat_type, str) else None
+                
+                if chat_type_determined_lower == "one on one":
+                    if msg_chat_type:
+                        msg_chat_type_lower = msg_chat_type.lower()
+                        if msg_chat_type_lower == "one on one":
+                            msg_dict_clean = {k: v for k, v in msg_dict.items() if k != "_chat_type"}
+                            filtered_chat_messages.append(msg_dict_clean)
+                    else:
+                        msg_dict_clean = {k: v for k, v in msg_dict.items() if k != "_chat_type"}
+                        filtered_chat_messages.append(msg_dict_clean)
+                elif chat_type_determined_lower in ["group", "broadcast"]:
+                    if msg_chat_type and msg_chat_type.lower() == chat_type_determined_lower:
+                        msg_dict_clean = {k: v for k, v in msg_dict.items() if k != "_chat_type"}
+                        filtered_chat_messages.append(msg_dict_clean)
+                else:
+                    msg_dict_clean = {k: v for k, v in msg_dict.items() if k != "_chat_type"}
+                    filtered_chat_messages.append(msg_dict_clean)
+        else:
+            filtered_chat_messages = [{k: v for k, v in msg_dict.items() if k != "_chat_type"} for msg_dict in chat_messages]
+
+        if person_name:
+            filtered_chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=False)
+        else:
+            filtered_chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=True)
+        
+        grouped_messages = {}
+        for msg in filtered_chat_messages:
+            chat_id = msg.get("chat_id", "") or msg.get("thread_id", "")
+            
+            if chat_id not in grouped_messages:
+                recipient_obj = {}
+                recipient_array = msg.get("recipient", [])
+                if recipient_array and len(recipient_array) > 0:
+                    recipient_obj = recipient_array[0]
+                elif not recipient_array:
+                    recipient_obj = {
+                        "recipient_name": "Unknown",
+                        "recipient_id": ""
+                    }
+                
+                grouped_messages[chat_id] = {
+                    "chat_id": chat_id,
+                    "timestamp": msg.get("timestamp", ""),
+                    "times": msg.get("times", ""),
+                    "direction": msg.get("direction", "Unknown"),
+                    "recipient": recipient_obj,
+                    "messages": []
+                }
+            
+            from_array = msg.get("from", [])
+            if from_array and len(from_array) > 0:
+                from_item = from_array[0].copy()
+                if "message_id" not in from_item:
+                    from_item["message_id"] = msg.get("message_id")
+                if "direction" not in from_item:
+                    from_item["direction"] = msg.get("direction", "Unknown")
+                grouped_messages[chat_id]["messages"].append(from_item)
+        
+        final_chat_messages = list(grouped_messages.values())
         
         if person_name:
-            chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=False)
+            final_chat_messages.sort(key=lambda x: x.get("timestamp") or "", reverse=False)
         else:
-            chat_messages.sort(key=lambda x: x["timestamp"] or "", reverse=True)
+            final_chat_messages.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
         
-        intensity = len(chat_messages)
-        
-        # Find the actual person name and ID from the matched messages
-        # Use the full person name from the messages (not just the query)
-        # IMPORTANT: Only get person_id from incoming messages (where person is sender)
-        actual_person_name = person_name  # Start with query value
-        person_id = None
-        
-        if person_name_normalized and chat_messages:
-            for msg in chat_messages:
-                sender_lower = msg.get("sender", "").lower()
-                recipient_lower = msg.get("recipient", "").lower()
-                direction = msg.get("direction", "").strip()
-                
-                sender_matches = sender_lower == person_name_normalized
-                if not sender_matches:
-                    sender_matches = (
-                        person_name_normalized in sender_lower or
-                        sender_lower in person_name_normalized or
-                        (len(set(person_name_normalized.split()) & set(sender_lower.split())) > 0)
-                    )
-                
-                recipient_matches = recipient_lower == person_name_normalized
-                if not recipient_matches:
-                    recipient_matches = (
-                        person_name_normalized in recipient_lower or
-                        recipient_lower in person_name_normalized or
-                        (len(set(person_name_normalized.split()) & set(recipient_lower.split())) > 0)
-                    )
-                
-                # Prefer getting person_id from incoming messages (person is sender)
-                if sender_matches and direction.lower() in ['incoming', 'received']:
-                    # Use the full sender name from the message
-                    actual_person_name = msg.get("sender", person_name)
-                    sender_id_val = msg.get("sender_id", "")
-                    if sender_id_val and sender_id_val.strip():
-                        person_id = sender_id_val.strip()
-                    break
-                elif sender_matches:
-                    # Incoming message but direction not set, still use sender
-                    actual_person_name = msg.get("sender", person_name)
-                    sender_id_val = msg.get("sender_id", "")
-                    if sender_id_val and sender_id_val.strip():
-                        person_id = sender_id_val.strip()
-                    # Don't break yet, might find incoming message later
-                elif recipient_matches:
-                    # Use the full recipient name from the message
-                    actual_person_name = msg.get("recipient", person_name)
-                    # Don't use recipient_id as person_id (might be device owner's ID)
-                    # Only use it if we haven't found person_id yet and this is an outgoing message
-                    if not person_id and direction.lower() in ['outgoing', 'sent']:
-                        recipient_id_val = msg.get("recipient_id", "")
-                        # Only use recipient_id if it's not too long (not a chat_id)
-                        if recipient_id_val and recipient_id_val.strip() and len(recipient_id_val.strip()) <= 50:
-                            person_id = recipient_id_val.strip()
-                    # Don't break yet, prefer incoming messages
-        
-        # Set person_id to null if empty or invalid
-        if not person_id or not person_id.strip():
-            person_id = None
-        else:
-            person_id = person_id.strip()
+        intensity = len(final_chat_messages)
         
         summary_value = analytic.summary if analytic.summary else None
+
+        response_data = {
+            "platform": platform,
+            "intensity": intensity,
+            "chat_type": chat_type_determined,
+            "conversation_history": final_chat_messages,
+            "summary": summary_value
+        }
+
+        if chat_type_determined and chat_type_determined.lower() in ["group", "broadcast"]:
+            response_data["group_name"] = group_name_determined
+            response_data["group_id"] = group_id_determined
+        elif chat_type_determined and chat_type_determined.lower() == "one on one":
+            if person_name_determined:
+                person_name_cleaned = re.sub(r'[\s\u200B-\u200D\uFEFF\u00A0\u1680\u180E\u2000-\u2029\u202F-\u205F\u3000\u3164]+', '', person_name_determined)
+                if person_name_cleaned:
+                    response_data["person_name"] = person_name_determined.strip()
+                else:
+                    response_data["person_name"] = None
+            if person_id_determined:
+                response_data["person_id"] = person_id_determined
 
         return JSONResponse(
             content={
                 "status": 200,
                 "message": "Chat detail retrieved successfully",
-                "data": {
-                    "person_name": actual_person_name,
-                    "person_id": person_id,
-                    "platform": platform,
-                    "intensity": intensity,
-                    "chat_messages": chat_messages,
-                    "summary": summary_value
-                }
+                "data": response_data
             },
             status_code=200
         )
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         return JSONResponse(
             content={
@@ -1619,4 +2372,3 @@ def get_chat_detail(
             },
             status_code=500
         )
-

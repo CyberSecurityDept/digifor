@@ -6,6 +6,7 @@ from app.analytics.shared.models import *
 from app.case_management.models import *
 from app.evidence_management.models import *
 from app.suspect_management.models import *
+from app.auth.models import *
 
 
 def init_db():

@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""
-Case Management Tests for Digital Forensics Backend
-"""
 import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://172.15.2.105"
 
 def get_auth_token():
-    """Get authentication token"""
     login_data = {
         "username": "admin",
         "password": "admin123"
@@ -30,7 +26,6 @@ def get_auth_token():
         return None
 
 def test_create_case():
-    """Test case creation"""
     print(" Testing case creation...")
     
     token = get_auth_token()
@@ -74,7 +69,6 @@ def test_create_case():
         return None
 
 def test_get_case(case_id):
-    """Test get case by ID"""
     print(f"\n Testing get case {case_id}...")
     
     token = get_auth_token()
@@ -103,7 +97,6 @@ def test_get_case(case_id):
         return False
 
 def test_list_cases():
-    """Test list cases"""
     print("\n Testing list cases...")
     
     token = get_auth_token()
@@ -131,7 +124,6 @@ def test_list_cases():
         return False
 
 def test_update_case(case_id):
-    """Test update case"""
     print(f"\n Testing update case {case_id}...")
     
     token = get_auth_token()
@@ -167,7 +159,6 @@ def test_update_case(case_id):
         return False
 
 def test_add_person(case_id):
-    """Test add person to case"""
     print(f"\n Testing add person to case {case_id}...")
     
     token = get_auth_token()
@@ -207,7 +198,6 @@ def test_add_person(case_id):
         return None
 
 def test_get_case_persons(case_id):
-    """Test get case persons"""
     print(f"\n Testing get case persons for case {case_id}...")
     
     token = get_auth_token()
@@ -235,7 +225,6 @@ def test_get_case_persons(case_id):
         return False
 
 def test_get_case_stats(case_id):
-    """Test get case statistics"""
     print(f"\nTesting get case stats for case {case_id}...")
     
     token = get_auth_token()
@@ -265,7 +254,6 @@ def test_get_case_stats(case_id):
         return False
 
 def test_case_filters():
-    """Test case filtering"""
     print("\nTesting case filters...")
     
     token = get_auth_token()
@@ -307,7 +295,6 @@ def test_case_filters():
     return True
 
 def main():
-    """Main case management test function"""
     print(" Starting Case Management Tests...")
     print("=" * 50)
     

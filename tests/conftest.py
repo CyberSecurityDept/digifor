@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main_new import app
+from app.main import app
 from app.db.base import Base
 from app.db.session import get_db
 from app.core.config import settings
@@ -22,7 +22,6 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session")
 def db_engine():
-    """Create test database engine"""
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -30,7 +29,6 @@ def db_engine():
 
 @pytest.fixture(scope="function")
 def db_session(db_engine):
-    """Create test database session"""
     connection = db_engine.connect()
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
@@ -44,7 +42,6 @@ def db_session(db_engine):
 
 @pytest.fixture(scope="function")
 def client(db_session):
-    """Create test client"""
     def override_get_db():
         try:
             yield db_session
@@ -61,7 +58,6 @@ def client(db_session):
 
 @pytest.fixture
 def sample_case_data():
-    """Sample case data for testing"""
     return {
         "case_number": "CASE-2024-001",
         "title": "Test Case",
@@ -76,7 +72,6 @@ def sample_case_data():
 
 @pytest.fixture
 def sample_evidence_data():
-    """Sample evidence data for testing"""
     return {
         "evidence_number": "EVID-2024-001",
         "title": "Test Evidence",
@@ -90,7 +85,6 @@ def sample_evidence_data():
 
 @pytest.fixture
 def sample_person_data():
-    """Sample person data for testing"""
     return {
         "first_name": "John",
         "last_name": "Doe",

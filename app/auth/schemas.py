@@ -10,7 +10,6 @@ class RoleOut(RoleBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
-# USER
 class UserBase(BaseModel):
     email: EmailStr
     fullname:str
@@ -29,7 +28,6 @@ class UserOut(UserBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-# AUTH PAYLOAD
 class LoginRequest(BaseModel):
     email: str = Field(..., example="admin@gmail.com")
     password: str = Field(..., example="admin.admin")

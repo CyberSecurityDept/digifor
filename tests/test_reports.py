@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""
-Report Generation Tests for Digital Forensics Backend
-"""
 import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://172.15.2.105"
 
 def get_auth_token():
-    """Get authentication token"""
     login_data = {
         "username": "admin",
         "password": "admin123"
@@ -30,7 +26,6 @@ def get_auth_token():
         return None
 
 def create_test_case():
-    """Create a test case for report testing"""
     token = get_auth_token()
     if not token:
         return None
@@ -63,7 +58,6 @@ def create_test_case():
         return None
 
 def test_generate_comprehensive_report(case_id):
-    """Test generate comprehensive report"""
     print(" Testing comprehensive report generation...")
     
     token = get_auth_token()
@@ -93,7 +87,6 @@ def test_generate_comprehensive_report(case_id):
         return False
 
 def test_generate_summary_report(case_id):
-    """Test generate summary report"""
     print("\n Testing summary report generation...")
     
     token = get_auth_token()
@@ -122,7 +115,6 @@ def test_generate_summary_report(case_id):
         return False
 
 def test_generate_evidence_report(case_id):
-    """Test generate evidence report"""
     print("\n Testing evidence report generation...")
     
     token = get_auth_token()
@@ -151,7 +143,6 @@ def test_generate_evidence_report(case_id):
         return False
 
 def test_generate_analysis_report(case_id):
-    """Test generate analysis report"""
     print("\n Testing analysis report generation...")
     
     token = get_auth_token()
@@ -180,7 +171,6 @@ def test_generate_analysis_report(case_id):
         return False
 
 def test_list_reports(case_id):
-    """Test list reports for case"""
     print(f"\n Testing list reports for case {case_id}...")
     
     token = get_auth_token()
@@ -212,7 +202,6 @@ def test_list_reports(case_id):
         return []
 
 def test_get_report(case_id, filename):
-    """Test get specific report"""
     print(f"\n Testing get report {filename}...")
     
     token = get_auth_token()
@@ -241,7 +230,6 @@ def test_get_report(case_id, filename):
         return False
 
 def test_delete_report(case_id, filename):
-    """Test delete specific report"""
     print(f"\n Testing delete report {filename}...")
     
     token = get_auth_token()
@@ -296,7 +284,6 @@ def test_report_stats():
         return False
 
 def main():
-    """Main report generation test function"""
     print(" Starting Report Generation Tests...")
     print("=" * 50)
     

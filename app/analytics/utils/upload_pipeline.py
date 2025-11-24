@@ -1,22 +1,4 @@
-import asyncio
-import os
 from pathlib import Path
-<<<<<<< HEAD
-from typing import Any, Dict, Tuple
-
-from app.analytics.models import File
-from app.analytics.service import encrypt_and_store_file, format_bytes, create_device
-from app.analytics.utils.parser_xlsx import parse_sheet
-from app.db.session import get_db
-
-
-class UploadService:
-    def __init__(self) -> None:
-        self._progress: Dict[str, Dict[str, Any]] = {}
-
-    # --------- State helpers ---------
-    def _init_state(self, upload_id: str) -> None:
-=======
 from typing import Any, Dict
 from fastapi import UploadFile
 from app.analytics.shared.models import File
@@ -27,14 +9,14 @@ from app.analytics.utils.performance_optimizer import performance_optimizer
 from app.analytics.device_management.service import save_hashfiles_to_database
 from app.db.session import get_db
 from app.core.config import settings
-import tempfile
-import time
 from datetime import datetime
 from app.analytics.utils.social_media_parser import SocialMediaParser
 from app.analytics.device_management.models import SocialMedia, Contact, Call, HashFile, ChatMessage, Device
 from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.contact_parser import ContactParser
 from app.analytics.utils.hashfile_parser import HashFileParser
+import pandas as pd
+import traceback, time, tempfile, os, asyncio
 
 sm_db = next(get_db())
 sm_parser = SocialMediaParser(db=sm_db)
@@ -72,36 +54,21 @@ def format_bytes(n: int) -> str:
         i += 1
     return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
 
-
 class UploadService:
     def __init__(self):
         self._progress: Dict[str, Dict[str, Any]] = {}
 
     def _init_state(self, upload_id: str):
->>>>>>> analytics-fix
         self._progress[upload_id] = {
             "percent": 0,
             "progress_size": "0 B",
             "total_size": None,
             "cancel": False,
-<<<<<<< HEAD
-            "message": "Starting process...",
-=======
             "message": "Starting upload...",
->>>>>>> analytics-fix
             "done": False,
         }
 
     def _is_canceled(self, upload_id: str) -> bool:
-<<<<<<< HEAD
-        return self._progress.get(upload_id, {}).get("cancel", False)
-
-    def get_progress(self, upload_id: str) -> Tuple[Dict[str, Any], int]:
-        data = self._progress.get(upload_id)
-        if not data:
-            return {"status": 404, "message": "Upload ID not found", "data": None}, 404
-
-=======
         data = self._progress.get(upload_id)
         if not data or not isinstance(data, dict):
             return True
@@ -114,11 +81,39 @@ class UploadService:
         else:
             data.update({"message": message, "done": True})
 
+    def _cleanup_failed_upload(self, file_id: int = None, file_path: str = None):
+        try:
+            db = next(get_db())
+            
+            if file_id:
+                file_record = db.query(File).filter(File.id == file_id).first()
+                if file_record:
+                    db.query(SocialMedia).filter(SocialMedia.file_id == file_id).delete()
+                    db.query(Contact).filter(Contact.file_id == file_id).delete()
+                    db.query(Call).filter(Call.file_id == file_id).delete()
+                    db.query(HashFile).filter(HashFile.file_id == file_id).delete()
+                    db.query(ChatMessage).filter(ChatMessage.file_id == file_id).delete()
+                    db.delete(file_record)
+                    db.commit()
+                    print(f"[CLEANUP] Deleted file record {file_id} and related data from database")
+            
+            if file_path:
+                try:
+                    full_path = os.path.join(BASE_DIR, file_path) if not os.path.isabs(file_path) else file_path
+                    if os.path.exists(full_path):
+                        os.remove(full_path)
+                        print(f"[CLEANUP] Deleted physical file: {full_path}")
+                except Exception as e:
+                    print(f"[CLEANUP] Error deleting physical file {file_path}: {str(e)}")
+                    
+        except Exception as e:
+            print(f"[CLEANUP] Error during cleanup: {str(e)}")
+            traceback.print_exc()
+
     def get_progress(self, upload_id: str):
         data = self._progress.get(upload_id)
         if not data:
             return {"status": 404, "message": "Upload ID not found", "data": None}, 404
->>>>>>> analytics-fix
         return {
             "status": 200,
             "message": data.get("message", ""),
@@ -127,21 +122,6 @@ class UploadService:
                 "progress_size": data.get("progress_size", "0 B"),
                 "total_size": data.get("total_size"),
                 "done": data.get("done", False),
-<<<<<<< HEAD
-                "device_id": data.get("device_id"),
-            },
-        }, 200
-
-    def cancel(self, upload_id: str) -> Tuple[Dict[str, Any], int]:
-        if upload_id not in self._progress:
-            return {"status": 404, "message": "Upload ID not found", "data": None}, 404
-
-        self._progress[upload_id]["cancel"] = True
-        self._progress[upload_id]["message"] = "Canceling..."
-        return {"status": 200, "message": "Cancel request received", "data": None}, 200
-
-    # --------- Main entry point ---------
-=======
                 "file_id": data.get("file_id"),
             },
         }, 200
@@ -167,20 +147,30 @@ class UploadService:
         upload_id: str,
         file: UploadFile,
         file_name: str,
-        notes: str,
-        type: str,
-        tools: str,
-        file_bytes: bytes,
-        method: str = None,
+        notes: str | None,
+        created_by: str | None = None,
+        type: str = None,
+        tools: str = None,
+        file_bytes: bytes = None,
+        method: str | None = None,
     ):
         start_time = time.time()
         if upload_id in self._progress and not self._progress[upload_id].get("done"):
             return {"status": 400, "message": "Upload ID sedang berjalan", "data": None}
-
+            
         self._init_state(upload_id)
+        self._progress[upload_id]["_processing"] = True
 
+        file_record_inserted = False
+        file_id = None
+        rel_path = None
+        
         try:
             original_filename = file.filename
+            if not original_filename:
+                self._mark_done(upload_id, "Filename is required")
+                return {"status": 400, "message": "Filename is required", "data": None}
+            
             total_size = len(file_bytes)
             self._progress[upload_id].update(
                 {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
@@ -212,7 +202,21 @@ class UploadService:
                 try:
                     self._progress[upload_id].update({"message": "Decrypting file...", "percent": 75})
                     priv_key = _load_existing_private_key()
-                    decrypted_path_abs = decrypt_from_sdp(priv_key, encrypted_path_abs, DATA_DIR)
+                    
+                    loop = asyncio.get_event_loop()
+                    try:
+                        decrypted_path_abs = await asyncio.wait_for(
+                            loop.run_in_executor(None, decrypt_from_sdp, priv_key, encrypted_path_abs, DATA_DIR),
+                            timeout=300.0
+                        )
+                    except asyncio.TimeoutError:
+                        self._mark_done(upload_id, "Decryption timeout: Process took too long (exceeded 5 minutes)")
+                        return {"status": 500, "message": "Decryption timeout: Process took too long", "data": None}
+                    except Exception as e:
+                        self._mark_done(upload_id, f"Decryption error: {str(e)}")
+                        return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
+                    
+                    self._progress[upload_id].update({"message": "Decryption completed", "percent": 80})
                     
                     expected_name = os.path.splitext(original_filename)[0]
                     expected_abs = os.path.join(DATA_DIR, expected_name)
@@ -254,12 +258,15 @@ class UploadService:
                         })
                         await asyncio.sleep(0.02)
 
-            for i in range(60, 95):
+            current_percent = self._progress[upload_id].get("percent", 60)
+            start_percent = max(60, int(current_percent))
+            
+            for i in range(start_percent, 95):
                 if self._is_canceled(upload_id):
-                    self._mark_done(upload_id, "Encryption canceled")
-                    return {"status": 200, "message": "Encryption canceled", "data": {"done": True}}
+                    self._mark_done(upload_id, "Processing canceled")
+                    return {"status": 200, "message": "Processing canceled", "data": {"done": True}}
 
-                phase_ratio = (i - 60) / 35
+                phase_ratio = (i - 60) / 35 if i >= 60 else 0
                 current_bytes = int(0.6 * total_size + phase_ratio * 0.4 * total_size)
                 self._progress[upload_id].update({
                     "percent": i,
@@ -273,7 +280,21 @@ class UploadService:
                 "percent": 95
             })
 
-            parsed_data = tools_parser.parse_file(Path(original_path_abs), tools)
+            try:
+                loop = asyncio.get_event_loop()
+                parsed_data = await asyncio.wait_for(
+                    loop.run_in_executor(None, tools_parser.parse_file, Path(original_path_abs), tools),
+                    timeout=600.0
+                )
+            except asyncio.TimeoutError:
+                self._mark_done(upload_id, "Parsing timeout: Process took too long (exceeded 10 minutes)")
+                return {"status": 500, "message": "Parsing timeout: Process took too long", "data": None}
+            except Exception as e:
+                error_msg = f"Parsing error: {str(e)}"
+                print(f"[ERROR] {error_msg}")
+                traceback.print_exc()
+                self._mark_done(upload_id, error_msg)
+                return {"status": 500, "message": error_msg, "data": None}
             
             self._progress[upload_id].update({
                 "message": "Parsing completed. Starting data insertion...",
@@ -341,6 +362,7 @@ class UploadService:
                 file_name=file_name,
                 file_path=rel_path,
                 notes=notes,
+                created_by=created_by,
                 type=type,
                 tools=tools,
                 method=method,
@@ -350,6 +372,9 @@ class UploadService:
             db.add(file_record)
             db.commit()
             db.refresh(file_record)
+            
+            file_id = int(file_record.id)  # type: ignore[assignment]
+            file_record_inserted = True
             
             parsing_result = {
                 "tool_used": parsed_data.get("tool", tools),
@@ -369,7 +394,7 @@ class UploadService:
             
             if hashfiles_data:
                 try:
-                    saved_hashfiles = save_hashfiles_to_database(file_record.id, hashfiles_data, tools)
+                    saved_hashfiles = save_hashfiles_to_database(file_id, hashfiles_data, tools)
                     parsing_result["hashfiles_saved"] = saved_hashfiles
                 except Exception as e:
                     parsing_result["hashfiles_save_error"] = str(e)
@@ -381,12 +406,11 @@ class UploadService:
                         "percent": 97.5
                     })
                     if tools == "Magnet Axiom":
-                        social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
+                        social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
+                        social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_id)
                     elif tools == "Oxygen":
                         try:
-                            import pandas as pd
                             xls = pd.ExcelFile(original_path_abs, engine='xlrd')
                             
                             social_media_sheets = ['Instagram ', 'Telegram ', 'WhatsApp Messenger ', 'X (Twitter) ', 'Users-Following ', 'Users-Followers ']
@@ -394,15 +418,15 @@ class UploadService:
                             
                             if has_social_media_sheets:
                                 
-                                social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                                social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                             else:
                                 
-                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_record.id)
+                                social_media_result = sm_parser.parse_oxygen_ufed_social_media(original_path_abs, file_id)
                         except Exception as e:
                             print(f"Error determining Oxygen format: {e}")
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                     else:
-                        social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                     
                     if social_media_result:
                         parsing_result["social_media_count"] = len(social_media_result)
@@ -421,12 +445,12 @@ class UploadService:
                         "percent": 97.5
                     })
                     if tools == "Magnet Axiom":
-                        chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                        chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                        chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_id)
                     elif tools == "Oxygen":
-                        print(f"Calling parse_oxygen_chat_messages for file_id={file_record.id}")
-                        chat_messages_result = sm_parser.parse_oxygen_chat_messages(original_path_abs, file_record.id)
+                        print(f"Calling parse_oxygen_chat_messages for file_id={file_id}")
+                        chat_messages_result = sm_parser.parse_oxygen_chat_messages(original_path_abs, file_id)
                         print(f"parse_oxygen_chat_messages returned {len(chat_messages_result) if chat_messages_result else 0} messages")
                     else:
                         chat_messages_result = []
@@ -454,17 +478,17 @@ class UploadService:
                     contact_parser = ContactParser(db=sm_db)
                     
                     if tools == "Magnet Axiom":
-                        contacts_result = contact_parser.parse_axiom_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_axiom_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_axiom_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_axiom_calls(original_path_abs, file_id)
                     elif tools == "Cellebrite":
-                        contacts_result = contact_parser.parse_cellebrite_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_cellebrite_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_cellebrite_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_cellebrite_calls(original_path_abs, file_id)
                     elif tools == "Oxygen":
-                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_id)
                     else:
-                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_record.id)
-                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_record.id)
+                        contacts_result = contact_parser.parse_oxygen_contacts(original_path_abs, file_id)
+                        calls_result = contact_parser.parse_oxygen_calls(original_path_abs, file_id)
                     
                     if contacts_result:
                         parsing_result["contacts_count"] = len(contacts_result)
@@ -481,8 +505,8 @@ class UploadService:
             elif method == "Hashfile Analytics":
                 try:
                     self._progress[upload_id].update({
-                        "message": "Parsing hashfile data...",
-                        "percent": 97.5
+                        "message": "Preparing hashfile parsing...",
+                        "percent": 97.0
                     })
                     hashfile_parser_instance = HashFileParser(db=db)
                     
@@ -491,11 +515,28 @@ class UploadService:
                     ])
                     
                     if is_sample_file:
-                        original_file_path = os.path.abspath(os.path.join(os.getcwd(), 'sample_hashfile', original_filename))
+                        if original_filename:
+                            original_file_path = os.path.abspath(os.path.join(os.getcwd(), 'sample_hashfile', original_filename))
+                        else:
+                            original_file_path = original_path_abs
                     else:
                         original_file_path = original_path_abs
                     
-                    hashfiles_result = hashfile_parser_instance.parse_hashfile(original_path_abs, file_record.id, tools, original_file_path)
+                    def update_hashfile_progress(upload_id: str, progress_info: dict):
+                        self._progress[upload_id].update({
+                            "message": progress_info.get("message", "Processing hashfiles..."),
+                            "percent": progress_info.get("percent", 97.5),
+                            "amount_of_data": progress_info.get("amount_of_data", 0)
+                        })
+                    
+                    hashfiles_result = hashfile_parser_instance.parse_hashfile(
+                        original_path_abs, 
+                        file_id, 
+                        tools, 
+                        original_file_path,
+                        upload_id=upload_id,
+                        progress_callback=update_hashfile_progress
+                    )
                     
                     if hashfiles_result:
                         if isinstance(hashfiles_result, int):
@@ -504,27 +545,30 @@ class UploadService:
                             parsing_result["hashfiles_count"] = len(hashfiles_result)
                     else:
                         parsing_result["hashfiles_count"] = 0
+                    
                     self._progress[upload_id].update({
-                        "message": "Inserting hashfile data to database...",
-                        "percent": 98.5
+                        "message": f"Hashfile parsing completed ({parsing_result['hashfiles_count']:,} records)...",
+                        "percent": 99.0,
+                        "amount_of_data": parsing_result["hashfiles_count"]
                     })
                 except Exception as e:
                     print(f"Error parsing hashfiles: {e}")
+                    traceback.print_exc()
                     parsing_result["hashfiles_error"] = str(e)
             
             else:
                 if is_social_media:
                     try:
                         if tools == "Magnet Axiom":
-                            social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_record.id)
-                            chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_axiom_social_media(original_path_abs, file_id)
+                            chat_messages_result = sm_parser.parse_axiom_chat_messages(original_path_abs, file_id)
                         elif tools == "Cellebrite":
-                            social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_record.id)
-                            chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_cellebrite_social_media(original_path_abs, file_id)
+                            chat_messages_result = sm_parser.parse_cellebrite_chat_messages(original_path_abs, file_id)
                         elif tools == "Oxygen":
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                         else:
-                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_record.id)
+                            social_media_result = sm_parser.parse_oxygen_social_media(original_path_abs, file_id)
                         
                         if social_media_result:
                             parsing_result["social_media_count"] = len(social_media_result)
@@ -648,6 +692,8 @@ class UploadService:
             return response_data
 
         except Exception as e:
+            if file_record_inserted and file_id:
+                self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
             self._mark_done(upload_id, f"Upload error: {str(e)}")
             return {"status": 500, "message": f"Unexpected upload error: {str(e)}", "data": None}
 
@@ -658,7 +704,7 @@ class UploadService:
         owner_name: str,
         phone_number: str,
         tools: str,
-        device_id: int = None
+        device_id: int | None = None
     ) -> Dict[str, Any]:
         try:
             db = next(get_db())
@@ -703,10 +749,14 @@ class UploadService:
                     "file_id": file_id
                 }
                 
+                file_id_from_data = device_data.get("file_id")
+                if file_id_from_data is None:
+                    return {"status": 400, "message": "file_id is required", "data": None}
+                
                 device = Device(
                     owner_name=device_data.get("owner_name"),
                     phone_number=device_data.get("phone_number"),
-                    file_id=device_data.get("file_id"),
+                    file_id=int(file_id_from_data),  # type: ignore[arg-type]
                     created_at=get_indonesia_time(),
                 )
                 
@@ -761,156 +811,12 @@ class UploadService:
             self._mark_done(upload_id, f"Device processing error: {str(e)}")
             return {"status": 500, "message": f"Device processing error: {str(e)}", "data": None}
 
->>>>>>> analytics-fix
     async def start_upload_and_process(
         self,
         file_id: int,
         owner_name: str,
         phone_number: str,
-<<<<<<< HEAD
-        upload_id: str,
-    ) -> Dict[str, Any]:
-        """Mulai proses dari file yang sudah diupload sebelumnya (by file_id)."""
-
-        if upload_id in self._progress and not self._progress[upload_id].get("done"):
-            return {"status": 400, "message": "Process with same ID is already running", "data": None}
-
-        self._init_state(upload_id)
-        await asyncio.sleep(0.2)
-        db = next(get_db())
-
-        try:
-            file_record = db.query(File).filter(File.id == file_id).first()
-            if not file_record:
-                return {"status": 404, "message": f"File with id {file_id} not found", "data": None}
-
-            file_path = file_record.file_path
-            if not file_path or not os.path.exists(file_path):
-                return {"status": 404, "message": f"File not found at {file_path}", "data": None}
-
-            file_size = os.path.getsize(file_path)
-            self._progress[upload_id].update({
-                "percent": 5,
-                "progress_size": format_bytes(file_size),
-                "total_size": format_bytes(file_size),
-                "message": "File found, preparing process...",
-            })
-
-            asyncio.create_task(
-                self._process_after_upload(
-                    upload_id=upload_id,
-                    file_path=file_path,
-                    orig_filename=file_record.file_name,
-                    owner_name=owner_name,
-                    phone_number=phone_number,
-                    file_id=file_id,
-                )
-            )
-
-            return {"status": 200, "message": "File accepted for processing", "data": None}
-
-        except Exception as e:
-            self._progress[upload_id].update({"message": f"Unexpected error: {str(e)}", "done": True})
-            return {"status": 500, "message": f"Error: {str(e)}", "data": None}
-
-    # --------- Background process (with smooth percent updates) ---------
-    async def _process_after_upload(
-        self,
-        upload_id: str,
-        file_path: str,
-        orig_filename: str,
-        owner_name: str,
-        phone_number: str,
-        file_id: int,
-    ) -> None:
-        try:
-            total_size = os.path.getsize(file_path)
-
-            # ----------- PARSING STAGE -----------
-            self._progress[upload_id].update({"message": "Parsing Excel sheets..."})
-            for i in range(5, 35, 3):
-                if self._is_canceled(upload_id):
-                    return self._mark_done(upload_id, "Canceled during parsing")
-                self._progress[upload_id]["percent"] = i
-
-                # 🧠 Tambahkan simulasi progress size
-                partial_size = int((i / 100) * total_size)
-                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
-
-                await asyncio.sleep(0.2)
-
-            contacts = parse_sheet(Path(file_path), "contacts") or []
-            messages = parse_sheet(Path(file_path), "messages") or []
-            calls = parse_sheet(Path(file_path), "calls") or []
-
-            # ----------- ENCRYPTION STAGE -----------
-            self._progress[upload_id].update({"message": "Encrypting file..."})
-            public_key_path = os.path.join(os.getcwd(), "keys", "public.key")
-            if not os.path.exists(public_key_path):
-                return self._mark_done(upload_id, f"Public key not found at {public_key_path}")
-
-            for i in range(35, 70, 3):
-                if self._is_canceled(upload_id):
-                    return self._mark_done(upload_id, "Canceled during encryption")
-                self._progress[upload_id]["percent"] = i
-
-                # 🧠 Update progress_size juga di tahap ini
-                partial_size = int((i / 100) * total_size)
-                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
-
-                await asyncio.sleep(0.15)
-
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            encrypted_path = encrypt_and_store_file(orig_filename, file_bytes, public_key_path)
-
-            # ----------- SAVING TO DATABASE -----------
-            self._progress[upload_id].update({"message": "Saving to database..."})
-            for i in range(70, 95, 4):
-                if self._is_canceled(upload_id):
-                    return self._mark_done(upload_id, "Canceled during saving")
-                self._progress[upload_id]["percent"] = i
-
-                partial_size = int((i / 100) * total_size)
-                self._progress[upload_id]["progress_size"] = format_bytes(partial_size)
-
-                await asyncio.sleep(0.2)
-
-            # ----------- SIMPAN DEVICE -----------
-            device_data = {
-                "owner_name": owner_name,
-                "phone_number": phone_number,
-                "file_id": file_id,
-                "file_path": encrypted_path,
-            }
-
-            device_id = create_device(
-                device_data=device_data,
-                contacts=contacts,
-                messages=messages,
-                calls=calls,
-            )
-
-            # ----------- COMPLETE -----------
-            self._progress[upload_id].update({
-                "percent": 100,
-                "progress_size": format_bytes(total_size),
-                "message": "All steps completed successfully",
-                "device_id": device_id,
-                "done": True,
-            })
-
-        except Exception as e:
-            self._mark_done(upload_id, f"Processing error: {str(e)}")
-
-
-    def _mark_done(self, upload_id: str, message: str):
-        self._progress[upload_id].update({"message": message, "done": True})
-
-
-upload_service = UploadService()
-=======
-        device_id: int = None
+        device_id: int | None = None
     ) -> Dict[str, Any]:
         try:
             db = next(get_db())
@@ -933,10 +839,6 @@ upload_service = UploadService()
             return {"status": 500, "message": f"Processing error: {str(e)}", "data": None}
 
     async def start_app_upload(self, upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes):
-        """
-        Upload dan simpan file APK/IPA ke direktori + database, dengan progress tracking.
-        Logging full via print biar kelihatan prosesnya di terminal.
-        """
         try:
             APK_DIR = os.path.join(APK_DIR_BASE, "apk")
             os.makedirs(APK_DIR, exist_ok=True)
@@ -949,7 +851,6 @@ upload_service = UploadService()
 
             self._init_state(upload_id)
 
-            # === Write chunked ===
             chunk_size = 1024 * 512
             written = 0
             with open(target_path, "wb") as f:
@@ -964,14 +865,13 @@ upload_service = UploadService()
                         "message": f"Uploading app... ({percent:.2f}%)",
                     })
                     await asyncio.sleep(0.02)
-            print(f"✅ [DEBUG] File write completed ({written} bytes)")
-
-            # === Simpan ke database ===
+            print(f"[DEBUG] File write completed ({written} bytes)")
+            
             rel_path = os.path.relpath(target_path, BASE_DIR)
             print(f"🗂️ [DEBUG] Relative path for DB: {rel_path}")
 
             db = next(get_db())
-            print("🧩 [DEBUG] Database session started")
+            print("[DEBUG] Database session started")
 
             file_record = File(
                 file_name=file_name,
@@ -984,15 +884,14 @@ upload_service = UploadService()
             )
 
             db.add(file_record)
-            print("📝 [DEBUG] File record added to DB session")
+            print("[DEBUG] File record added to DB session")
 
             db.commit()
-            print("💾 [DEBUG] DB commit successful")
+            print("[DEBUG] DB commit successful")
 
             db.refresh(file_record)
-            print(f"✅ [DEBUG] File record refreshed (ID: {file_record.id})")
+            print(f"[DEBUG] File record refreshed (ID: {file_record.id})")
 
-            # === Update progress ===
             self._progress[upload_id].update({
                 "percent": 100,
                 "progress_size": format_bytes(total_size),
@@ -1001,7 +900,7 @@ upload_service = UploadService()
                 "file_id": file_record.id,
             })
 
-            print(f"🎉 [DEBUG] Upload process complete for {file_name} (upload_id={upload_id})")
+            print(f"[DEBUG] Upload process complete for {file_name} (upload_id={upload_id})")
 
             return {
                 "status": 200,
@@ -1017,11 +916,9 @@ upload_service = UploadService()
             }
 
         except Exception as e:
-            print(f"❌ [ERROR] start_app_upload error: {str(e)}")
-            import traceback
+            print(f"[ERROR] start_app_upload error: {str(e)}")
             traceback.print_exc()
             self._mark_done(upload_id, f"App upload error: {str(e)}")
             return {"status": 500, "message": f"Unexpected app upload error: {str(e)}", "data": None}
 
 upload_service = UploadService()
->>>>>>> analytics-fix

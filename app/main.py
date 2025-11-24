@@ -4,11 +4,14 @@ warnings.filterwarnings('ignore', message='.*OLE2 inconsistency.*')
 warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector size.*')
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
+warnings.filterwarnings('ignore', message='.*bcrypt.*')
+warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Request, HTTPException  # type: ignore
+from fastapi.responses import JSONResponse, Response  # type: ignore
+from fastapi.exceptions import RequestValidationError  # type: ignore
 from contextlib import asynccontextmanager
-import uvicorn
+import uvicorn  # type: ignore
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -18,7 +21,6 @@ from app.middleware.logging import LoggingMiddleware
 from app.middleware.timeout import TimeoutMiddleware
 from app.middleware.auth_middleware import AuthMiddleware
 from app.api.v1 import (
-    dashboard_routes,
     analytics_file_routes,
     analytics_sdp_routes,
     analytics_device_routes,
@@ -28,10 +30,18 @@ from app.api.v1 import (
     analytics_apk_routes,
     analytics_communication_enhanced_routes,
     analytics_social_media_routes,
-    auth_routes
+    auth_routes,
+    case_routes,
+    case_log_routes,
+    person_routes,
+    evidence_routes,
+    suspect_routes,
+    report_routes,
+    user_routes,
 )
-from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.utils import get_openapi  # type: ignore
 from app.db.init_db import init_db
+from fastapi.staticfiles import StaticFiles
 
 logger = setup_logging()
 
@@ -39,20 +49,19 @@ logger = setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
-    logger.info(f"API: {settings.API_V1_STR}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"API Base: {settings.API_V1_STR}")
+    logger.info(f"Debug Mode: {settings.DEBUG}")
     
     try:
         init_db()
-        logger.info("Database connected")
+        logger.info("Database connected successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
     
     yield
     
-    logger.info("Server shutting down")
-
+    logger.info("Server shutting down...")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -68,10 +77,8 @@ add_cors_middleware(app)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimeoutMiddleware, timeout_seconds=3600)
 app.add_middleware(AuthMiddleware)
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
-# ===========================================================
-# 🧩 Tambahkan BearerAuth ke dokumentasi Swagger
-# ===========================================================
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -83,7 +90,6 @@ def custom_openapi():
         routes=app.routes,
     )
 
-    # 🧠 Tambahkan definisi BearerAuth
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
             "type": "http",
@@ -93,18 +99,15 @@ def custom_openapi():
         }
     }
 
-    # 🧠 Set default semua endpoint pakai BearerAuth
     openapi_schema["security"] = [{"BearerAuth": []}]
 
-    # 🚫 Buat 3 endpoint public (tanpa gembok)
     public_paths = [
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
-        "/api/v1/dashboard/landing",
         "/api/v1/file-encryptor/convert-to-sdp",
         "/api/v1/file-encryptor/list-sdp",
         "/api/v1/file-encryptor/download-sdp",
-        "/api/v1/file-encryptor/progress/{upload_id}",
+        "/api/v1/file-encryptor/progress",
         '/health/health',
         '/health/health/ready',
         '/health/health/live',
@@ -117,23 +120,27 @@ def custom_openapi():
     for path, path_item in openapi_schema["paths"].items():
         if any(path.startswith(pub) for pub in public_paths):
             for method in path_item.values():
-                method["security"] = []  # hapus security dari endpoint public
+                method["security"] = []
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 app.openapi = custom_openapi
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
-# app.include_router(dashboard_routes.router, prefix=settings.API_V1_STR, tags=["Dashboard"])
 app.include_router(analytics_sdp_routes.router, prefix=settings.API_V1_STR, tags=["File Encryptor"])
+
+
 app.include_router(auth_routes.router, prefix=settings.API_V1_STR, tags=["Auth"])
-# app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
-# app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
-# app.include_router(case_note_routes.router, prefix=settings.API_V1_STR, tags=["Case Note Management"])
-# app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
-# app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
-# app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
-# app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
+app.include_router(user_routes.router, prefix=settings.API_V1_STR, tags=["User Management"])
+
+# Case Management
+app.include_router(case_routes.router, prefix=settings.API_V1_STR, tags=["Case Management"])
+app.include_router(case_log_routes.router, prefix=settings.API_V1_STR, tags=["Case Log Management"])
+app.include_router(person_routes.router, prefix=settings.API_V1_STR, tags=["Person Management"])
+app.include_router(evidence_routes.router, prefix=settings.API_V1_STR, tags=["Evidence Management"])
+app.include_router(suspect_routes.router, prefix=settings.API_V1_STR, tags=["Suspect Management"])
+app.include_router(report_routes.router, prefix=settings.API_V1_STR, tags=["Reports"])
 
 # ANALYTICS MANAGEMENTS
 app.include_router(analytics_report_routes.router, prefix=settings.API_V1_STR, tags=["Analytics Reports"])
@@ -148,6 +155,33 @@ app.include_router(analytics_apk_routes.router, prefix=settings.API_V1_STR, tags
 
 app.include_router(health_router, prefix="/health", tags=["Health"])
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    error_messages = []
+    
+    for error in errors:
+        field_path = " -> ".join(str(loc) for loc in error.get("loc", []))
+        error_msg = error.get("msg", "Validation error")
+        error_type = error.get("type", "")
+        
+        if "Password and confirm password do not match" in error_msg:
+            error_messages.append("Password and confirm password do not match")
+        elif error_type == "value_error":
+            error_messages.append(f"{error_msg}")
+        else:
+            error_messages.append(f"{field_path}: {error_msg}")
+    
+    message = "; ".join(error_messages) if error_messages else "Validation error"
+    
+    return JSONResponse(
+        status_code=400,
+        content={
+            "status": 400,
+            "message": message,
+            "data": None
+        }
+    )
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -161,10 +195,10 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             status_code=exc.status_code,
             content={
                 "status": exc.status_code,
-                "message": exc.detail
+                "message": exc.detail,
+                "data": None
             }
         )
-
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -178,7 +212,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-
 @app.get("/")
 async def root():
     return {
@@ -187,11 +220,9 @@ async def root():
         "version": settings.VERSION
     }
 
-
 @app.get("/favicon.ico")
 async def favicon():
     return Response(status_code=204)
-
 
 if __name__ == "__main__":
     uvicorn.run(
@@ -199,6 +230,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower(),
+        log_level="warning",
         access_log=False
     )

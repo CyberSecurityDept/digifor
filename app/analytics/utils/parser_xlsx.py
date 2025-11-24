@@ -1,28 +1,14 @@
 from pathlib import Path
 import pandas as pd
 import re
-<<<<<<< HEAD
-from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
-from app.db.init_db import SessionLocal, engine, Base
-from app.analytics.models import Device, Contact, Message, Call
-
-# Buat tabel kalau belum ada
-Base.metadata.create_all(bind=engine)
-
-# ---------- Parsing Helpers ----------
-=======
 import warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.init_db import SessionLocal, engine, Base
 from app.analytics.shared.models import Device, Contact, Call
-
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
-
 Base.metadata.create_all(bind=engine)
 
->>>>>>> analytics-fix
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(axis=1, how='all')
 
@@ -40,7 +26,6 @@ def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
 def cell_to_value(text: Optional[str]):
     if text is None:
         return None
@@ -53,50 +38,36 @@ def cell_to_value(text: Optional[str]):
         return clean if clean else None
     return sval
 
-
 def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
     xls = pd.ExcelFile(xlsx_path)
-    target = next((s for s in xls.sheet_names if sheet_keyword.lower() in s.lower()), None)
+    target = next((s for s in xls.sheet_names if isinstance(s, str) and sheet_keyword.lower() in str(s).lower()), None)
     if not target:
         return None
-<<<<<<< HEAD
-    df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str)
-=======
     df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str, engine='openpyxl')
->>>>>>> analytics-fix
     df = sanitize_headers(df)
 
     records: List[dict] = []
     for i, row in df.iterrows():
-        rec = {"index": i + 1}
+        rec = {"index": int(i) + 1}
         for col in df.columns:
             rec[col] = cell_to_value(row.get(col))
         records.append(rec)
     return records
 
-
 def _to_str(value):
-    """Helper: list -> newline-joined string; None -> None; else str(value)."""
     if value is None:
         return None
     if isinstance(value, list):
         return "\n".join(str(v) for v in value)
     return str(value)
 
-
 def normalize_str(val: Optional[str]) -> Optional[str]:
-    """Hilangkan whitespace berlebih, normalisasi string supaya konsisten"""
     if not val:
         return None
     s = str(val).strip()
     s = re.sub(r"\s+", " ", s)
     return s
 
-
-<<<<<<< HEAD
-# ---------- Persistence ----------
-=======
->>>>>>> analytics-fix
 def save_device(
     device_data: Dict[str, Any],
     contacts: List[dict],
@@ -105,10 +76,6 @@ def save_device(
 ) -> int:
     db: Session = SessionLocal()
     try:
-<<<<<<< HEAD
-        # --- Buat Device ---
-=======
->>>>>>> analytics-fix
         device = Device(
             owner_name=device_data.get("owner_name"),
             phone_number=device_data.get("phone_number"),
@@ -117,44 +84,6 @@ def save_device(
         db.commit()
         db.refresh(device)
 
-<<<<<<< HEAD
-        # --- Contacts dari sheet ---
-        for c in contacts:
-            db.add(Contact(
-                device_id=device.id,
-                index_row=c.get("index"),
-                type=_to_str(c.get("Type")),
-                source=_to_str(c.get("Source")),
-                contact=_to_str(c.get("Contact")),
-                messages=_to_str(c.get("Messages")),
-                phones_emails=_to_str(c.get("Phones & Emails")),
-                internet=_to_str(c.get("Internet")),
-                other=_to_str(c.get("Other")),
-            ))
-
-        # --- Messages ---
-        for m in messages:
-            db.add(Message(
-                device_id=device.id,
-                index_row=m.get("index"),
-                direction=_to_str(m.get("Direction")),
-                source=_to_str(m.get("Source")),
-                type=_to_str(m.get("Type")),
-                timestamp=normalize_str(_to_str(m.get("Time stamp (UTC 0)"))),
-                text=_to_str(m.get("Text")),
-                sender=_to_str(m.get("From")),
-                receiver=_to_str(m.get("To")),
-                details=_to_str(m.get("Details")),
-                thread_id=normalize_str(_to_str(m.get("Thread id"))),
-                attachment=_to_str(m.get("Attachment")),
-            ))
-
-        # --- Calls ---
-        for c in calls:
-            db.add(Call(
-                device_id=device.id,
-                index_row=c.get("index"),
-=======
         for c in contacts:
             db.add(Contact(
                 device_id=device.id,
@@ -164,11 +93,9 @@ def save_device(
                 last_time_contacted=None
             ))
 
-
         for c in calls:
             db.add(Call(
                 device_id=device.id,
->>>>>>> analytics-fix
                 direction=_to_str(c.get("Direction")),
                 source=_to_str(c.get("Source")),
                 type=_to_str(c.get("Type")),
@@ -181,7 +108,7 @@ def save_device(
             ))
 
         db.commit()
-        return device.id
+        return int(device.id)
 
     finally:
         db.close()

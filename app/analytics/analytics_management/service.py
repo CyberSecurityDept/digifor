@@ -5,17 +5,16 @@ from app.analytics.analytics_management.models import ApkAnalytic
 from typing import List
 from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.scan_apk import load_suspicious_indicators
-import os
-import json
-import hashlib
-import requests
-import re
+from app.core.config import settings
+import os, json, hashlib, requests, re, logging
 from datetime import datetime
 
-def store_analytic(db: Session, analytic_name: str, method: str = None):
+def store_analytic(db: Session, analytic_name: str, method: str = None, summary: str = None, created_by: str = None):
     new_analytic = Analytic(
         analytic_name=analytic_name,
         method=method,
+        summary=summary,
+        created_by=created_by,
         created_at=get_indonesia_time()
     )
     db.add(new_analytic)
@@ -69,10 +68,6 @@ def get_analytic_devices(db: Session, analytic_id: int):
     devices = db.query(Device).filter(Device.analytic_id == analytic_id).all()
     return devices
 
-MOBSF_URL="http://localhost:5001"
-# =====================================================
-# 🔹 Permission Classifier
-# =====================================================
 def classify_permissions(permissions, suspicious_set=None):
     if not permissions:
         print("[!] No permissions found in report.")
@@ -137,10 +132,6 @@ def classify_permissions(permissions, suspicious_set=None):
         return (safety_score, "Malicious", f"High risk: {dangerous_count} dangerous permissions found.", dangerous_found, risk_weight)
     return (safety_score, "Dangerous", f"Critical risk: {dangerous_count} dangerous permissions detected.", dangerous_found, risk_weight)
 
-
-# =====================================================
-# 🔹 Helpers
-# =====================================================
 def normalize_permission_entry(entry):
     if isinstance(entry, dict):
         return entry.get("status", ""), entry.get("description", "")
@@ -151,11 +142,10 @@ def normalize_permission_entry(entry):
     else:
         return str(entry), ""
 
-
 def get_mobsf_api_key():
     secret_path = os.path.expanduser("~/.MobSF/secret")
     if not os.path.exists(secret_path):
-        raise FileNotFoundError("❌ File ~/.MobSF/secret tidak ditemukan.")
+        raise FileNotFoundError("File ~/.MobSF/secret tidak ditemukan.")
     with open(secret_path, "r") as f:
         secret = f.read().strip()
     print("[*] MobSF secret loaded successfully.")
@@ -183,34 +173,29 @@ def load_suspicious_indicators(script_dir):
 
 
 def log_response(prefix: str, resp):
-    """Pretty print MobSF API responses safely"""
     print(f"    → {prefix} response: {resp.status_code}")
     try:
         data = resp.json()
-        dump = json.dumps(data, indent=2)[:500]  # truncate for readability
+        dump = json.dumps(data, indent=2)[:500]
         print(f"       Response JSON (truncated):\n{dump}")
     except Exception:
         print(f"       Response text (truncated): {resp.text[:500]}")
 
-
-# =====================================================
-# 🔹 Main Analysis Function
-# =====================================================
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
-    print(f"\n==== 🚀 Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
+    print(f"\n==== Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
 
     file_obj = db.query(File).filter(File.id == file_id).first()
     if not file_obj:
-        raise ValueError(f"❌ File dengan id={file_id} tidak ditemukan")
+        raise ValueError(f"File dengan id={file_id} tidak ditemukan")
 
     file_path = getattr(file_obj, "file_path", None) or getattr(file_obj, "path", None)
     if not file_path:
-        raise ValueError("❌ File path tidak ditemukan di DB")
+        raise ValueError("File path tidak ditemukan di DB")
 
     if not os.path.isabs(file_path):
         file_path = os.path.join(os.getcwd(), file_path)
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"❌ File tidak ditemukan: {file_path}")
+        raise FileNotFoundError(f"File tidak ditemukan: {file_path}")
 
     print(f"[*] File found: {file_path}")
 
@@ -220,56 +205,30 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     api_key = get_mobsf_api_key()
     headers = {"Authorization": api_key}
 
-    # === Upload ke MobSF ===
     print("[*] Uploading to MobSF...")
     with open(file_path, "rb") as f:
         filename = os.path.basename(file_path)
         files = {"file": (filename, f, "application/octet-stream")}
-        resp = requests.post(f"{MOBSF_URL}/api/v1/upload", files=files, headers=headers)
+        resp = requests.post(f"{settings.MOBSF_URL}/api/v1/upload", files=files, headers=headers)
     log_response("Upload", resp)
     if resp.status_code != 200:
         raise RuntimeError(f"Upload gagal: {resp.text}")
     file_hash = resp.json().get("hash")
     if not file_hash:
-        raise RuntimeError("❌ Tidak dapat membaca hash dari response upload")
-
-    # === Jalankan scan ===
+        raise RuntimeError("Tidak dapat membaca hash dari response upload")
+    
     print("[*] Starting MobSF scan...")
-    scan_resp = requests.post(f"{MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
+    scan_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
     log_response("Scan", scan_resp)
     if scan_resp.status_code != 200:
         raise RuntimeError(f"Scan gagal: {scan_resp.text}")
 
-    # === Ambil JSON report ===
     print("[*] Fetching MobSF JSON report...")
-    json_resp = requests.post(f"{MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
+    json_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
     log_response("Report JSON", json_resp)
     if json_resp.status_code != 200:
         raise RuntimeError(f"Gagal ambil report JSON: {json_resp.text}")
     report_json = json_resp.json()
-
-    # === Simpan report JSON ke file ===
-    # output_dir = os.path.join(os.getcwd(), "mobsf_output")
-    # os.makedirs(output_dir, exist_ok=True)
-    # base_name = os.path.splitext(os.path.basename(file_path))[0]
-    # json_path = os.path.join(output_dir, f"report_{base_name}.json")
-    # with open(json_path, "w", encoding="utf-8") as f:
-    #     json.dump(report_json, f, indent=2)
-    # print(f"[*] Report JSON saved: {json_path}")
-
-    # === Simpan permission-only PDF ===
-    # pdf_path = os.path.join(output_dir, f"permission_report_{base_name}.pdf")
-    # print("[*] Requesting permission-only PDF from MobSF...")
-    # pdf_resp = requests.post(
-    #     f"{MOBSF_URL}/api/v1/permissions_pdf",
-    #     data={"hash": file_hash, "scan_type": scan_type},
-    #     headers=headers
-    # )
-    # log_response("Permissions PDF", pdf_resp)
-    # if pdf_resp.status_code == 200:
-    #     with open(pdf_path, "wb") as f:
-    #         f.write(pdf_resp.content)
-    #     print(f"[+] Permission PDF saved to: {pdf_path}")
     
     permissions = report_json.get('permissions', {})
     print(f"[*] Extracted {len(permissions)} permissions from report.")
@@ -296,7 +255,6 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
         }
     }
 
-    # === Simpan hasil ke DB ===
     print("[*] Saving analysis results to database...")
     for perm, value in permissions.items():
         status, desc = normalize_permission_entry(value)

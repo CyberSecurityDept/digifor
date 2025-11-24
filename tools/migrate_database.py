@@ -1,48 +1,53 @@
-"""
-Database Migration Script
-Creates all tables for the case management system
-"""
-
-import sys
-import os
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from sqlalchemy import create_engine, text
-from app.database import get_db, init_db
-from app.config import settings
-from app.models.agency import Agency
-from app.models.investigator import Investigator
-from app.models.person import Person
-from app.models.evidence_type import EvidenceType
-from app.models.case import Case, CasePerson
-from app.models.evidence_new import Evidence, ChainOfCustody, EvidenceMetadata
-from app.database import Base, engine
-
+from app.db.base import Base
+from app.db.session import engine, init_db
+from app.core.config import settings
+from app.case_management.models import Agency, Case, CaseLog, WorkUnit
+from app.evidence_management.models import Evidence, EvidenceType, CustodyLog, CustodyReport
+from app.suspect_management.models import Suspect
+from app.auth.models import User
+try:
+    from app.analytics.analytics_management.models import Analytic
+    from app.analytics.device_management.models import Device, File, HashFile, Contact, Call, SocialMedia, ChatMessage
+except ImportError:
+    pass
 
 def migrate_database():
-    """Create all database tables"""
     try:
-        print("🚀 Starting database migration...")
-        
-        # Create all tables
+        print("Starting database migration...")
+        print(f"Database URL: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else '***'}")
         Base.metadata.create_all(bind=engine)
+        print("Database migration completed successfully!")
+        print("Created tables:")
+        print("- agencies")
+        print("- work_units")
+        print("- cases")
+        print("- case_logs")
+        print("- suspects")
+        print("- evidence_types")
+        print("- evidence")
+        print("- custody_logs")
+        print("- custody_reports")
+        print("- users")
         
-        print("✅ Database migration completed successfully!")
-        print("📊 Created tables:")
-        print("  - agencies")
-        print("  - investigators") 
-        print("  - persons")
-        print("  - evidence_types")
-        print("  - cases")
-        print("  - case_persons")
-        print("  - evidence")
-        print("  - chain_of_custody")
-        print("  - evidence_metadata")
+        try:
+            print("  - analytics")
+            print("  - devices")
+            print("  - files")
+            print("  - hash_files")
+            print("  - contacts")
+            print("  - calls")
+            print("  - social_media")
+            print("  - chat_messages")
+        except ImportError:
+            pass
         
     except Exception as e:
-        print(f"❌ Error during migration: {e}")
+        print(f"Error during migration: {e}")
+        import traceback
+        traceback.print_exc()
         raise
-
-
+    
 if __name__ == "__main__":
     migrate_database()

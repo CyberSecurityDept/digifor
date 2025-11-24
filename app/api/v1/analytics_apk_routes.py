@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends,HTTPException,UploadFile,Form, BackgroundTasks, File as FastAPIFile
+from fastapi import APIRouter, Depends, Query,HTTPException,UploadFile,Form, BackgroundTasks, File as FastAPIFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -6,21 +6,22 @@ from app.analytics.analytics_management.service import analyze_apk_from_file
 from app.analytics.analytics_management.models import ApkAnalytic, Analytic
 from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
-import asyncio, time, uuid
+from app.auth.models import User
+from app.api.deps import get_current_user
+import asyncio, time, uuid, traceback
+from app.api.v1.analytics_management_routes import check_analytic_access
 
 router = APIRouter()
 
 @router.post("/analytics/upload-apk")
 async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastAPIFile(...), file_name: str = Form(...)):
     try:
-        # === Validasi field ===
         if not file_name or str(file_name).strip() == "":
             return JSONResponse(
                 {"status": 422, "message": "Field 'file_name' is required", "error_field": "file_name"},
                 status_code=422,
             )
 
-        # === Validasi ekstensi ===
         allowed_ext = ["apk", "ipa"]
         ext = file.filename.lower().split(".")[-1]
         if ext not in allowed_ext:
@@ -29,14 +30,11 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
                 status_code=400,
             )
 
-        # === Baca file ===
         file_bytes = await file.read()
         total_size = len(file_bytes)
 
-        # === Generate upload ID ===
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
-        # === Simpan progress awal ===
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Progress",
             "message": "Upload Progress",
@@ -73,15 +71,38 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
         )
 
 @router.post("/analytics/analyze-apk")
-def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
+def analyze_apk(
+    file_id: int, 
+    analytic_id: int, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     try:
-        # === Validasi analytic ===
         analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic_obj:
             return JSONResponse(
                 {"status": 404, "message": f"Analytics Not Found", "data": None},
                 status_code=404,
             )
+        
+        
+        if current_user is not None and not check_analytic_access(analytic_obj, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+                status_code=403,
+            )
+        
+        method_value = analytic_obj.method
+        if method_value is None or str(method_value) != "APK Analytics":
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
         file_obj = db.query(File).filter(File.id == file_id).first()
         if not file_obj:
             return JSONResponse(
@@ -89,7 +110,6 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
                 status_code=404,
             )
 
-        # === Jalankan analisis APK ===
         result = analyze_apk_from_file(db, file_id=file_id, analytic_id=analytic_id)
         if not result or not isinstance(result, dict):
             return JSONResponse(
@@ -97,7 +117,6 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
                 status_code=400,
             )
 
-        # === Parsing hasil analisis ===
         analysis = result.get("permission_analysis", {})
         malware_scoring = str(analysis.get("security_score", analysis.get("safety_score", 0)))
 
@@ -136,21 +155,17 @@ def analyze_apk(file_id: int, analytic_id: int, db: Session = Depends(get_db)):
         )
 
     except FileNotFoundError as e:
-        # File tidak ditemukan
         return JSONResponse(
             {"status": 404, "message": f"File not found: {str(e)}", "data": None},
             status_code=404,
         )
 
     except Exception as e:
-        # Error tak terduga
-        import traceback
         traceback.print_exc()
         return JSONResponse(
             {"status": 500, "message": "Something went wrong, please try again later!", "data": None},
             status_code=500,
         )
-
 
 UPLOAD_PROGRESS = {}
 def format_file_size(size_bytes: int) -> str:
@@ -161,14 +176,14 @@ def format_file_size(size_bytes: int) -> str:
 
 async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_name: str, file_bytes: bytes, total_size: int):
     try:
-        print(f"🚀 [DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
+        print(f"[DEBUG] Starting upload for {file_name} (upload_id={upload_id})")
         resp = await upload_service.start_app_upload(
             upload_id=upload_id,
             file=file,
             file_name=file_name,
             file_bytes=file_bytes,
         )
-        print(f"✅ [DEBUG] upload_service response: {resp}")
+        print(f"[DEBUG] upload_service response: {resp}")
 
         if isinstance(resp, dict) and resp.get("status") in (200, "200"):
             data = resp.get("data", {})
@@ -193,7 +208,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             }
             print(f"📦 [DEBUG] Upload complete! File saved at {data.get('file_path')}")
         else:
-            print(f"⚠️ [WARN] Upload failed! Response: {resp}")
+            print(f"[WARN] Upload failed! Response: {resp}")
             UPLOAD_PROGRESS[upload_id] = {
                 "status": "Failed",
                 "message": "Upload Failed! Please try again",
@@ -206,8 +221,7 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             }
 
     except Exception as e:
-        print(f"❌ [ERROR] run_real_upload_and_finalize error: {str(e)}")
-        import traceback
+        print(f"[ERROR] run_real_upload_and_finalize error: {str(e)}")
         traceback.print_exc()
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Failed",
@@ -220,12 +234,36 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
             "data": [],
         }
 
-
-@router.get("/analytics/{analytic_id}/apk-analytic")
+@router.get("/analytics/apk-analytic")
 def get_apk_analysis(
-    analytic_id: int,
+    analytic_id: int = Query(..., description="Analytic ID"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
+    if not analytic_obj:
+        return JSONResponse(
+            {"status": 404, "message": "Analytic not found", "data": {}},
+            status_code=404,
+        )
+    
+    if current_user is not None and not check_analytic_access(analytic_obj, current_user):
+        return JSONResponse(
+            {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
+            status_code=403,
+        )
+    
+    method_value = analytic_obj.method
+    if method_value is None or str(method_value) != "APK Analytics":
+        return JSONResponse(
+            {
+                "status": 400,
+                "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
+                "data": {}
+            },
+            status_code=400,
+        )
+    
     apk_records = (
         db.query(ApkAnalytic)
         .filter(ApkAnalytic.analytic_id == analytic_id)
@@ -234,11 +272,14 @@ def get_apk_analysis(
     )
     
     if not apk_records:
-        return {
-            "status": 404,
-            "message": f"No APK analysis found for analytic_id={analytic_id}",
-            "data": {}
-        }
+        return JSONResponse(
+            {
+                "status": 404,
+                "message": f"No APK analysis found for analytic_id={analytic_id}",
+                "data": {}
+            },
+            status_code=404,
+        )
 
     malware_scoring = apk_records[0].malware_scoring if apk_records else None
 
@@ -252,13 +293,17 @@ def get_apk_analysis(
         for r in apk_records
     ]
 
-    return {
-        "status": 200,
-        "message": "Success",
-        "data": {
-            "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
-            "method": apk_records[0].analytic.method if apk_records else None,
-            "malware_scoring": malware_scoring,
-            "permissions": permissions
-        }
-    }
+    return JSONResponse(
+        {
+            "status": 200,
+            "message": "Success",
+            "data": {
+                "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
+                "method": apk_records[0].analytic.method if apk_records else None,
+                "malware_scoring": malware_scoring,
+                "permissions": permissions,
+                "summary" : apk_records[0].analytic.summary if apk_records else None,
+            }
+        },
+        status_code=200,
+    )

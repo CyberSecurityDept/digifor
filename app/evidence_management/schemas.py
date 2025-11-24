@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
-
 
 class EvidenceBase(BaseModel):
     evidence_number: str = Field(..., description="Evidence number")
@@ -9,72 +8,48 @@ class EvidenceBase(BaseModel):
     description: Optional[str] = Field(None, description="Evidence description")
     evidence_type_id: Optional[int] = Field(None, description="Evidence type ID")
     case_id: int = Field(..., description="Case ID")
-    weight: Optional[float] = Field(None, description="Weight in grams")
-    dimensions: Optional[str] = Field(None, description="Dimensions")
-    color: Optional[str] = Field(None, description="Color")
-    material: Optional[str] = Field(None, description="Material")
     file_path: Optional[str] = Field(None, description="File path")
     file_size: Optional[int] = Field(None, description="File size in bytes")
     file_hash: Optional[str] = Field(None, description="File hash")
     file_type: Optional[str] = Field(None, description="File type")
     file_extension: Optional[str] = Field(None, description="File extension")
-    status: str = Field("collected", description="Evidence status")
     analysis_status: str = Field("pending", description="Analysis status")
-    collected_by: Optional[str] = Field(None, description="Collected by")
+    investigator: Optional[str] = Field(None, description="Investigator name")
     collected_date: Optional[datetime] = Field(None, description="Collection date")
-    collected_location: Optional[str] = Field(None, description="Collection location")
-    collection_method: Optional[str] = Field(None, description="Collection method")
-    storage_location: Optional[str] = Field(None, description="Storage location")
-    storage_conditions: Optional[str] = Field(None, description="Storage conditions")
     is_confidential: bool = Field(False, description="Is confidential")
     notes: Optional[str] = Field(None, description="Evidence notes")
 
-
 class EvidenceCreate(EvidenceBase):
     pass
-
 
 class EvidenceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     evidence_type_id: Optional[int] = None
-    weight: Optional[float] = None
-    dimensions: Optional[str] = None
-    color: Optional[str] = None
-    material: Optional[str] = None
     file_path: Optional[str] = None
     file_size: Optional[int] = None
     file_hash: Optional[str] = None
     file_type: Optional[str] = None
     file_extension: Optional[str] = None
-    status: Optional[str] = None
     analysis_status: Optional[str] = None
-    collected_by: Optional[str] = None
+    investigator: Optional[str] = None
     collected_date: Optional[datetime] = None
-    collected_location: Optional[str] = None
-    collection_method: Optional[str] = None
-    storage_location: Optional[str] = None
-    storage_conditions: Optional[str] = None
     is_confidential: Optional[bool] = None
     notes: Optional[str] = None
-
 
 class Evidence(EvidenceBase):
     id: int
     analysis_progress: int
     created_at: datetime
     updated_at: Optional[datetime]
-    archived_at: Optional[datetime]
 
     class Config:
         from_attributes = True
-
 
 class EvidenceResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: Evidence
-
 
 class EvidenceListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -105,10 +80,8 @@ class CustodyLogBase(BaseModel):
     verification_method: Optional[str] = Field(None, description="Verification method (signature, biometric, digital_cert)")
     notes: Optional[str] = Field(None, description="Additional notes")
 
-
 class CustodyLogCreate(CustodyLogBase):
     created_by: str = Field(..., description="User who created the log")
-
 
 class CustodyLogUpdate(BaseModel):
     action_description: Optional[str] = None
@@ -116,7 +89,6 @@ class CustodyLogUpdate(BaseModel):
     conditions: Optional[str] = None
     duration: Optional[int] = None
     notes: Optional[str] = None
-
 
 class CustodyLog(CustodyLogBase):
     id: int
@@ -131,12 +103,10 @@ class CustodyLog(CustodyLogBase):
     class Config:
         from_attributes = True
 
-
 class CustodyLogResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CustodyLog
-
 
 class CustodyLogListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -145,7 +115,6 @@ class CustodyLogListResponse(BaseModel):
     total: int = Field(..., description="Total number of custody logs")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
-
 
 class CustodyChainResponse(BaseModel):
     evidence_id: int
@@ -157,8 +126,6 @@ class CustodyChainResponse(BaseModel):
     first_event: Optional[CustodyLog]
     last_event: Optional[CustodyLog]
 
-
-
 class CustodyReportBase(BaseModel):
     evidence_id: int = Field(..., description="Evidence ID")
     report_type: str = Field("standard", description="Report type (standard, iso_27037, nist)")
@@ -166,10 +133,8 @@ class CustodyReportBase(BaseModel):
     report_description: Optional[str] = Field(None, description="Report description")
     compliance_standard: Optional[str] = Field(None, description="Compliance standard (iso_27037, nist, custom)")
 
-
 class CustodyReportCreate(CustodyReportBase):
     generated_by: str = Field(..., description="User who generated the report")
-
 
 class CustodyReport(CustodyReportBase):
     id: int
@@ -187,12 +152,10 @@ class CustodyReport(CustodyReportBase):
     class Config:
         from_attributes = True
 
-
 class CustodyReportResponse(BaseModel):
     status: int = Field(200, description="Response status")
     message: str = Field("Success", description="Response message")
     data: CustodyReport
-
 
 class CustodyReportListResponse(BaseModel):
     status: int = Field(200, description="Response status")
@@ -201,3 +164,30 @@ class CustodyReportListResponse(BaseModel):
     total: int = Field(..., description="Total number of reports")
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
+
+class EvidenceNotesRequest(BaseModel):
+    evidence_id: int = Field(..., description="Evidence ID")
+    notes: Dict[str, Any] = Field(..., description="Evidence notes as JSON object with id, thumbnail, and text")
+
+class CustodyCommon(BaseModel):
+    investigator: str = Field(..., description="Investigator handling the evidence")
+    location: Optional[str] = Field(None, description="Event location")
+    evidence_source: Optional[str] = Field(None, description="Source of evidence")
+    evidence_type: Optional[str] = Field(None, description="Type of evidence")
+    evidence_detail: Optional[str] = Field(None, description="Detailed notes")
+    notes: Optional[str] = Field(None, description="General notes")
+
+class CustodyAcquisitionRequest(CustodyCommon):
+    steps: List[str] = Field(..., description="List of steps performed")
+
+class CustodyPreparationRequest(CustodyCommon):
+    hypothesis: List[str] = Field(..., description="List of hypotheses")
+    tools: List[str] = Field(..., description="Tools used per hypothesis")
+
+class CustodyAnalysisRequest(CustodyCommon):
+    hypothesis: List[str] = Field(..., description="List of hypotheses")
+    tools: List[str] = Field(..., description="Tools used per hypothesis")
+    result: List[str] = Field(..., description="Results per hypothesis")
+
+class CustodyExtractionRequest(CustodyCommon):
+    pass

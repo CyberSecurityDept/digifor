@@ -1,15 +1,33 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
-from app.case_management.models import Case, Agency, WorkUnit, Person, CaseLog, CaseNote, WIB
+from app.case_management.models import Case, Agency, WorkUnit, CaseLog, WIB
+from app.suspect_management.models import Suspect
 from app.case_management.schemas import CaseCreate, CaseUpdate, PersonCreate, PersonUpdate
+from app.evidence_management.models import Evidence, CustodyLog
 from datetime import datetime
 from fastapi import HTTPException
+import traceback, logging, os
+from app.case_management.pdf_export import generate_case_detail_pdf
+from app.core.config import settings
 
 def get_wib_now():
-    """Get current datetime in WIB timezone"""
     return datetime.now(WIB)
 
+def check_case_access(case: Case, current_user) -> bool:
+    return True
+
+def format_date_indonesian(date_value: datetime) -> str:
+    month_names = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+        5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+        9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    day = date_value.day
+    month = month_names[date_value.month]
+    year = date_value.year
+    time = date_value.strftime("%H:%M")
+    return f"{day} {month} {year}, {time}"
 
 def get_or_create_agency(db: Session, name: str):
     agency = db.query(Agency).filter(Agency.name == name).first()
@@ -20,7 +38,6 @@ def get_or_create_agency(db: Session, name: str):
         db.refresh(agency)
     return agency
 
-
 def get_or_create_work_unit(db: Session, name: str, agency: Agency):
     work_unit = db.query(WorkUnit).filter(WorkUnit.name == name, WorkUnit.agency_id == agency.id).first()
     if not work_unit:
@@ -29,7 +46,6 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
         db.commit()
         db.refresh(work_unit)
     return work_unit
-
 
 class CaseService:
     
@@ -55,7 +71,6 @@ class CaseService:
         else:
             case_dict["agency_id"] = None
         
-        
         work_unit = None
         work_unit_name = None
         work_unit_id = case_dict.get("work_unit_id")
@@ -74,47 +89,53 @@ class CaseService:
         else:
             case_dict["work_unit_id"] = None
 
-        
         case_dict.pop("agency_name", None)
         case_dict.pop("work_unit_name", None)
-
+        case_dict.pop("summary", None)
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
-            
             existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
             if existing_case:
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
             case_dict["case_number"] = manual_case_number.strip()
         else:
-            
             title = case_dict["title"].strip().upper()
             words = title.split()
             first_three = words[:3]
             initials = "".join([w[0] for w in first_three])
             date_part = get_wib_now().strftime("%d%m%y")
-
-            
             today_str = get_wib_now().strftime("%Y-%m-%d")
             today_count = db.query(Case).filter(
                 cast(Case.created_at, String).like(f"%{today_str}%")
             ).count() + 1
-
             case_number = f"{initials}-{date_part}-{str(today_count).zfill(4)}"
             case_dict["case_number"] = case_number
-        
         try:
-            case = Case(**case_dict)
+            valid_case_fields = {
+                'case_number', 'title', 'description', 'status', 'main_investigator',
+                'agency_id', 'work_unit_id', 'created_at', 'updated_at'
+            }
+            filtered_case_dict = {k: v for k, v in case_dict.items() if k in valid_case_fields}
+            case = Case(**filtered_case_dict)
             db.add(case)
             db.commit()
             db.refresh(case)
-
         except Exception as e:
             db.rollback()
+            error_details = traceback.format_exc()
             print("ERROR CREATE CASE:", str(e))
+            print("ERROR DETAILS:", error_details)
             if "duplicate key value" in str(e) and "case_number" in str(e):
                 raise HTTPException(status_code=409, detail=f"Case number '{case_dict.get('case_number')}' already exists")
-            raise HTTPException(status_code=500, detail="Unexpected server error, please try again later")
-        
+            if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Database schema error: {str(e)}. Please run database migration to add the 'summary' column."
+                )
+            logger = __import__('logging').getLogger(__name__)
+            logger.error(f"Error creating case: {str(e)}")
+            logger.error(f"Error details: {error_details}")
+            raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(e)}")
         
         try:
             initial_log = CaseLog(
@@ -130,7 +151,25 @@ class CaseService:
         except Exception as e:
             print(f"Warning: Could not create initial case log: {str(e)}")
             
-
+        created_at_value = getattr(case, 'created_at', None)
+        updated_at_value = getattr(case, 'updated_at', None)
+        
+        if created_at_value:
+            if isinstance(created_at_value, datetime):
+                date_created = created_at_value.strftime("%d/%m/%Y")
+            else:
+                date_created = str(created_at_value)
+        else:
+            date_created = get_wib_now().strftime("%d/%m/%Y")
+        
+        if updated_at_value:
+            if isinstance(updated_at_value, datetime):
+                date_updated = updated_at_value.strftime("%d/%m/%Y")
+            else:
+                date_updated = str(updated_at_value)
+        else:
+            date_updated = get_wib_now().strftime("%d/%m/%Y")
+            
         case_response = {
             "id": case.id,
             "case_number": case.case_number,
@@ -140,13 +179,15 @@ class CaseService:
             "main_investigator": case.main_investigator,
             "agency_name": agency_name,
             "work_unit_name": work_unit_name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at,
+            "created_at": date_created,
+            "updated_at": date_updated,
         }
         
+        assert isinstance(case_response["created_at"], str), f"created_at must be string, got {type(case_response['created_at'])}"
+        assert isinstance(case_response["updated_at"], str), f"updated_at must be string, got {type(case_response['updated_at'])}"
         return case_response
     
-    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None) -> List[Case]:
+    def get_cases(self, db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, status: Optional[str] = None, sort_by: Optional[str] = None, sort_order: Optional[str] = None, current_user=None) -> dict:
         query = db.query(Case).join(Agency, Case.agency_id == Agency.id, isouter=True).join(WorkUnit, Case.work_unit_id == WorkUnit.id, isouter=True)
 
         status_mapping = {
@@ -162,14 +203,15 @@ class CaseService:
             'Re-Open': 'Re-open',
             'reopened': 'Re-open',
             'REOPENED': 'Re-open',
-            'Reopened': 'Re-open'
+            'Reopened': 'Re-open',
+            'reopen': 'Re-open',
+            'REOPEN': 'Re-open',
+            'Reopen': 'Re-open'
         }
 
         if search:
             search_pattern = f"%{search}%"
-
             normalized_status = status_mapping.get(search, search)
-
             search_conditions = [
                     Case.title.ilike(search_pattern),
                     Case.main_investigator.ilike(search_pattern),
@@ -182,30 +224,33 @@ class CaseService:
             
             if normalized_status in ['Open', 'Closed', 'Re-open']:
                 search_conditions.append(Case.status == normalized_status)
-
             query = query.filter(or_(*search_conditions))
-
         if status:
             normalized_status = status_mapping.get(status, status)
             query = query.filter(Case.status == normalized_status)
-
-        cases = query.order_by(Case.id.desc()).offset(skip).limit(limit).all()
-        
+        total_count = query.count()
+        if sort_by == "created_at":
+            if sort_order and sort_order.lower() == "asc":
+                query = query.order_by(Case.created_at.asc())
+            else:
+                query = query.order_by(Case.created_at.desc())
+        else:
+            query = query.order_by(Case.id.desc())
+        cases = query.offset(skip).limit(limit).all()
         result = []
         for case in cases:
             agency_name = None
             work_unit_name = None
-            
-            if case.agency_id:
+            if case.agency_id is not None:
                 agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
                 if agency:
                     agency_name = agency.name
-            
-            if case.work_unit_id:
+            if case.work_unit_id is not None:
                 work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
                 if work_unit:
                     work_unit_name = work_unit.name
-            
+            date_created = case.created_at.strftime("%d/%m/%Y")
+            date_updated = case.updated_at.strftime("%d/%m/%Y")
             case_dict = {
                 "id": case.id,
                 "case_number": case.case_number,
@@ -215,26 +260,25 @@ class CaseService:
                 "main_investigator": case.main_investigator,
                 "agency_name": agency_name,
                 "work_unit_name": work_unit_name,
-                "created_at": case.created_at,
-                "updated_at": case.updated_at
+                "created_at": date_created,
+                "updated_at": date_updated
             }
             result.append(case_dict)
         
-        return result
-
-
+        return {
+            "cases": result,
+            "total": total_count
+        }
     
-    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate) -> dict:
+    def update_case(self, db: Session, case_id: int, case_data: CaseUpdate, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         update_data = case_data.dict(exclude_unset=True)
-        
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
             if manual_case_number and manual_case_number.strip():
-
                 existing_case = db.query(Case).filter(
                     Case.case_number == manual_case_number.strip(),
                     Case.id != case_id
@@ -253,28 +297,26 @@ class CaseService:
                 date_part = get_wib_now().strftime("%d%m%y")
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
-        
         old_status = case.status
         old_title = case.title
-        
         for field, value in update_data.items():
             setattr(case, field, value)
-        
         db.commit()
         db.refresh(case)
-
         agency_name = None
         work_unit_name = None
-        
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
+
+        date_created = case.created_at.strftime("%d/%m/%Y")
+        date_updated = case.updated_at.strftime("%d/%m/%Y")
 
         case_dict = {
             "id": case.id,
@@ -285,37 +327,19 @@ class CaseService:
             "main_investigator": case.main_investigator,
             "agency_name": agency_name,
             "work_unit_name": work_unit_name,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at
+            "created_at": date_created,
+            "updated_at": date_updated
         }
         
         return case_dict
     
-    def delete_case(self, db: Session, case_id: int) -> bool:
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+    def get_case_statistics(self, db: Session, current_user=None) -> dict:
+        query = db.query(Case)
         
-        try:
-            db.query(CaseLog).filter(CaseLog.case_id == case_id).delete()
-            
-            db.query(CaseNote).filter(CaseNote.case_id == case_id).delete()
-            
-            db.query(Person).filter(Person.case_id == case_id).delete()
-            
-            db.delete(case)
-            db.commit()
-            return True
-            
-        except Exception as e:
-            db.rollback()
-            raise Exception(f"Failed to delete case: {str(e)}")
-    
-    def get_case_statistics(self, db: Session) -> dict:
-        total_cases = db.query(Case).count()
-        open_cases = db.query(Case).filter(Case.status == "Open").count()
-        closed_cases = db.query(Case).filter(Case.status == "Closed").count()
-        reopened_cases = db.query(Case).filter(Case.status == "Re-open").count()
+        total_cases = query.count()
+        open_cases = query.filter(Case.status == "Open").count()
+        closed_cases = query.filter(Case.status == "Closed").count()
+        reopened_cases = query.filter(Case.status == "Re-open").count()
         
         return {
             "open_cases": open_cases,
@@ -324,83 +348,200 @@ class CaseService:
             "total_cases": total_cases
         }
     
-    def get_case_detail_comprehensive(self, db: Session, case_id: int) -> dict:
+    def save_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
-            raise Exception(f"Case with ID {case_id} not found")
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if not notes or not notes.strip():
+            raise ValueError("Notes cannot be empty")
+        
+        setattr(case, 'notes', notes.strip())
+        db.commit()
+        db.refresh(case)
+        
+        updated_at_value = getattr(case, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "case_title": case.title,
+            "notes": getattr(case, 'notes', None),
+            "updated_at": updated_at_str
+        }
+    
+    def edit_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if not notes or not notes.strip():
+            raise ValueError("Notes cannot be empty")
+        
+        setattr(case, 'notes', notes.strip())
+        db.commit()
+        db.refresh(case)
+        
+        updated_at_value = getattr(case, 'updated_at', None)
+        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        
+        return {
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "case_title": case.title,
+            "notes": getattr(case, 'notes', None),
+            "updated_at": updated_at_str
+        }
+    
+    def _get_chain_of_custody(self, db: Session, evidence_id: int) -> dict:
+        custody_logs = db.query(CustodyLog).filter(
+            CustodyLog.evidence_id == evidence_id
+        ).order_by(CustodyLog.event_date.asc()).all()
+        
+        chain_of_custody = {
+            "acquisition": None,
+            "preparation": None,
+            "extraction": None,
+            "analysis": None
+        }
+        
+        for log in custody_logs:
+            event_type_lower = getattr(log, 'event_type', '').lower()
+            event_date = getattr(log, 'event_date', None)
+            person_name = getattr(log, 'person_name', '')
+            location = getattr(log, 'location', '')
+            action_description = getattr(log, 'action_description', '')
+            tools_used = getattr(log, 'tools_used', None)
+            notes = getattr(log, 'notes', '')
+            
+            formatted_date = None
+            if event_date:
+                if isinstance(event_date, datetime):
+                    formatted_date = format_date_indonesian(event_date)
+                else:
+                    formatted_date = str(event_date)
+            
+            custody_data = {
+                "date": formatted_date,
+                "investigator": person_name,
+                "location": location,
+                "description": action_description or notes,
+                "tools_used": tools_used if isinstance(tools_used, list) else ([tools_used] if tools_used else [])
+            }
+            
+            if event_type_lower == "acquisition":
+                chain_of_custody["acquisition"] = custody_data
+            elif event_type_lower == "preparation":
+                chain_of_custody["preparation"] = custody_data
+            elif event_type_lower == "extraction":
+                chain_of_custody["extraction"] = custody_data
+            elif event_type_lower == "analysis":
+                chain_of_custody["analysis"] = custody_data
+        
+        return chain_of_custody
+    
+    def get_case_detail_comprehensive(self, db: Session, case_id: int, current_user=None) -> dict:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         agency_name = None
         work_unit_name = None
         
-        if case.agency_id:
+        if case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id:
+        if case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
         
         created_date = case.created_at.strftime("%d/%m/%Y")
+        suspects = db.query(Suspect).filter(Suspect.case_id == case_id).order_by(Suspect.id.asc()).all()
+        all_evidence = db.query(Evidence).filter(Evidence.case_id == case_id).all()
+        evidence_linked_to_suspects = set()
+        suspects_by_id = {}
+        suspect_map = {suspect.id: suspect for suspect in suspects}
         
-        persons = db.query(Person).filter(Person.case_id == case_id).all()
-        persons_of_interest = []
-        
-        for person in persons:
-            analysis_items = []
-            if person.evidence_id and person.evidence_summary:
-                summaries = person.evidence_summary.split('\n') if '\n' in person.evidence_summary else [person.evidence_summary]
-                for summary in summaries:
-                    if summary.strip():
-                        analysis_item = {
-                            "evidence_id": person.evidence_id,
-                            "summary": summary.strip(),
-                            "status": "Analysis"
-                        }
-                        analysis_items.append(analysis_item)
+        for suspect in suspects:
+            suspect_status = getattr(suspect, 'status', None)
+            person_type = suspect_status if suspect_status else None
             
-            person_data = {
-                "id": person.id,
-                "name": person.name,
-                "person_type": "Suspect",
-                "analysis": analysis_items
+            suspects_by_id[suspect.id] = {
+                "suspect_id": suspect.id,
+                "name": suspect.name,
+                "person_type": person_type,
+                "evidence": []
             }
-            persons_of_interest.append(person_data)
-        
-        logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
-            .order_by(CaseLog.created_at.desc()).all()
-        
-        case_log = []
-        for log in logs:
-            log_data = {
-                "id": log.id,
-                "case_id": log.case_id,
-                "action": log.action,
-                "changed_by": log.changed_by,
-                "change_detail": log.change_detail,
-                "notes": log.notes,
-                "status": log.status,
-                "created_at": log.created_at
-            }
-            case_log.append(log_data)
-        
-        notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
-            .order_by(CaseNote.created_at.desc()).all()
-        
-        case_notes = []
-        for note in notes:
-            timestamp = note.created_at.strftime("%d %b %Y, %H:%M")
             
-            note_data = {
-                "timestamp": timestamp,
-                "status": note.status or "Active",
-                "content": note.note
-            }
-            case_notes.append(note_data)
+        for evidence in all_evidence:
+            evidence_suspect_id = getattr(evidence, 'suspect_id', None)
+            evidence_num = getattr(evidence, 'evidence_number', None)
+            
+            linked_suspect_id = None
+            if evidence_suspect_id and evidence_suspect_id in suspect_map:
+                linked_suspect_id = evidence_suspect_id
+            elif evidence_num:
+                for suspect_id, suspect in suspect_map.items():
+                    suspect_evidence_number = getattr(suspect, 'evidence_number', None)
+                    if suspect_evidence_number and suspect_evidence_number == evidence_num:
+                        linked_suspect_id = suspect_id
+                        break
+            
+            if linked_suspect_id is not None and linked_suspect_id in suspects_by_id:
+                suspect = suspect_map[linked_suspect_id]
+                evidence_items = suspects_by_id[linked_suspect_id]["evidence"]
+                
+                if evidence_num:
+                    evidence_linked_to_suspects.add(evidence_num)
+                
+                notes_text = None
+                evidence_notes = getattr(evidence, 'notes', None)
+                evidence_desc = getattr(evidence, 'description', None) or ''
+                
+                if evidence_notes:
+                    if isinstance(evidence_notes, dict):
+                        notes_text = evidence_notes.get('text', '') or evidence_desc
+                    elif isinstance(evidence_notes, str):
+                        notes_text = evidence_notes
+                else:
+                    notes_text = evidence_desc
+                
+                evidence_item = {
+                    "id": evidence.id,
+                    "evidence_number": evidence_num or "",
+                    "evidence_summary": notes_text or "No description available"
+                }
+                
+                evidence_file_path = getattr(evidence, 'file_path', None)
+                if evidence_file_path:
+                    evidence_item["file_path"] = evidence_file_path
+                
+                evidence_source = getattr(evidence, 'source', None)
+                if evidence_source:
+                    evidence_item["source"] = evidence_source
+                else:
+                    suspect_source = getattr(suspect, 'evidence_source', None)
+                    if suspect_source:
+                        evidence_item["source"] = suspect_source
+                
+                if evidence_num and not any(item.get("evidence_number") == evidence_num for item in evidence_items):
+                    evidence_items.append(evidence_item)
         
-        evidence_count = len([p for p in persons if p.evidence_id])
+        for suspect_id, suspect_data in suspects_by_id.items():
+            evidence_items = suspect_data["evidence"]
+            evidence_items.sort(key=lambda x: x.get("id") or 0)
         
+        persons_of_interest = [
+            suspect_data for suspect_data in suspects_by_id.values() 
+            if suspect_data.get("suspect_id") is not None
+        ]
+        persons_of_interest.sort(key=lambda x: x.get("suspect_id") or 0, reverse=False)
+        case_notes_value = getattr(case, 'notes', None)
+        person_count = len(persons_of_interest)
         case_data = {
             "case": {
                 "id": case.id,
@@ -414,24 +555,35 @@ class CaseService:
                 "created_date": created_date
             },
             "persons_of_interest": persons_of_interest,
-            "case_log": case_log,
-            "notes": case_notes,
-            "summary": {
-                "total_persons": len(persons),
-                "total_evidence": evidence_count,
-                "total_case_log": len(case_log),
-                "total_notes": len(case_notes)
-            }
+            "person_count": person_count,
+            "case_notes": case_notes_value
         }
         
         return case_data
+    
+    def export_case_detail_pdf(self, db: Session, case_id: int, output_dir: Optional[str] = None, current_user=None) -> str:
+        if output_dir is None:
+            output_dir = settings.REPORTS_DIR
+  
+        case_data = self.get_case_detail_comprehensive(db, case_id, current_user)
 
+        os.makedirs(output_dir, exist_ok=True)
+
+        case_info = case_data.get("case", {})
+        case_number = str(case_info.get("case_number", case_info.get("id", "unknown")))
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"case_detail_{case_number}_{timestamp}.pdf"
+        output_path = os.path.join(output_dir, filename)
+
+        generate_case_detail_pdf(case_data, output_path)
+        return output_path
 
 class CaseLogService:
     def create_log(self, db: Session, log_data: dict) -> dict:
+        notes = log_data.get('notes', '') or ''
+        log_data['notes'] = notes
         case = db.query(Case).filter(Case.id == log_data['case_id']).first()
         case_status = case.status if case else None
-        
         log = CaseLog(**log_data)
         db.add(log)
         db.commit()
@@ -449,175 +601,215 @@ class CaseLogService:
         }
     
     def update_case_log(self, db: Session, case_id: int, log_data: dict) -> dict:
-        """Update case status and create case log entry"""
-        case = db.query(Case).filter(Case.id == case_id).first()
-        if not case:
-            raise HTTPException(status_code=404, detail="Case not found")
+        try:
+            case = db.query(Case).filter(Case.id == case_id).first()
+            if not case:
+                raise HTTPException(status_code=404, detail="Case not found")
+            new_status = log_data['status']
+            old_status = case.status
+            case.status = new_status
+            db.commit()
+            db.refresh(case)
+            
+            notes = log_data.get('notes', '')
+            if not notes or not notes.strip():
+                raise HTTPException(status_code=400, detail="Notes/alasan wajib diisi ketika mengubah status case")
+            notes = notes.strip()
+            
+            log_entry = CaseLog(
+                case_id=case_id,
+                action=new_status,
+                changed_by="",
+                change_detail="",
+                notes=notes,
+                status=new_status
+            )
+            
+            db.add(log_entry)
+            db.commit()
+            db.refresh(log_entry)
+        except HTTPException:
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in update_case_log: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
         
-        new_status = log_data['status']
-        old_status = case.status
+        created_at_value = getattr(log_entry, 'created_at', None)
+        if created_at_value:
+            if isinstance(created_at_value, datetime):
+                formatted_date = format_date_indonesian(created_at_value)
+            else:
+                formatted_date = str(created_at_value)
+        else:
+            formatted_date = None
         
-        case.status = new_status
-        db.commit()
-        db.refresh(case)
+        current_case_status = case.status
         
-        notes = ""
-        if new_status in ['Closed', 'Re-open']:
-            latest_note = db.query(CaseNote).filter(
-                CaseNote.case_id == case_id
-            ).order_by(CaseNote.created_at.desc()).first()
-            if latest_note:
-                notes = latest_note.note
+        log_action = getattr(log_entry, 'action', '')
+        log_status = getattr(log_entry, 'status', '')
         
-        log_entry = CaseLog(
-            case_id=case_id,
-            action=new_status,
-            changed_by="",
-            change_detail="",
-            notes=notes,
-            status=new_status
-        )
-        
-        db.add(log_entry)
-        db.commit()
-        db.refresh(log_entry)
-        
-        return {
+        result = {
             "id": log_entry.id,
             "case_id": log_entry.case_id,
             "action": log_entry.action,
-            "changed_by": log_entry.changed_by,
-            "change_detail": log_entry.change_detail,
-            "notes": log_entry.notes,
-            "status": log_entry.status,
-            "created_at": log_entry.created_at
+            "created_at": formatted_date
         }
+        
+        if log_action == "Edit" and log_status == current_case_status:
+            changed_by = getattr(log_entry, 'changed_by', '') or ''
+            change_detail = getattr(log_entry, 'change_detail', '') or ''
+            if changed_by or change_detail:
+                edit_array = [{
+                    "changed_by": changed_by,
+                    "change_detail": change_detail
+                }]
+                result["edit"] = edit_array
+        else:
+            result["status"] = log_entry.status
+            notes_value = getattr(log_entry, 'notes', None)
+            if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                result["notes"] = notes_value
+        
+        return result
     
     def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
         case = db.query(Case).filter(Case.id == case_id).first()
-        case_status = case.status if case else None
-        
+        current_case_status = case.status if case else None
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
             .order_by(CaseLog.created_at.desc())\
             .offset(skip).limit(limit).all()
         
         result = []
         for log in logs:
-            formatted_date = log.created_at.strftime("%d %b %y, %H:%M")
+            created_at_value = getattr(log, 'created_at', None)
+            if created_at_value:
+                if isinstance(created_at_value, datetime):
+                    formatted_date = format_date_indonesian(created_at_value)
+                else:
+                    formatted_date = str(created_at_value)
+            else:
+                formatted_date = None
+            
+            log_action = getattr(log, 'action', '')
+            log_status = getattr(log, 'status', '')
             
             log_dict = {
                 "id": log.id,
                 "case_id": log.case_id,
                 "action": log.action,
-                "changed_by": log.changed_by,
-                "change_detail": log.change_detail,
-                "notes": log.notes,
-                "status": log.status,
                 "created_at": formatted_date
             }
+            
+            if log_action == "Edit" and log_status == current_case_status:
+                changed_by = getattr(log, 'changed_by', '') or ''
+                change_detail = getattr(log, 'change_detail', '') or ''
+                if changed_by or change_detail:
+                    edit_array = [{
+                        "changed_by": changed_by,
+                        "change_detail": change_detail
+                    }]
+                    log_dict["edit"] = edit_array
+            else:
+                log_dict["status"] = log.status
+                notes_value = getattr(log, 'notes', None)
+                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                    log_dict["notes"] = notes_value
+            
             result.append(log_dict)
-        
         return result
     
     def get_log_count(self, db: Session, case_id: int) -> int:
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
 
-
-class CaseNoteService:
-    def create_note(self, db: Session, note_data: dict) -> dict:
-        note = CaseNote(**note_data)
-        db.add(note)
-        db.commit()
-        db.refresh(note)
-        
-        return {
-            "id": note.id,
-            "case_id": note.case_id,
-            "note": note.note,
-            "status": note.status,
-            "created_by": note.created_by,
-            "created_at": note.created_at
-        }
-    
-    def get_case_notes(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
-        notes = db.query(CaseNote).filter(CaseNote.case_id == case_id)\
-            .order_by(CaseNote.created_at.desc())\
-            .offset(skip).limit(limit).all()
-        
-        result = []
-        for note in notes:
-            note_dict = {
-                "id": note.id,
-                "case_id": note.case_id,
-                "note": note.note,
-                "status": note.status,
-                "created_by": note.created_by,
-                "created_at": note.created_at
+    def get_case_log_detail(self, db: Session, log_id: int) -> dict:
+        try:
+            log = db.query(CaseLog).filter(CaseLog.id == log_id).first()
+            if not log:
+                raise HTTPException(status_code=404, detail="Case log not found")
+            case = db.query(Case).filter(Case.id == log.case_id).first()
+            current_case_status = case.status if case else None
+            created_at_value = getattr(log, 'created_at', None)
+            if created_at_value:
+                if isinstance(created_at_value, datetime):
+                    formatted_date = format_date_indonesian(created_at_value)
+                else:
+                    formatted_date = str(created_at_value)
+            else:
+                formatted_date = None
+            
+            log_action = getattr(log, 'action', '')
+            log_status = getattr(log, 'status', '')
+            
+            result = {
+                "id": log.id,
+                "case_id": log.case_id,
+                "action": log.action,
+                "created_at": formatted_date
             }
-            result.append(note_dict)
-        
-        return result
-    
-    def get_note_count(self, db: Session, case_id: int) -> int:
-        return db.query(CaseNote).filter(CaseNote.case_id == case_id).count()
-    
-    def update_note(self, db: Session, note_id: int, note_data: dict) -> dict:
-        note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
-        if not note:
-            raise Exception(f"Note with ID {note_id} not found")
-        
-        update_data = {k: v for k, v in note_data.items() if v is not None}
-        for field, value in update_data.items():
-            setattr(note, field, value)
-        
-        db.commit()
-        db.refresh(note)
-        
-        return {
-            "id": note.id,
-            "case_id": note.case_id,
-            "note": note.note,
-            "status": note.status,
-            "created_by": note.created_by,
-            "created_at": note.created_at
-        }
-    
-    def delete_note(self, db: Session, note_id: int) -> bool:
-        note = db.query(CaseNote).filter(CaseNote.id == note_id).first()
-        if not note:
-            return False
-        
-        db.delete(note)
-        db.commit()
-        return True
-
+            
+            if log_action == "Edit" and log_status == current_case_status:
+                changed_by = getattr(log, 'changed_by', '') or ''
+                change_detail = getattr(log, 'change_detail', '') or ''
+                if changed_by or change_detail:
+                    edit_array = [{
+                        "changed_by": changed_by,
+                        "change_detail": change_detail
+                    }]
+                    result["edit"] = edit_array
+            else:
+                result["status"] = log.status
+                notes_value = getattr(log, 'notes', None)
+                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                    result["notes"] = notes_value
+            
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in get_case_log_detail: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 class PersonService:
-    def create_person(self, db: Session, person_data: PersonCreate) -> dict:
+    def create_person(self, db: Session, person_data: PersonCreate, changed_by: str = "") -> dict:
         person_dict = person_data.dict()
+        suspect_dict = {
+            "name": person_dict.get("name", ""),
+            "case_id": person_dict.get("case_id"),
+            "case_name": None,
+            "investigator": person_dict.get("investigator"),
+            "status": person_dict.get("suspect_status") or "Suspect",
+            "is_unknown": person_dict.get("is_unknown", False),
+            "evidence_id": person_dict.get("evidence_id"),
+            "evidence_source": person_dict.get("evidence_source"),
+            "evidence_summary": person_dict.get("evidence_summary"),
+            "created_by": person_dict.get("created_by", "")
+        }
         
         try:
-            person = Person(**person_dict)
-            db.add(person)
+            suspect = Suspect(**suspect_dict)
+            db.add(suspect)
             db.commit()
-            db.refresh(person)
-            
+            db.refresh(suspect)
             try:
-                case = db.query(Case).filter(Case.id == person.case_id).first()
+                case = db.query(Case).filter(Case.id == suspect.case_id).first()
                 current_status = case.status if case else "Open"
-                
+                changed_by_value = changed_by if changed_by else ""
                 case_log = CaseLog(
-                    case_id=person.case_id,
+                    case_id=suspect.case_id,
                     action="Edit",
-                    changed_by="Wisnu",
-                    change_detail=f"Adding Person: {person.name}",
+                    changed_by=f"By: {changed_by_value}",
+                    change_detail=f"Change: Adding person {suspect.name}",
                     notes="",
                     status=current_status
                 )
                 db.add(case_log)
                 db.commit()
             except Exception as e:
-                print(f"Warning: Could not create case log for person: {str(e)}")
+                print(f"Warning: Could not create case log for suspect: {str(e)}")
                 
         except Exception as e:
             db.rollback()
@@ -627,106 +819,105 @@ class PersonService:
             )
         
         return {
-            "id": person.id,
-            "name": person.name,
-            "is_unknown": person.is_unknown,
-            "custody_stage": person.custody_stage,
-            "evidence_id": person.evidence_id,
-            "evidence_source": person.evidence_source,
-            "evidence_summary": person.evidence_summary,
-            "investigator": person.investigator,
-            "case_id": person.case_id,
-            "created_by": person.created_by,
-            "created_at": person.created_at,
-            "updated_at": person.updated_at
+            "id": suspect.id,
+            "name": suspect.name,
+            "is_unknown": suspect.is_unknown,
+            "suspect_status": suspect.status,
+            "evidence_id": suspect.evidence_number,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "investigator": suspect.investigator,
+            "case_id": suspect.case_id,
+            "created_by": suspect.created_by,
+            "created_at": suspect.created_at,
+            "updated_at": suspect.updated_at
         }
     
     def get_person(self, db: Session, person_id: int) -> dict:
-        person = db.query(Person).filter(Person.id == person_id).first()
-        if not person:
+        suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
+        if not suspect:
             raise Exception(f"Person with ID {person_id} not found")
         
         return {
-            "id": person.id,
-            "name": person.name,
-            "is_unknown": person.is_unknown,
-            "custody_stage": person.custody_stage,
-            "evidence_id": person.evidence_id,
-            "evidence_source": person.evidence_source,
-            "evidence_summary": person.evidence_summary,
-            "investigator": person.investigator,
-            "case_id": person.case_id,
-            "created_by": person.created_by,
-            "created_at": person.created_at,
-            "updated_at": person.updated_at
+            "id": suspect.id,
+            "name": suspect.name,
+            "is_unknown": suspect.is_unknown,
+            "evidence_id": suspect.evidence_number,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "investigator": suspect.investigator,
+            "case_id": suspect.case_id,
+            "created_by": suspect.created_by,
+            "created_at": suspect.created_at,
+            "updated_at": suspect.updated_at
         }
     
     def get_persons_by_case(self, db: Session, case_id: int, skip: int = 0, limit: int = 100) -> List[dict]:
-        persons = db.query(Person).filter(Person.case_id == case_id)\
-            .order_by(Person.created_at.desc())\
+        suspects = db.query(Suspect).filter(Suspect.case_id == case_id)\
+            .order_by(Suspect.created_at.desc())\
             .offset(skip).limit(limit).all()
         
         result = []
-        for person in persons:
+        for suspect in suspects:
             person_dict = {
-                "id": person.id,
-                "name": person.name,
-                "is_unknown": person.is_unknown,
-                "custody_stage": person.custody_stage,
-                "evidence_id": person.evidence_id,
-                "evidence_source": person.evidence_source,
-                "evidence_summary": person.evidence_summary,
-                "investigator": person.investigator,
-                "case_id": person.case_id,
-                "created_by": person.created_by,
-                "created_at": person.created_at,
-                "updated_at": person.updated_at
+                "id": suspect.id,
+                "name": suspect.name,
+                "is_unknown": suspect.is_unknown,
+                "evidence_number": suspect.evidence_number,
+                "evidence_source": suspect.evidence_source,
+                "evidence_summary": suspect.evidence_summary,
+                "investigator": suspect.investigator,
+                "case_id": suspect.case_id,
+                "created_by": suspect.created_by,
+                "created_at": suspect.created_at,
+                "updated_at": suspect.updated_at
             }
             result.append(person_dict)
         
         return result
     
     def get_person_count_by_case(self, db: Session, case_id: int) -> int:
-        return db.query(Person).filter(Person.case_id == case_id).count()
+        return db.query(Suspect).filter(Suspect.case_id == case_id).count()
     
     def update_person(self, db: Session, person_id: int, person_data: PersonUpdate) -> dict:
-        person = db.query(Person).filter(Person.id == person_id).first()
-        if not person:
+        suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
+        if not suspect:
             raise Exception(f"Person with ID {person_id} not found")
         
         update_data = person_data.dict(exclude_unset=True)
+        if "suspect_status" in update_data:
+            update_data["status"] = update_data.pop("suspect_status")
+        
         for field, value in update_data.items():
-            setattr(person, field, value)
+            if hasattr(suspect, field):
+                setattr(suspect, field, value)
         
         db.commit()
-        db.refresh(person)
+        db.refresh(suspect)
         
         return {
-            "id": person.id,
-            "name": person.name,
-            "is_unknown": person.is_unknown,
-            "custody_stage": person.custody_stage,
-            "evidence_id": person.evidence_id,
-            "evidence_source": person.evidence_source,
-            "evidence_summary": person.evidence_summary,
-            "investigator": person.investigator,
-            "case_id": person.case_id,
-            "created_by": person.created_by,
-            "created_at": person.created_at,
-            "updated_at": person.updated_at
+            "id": suspect.id,
+            "name": suspect.name,
+            "is_unknown": suspect.is_unknown,
+            "evidence_id": suspect.evidence_number,
+            "evidence_source": suspect.evidence_source,
+            "evidence_summary": suspect.evidence_summary,
+            "investigator": suspect.investigator,
+            "case_id": suspect.case_id,
+            "created_by": suspect.created_by,
+            "created_at": suspect.created_at,
+            "updated_at": suspect.updated_at
         }
     
     def delete_person(self, db: Session, person_id: int) -> bool:
-        person = db.query(Person).filter(Person.id == person_id).first()
-        if not person:
+        suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
+        if not suspect:
             return False
         
-        db.delete(person)
+        db.delete(suspect)
         db.commit()
         return True
 
-
 case_service = CaseService()
 case_log_service = CaseLogService()
-case_note_service = CaseNoteService()
 person_service = PersonService()

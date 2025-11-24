@@ -10,6 +10,7 @@ class File(Base):
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     notes = Column(String, nullable=True)
+    created_by = Column(String, nullable=True)
     type = Column(String, nullable=False)
     tools = Column(String, nullable=True)
     method = Column(String, nullable=True)
@@ -89,10 +90,7 @@ class HashFile(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    name = Column(String, nullable=True)
-    
     file_name = Column(String, nullable=True)
-    kind = Column(String, nullable=True)
     size_bytes = Column(BigInteger, nullable=True)
     path_original = Column(String, nullable=True)
     created_at_original = Column(DateTime, nullable=True)
@@ -100,18 +98,11 @@ class HashFile(Base):
     
     md5_hash = Column(String, nullable=True)
     sha1_hash = Column(String, nullable=True)
-    file_size = Column(Integer, nullable=True)
+    algorithm = Column(String, nullable=True)
     
-    source_type = Column(String, nullable=True)
     source_tool = Column(String, nullable=True)
     
     file_type = Column(String, nullable=True)
-    file_extension = Column(String, nullable=True)
-    is_duplicate = Column(String, nullable=True)
-    is_suspicious = Column(String, nullable=True)
-    
-    malware_detection = Column(String, nullable=True)
-    risk_level = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
@@ -191,6 +182,9 @@ class ChatMessage(Base):
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     platform = Column(String, nullable=False)
     message_text = Column(Text, nullable=True)
+    account_name = Column(String, nullable=True)
+    group_name = Column(String, nullable=True)
+    group_id = Column(String, nullable=True)
     from_name = Column(String, nullable=True)
     sender_number = Column(String, nullable=True)
     to_name = Column(String, nullable=True)
@@ -200,6 +194,8 @@ class ChatMessage(Base):
     chat_id = Column(String, nullable=True)
     message_id = Column(String, nullable=True)
     message_type = Column(String, nullable=True) 
+    chat_type = Column(String, nullable=True)
+    status = Column(String, nullable=True)
     direction = Column(String, nullable=True)
     source_tool = Column(String, nullable=True)
     sheet_name = Column(String, nullable=True)

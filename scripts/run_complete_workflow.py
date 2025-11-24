@@ -1,27 +1,11 @@
 #!/usr/bin/env python3
-"""
-Complete Workflow Script for Forenlytic API
-From Upload to Contact Correlation Analysis
-
-Usage:
-    python scripts/run_complete_workflow.py
-
-This script demonstrates the complete workflow:
-1. Upload files
-2. Filter files by tools
-3. Add devices with multiple files
-4. Create analytic with devices
-5. Run contact correlation analysis
-6. Export to PDF
-"""
-
 import requests
 import json
 import os
 import time
 from pathlib import Path
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://172.15.2.105"
 DATASET_PATH = "sample_dataset"
 
 SAMPLE_FILES = [
@@ -67,13 +51,11 @@ SAMPLE_DEVICES = [
 ]
 
 def print_step(step_num, title):
-    """Print step header"""
     print(f"\n{'='*60}")
     print(f"STEP {step_num}: {title}")
     print(f"{'='*60}")
 
 def print_response(response, title="Response"):
-    """Print formatted response"""
     print(f"\n{title}:")
     print(f"Status Code: {response.status_code}")
     try:
@@ -85,7 +67,6 @@ def print_response(response, title="Response"):
         return None
 
 def upload_file(file_path, notes, file_type, file_name, tools):
-    """Upload a file to the system"""
     if not os.path.exists(file_path):
         print(f" File not found: {file_path}")
         return None
@@ -142,13 +123,11 @@ def get_all_analytics():
     return print_response(response, "Get All Analytics")
 
 def run_contact_correlation(analytic_id):
-    """Run contact correlation analysis"""
     url = f"{BASE_URL}/api/v1/analytic/{analytic_id}/contact-correlation"
     response = requests.get(url)
     return print_response(response, "Contact Correlation Analysis")
 
 def export_contact_correlation_pdf(analytic_id):
-    """Export contact correlation to PDF"""
     url = f"{BASE_URL}/api/v1/analytics/analytic/{analytic_id}/contact-correlation/export-pdf"
     response = requests.get(url)
     
@@ -164,7 +143,6 @@ def export_contact_correlation_pdf(analytic_id):
         return None
 
 def main():
-    """Run the complete workflow"""
     print(" Starting Forenlytic Complete Workflow")
     print(f"Base URL: {BASE_URL}")
     print(f"Dataset Path: {DATASET_PATH}")
@@ -221,11 +199,15 @@ def main():
         if result and result.get('status') == 200:
             device_data = result.get('data', {})
             if isinstance(device_data, list) and device_data:
-                device_id = device_data[0].get('device_id')
+                first_item = device_data[0]
+                if isinstance(first_item, dict):
+                    device_id = first_item.get('device_id')
+                else:
+                    device_id = None
             elif isinstance(device_data, dict):
                 device_id = device_data.get('device_id')
             else:
-                device_id = device_data.get('device_id')
+                device_id = None
             
             if device_id:
                 device_ids.append(device_id)

@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""
-Test script for case statistics endpoint
-"""
-
 import requests
 import json
 import sys
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://172.15.2.105"
 
 def test_statistics_endpoint():
-    """Test the case statistics endpoint"""
     try:
         response = requests.get(f"{BASE_URL}/api/v1/cases/statistics/summary")
         print(f"Status Code: {response.status_code}")
@@ -38,7 +33,6 @@ def test_statistics_endpoint():
         return None
 
 def main():
-    """Test case statistics endpoint"""
     print(" Testing Case Statistics Endpoint")
     print("=" * 50)
     

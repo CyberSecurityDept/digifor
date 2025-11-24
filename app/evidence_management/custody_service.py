@@ -1,10 +1,8 @@
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
-from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
-
 from app.evidence_management.models import CustodyLog, CustodyReport, Evidence
 from app.evidence_management.schemas import (
     CustodyLogCreate, CustodyLogUpdate, CustodyReportCreate
@@ -56,7 +54,7 @@ class CustodyService:
             self.db.rollback()
             raise e
     
-    def get_custody_chain(self, evidence_id: UUID) -> Dict[str, Any]:
+    def get_custody_chain(self, evidence_id: int) -> Dict[str, Any]:
         try:
             custody_logs = self.db.query(CustodyLog).filter(
                 CustodyLog.evidence_id == evidence_id
@@ -85,7 +83,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def get_custody_events(self, evidence_id: UUID, skip: int = 0, limit: int = 50, event_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_custody_events(self, evidence_id: int, skip: int = 0, limit: int = 50, event_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             query = self.db.query(CustodyLog).filter(
                 CustodyLog.evidence_id == evidence_id
@@ -107,7 +105,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def update_custody_log(self, custody_id: UUID, custody_update: CustodyLogUpdate) -> CustodyLog:
+    def update_custody_log(self, custody_id: int, custody_update: CustodyLogUpdate) -> CustodyLog:
         try:
             custody_log = self.db.query(CustodyLog).filter(
                 CustodyLog.id == custody_id
@@ -116,7 +114,7 @@ class CustodyService:
             if not custody_log:
                 raise ValueError("Custody log not found")
             
-            if custody_log.is_immutable:
+            if custody_log.is_immutable is True:
                 raise ValueError("Cannot modify immutable custody log")
             
             update_data = custody_update.dict(exclude_unset=True)
@@ -158,7 +156,7 @@ class CustodyService:
             self.db.rollback()
             raise e
     
-    def get_custody_reports(self, evidence_id: UUID, skip: int = 0, limit: int = 10, report_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_custody_reports(self, evidence_id: int, skip: int = 0, limit: int = 10, report_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             query = self.db.query(CustodyReport).filter(
                 CustodyReport.evidence_id == evidence_id
@@ -180,7 +178,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def get_custody_report(self, report_id: UUID) -> CustodyReport:
+    def get_custody_report(self, report_id: int) -> CustodyReport:
         try:
             report = self.db.query(CustodyReport).filter(
                 CustodyReport.id == report_id
@@ -194,7 +192,7 @@ class CustodyService:
         except Exception as e:
             raise e
     
-    def verify_custody_log(self, custody_id: UUID, verified_by: str) -> CustodyLog:
+    def verify_custody_log(self, custody_id: int, verified_by: str) -> CustodyLog:
         try:
             custody_log = self.db.query(CustodyLog).filter(
                 CustodyLog.id == custody_id
@@ -203,10 +201,10 @@ class CustodyService:
             if not custody_log:
                 raise ValueError("Custody log not found")
             
-            custody_log.is_verified = True
-            custody_log.verified_by = verified_by
+            setattr(custody_log, 'is_verified', True)
+            setattr(custody_log, 'verified_by', verified_by)
             WIB = timezone(timedelta(hours=7))
-            custody_log.verification_date = datetime.now(WIB)
+            setattr(custody_log, 'verification_date', datetime.now(WIB))
             
             self.db.commit()
             self.db.refresh(custody_log)
@@ -254,7 +252,7 @@ class CustodyService:
             "verification_method": custody_log.verification_method,
             "is_immutable": custody_log.is_immutable,
             "is_verified": custody_log.is_verified,
-            "verification_date": custody_log.verification_date.isoformat() if custody_log.verification_date else None,
+            "verification_date": custody_log.verification_date.isoformat() if custody_log.verification_date is not None else None,
             "verified_by": custody_log.verified_by,
             "created_at": custody_log.created_at.isoformat(),
             "created_by": custody_log.created_by,
@@ -277,7 +275,7 @@ class CustodyService:
             "report_file_hash": report.report_file_hash,
             "is_verified": report.is_verified,
             "verified_by": report.verified_by,
-            "verification_date": report.verification_date.isoformat() if report.verification_date else None,
+            "verification_date": report.verification_date.isoformat() if report.verification_date is not None else None,
             "created_at": report.created_at.isoformat(),
             "is_active": report.is_active
         }

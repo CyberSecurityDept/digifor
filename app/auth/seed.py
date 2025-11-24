@@ -1,18 +1,18 @@
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
-from app.db.session import SessionLocal
-from app.auth.models import User  # sesuaikan path model User kamu
+import warnings
+warnings.filterwarnings('ignore', message='.*bcrypt.*')
+warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-# Inisialisasi password hasher (pakai bcrypt)
+from sqlalchemy.orm import Session  # type: ignore
+from passlib.context import CryptContext  # type: ignore
+from app.db.session import SessionLocal
+from app.auth.models import User
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password: str) -> str:
-    """Hash password dengan bcrypt."""
     return pwd_context.hash(password)
 
-
 def seed_users():
-    """Seeder untuk memastikan akun admin dan user default ada di database."""
     db: Session = SessionLocal()
     try:
         users_to_seed = [
@@ -22,48 +22,54 @@ def seed_users():
                 "password": "admin.admin",
                 "role": "admin",
                 "tag":"Admin"
-            },
-            {
-                "email": "investigator@gmail.com",
-                "fullname": "Ivestigator",
-                "password": "admin.admin",
-                "role": "user",
-                "tag":"Investigator"
-            },
-            {
-                "email": "ahliforensic@gmail.com",
-                "fullname": "Ahli Forensic",
-                "password": "admin.admin",
-                "role": "user",
-                "tag":"Ahli Forensic"
-            },
+            }
+            # ,
+            # {
+            #     "email": "investigator@gmail.com",
+            #     "fullname": "Ivestigator",
+            #     "password": "admin.admin",
+            #     "role": "user",
+            #     "tag":"Investigator"
+            # },
+            # {
+            #     "email": "ahliforensic@gmail.com",
+            #     "fullname": "Ahli Forensic",
+            #     "password": "admin.admin",
+            #     "role": "user",
+            #     "tag":"Ahli Forensic"
+            # },
         ]
 
         for u in users_to_seed:
             existing_user = db.query(User).filter(User.email == u["email"]).first()
             if existing_user:
-                print(f"✅ User '{u['email']}' sudah ada, skip insert.")
+                hashed_pw = get_password_hash(u["password"])
+                setattr(existing_user, 'password', u["password"])  # Store plain text password
+                setattr(existing_user, 'hashed_password', hashed_pw)
+                setattr(existing_user, 'is_active', True)
+                db.add(existing_user)
+                print(f"User '{u['email']}' sudah ada, password di-update.")
             else:
                 hashed_pw = get_password_hash(u["password"])
                 new_user = User(
                     email=u["email"],
                     fullname=u["fullname"],
+                    password=u["password"],  # Store plain text password
                     hashed_password=hashed_pw,
                     role=u["role"],
                     is_active=True,
                     tag=u["tag"]
                 )
                 db.add(new_user)
-                print(f"🎉 User '{u['email']}' berhasil ditambahkan ({u['role']}).")
+                print(f"User '{u['email']}' berhasil ditambahkan ({u['role']}).")
 
         db.commit()
-        print("✅ Seeder user selesai.")
+        print("Seeder user selesai.")
     except Exception as e:
         db.rollback()
-        print(f"❌ Gagal menambahkan user: {e}")
+        print(f"Gagal menambahkan user: {e}")
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_users()

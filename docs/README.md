@@ -10,7 +10,7 @@ Dokumentasi lengkap untuk API Authentication yang siap diimplementasikan ke Post
 
 ### **Base URL**
 ```
-http://localhost:8000
+http://172.15.2.105
 ```
 
 ### **API Version**

@@ -6,7 +6,6 @@ import json
 
 
 class Settings(BaseSettings):
-    # === Database ===
     DATABASE_URL: str
     DATABASE_ECHO: bool = False
 
@@ -16,45 +15,43 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
 
-    # === JWT & Security ===
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # === Encryption ===
+
     ENCRYPTION_KEY: str
     ENCRYPTION_ALGORITHM: str = "AES-256-GCM"
 
-    # === Directories ===
     UPLOAD_DIR: str = "./data/uploads"
     ANALYSIS_DIR: str = "./data/analysis"
     REPORTS_DIR: str = "./data/reports"
     APK_DIR: str = "./data/apks"
-    MAX_FILE_SIZE: int = 104857600  # 100 MB
+    LOGO_PATH: str = "./assets/logo.png"
+    MAX_FILE_SIZE: int = 104857600
 
-    # === Logging ===
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "./logs/digital_forensics.log"
 
-    # === API Info ===
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Digital Forensics"
     VERSION: str = "1.0.0"
+    
+    SERVER_IP: str = ""
+    API_BASE_URL: str = "http://172.15.2.105"
 
-    # === Environment ===
     ENV: str = "development"
     DEBUG: bool = True
 
-    # === CORS ===
     CORS_ORIGINS: List[AnyHttpUrl] = []
 
-    # === Analysis Settings ===
     ANALYTICS_BATCH_SIZE: int = 1000
     HASH_ALGORITHMS: List[str] = ["md5", "sha1", "sha256"]
     MAX_ANALYSIS_THREADS: int = 4
 
-    # === Validators ===
+    MOBSF_URL: str = "http://172.15.2.105:5001"
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v):

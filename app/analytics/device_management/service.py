@@ -53,7 +53,7 @@ def get_all_files(db: Session, search: str = None, method: str = None):
                 "tools": f.tools,
                 "method": f.method,
                 "total_size": f.total_size,
-                "total_size_formatted": format_file_size(f.total_size) if f.total_size else None,
+                "total_size_formatted": format_file_size(f.total_size) if f.total_size is not None else None,
                 "amount_of_data": f.amount_of_data,
                 "created_at": f.created_at
             }
@@ -111,7 +111,7 @@ def create_device(
             db.add(device)
             db.commit()
             db.refresh(device)
-            device_id = device.id
+            device_id = int(device.id)
 
         if device_data.get("file_path"):
             db.add(HashFile(
@@ -170,7 +170,7 @@ def create_device(
             ))
 
         db.commit()
-        return device_id
+        return int(device_id)
 
     except Exception as e:
         db.rollback()
@@ -256,27 +256,17 @@ def save_hashfiles_to_database(file_id: int, hashfiles: List[Dict[str, Any]], so
 
             hashfile_record = HashFile(
                 file_id=file_id,
-                name=file_name,
-
                 file_name=original_file_name,
-                kind=original_file_kind,
                 size_bytes=original_file_size,
                 path_original=original_file_path,
                 created_at_original=original_created_at,
                 modified_at_original=original_modified_at,
-
                 md5_hash=md5_hash,
                 sha1_hash=sha1_hash,
-                file_size=int(hf.get('size', 0)) if hf.get('size') else None,
-                source_type=normalize_str(hf.get('source_type', 'File System')),
                 source_tool=source_tool,
                 file_type=file_type,
-                file_extension=file_extension,
-                is_duplicate="False",
-                is_suspicious=is_suspicious,
-                malware_detection=normalize_str(hf.get('malware_detection', '')),
-                risk_level=risk_level,
-                created_at=get_indonesia_time()
+                created_at=get_indonesia_time(),
+                updated_at=get_indonesia_time()
             )
 
             db.add(hashfile_record)
