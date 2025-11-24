@@ -43,7 +43,7 @@ def check_hashfile_data(analytic_id: int = 1):
             print(f"   Device ID: {d.id}, File ID: {d.file_id}, Owner: {d.owner_name}")
         
         file_ids = [d.file_id for d in devices]
-        print(f"\n📁 File IDs: {file_ids}")
+        print(f"\nFile IDs: {file_ids}")
         
         hashfiles = (
             db.query(HashFile)
@@ -52,7 +52,7 @@ def check_hashfile_data(analytic_id: int = 1):
             .all()
         )
         
-        print(f"\n📊 Hashfile Statistics:")
+        print(f"\nHashfile Statistics:")
         print(f"   Total hashfiles with hash: {len(hashfiles)}")
         
         if not hashfiles:
@@ -75,7 +75,7 @@ def check_hashfile_data(analytic_id: int = 1):
             print(f"      - SHA1 hashes: {sha1_count}")
             print(f"      - With file_name: {with_name}")
         
-        print(f"\n🔍 Checking Correlations (hash + file_name):")
+        print(f"\nChecking Correlations (hash + file_name):")
         
         correlation_map = {}
         for hf in hashfiles:
@@ -119,7 +119,7 @@ def check_hashfile_data(analytic_id: int = 1):
             print(f"   - Hashfiles have same hash but different file_name")
             print(f"   - Hashfiles don't have file_name set")
         
-        print(f"\n🔍 Checking Hash-Only Correlations:")
+        print(f"\nChecking Hash-Only Correlations:")
         hash_only_map = {}
         for hf in hashfiles:
             hash_value = hf.md5_hash or hf.sha1_hash

@@ -22,9 +22,9 @@ if ! python -c "import fastapi" 2>/dev/null; then
 fi
 
 echo "Starting server..."
-echo "Server will be available at: http://localhost:8000"
-echo "API Documentation: http://localhost:8000/docs"
-echo "Health Check: http://localhost:8000/health/health"
+echo "Server will be available at: http://172.15.2.105"
+echo "API Documentation: http://172.15.2.105/docs"
+echo "Health Check: http://172.15.2.105/health/health"
 echo "=============================================="
 echo "Press Ctrl+C to stop the server"
 echo "=============================================="

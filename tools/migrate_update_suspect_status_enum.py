@@ -1,5 +1,4 @@
-import sys
-import os
+import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
@@ -7,14 +6,12 @@ from app.core.config import settings
 
 def update_suspect_status_enum():
     print("Starting migration: Update suspect_status enum")
-    
-    # Create database connection
+
     database_url = settings.DATABASE_URL
     engine = create_engine(database_url)
     
     try:
         with engine.connect() as conn:
-            # Check current enum values
             check_query = text("""
                 SELECT enumlabel 
                 FROM pg_enum 
@@ -30,7 +27,6 @@ def update_suspect_status_enum():
             
             print(f"Current enum values: {current_values}")
             
-            # Required values based on model
             required_values = ["Witness", "Reported", "Suspected", "Suspect", "Defendant"]
             missing_values = [v for v in required_values if v not in current_values]
             

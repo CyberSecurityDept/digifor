@@ -50,13 +50,13 @@ Setelah service berjalan, verifikasi dengan mengakses endpoint:
 
 ```bash
 # Test endpoint root (public, tidak perlu auth)
-curl http://localhost:8000/
+curl http://172.15.2.105/
 
 # Test health check
-curl http://localhost:8000/health/health
+curl http://172.15.2.105/health/health
 
 # Test API documentation
-curl http://localhost:8000/docs
+curl http://172.15.2.105/docs
 ```
 
 Jika berhasil, akan mendapatkan response JSON atau halaman HTML.

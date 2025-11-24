@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     SERVER_IP: str = ""
-    API_BASE_URL: str = "http://localhost:8000"
+    API_BASE_URL: str = "http://172.15.2.105"
 
     ENV: str = "development"
     DEBUG: bool = True

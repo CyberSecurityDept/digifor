@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""
-Digital Forensics Backend Runner Script
-"""
 import uvicorn
-from app.config import settings
-from app.utils.logging import setup_logging
+from app.core.config import settings
+from app.core.logging import setup_logging
 
 if __name__ == "__main__":
-    # Setup logging
     logger = setup_logging()
     
     logger.info("========================================")
@@ -19,7 +15,7 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.debug,
-        log_level=settings.log_level.lower(),
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower(),
         access_log=True
     )

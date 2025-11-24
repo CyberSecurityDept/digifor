@@ -468,7 +468,7 @@ docker-compose up --build -d
 # This will:
 # - Build Docker images (with layer caching for faster rebuilds)
 # - Run database migrations automatically (via Dockerfile CMD)
-# - Start application service on http://localhost:8000
+# - Start application service on http://172.15.2.105
 # - Start seed service to initialize admin user
 # - All services will auto-restart on failure or system reboot (restart: always)
 ```
@@ -675,9 +675,9 @@ docker-compose up -d
 **Accessing the Application:**
 
 Once services are running:
-- **API**: `http://localhost:8000`
-- **API Documentation**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+- **API**: `http://172.15.2.105`
+- **API Documentation**: `http://172.15.2.105/docs`
+- **ReDoc**: `http://172.15.2.105/redoc`
 
 **Note:** All services are configured with `restart: always`, so they will automatically restart on failure or after system reboot.
 
@@ -783,7 +783,7 @@ sudo journalctl -u redis-server --no-pager -n 30
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-API akan tersedia di `http://localhost:8000`
+API akan tersedia di `http://172.15.2.105`
 
 ## 🚀 Setup Awal dan Menjalankan Service (Linux)
 
@@ -832,9 +832,9 @@ Untuk informasi lebih detail tentang systemd service, lihat dokumentasi di [`doc
 
 Once the server is running, you can access:
 
-- **Interactive API Docs**: `http://localhost:8000/docs`
-- **ReDoc Documentation**: `http://localhost:8000/redoc`
-- **OpenAPI Schema**: `http://localhost:8000/openapi.json`
+- **Interactive API Docs**: `http://172.15.2.105/docs`
+- **ReDoc Documentation**: `http://172.15.2.105/redoc`
+- **OpenAPI Schema**: `http://172.15.2.105/openapi.json`
 
 ## 📖 Documentation Files
 
