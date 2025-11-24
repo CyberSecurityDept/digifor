@@ -8,10 +8,12 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
-import traceback, re
+import traceback, re, logging
 from app.auth.models import User
 from app.api.deps import get_current_user
 from app.api.v1.analytics_management_routes import check_analytic_access
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -151,8 +153,10 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
     db: Session = Depends(get_db)
 ):
     try:
+        logger.info(f"getDeepCommunication called with analytic_id={analytic_id}, device_id={device_id}")
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
+            logger.warning(f"Analytic not found: analytic_id={analytic_id}")
             return JSONResponse(
                 content={
                     "status": 404,
@@ -162,6 +166,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             )
         
         if current_user is not None and not check_analytic_access(analytic, current_user):
+            logger.warning(f"Access denied for user {current_user.id} to analytic {analytic_id}")
             return JSONResponse(
                 content={
                     "status": 403,
@@ -171,7 +176,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             )
 
         method_value = analytic.method
+        logger.info(f"Analytic method: {method_value}, expected: 'Deep Communication Analytics'")
         if method_value is None or str(method_value) != "Deep Communication Analytics":
+            logger.warning(f"Invalid method for analytic {analytic_id}: {method_value}")
             return JSONResponse(
                 content={
                     "status": 400,
@@ -208,7 +215,9 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             )
             
         total_device_count = len(device_ids)
+        logger.info(f"Total device count for analytic {analytic_id}: {total_device_count}")
         if total_device_count < 2:
+            logger.warning(f"Insufficient devices for analytic {analytic_id}: {total_device_count} < 2")
             return JSONResponse(
                 content={
                     "status": 400,
