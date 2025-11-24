@@ -276,6 +276,55 @@ class CaseService:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
         update_data = case_data.dict(exclude_unset=True)
+        
+        agency = None
+        agency_name = None
+        agency_id_value = update_data.get('agency_id')
+        if agency_id_value is not None:
+            try:
+                agency_id_int = int(agency_id_value) if agency_id_value else None
+                if agency_id_int and agency_id_int > 0:
+                    agency = db.query(Agency).filter(Agency.id == agency_id_int).first()
+                    if not agency:
+                        raise HTTPException(status_code=404, detail=f"Agency with ID {agency_id_int} not found")
+                    agency_name = agency.name
+                    update_data['agency_id'] = agency.id
+            except (ValueError, TypeError):
+                pass
+        
+        if agency_name is None and 'agency_name' in update_data and update_data['agency_name']:
+            agency = get_or_create_agency(db, update_data['agency_name'])
+            update_data['agency_id'] = agency.id
+            agency_name = agency.name
+            update_data.pop('agency_name', None)
+        
+        work_unit = None
+        work_unit_name = None
+        work_unit_id_value = update_data.get('work_unit_id')
+        if work_unit_id_value is not None:
+            try:
+                work_unit_id_int = int(work_unit_id_value) if work_unit_id_value else None
+                if work_unit_id_int and work_unit_id_int > 0:
+                    work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id_int).first()
+                    if not work_unit:
+                        raise HTTPException(status_code=404, detail=f"Work unit with ID {work_unit_id_int} not found")
+                    work_unit_name = work_unit.name
+                    update_data['work_unit_id'] = work_unit.id
+            except (ValueError, TypeError):
+                pass
+        
+        if work_unit_name is None and 'work_unit_name' in update_data and update_data['work_unit_name']:
+            if not agency:
+                case_agency_id = getattr(case, 'agency_id', None)
+                if case_agency_id:
+                    agency = db.query(Agency).filter(Agency.id == case_agency_id).first()
+                if not agency:
+                    raise HTTPException(status_code=400, detail="Agency must be specified when creating work unit")
+            work_unit = get_or_create_work_unit(db, update_data['work_unit_name'], agency)
+            update_data['work_unit_id'] = work_unit.id
+            work_unit_name = work_unit.name
+            update_data.pop('work_unit_name', None)
+        
         if 'case_number' in update_data:
             manual_case_number = update_data['case_number']
             if manual_case_number and manual_case_number.strip():
@@ -297,20 +346,23 @@ class CaseService:
                 date_part = get_wib_now().strftime("%d%m%y")
                 case_id_str = str(case.id).zfill(4)
                 update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
+        
         old_status = case.status
         old_title = case.title
+        
         for field, value in update_data.items():
-            setattr(case, field, value)
+            if hasattr(case, field):
+                setattr(case, field, value)
+        
         db.commit()
         db.refresh(case)
-        agency_name = None
-        work_unit_name = None
-        if case.agency_id is not None:
+        
+        if agency_name is None and case.agency_id is not None:
             agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
             if agency:
                 agency_name = agency.name
         
-        if case.work_unit_id is not None:
+        if work_unit_name is None and case.work_unit_id is not None:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
