@@ -268,6 +268,16 @@ docker-compose build app
 docker-compose up -d app
 ```
 
+atau untuk windows
+```bash
+docker-compose build app; docker-compose up -d app
+```
+
+atau untuk mac os
+```bash
+docker-compose build app && docker-compose up -d app
+```
+
 ### Scenario 2: Perubahan Database Schema
 
 ```bash
