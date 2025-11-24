@@ -1230,7 +1230,7 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
 class EvidenceDetailPageCanvas(canvas.Canvas):
     def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
                  case_officer: str = "", created_date: str = "", person_related: str = "",
-                 evidence_source: str = "", logo_path: str = "", **kwargs):
+                 evidence_source: str = "", logo_path: str = "", evidence_number: str = "", **kwargs):
         super().__init__(*args, **kwargs)
         self.case_title = case_title
         self.case_id = case_id
@@ -1240,6 +1240,7 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
         self.person_related = person_related
         self.evidence_source = evidence_source
         self.logo_path = logo_path
+        self.evidence_number = evidence_number
         self._page_number = 1
         self.pages = []
 
@@ -1296,7 +1297,25 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
 
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
-        self.drawRightString(page_width - right_margin, header_y, f"Exported: {self.export_time}")
+        self.drawRightString(page_width - right_margin, header_y - 5, f"Exported: {self.export_time}")
+
+        if current_page > 1:
+            info_y = header_y - 45
+            
+            self.setFont("Helvetica-Bold", 20)
+            self.setFillColor(colors.HexColor("#0C0C0C"))
+            self.drawString(left_margin, info_y, self.evidence_number)
+            
+            case_related_y = info_y - 20
+            self.setFont("Helvetica-Bold", 12)
+            self.setFillColor(colors.HexColor("#333333"))
+            self.drawString(left_margin, case_related_y, f"Case Related : {self.case_title}")
+            
+            investigator_date_y = case_related_y - 40
+            self.setFont("Helvetica", 12)
+            self.setFillColor(colors.HexColor("#0C0C0C"))
+            self.drawString(left_margin, investigator_date_y, f"Investigator: {self.case_officer}")
+            self.drawRightString(page_width - right_margin, investigator_date_y, f"Date Created: {self.created_date}")
 
         footer_text = f"{self.case_title} - {self.case_id}"
         self.setFont("Helvetica", 10)
@@ -1352,7 +1371,9 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         subtitle_style = ParagraphStyle(
             "Subtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
         )
-        
+        acquisition_investigator_name_subtitle_style = ParagraphStyle(
+            "Subtitle", fontSize=100, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica"
+        )
         chain_of_custody_subtitle_style = ParagraphStyle(
             "ChainOfCustodySubtitle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_LEFT, fontName="Helvetica-Bold"
         )
@@ -1554,7 +1575,7 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                         date_str = f"{date_str.day} {month_name} {date_str.year}, {date_str.strftime('%H:%M')}"
                     else:
                         date_str = "N/A"
-                investigator = report.get("investigator", "N/A")
+                investigator = report.get("created_by", "N/A")
             else:
                 date_str = "N/A"
                 investigator = "N/A"
@@ -1586,13 +1607,28 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         story.append(chain_table)
         story.append(Spacer(1, 20))
 
-        evidence_source_details = [
-            Paragraph(f"Evidence Source: {evidence_source}", table_text_style),
-            Paragraph(f"Evidence Type: {evidence_info.get('evidence_type', 'N/A')}", table_text_style),
-            Paragraph(f"Evidence Detail: {evidence_info.get('evidence_detail', 'N/A')}", table_text_style),
+        evidence_source_value = evidence_source or "N/A"
+        evidence_type_value = evidence_info.get('evidence_type', 'N/A') or "N/A"
+        evidence_detail_value = evidence_info.get('evidence_detail', 'N/A') or "N/A"
+        
+        evidence_details_table_data = [
+            [
+                Paragraph(f"Evidence Source: {evidence_source_value}", table_text_style),
+                Paragraph(f"Evidence Type: {evidence_type_value}", table_text_style),
+                Paragraph(f"Evidence Detail: {evidence_detail_value}", table_text_style),
+            ]
         ]
-        for detail in evidence_source_details:
-            story.append(detail)
+        
+        evidence_details_table = Table(evidence_details_table_data, colWidths=[USABLE_WIDTH/3, USABLE_WIDTH/3, USABLE_WIDTH/3])
+        evidence_details_table.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("LEFTPADDING", (2, 0), (2, 0), -55),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(evidence_details_table)
         story.append(Spacer(1, 20))
 
         for custody_type in custody_types:
@@ -1609,16 +1645,40 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                     date_str = "N/A"
             else:
                 date_str = date_str.strftime("%d %B %Y, %H:%M") if hasattr(date_str, 'strftime') else str(date_str)
-            investigator = report.get("investigator", "N/A")
+            investigator = report.get("created_by", "N/A")
             
-            date_investigator_text = f"{date_str} {investigator}"
-            date_investigator_style = ParagraphStyle(
-                "DateInvestigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
-            )
-            
-            section_title_data = [
-                [Paragraph(custody_type, subtitle_style), Paragraph(date_investigator_text, date_investigator_style)]
-            ]
+            if custody_type.lower() == "acquisition":
+                date_style = ParagraphStyle(
+                    "DateStyle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+                )
+                investigator_style = ParagraphStyle(
+                    "InvestigatorStyle", fontSize=10, textColor=colors.HexColor("#545454"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+                )
+                
+                date_investigator_table_data = [
+                    [Paragraph(date_str, date_style)],
+                    [Paragraph(investigator, investigator_style)]
+                ]
+                date_investigator_table = Table(date_investigator_table_data, colWidths=[USABLE_WIDTH * 0.3])
+                date_investigator_table.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 17),
+                    ("TOPPADDING", (0, 0), (0, 0), 0),
+                    ("TOPPADDING", (0, 1), (0, 1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
+                section_title_data = [
+                    [Paragraph(custody_type, subtitle_style), date_investigator_table]
+                ]
+            else:
+                date_investigator_text = f"{date_str} {investigator}"
+                date_investigator_style = ParagraphStyle(
+                    "DateInvestigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+                )
+                section_title_data = [
+                    [Paragraph(custody_type, subtitle_style), Paragraph(date_investigator_text, date_investigator_style)]
+                ]
             section_title_table = Table(
                 section_title_data,
                 colWidths=[USABLE_WIDTH * 0.7, USABLE_WIDTH * 0.3]
@@ -1634,10 +1694,10 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
             story.append(Spacer(1, 10))
 
             details = report.get("details", {})
-            if isinstance(details, dict):
-                if custody_type.lower() == "acquisition" and details:
+            
+            if custody_type.lower() == "acquisition" and details:
                     steps_title_table = Table(
-                        [[Paragraph("Steps for Confiscating Evidence", subtitle_style)]],
+                        [[Paragraph("Steps for Confiscating Evidence", acquisition_investigator_name_subtitle_style)]],
                         colWidths=[USABLE_WIDTH]
                     )
                     steps_title_table.setStyle(TableStyle([
@@ -1716,8 +1776,9 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                     ]))
                     story.append(steps_table)
                     story.append(Spacer(1, 20))
-                
-                elif custody_type.lower() == "preparation" and details:
+            
+            if isinstance(details, dict):
+                if custody_type.lower() == "preparation" and details:
                     tools_title_table = Table(
                         [[Paragraph("Tools and Investigation Hypothesis", subtitle_style)]],
                         colWidths=[USABLE_WIDTH]
@@ -1899,6 +1960,7 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                 person_related=person_related,
                 evidence_source=evidence_source,
                 logo_path=logo_path,
+                evidence_number=evidence_number,
                 **kwargs
             )
             canvas_instance[0] = canvas_obj

@@ -54,7 +54,8 @@ class CustodyReport(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
-    investigator = Column(String(100), nullable=False)
+    created_by = Column(String(100), nullable=False)
+    investigator = Column(String(100), nullable=True)
     custody_type = Column(String(50), nullable=False)  
     location = Column(String(200), nullable=True)
     evidence_source = Column(String(100), nullable=True)

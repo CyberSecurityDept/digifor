@@ -34,7 +34,19 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         return JSONResponse(
-            content={"status": 404, "message": "Analytic not found", "data": None},
+            content={
+                "status": 404,
+                "message": f"Analytic with ID {analytic_id} not found",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": "Unknown"
+                    },
+                    "next_action": "create_analytic",
+                    "redirect_to": "/analytics/start-analyzing",
+                    "instruction": "Please create a new analytic with method 'Contact Correlation'"
+                }
+            },
             status_code=404,
         )
     
@@ -44,7 +56,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
             status_code=403,
         )
     
-    method_value = analytic.method
+    method_value = getattr(analytic, 'method', None)
     if method_value is None or str(method_value) != "Contact Correlation":
         return JSONResponse(
             content={
@@ -53,7 +65,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": analytic.analytic_name or "Unknown",
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown",
                         "current_method": str(method_value) if method_value else None
                     },
                     "next_action": "create_analytic",
@@ -82,7 +94,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": analytic.analytic_name or "Unknown"
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
                     },
                     "device_count": total_device_count,
                     "required_minimum": min_devices,
@@ -96,11 +108,45 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
     
     if not device_ids:
         return JSONResponse(
-            content={"status": 200, "message": "No devices linked", "data": {"devices": [], "correlations": [], "total_correlations": 0}},
-            status_code=200
+            content={
+                "status": 404,
+                "message": "No devices linked to this analytic",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
+                    },
+                    "device_count": 0,
+                    "required_minimum": min_devices,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": f"Please add at least {min_devices} devices to continue with Contact Correlation"
+                }
+            },
+            status_code=404
         )
 
     devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
+    
+    if not devices:
+        return JSONResponse(
+            content={
+                "status": 404,
+                "message": "Devices not found for this analytic",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
+                    },
+                    "device_count": 0,
+                    "required_minimum": min_devices,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": f"Please add at least {min_devices} devices to continue with Contact Correlation"
+                }
+            },
+            status_code=404
+        )
     
     file_ids = [d.file_id for d in devices]
     
