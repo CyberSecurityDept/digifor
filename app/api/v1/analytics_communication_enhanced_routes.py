@@ -160,7 +160,16 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             return JSONResponse(
                 content={
                     "status": 404,
-                    "message": "Analytic not found"
+                    "message": f"Analytic with ID {analytic_id} not found",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": "Unknown"
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": "Please create a new analytic with method 'Deep Communication Analytics'"
+                    }
                 },
                 status_code=404
             )
@@ -209,18 +218,21 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
         if not device_ids:
             return JSONResponse(
                 content={
-                    "status": 200,
+                    "status": 404,
                     "message": "No devices linked to this analytic",
                     "data": {
                         "analytic_info": {
                             "analytic_id": analytic_id,
                             "analytic_name": analytic.analytic_name or "Unknown"
                         },
-                        "devices": [],
-                        "summary": analytic.summary if analytic.summary else None
+                        "device_count": 0,
+                        "required_minimum": 2,
+                        "next_action": "add_device",
+                        "redirect_to": "/analytics/devices",
+                        "instruction": "Please add at least 2 devices to continue with Deep Communication Analytics"
                     }
                 },
-                status_code=200
+                status_code=404
             )
             
         total_device_count = len(device_ids)
@@ -251,13 +263,43 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 return JSONResponse(
                     content={
                         "status": 404,
-                        "message": "Device not found in this analytic"
+                        "message": "Device not found in this analytic",
+                        "data": {
+                            "analytic_info": {
+                                "analytic_id": analytic_id,
+                                "analytic_name": analytic.analytic_name or "Unknown"
+                            },
+                            "device_id": device_id,
+                            "next_action": "add_device",
+                            "redirect_to": "/analytics/devices",
+                            "instruction": "The specified device is not linked to this analytic. Please add the device first."
+                        }
                     },
                     status_code=404
                 )
             device_ids = [device_id]
 
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
+        
+        if not devices:
+            return JSONResponse(
+                content={
+                    "status": 404,
+                    "message": "Devices not found for this analytic",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic.analytic_name or "Unknown"
+                        },
+                        "device_count": 0,
+                        "required_minimum": 2,
+                        "next_action": "add_device",
+                        "redirect_to": "/analytics/devices",
+                        "instruction": "Please add at least 2 devices to continue with Deep Communication Analytics"
+                    }
+                },
+                status_code=404
+            )
             
         all_file_ids = [d.file_id for d in devices]
         all_messages = get_chat_messages_for_analytic(db, analytic_id, None, None, all_file_ids)
@@ -1005,7 +1047,16 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
             return JSONResponse(
                 content={
                     "status": 404,
-                    "message": "Analytic not found"
+                    "message": f"Analytic with ID {analytic_id} not found",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": "Unknown"
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": "Please create a new analytic with method 'Deep Communication Analytics'"
+                    }
                 },
                 status_code=404
             )
@@ -1051,11 +1102,21 @@ def get_platform_cards_intensity(  # type: ignore[reportGeneralTypeIssues]
                 return JSONResponse(
                     content={
                         "status": 404,
-                        "message": "Device not found in this analytic"
+                        "message": "Device not found in this analytic",
+                        "data": {
+                            "analytic_info": {
+                                "analytic_id": analytic_id,
+                                "analytic_name": analytic.analytic_name or "Unknown"
+                            },
+                            "device_id": device_id,
+                            "next_action": "add_device",
+                            "redirect_to": "/analytics/devices",
+                            "instruction": "The specified device is not linked to this analytic. Please add the device first."
+                        }
                     },
                     status_code=404
                 )
-        device_ids = [device_id]
+            device_ids = [device_id]
 
         devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
         file_ids = [d.file_id for d in devices]
@@ -1760,7 +1821,16 @@ def get_chat_detail(  # type: ignore[reportGeneralTypeIssues]
             return JSONResponse(
                 content={
                     "status": 404,
-                    "message": "Analytic not found"
+                    "message": f"Analytic with ID {analytic_id} not found",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": "Unknown"
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": "Please create a new analytic with method 'Deep Communication Analytics'"
+                    }
                 },
                 status_code=404
             )

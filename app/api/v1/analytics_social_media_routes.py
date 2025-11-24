@@ -20,7 +20,19 @@ def _get_social_media_correlation_data(
     analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
     if not analytic:
         return JSONResponse(
-            {"status": 404, "message": "Analytic not found", "data": {}},
+            {
+                "status": 404,
+                "message": f"Analytic with ID {analytic_id} not found",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": "Unknown"
+                    },
+                    "next_action": "create_analytic",
+                    "redirect_to": "/analytics/start-analyzing",
+                    "instruction": "Please create a new analytic with method 'Social Media Correlation'"
+                }
+            },
             status_code=404,
         )
     
@@ -58,7 +70,21 @@ def _get_social_media_correlation_data(
     )
     if not device_links:
         return JSONResponse(
-            {"status": 404, "message": "No linked devices", "data": {}},
+            {
+                "status": 404,
+                "message": "No devices linked to this analytic",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
+                    },
+                    "device_count": 0,
+                    "required_minimum": 2,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": "Please add at least 2 devices to continue with Social Media Correlation"
+                }
+            },
             status_code=404,
         )
 
@@ -97,7 +123,21 @@ def _get_social_media_correlation_data(
     )
     if not devices:
         return JSONResponse(
-            {"status": 404, "message": "Devices not found", "data": {}},
+            {
+                "status": 404,
+                "message": "Devices not found for this analytic",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
+                    },
+                    "device_count": 0,
+                    "required_minimum": 2,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": "Please add at least 2 devices to continue with Social Media Correlation"
+                }
+            },
             status_code=404,
         )
 

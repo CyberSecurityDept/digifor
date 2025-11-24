@@ -602,6 +602,20 @@ async def export_evidence_detail_pdf(
             CustodyReport.evidence_id == evidence_id
         ).order_by(CustodyReport.created_at.asc()).all()
 
+        evidence_type_from_custody = None
+        evidence_detail_from_custody = None
+        if custody_reports:
+            for report in custody_reports:
+                evidence_type_value = getattr(report, 'evidence_type', None)
+                evidence_detail_value = getattr(report, 'evidence_detail', None)
+                if evidence_type_value:
+                    evidence_type_from_custody = evidence_type_value
+                if evidence_detail_value:
+                    evidence_detail_from_custody = evidence_detail_value
+                
+                if evidence_type_from_custody and evidence_detail_from_custody:
+                    break
+
         case_created_date = "N/A"
         if case.created_at:
             try:
@@ -620,8 +634,8 @@ async def export_evidence_detail_pdf(
                 "description": evidence.description or "No description available",
                 "investigator": evidence.investigator or "N/A",
                 "source": getattr(evidence, 'source', None),
-                "evidence_type": getattr(evidence, 'evidence_type', None),
-                "evidence_detail": getattr(evidence, 'evidence_detail', None),
+                "evidence_type": evidence_type_from_custody or getattr(evidence, 'evidence_type', None),
+                "evidence_detail": evidence_detail_from_custody or getattr(evidence, 'evidence_detail', None),
                 "file_path": evidence.file_path,
                 "file_size": evidence.file_size,
             },
@@ -639,7 +653,7 @@ async def export_evidence_detail_pdf(
                 {
                     "id": report.id,
                     "custody_type": report.custody_type,
-                    "investigator": report.investigator,
+                    "created_by": report.created_by,
                     "location": report.location,
                     "notes": report.notes,
                     "details": report.details if isinstance(report.details, dict) else {},
@@ -1193,7 +1207,7 @@ def human_readable_size(size_bytes: int):
 @router.post("/{evidence_id}/custody/acquisition")
 async def create_acquisition_report(
     evidence_id: int,
-    investigator: str = Form(...),
+    investigator: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_type: Optional[str] = Form(None),
@@ -1201,7 +1215,8 @@ async def create_acquisition_report(
     notes: Optional[str] = Form(None),
     steps: List[str] = Form(...),
     photos: List[UploadFile] = File(...),
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
 
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
@@ -1219,11 +1234,20 @@ async def create_acquisition_report(
             "steps": step,
             "photo": photo_paths[idx] if idx < len(photo_paths) else None
         })
-    if evidence_source == None :
-        evidence_source = 'Hp'
+    if not evidence_source:
+        evidence_source = getattr(evidence, 'source', None)
+    
+    created_by = getattr(current_user, 'email', None)
+    if not created_by:
+        created_by = str(current_user.id)
+
+    if not investigator:
+        investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+    
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="acquisition",
+        created_by=created_by,
         investigator=investigator,
         location=location,
         evidence_source=evidence_source,
@@ -1255,17 +1279,16 @@ async def create_acquisition_report(
 @router.post("/{evidence_id}/custody/preparation")
 async def create_preparation_report(
     evidence_id: int,
-    investigator: str = Form(...),
+    investigator: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_type: Optional[str] = Form(None),
     evidence_detail: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
-
     hypothesis: List[str] = Form(...),
     tools: List[str] = Form(...),
-
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
     if not evidence:
@@ -1283,11 +1306,21 @@ async def create_preparation_report(
             "hypothesis": hypothesis[i] if i < len(hypothesis) else None,
             "tools": tools[i] if i < len(tools) else None
         })
-    if evidence_source == None :
-        evidence_source = 'Hp'
+    
+    if not evidence_source:
+        evidence_source = getattr(evidence, 'source', None)
+
+    created_by = getattr(current_user, 'email', None)
+    if not created_by:
+        created_by = str(current_user.id)
+
+    if not investigator:
+        investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+    
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="preparation",
+        created_by=created_by,
         investigator=investigator,
         location=location,
         evidence_source=evidence_source,
@@ -1319,14 +1352,15 @@ async def create_preparation_report(
 @router.post("/{evidence_id}/custody/extraction")
 async def create_extraction_report(
     evidence_id: int,
-    investigator: str = Form(...),
+    investigator: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_type: Optional[str] = Form(None),
     evidence_detail: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     extraction_file: UploadFile = File(...),
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
 
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
@@ -1351,11 +1385,21 @@ async def create_extraction_report(
         "file_name": file_name,
         "file_size": file_size_human,
     }
-    if evidence_source == None :
-        evidence_source = 'Hp'
+
+    if not evidence_source:
+        evidence_source = getattr(evidence, 'source', None)
+
+    created_by = getattr(current_user, 'email', None)
+    if not created_by:
+        created_by = str(current_user.id)
+
+    if not investigator:
+        investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+    
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="extraction",
+        created_by=created_by,
         investigator=investigator,
         location=location,
         evidence_source=evidence_source,
@@ -1387,18 +1431,17 @@ async def create_extraction_report(
 @router.post("/{evidence_id}/custody/analysis")
 async def create_analysis_report(
     evidence_id: int,
-    investigator: str = Form(...),
     location: Optional[str] = Form(None),
     evidence_source: Optional[str] = Form(None),
     evidence_type: Optional[str] = Form(None),
     evidence_detail: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
-
     hypothesis: List[str] = Form(...),
     tools: List[str] = Form(...),
     result: List[str] = Form(...),
     files: List[UploadFile] = File(default=[]),
-    db: Session = Depends(get_database)
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
 ):
     evidence = db.query(Evidence).filter(Evidence.id == evidence_id).first()
     if not evidence:
@@ -1436,11 +1479,20 @@ async def create_analysis_report(
         "results": results,
         "files": files_meta
     }
-    if evidence_source == None :
-        evidence_source = 'Hp'
+
+    if not evidence_source:
+        evidence_source = getattr(evidence, 'source', None)
+    
+    created_by = getattr(current_user, 'email', None)
+    if not created_by:
+        created_by = str(current_user.id)
+    
+    investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+    
     report = CustodyReport(
         evidence_id=evidence_id,
         custody_type="analysis",
+        created_by=created_by,
         investigator=investigator,
         location=location,
         evidence_source=evidence_source,
@@ -1454,7 +1506,6 @@ async def create_analysis_report(
     db.commit()
     db.refresh(report)
 
-    # LOG
     db.add(CustodyLog(
         evidence_id=evidence_id,
         custody_type="analysis",
