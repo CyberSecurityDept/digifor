@@ -3,7 +3,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy.orm import Session
 from app.db.session import get_db, init_db
 from app.case_management.models import Agency, Case
-from app.evidence_management.models import EvidenceType, Evidence
+from app.evidence_management.models import Evidence
 from app.suspect_management.models import Suspect
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -24,21 +24,6 @@ def create_sample_data():
             existing = db.query(Agency).filter(Agency.name == agency.name).first()
             if not existing:
                 db.add(agency)
-        
-        db.commit()
-        
-        evidence_types = [
-            EvidenceType(name="Mobile Phone", category="Digital", description="Smartphone evidence"),
-            EvidenceType(name="Document", category="Physical", description="Paper documents"),
-            EvidenceType(name="DNA Sample", category="Biological", description="Biological evidence"),
-            EvidenceType(name="Computer", category="Digital", description="Computer evidence"),
-            EvidenceType(name="Vehicle", category="Physical", description="Vehicle evidence")
-        ]
-        
-        for evidence_type in evidence_types:
-            existing = db.query(EvidenceType).filter(EvidenceType.name == evidence_type.name).first()
-            if not existing:
-                db.add(evidence_type)
         
         db.commit()
         
@@ -116,7 +101,7 @@ def create_sample_data():
                 case_id=cases[0].id,
                 investigator="Solehun",
                 suspect_id=suspects[0].id,
-                evidence_type_id=evidence_types[0].id,
+                source="Mobile Phone",
                 collected_date=datetime.now(timezone.utc)
             ),
             Evidence(
@@ -130,7 +115,7 @@ def create_sample_data():
                 case_id=cases[0].id,
                 investigator="Solehun",
                 suspect_id=suspects[1].id,
-                evidence_type_id=evidence_types[1].id,
+                source="Document",
                 collected_date=datetime.now(timezone.utc)
             )
         ]
@@ -145,7 +130,6 @@ def create_sample_data():
         print("Sample data created successfully!")
         print(f"Created:")
         print(f" - {len(agencies)} Agencies")
-        print(f" - {len(evidence_types)} Evidence Types")
         print(f" - {len(suspects)} Suspects")
         print(f" - {len(cases)} Cases")
         print(f" - {len(evidence_items)} Evidence items")

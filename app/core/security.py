@@ -47,7 +47,6 @@ def create_access_token(subject: str, expires_delta=None) -> str:
     
     return token
 
-
 def decode_token(token: str) -> dict:
     return jwt.decode(
         token,

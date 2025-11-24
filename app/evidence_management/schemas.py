@@ -6,7 +6,8 @@ class EvidenceBase(BaseModel):
     evidence_number: str = Field(..., description="Evidence number")
     title: str = Field(..., description="Evidence title")
     description: Optional[str] = Field(None, description="Evidence description")
-    evidence_type_id: Optional[int] = Field(None, description="Evidence type ID")
+    source: Optional[str] = Field(None, description="Evidence source")
+    evidence_type: Optional[str] = Field(None, description="Evidence type")
     case_id: int = Field(..., description="Case ID")
     file_path: Optional[str] = Field(None, description="File path")
     file_size: Optional[int] = Field(None, description="File size in bytes")
@@ -25,7 +26,8 @@ class EvidenceCreate(EvidenceBase):
 class EvidenceUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    evidence_type_id: Optional[int] = None
+    source: Optional[str] = None
+    evidence_type: Optional[str] = None
     file_path: Optional[str] = None
     file_size: Optional[int] = None
     file_hash: Optional[str] = None
