@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, Upload
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 import traceback, os, hashlib, re
 from app.api.deps import get_database, get_current_user
@@ -44,7 +44,7 @@ async def get_suspects(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
+    status: Optional[List[str]] = Query(None),   # <-- UBAH DI SINI
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
@@ -71,11 +71,10 @@ async def get_suspect_summary(
     db: Session = Depends(get_database)
 ):
     try:
-        suspect_query = db.query(Suspect)
-        evidence_query = db.query(Evidence)
-        
-        total_person = suspect_query.count()
-        total_evidence = evidence_query.count()
+        total_person = db.query(Suspect).filter(Suspect.is_unknown == False).count()
+
+        total_evidence = db.query(Evidence).count()
+
         return JSONResponse(
             status_code=200,
             content={
@@ -87,12 +86,14 @@ async def get_suspect_summary(
                 }
             }
         )
+
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Unexpected server error: {str(e)}"
         )
+
 
 @router.post("/create-suspect", response_model=SuspectResponse)
 async def create_suspect(
@@ -439,6 +440,7 @@ async def get_suspect_detail(
             "suspect_status": suspect.status,
             "investigator": suspect.investigator,
             "case_name": suspect.case_name,
+            "case_id": suspect.case_id,
             "created_at_case": created_at_case_str,
             "evidence": [
                 {
