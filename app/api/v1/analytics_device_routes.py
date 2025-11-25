@@ -30,28 +30,38 @@ def format_file_size(size_bytes):
 @router.post("/analytics/add-device")
 async def add_device(
     file_id: int = Form(...),
+    analytic_id: int = Form(...),
     name: str = Form(...),
     phone_number: str = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
-        latest_analytic = db.query(Analytic).order_by(Analytic.created_at.desc()).first()
+        analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         
-        if not latest_analytic:
+        if not analytic:
             return JSONResponse(
-                {"status": 404, "message": "No analytic found. Please create an analytic first.", "data": []},
+                {
+                    "status": 404, 
+                    "message": f"Analytic with ID {analytic_id} not found", 
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": "Unknown"
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": "The specified analytic was not found. Please create a new analytic."
+                    }
+                },
                 status_code=404
             )
         
-        if current_user is not None and not check_analytic_access(latest_analytic, current_user):
+        if current_user is not None and not check_analytic_access(analytic, current_user):
             return JSONResponse(
                 {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
                 status_code=403
             )
-        
-        analytic_id = latest_analytic.id
-        analytic = latest_analytic
         
         file_record = db.query(File).filter(File.id == file_id).first()
         if not file_record:
@@ -78,9 +88,9 @@ async def add_device(
                             "analytic_name": getattr(analytic, 'analytic_name', 'Unknown'),
                             "analytic_method": analytic_method
                         },
-                        "next_action": "create_analytic",
-                        "redirect_to": "/analytics/start-analyzing",
-                        "instruction": f"File method '{file_method}' does not match current analytic method '{analytic_method}'. Please create a new analytic with method '{file_method}' or select a file with method '{analytic_method}'."
+                        "next_action": "select_file",
+                        "redirect_to": "/analytics/devices",
+                        "instruction": f"File method '{file_method}' does not match current analytic method '{analytic_method}'. Please select a file with method '{analytic_method}' for this analytic, or create a new analytic with method '{file_method}'."
                     }
                 },
                 status_code=400
