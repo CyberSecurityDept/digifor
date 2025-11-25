@@ -122,7 +122,13 @@ def get_chat_messages_for_analytic(
     query = db.query(ChatMessage)
     
     if file_ids:
-        query = query.filter(ChatMessage.file_id.in_(file_ids))
+        valid_file_ids = [fid for fid in file_ids if fid is not None]
+        if valid_file_ids:
+            query = query.filter(ChatMessage.file_id.in_(valid_file_ids))
+            logger.debug(f"Filtering ChatMessage by file_ids: {valid_file_ids}")
+        else:
+            logger.warning(f"All file_ids are None, returning empty result")
+            return []
 
     if platform:
         normalized_platform = normalize_platform_name(platform)
@@ -143,7 +149,9 @@ def get_chat_messages_for_analytic(
                 )
             )
     
-    return query.all()
+    messages = query.all()
+    logger.debug(f"get_chat_messages_for_analytic: Found {len(messages)} messages (analytic_id={analytic_id}, device_id={device_id}, platform={platform}, file_ids={file_ids})")
+    return messages
 
 @router.get("/analytic/deep-communication-analytics")
 def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
@@ -306,8 +314,10 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 status_code=404
             )
             
-        all_file_ids = [d.file_id for d in devices]
+        all_file_ids = [d.file_id for d in devices if d.file_id]
+        logger.info(f"Retrieving messages for file_ids: {all_file_ids}")
         all_messages = get_chat_messages_for_analytic(db, analytic_id, None, None, all_file_ids)
+        logger.info(f"Found {len(all_messages)} total messages for analytic {analytic_id}")
         
         all_platforms = [
             {'key': 'instagram', 'display': 'Instagram'},
@@ -321,8 +331,13 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
         devices_with_platforms = []
         
         for device in devices:
+            if not device.file_id:
+                logger.warning(f"Device {device.id} has no file_id")
+                continue
+                
             device_file_ids = [device.file_id]
             device_messages = [msg for msg in all_messages if msg.file_id == device.file_id]
+            logger.info(f"Device {device.id} (file_id={device.file_id}): Found {len(device_messages)} messages")
             
             platform_cards = []
             
@@ -337,6 +352,14 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                 
                 message_count = len(platform_messages)
                 has_data = message_count > 0
+                
+                if has_data:
+                    logger.info(f"Device {device.id}, Platform {platform_display}: Found {message_count} messages")
+                else:
+                    # Log available platforms for debugging
+                    available_platforms = set([normalize_platform_name(msg.platform or '') for msg in device_messages])
+                    if available_platforms:
+                        logger.debug(f"Device {device.id}, Platform {platform_display}: No messages. Available platforms: {available_platforms}")
   
                 thread_person_messages = defaultdict(lambda: defaultdict(list))
                 person_info = {}
