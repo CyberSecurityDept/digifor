@@ -271,110 +271,119 @@ class CaseService:
         }
     
     def update_case(self, db: Session, case_id: int, case_data: CaseUpdate, current_user=None) -> dict:
-            case = db.query(Case).filter(Case.id == case_id).first()
-            if not case:
-                raise HTTPException(404, f"Case with ID {case_id} not found")
-
-            update_data = case_data.dict(exclude_unset=True)
-
-            # ======================================================
-            # HANDLE AGENCY UPDATE NAME (NO CREATE NEW)
-            # ======================================================
-            agency_id = update_data.pop("agency_id", None)
-            agency_name = update_data.pop("agency_name", None)
-
-            if agency_id is not None:
-                agency = db.query(Agency).filter(Agency.id == agency_id).first()
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        update_data = case_data.dict(exclude_unset=True)
+        
+        agency = None
+        agency_name = None
+        agency_id_value = update_data.get('agency_id')
+        if agency_id_value is not None:
+            try:
+                agency_id_int = int(agency_id_value) if agency_id_value else None
+                if agency_id_int and agency_id_int > 0:
+                    agency = db.query(Agency).filter(Agency.id == agency_id_int).first()
+                    if not agency:
+                        raise HTTPException(status_code=404, detail=f"Agency with ID {agency_id_int} not found")
+                    agency_name = agency.name
+                    update_data['agency_id'] = agency.id
+            except (ValueError, TypeError):
+                pass
+        
+        if agency_name is None and 'agency_name' in update_data and update_data['agency_name']:
+            agency = get_or_create_agency(db, update_data['agency_name'])
+            update_data['agency_id'] = agency.id
+            agency_name = agency.name
+            update_data.pop('agency_name', None)
+        
+        work_unit = None
+        work_unit_name = None
+        work_unit_id_value = update_data.get('work_unit_id')
+        if work_unit_id_value is not None:
+            try:
+                work_unit_id_int = int(work_unit_id_value) if work_unit_id_value else None
+                if work_unit_id_int and work_unit_id_int > 0:
+                    work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id_int).first()
+                    if not work_unit:
+                        raise HTTPException(status_code=404, detail=f"Work unit with ID {work_unit_id_int} not found")
+                    work_unit_name = work_unit.name
+                    update_data['work_unit_id'] = work_unit.id
+            except (ValueError, TypeError):
+                pass
+        
+        if work_unit_name is None and 'work_unit_name' in update_data and update_data['work_unit_name']:
+            if not agency:
+                case_agency_id = getattr(case, 'agency_id', None)
+                if case_agency_id:
+                    agency = db.query(Agency).filter(Agency.id == case_agency_id).first()
                 if not agency:
-                    raise HTTPException(404, f"Agency with ID {agency_id} not found")
-
-                if agency_name:
-                    agency.name = agency_name
-                    db.commit()
-                    db.refresh(agency)
-
-                # Update relationship
-                update_data["agency_id"] = agency_id
-
-            # ======================================================
-            # HANDLE WORK UNIT UPDATE NAME (NO CREATE NEW)
-            # ======================================================
-            work_unit_id = update_data.pop("work_unit_id", None)
-            work_unit_name = update_data.pop("work_unit_name", None)
-
-            if work_unit_id is not None:
-                work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id).first()
-                if not work_unit:
-                    raise HTTPException(404, f"Work Unit with ID {work_unit_id} not found")
-
-                if work_unit_name:
-                    work_unit.name = work_unit_name
-                    db.commit()
-                    db.refresh(work_unit)
-
-                update_data["work_unit_id"] = work_unit_id
-
-            # ======================================================
-            # HANDLE CASE NUMBER
-            # ======================================================
-            if "case_number" in update_data:
-                manual = update_data["case_number"]
-                if manual and manual.strip():
-                    exists = db.query(Case).filter(
-                        Case.case_number == manual.strip(),
-                        Case.id != case_id
-                    ).first()
-
-                    if exists:
-                        raise HTTPException(409, f"Case number '{manual}' already exists")
-
-                    update_data["case_number"] = manual.strip()
-
-                else:
-                    title = update_data.get("title", case.title).strip().upper()
-                    parts = title.split()
-                    initials = "".join([w[0] for w in parts[:3]])
-                    date_part = get_wib_now().strftime("%d%m%y")
-                    case_id_str = str(case.id).zfill(4)
-                    update_data["case_number"] = f"{initials}-{date_part}-{case_id_str}"
-
-            # ======================================================
-            # UPDATE CASE ITSELF
-            # ======================================================
-            for field, value in update_data.items():
+                    raise HTTPException(status_code=400, detail="Agency must be specified when creating work unit")
+            work_unit = get_or_create_work_unit(db, update_data['work_unit_name'], agency)
+            update_data['work_unit_id'] = work_unit.id
+            work_unit_name = work_unit.name
+            update_data.pop('work_unit_name', None)
+        
+        if 'case_number' in update_data:
+            manual_case_number = update_data['case_number']
+            if manual_case_number and manual_case_number.strip():
+                existing_case = db.query(Case).filter(
+                    Case.case_number == manual_case_number.strip(),
+                    Case.id != case_id
+                ).first()
+                if existing_case:
+                    raise HTTPException(
+                        status_code=409, 
+                        detail=f"Case number '{manual_case_number}' already exists"
+                    )
+                update_data['case_number'] = manual_case_number.strip()
+            else:
+                title = update_data.get('title', case.title).strip().upper()
+                words = title.split()
+                first_three_words = words[:3]
+                initials = ''.join([w[0] for w in first_three_words])
+                date_part = get_wib_now().strftime("%d%m%y")
+                case_id_str = str(case.id).zfill(4)
+                update_data['case_number'] = f"{initials}-{date_part}-{case_id_str}"
+        
+        old_status = case.status
+        old_title = case.title
+        
+        for field, value in update_data.items():
+            if hasattr(case, field):
                 setattr(case, field, value)
+        
+        db.commit()
+        db.refresh(case)
+        
+        if agency_name is None and case.agency_id is not None:
+            agency = db.query(Agency).filter(Agency.id == case.agency_id).first()
+            if agency:
+                agency_name = agency.name
+        
+        if work_unit_name is None and case.work_unit_id is not None:
+            work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
+            if work_unit:
+                work_unit_name = work_unit.name
 
-            db.commit()
-            db.refresh(case)
+        date_created = case.created_at.strftime("%d/%m/%Y")
+        date_updated = case.updated_at.strftime("%d/%m/%Y")
 
-            # ======================================================
-            # PREPARE RESPONSE
-            # ======================================================
-            agency_name_final = None
-            work_unit_name_final = None
-
-            if case.agency_id: # type: ignore
-                ag = db.query(Agency).filter(Agency.id == case.agency_id).first()
-                if ag:
-                    agency_name_final = ag.name
-
-            if case.work_unit_id: # type: ignore
-                wu = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
-                if wu:
-                    work_unit_name_final = wu.name
-
-            return {
-                "id": case.id,
-                "case_number": case.case_number,
-                "title": case.title,
-                "description": case.description,
-                "status": case.status,
-                "main_investigator": case.main_investigator,
-                "agency_name": agency_name_final,
-                "work_unit_name": work_unit_name_final,
-                "created_at": case.created_at.strftime("%d/%m/%Y"),
-                "updated_at": case.updated_at.strftime("%d/%m/%Y"),
-            }
+        case_dict = {
+            "id": case.id,
+            "case_number": case.case_number,
+            "title": case.title,
+            "description": case.description,
+            "status": case.status,
+            "main_investigator": case.main_investigator,
+            "agency_name": agency_name,
+            "work_unit_name": work_unit_name,
+            "created_at": date_created,
+            "updated_at": date_updated
+        }
+        
+        return case_dict
     
     def get_case_statistics(self, db: Session, current_user=None) -> dict:
         query = db.query(Case)

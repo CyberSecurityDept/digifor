@@ -85,28 +85,8 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
         device_ids.extend(link.device_ids)
     device_ids = list(set(device_ids))
     
-    total_device_count = len(device_ids)
-    if total_device_count < min_devices:
-        return JSONResponse(
-            content={
-                "status": 400,
-                "message": f"Contact Correlation requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
-                "data": {
-                    "analytic_info": {
-                        "analytic_id": analytic_id,
-                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
-                    },
-                    "device_count": total_device_count,
-                    "required_minimum": min_devices,
-                    "next_action": "add_device",
-                    "redirect_to": "/analytics/devices",
-                    "instruction": f"Please add at least {min_devices} devices to continue with Contact Correlation"
-                }
-            },
-            status_code=400
-        )
-    
     if not device_ids:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
         return JSONResponse(
             content={
                 "status": 404,
@@ -114,9 +94,31 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
+                        "analytic_name": analytic_name_value
                     },
                     "device_count": 0,
+                    "required_minimum": min_devices,
+                    "next_action": "add_device",
+                    "redirect_to": "/analytics/devices",
+                    "instruction": f"Please add at least {min_devices} devices to continue with Contact Correlation"
+                }
+            },
+            status_code=404
+        )
+    
+    total_device_count = len(device_ids)
+    if total_device_count < min_devices:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
+        return JSONResponse(
+            content={
+                "status": 404,
+                "message": f"Contact Correlation requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
+                "data": {
+                    "analytic_info": {
+                        "analytic_id": analytic_id,
+                        "analytic_name": analytic_name_value
+                    },
+                    "device_count": total_device_count,
                     "required_minimum": min_devices,
                     "next_action": "add_device",
                     "redirect_to": "/analytics/devices",
@@ -129,6 +131,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
     devices = db.query(Device).filter(Device.id.in_(device_ids)).order_by(Device.id).all()
     
     if not devices:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
         return JSONResponse(
             content={
                 "status": 404,
@@ -136,7 +139,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown" or "Unknown"
+                        "analytic_name": analytic_name_value
                     },
                     "device_count": 0,
                     "required_minimum": min_devices,

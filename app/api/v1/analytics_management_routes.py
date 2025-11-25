@@ -221,29 +221,9 @@ def _get_hashfile_analytics_data(
         ).all()
 
         device_ids = list({d for link in device_links for d in link.device_ids})
-        total_device_count = len(device_ids)
-        
-        if total_device_count < min_devices:
-            return JSONResponse(
-                {
-                    "status": 400,
-                    "message": f"Hashfile Analytics requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
-                    "data": {
-                        "analytic_info": {
-                            "analytic_id": analytic_id,
-                            "analytic_name": analytic.analytic_name or "Unknown"
-                        },
-                        "device_count": total_device_count,
-                        "required_minimum": min_devices,
-                        "next_action": "add_device",
-                        "redirect_to": "/analytics/devices",
-                        "instruction": f"Please add at least {min_devices} devices to continue with Hashfile Analytics"
-                    }
-                },
-                status_code=400,
-            )
         
         if not device_ids:
+            analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
             return JSONResponse(
                 {
                     "status": 404,
@@ -251,9 +231,31 @@ def _get_hashfile_analytics_data(
                     "data": {
                         "analytic_info": {
                             "analytic_id": analytic_id,
-                            "analytic_name": analytic.analytic_name or "Unknown"
+                            "analytic_name": analytic_name_value
                         },
                         "device_count": 0,
+                        "required_minimum": min_devices,
+                        "next_action": "add_device",
+                        "redirect_to": "/analytics/devices",
+                        "instruction": f"Please add at least {min_devices} devices to continue with Hashfile Analytics"
+                    }
+                },
+                status_code=404,
+            )
+        
+        total_device_count = len(device_ids)
+        if total_device_count < min_devices:
+            analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
+            return JSONResponse(
+                {
+                    "status": 404,
+                    "message": f"Hashfile Analytics requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": analytic_name_value
+                        },
+                        "device_count": total_device_count,
                         "required_minimum": min_devices,
                         "next_action": "add_device",
                         "redirect_to": "/analytics/devices",
@@ -265,6 +267,7 @@ def _get_hashfile_analytics_data(
 
         devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
         if not devices:
+            analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
             return JSONResponse(
                 {
                     "status": 404,
@@ -272,7 +275,7 @@ def _get_hashfile_analytics_data(
                     "data": {
                         "analytic_info": {
                             "analytic_id": analytic_id,
-                            "analytic_name": analytic.analytic_name or "Unknown"
+                            "analytic_name": analytic_name_value
                         },
                         "device_count": 0,
                         "required_minimum": min_devices,

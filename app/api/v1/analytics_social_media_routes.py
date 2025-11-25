@@ -69,6 +69,7 @@ def _get_social_media_correlation_data(
         .all()
     )
     if not device_links:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
         return JSONResponse(
             {
                 "status": 404,
@@ -76,7 +77,7 @@ def _get_social_media_correlation_data(
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
+                        "analytic_name": analytic_name_value
                     },
                     "device_count": 0,
                     "required_minimum": 2,
@@ -96,14 +97,15 @@ def _get_social_media_correlation_data(
     min_devices = 2
     total_device_count = len(device_ids)
     if total_device_count < min_devices:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
         return JSONResponse(
             {
-                "status": 400,
+                "status": 404,
                 "message": f"Social Media Correlation requires minimum {min_devices} devices. Current analytic has {total_device_count} device(s).",
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": analytic.analytic_name or "Unknown"
+                        "analytic_name": analytic_name_value
                     },
                     "device_count": total_device_count,
                     "required_minimum": min_devices,
@@ -112,7 +114,7 @@ def _get_social_media_correlation_data(
                     "instruction": f"Please add at least {min_devices} devices to continue with Social Media Correlation"
                 }
             },
-            status_code=400
+            status_code=404
         )
 
     devices = (
@@ -122,6 +124,7 @@ def _get_social_media_correlation_data(
         .all()
     )
     if not devices:
+        analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
         return JSONResponse(
             {
                 "status": 404,
@@ -129,7 +132,7 @@ def _get_social_media_correlation_data(
                 "data": {
                     "analytic_info": {
                         "analytic_id": analytic_id,
-                        "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
+                        "analytic_name": analytic_name_value
                     },
                     "device_count": 0,
                     "required_minimum": 2,
