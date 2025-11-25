@@ -24,16 +24,14 @@ def upgrade() -> None:
     inspector = inspect(conn)
     tables = inspector.get_table_names()
     
-    # Check if custody_reports table exists
     if 'custody_reports' not in tables:
-        # Table doesn't exist yet, skip this migration
         return
     
-    # Check if investigator column exists
     columns = [col['name'] for col in inspector.get_columns('custody_reports')]
     
-    if 'investigator' in columns:
-        # Rename investigator column to created_by
+    if 'investigator' in columns and 'created_by' in columns:
+        op.drop_column('custody_reports', 'investigator')
+    elif 'investigator' in columns and 'created_by' not in columns:
         op.alter_column('custody_reports', 'investigator', new_column_name='created_by')
 
 
@@ -42,15 +40,11 @@ def downgrade() -> None:
     inspector = inspect(conn)
     tables = inspector.get_table_names()
     
-    # Check if custody_reports table exists
     if 'custody_reports' not in tables:
-        # Table doesn't exist yet, skip this migration
         return
     
-    # Check if created_by column exists
     columns = [col['name'] for col in inspector.get_columns('custody_reports')]
     
     if 'created_by' in columns:
-        # Rename created_by column back to investigator
         op.alter_column('custody_reports', 'created_by', new_column_name='investigator')
 
