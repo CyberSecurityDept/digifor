@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Foreign
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
+from app.utils.timezone import get_indonesia_time
 
 class Evidence(Base):
     __tablename__ = "evidence"
@@ -25,8 +26,8 @@ class Evidence(Base):
     collected_date = Column(DateTime(timezone=True))
     notes = Column(JSON, nullable=True)
     is_confidential = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=get_indonesia_time, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)
 
     case = relationship("Case", back_populates="evidence")
     custody_logs = relationship("CustodyLog", back_populates="evidence", cascade="all, delete-orphan")
@@ -42,7 +43,7 @@ class CustodyLog(Base):
     evidence_id = Column(Integer, ForeignKey("evidence.id"), nullable=False)
     custody_type = Column(String(50), nullable=False)
     notes = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), default=get_indonesia_time, nullable=False)
     created_by = Column(String(100))
     evidence = relationship("Evidence", back_populates="custody_logs")
     
@@ -63,8 +64,8 @@ class CustodyReport(Base):
     evidence_detail = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     details = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=get_indonesia_time, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)
     evidence = relationship("Evidence", back_populates="custody_reports")
     
     def __repr__(self):
