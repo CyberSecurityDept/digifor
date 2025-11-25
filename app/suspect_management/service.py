@@ -72,25 +72,13 @@ class SuspectService:
         search: Optional[str] = None, status: Optional[List[str]] = None,
         current_user=None
     ) -> Tuple[List[dict], int]:
-        
         logger.info(f"get_suspects called with skip={skip}, limit={limit}, search={search}, status={status}")
 
         query = db.query(Suspect)
-
-        # -----------------------------------------
-        # FILTER BARU: hilangkan status NULL/kosong & is_unknown = True
-        # -----------------------------------------
-        query = query.filter(
-            Suspect.status.isnot(None),
-            Suspect.status != "",
-            Suspect.is_unknown.is_(False)
-        )
-        # -----------------------------------------
-
+        
         total_before = query.count()
         logger.info(f"Total suspects before filtering: {total_before}")
 
-        # Filter berdasarkan status (jika diberikan)
         if status:
             if isinstance(status, list):
                 if len(status) == 1 and isinstance(status[0], str) and "," in status[0]:
@@ -103,7 +91,6 @@ class SuspectService:
             if len(status) > 0:
                 query = query.filter(Suspect.status.in_(status))
 
-        # Filter search
         if search and search.strip():
             search_filter = or_(
                 Suspect.name.ilike(f"%{search.strip()}%"),
@@ -112,24 +99,20 @@ class SuspectService:
             )
             query = query.filter(search_filter)
 
-        # Order by
+
         query = query.order_by(Suspect.id.desc())
 
-        # Total setelah filtering
         total = query.count()
         logger.info(f"Total suspects after filtering: {total}")
 
-        # Pagination
         suspects = query.offset(skip).limit(limit).all()
         logger.debug(f"Retrieved {len(suspects)} suspects (skip={skip}, limit={limit})")
 
-        # Build result
         result = []
         for suspect in suspects:
             created_at_str = suspect.created_at.isoformat() if getattr(suspect, 'created_at', None) else None
             updated_at_str = suspect.updated_at.isoformat() if getattr(suspect, 'updated_at', None) else None
 
-            # Get agency name
             agency_name = None
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             if case:
