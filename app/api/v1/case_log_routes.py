@@ -79,10 +79,14 @@ async def get_case_logs(
                 "size": limit
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting case logs: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Unexpected server error, please try again later"
+            detail=f"Unexpected server error: {str(e)}"
         )
 
 @router.get("/log/{log_id}", response_model=CaseLogResponse)
