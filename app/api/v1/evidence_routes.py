@@ -832,6 +832,16 @@ async def update_evidence(
             setattr(evidence, 'suspect_id', selected_suspect.id)
         elif is_unknown_person is not None:
             if is_unknown_person:
+                current_suspect_id = getattr(evidence, 'suspect_id', None)
+                if current_suspect_id:
+                    current_suspect = db.query(Suspect).filter(Suspect.id == current_suspect_id).first()
+                    if current_suspect:
+                        setattr(current_suspect, 'name', "Unknown")
+                        setattr(current_suspect, 'is_unknown', True)
+                        setattr(current_suspect, 'status', None)
+                        db.commit()
+                        db.refresh(current_suspect)
+                
                 existing_unknown_suspect = db.query(Suspect).filter(
                     Suspect.case_id == current_case_id,
                     Suspect.name == "Unknown",
@@ -847,7 +857,7 @@ async def update_evidence(
                         name="Unknown",
                         case_id=current_case_id,
                         case_name=case.title if case else None,
-                        evidence_id=evidence.evidence_number,
+                        evidence_number=evidence.evidence_number,
                         evidence_source=evidence.source,
                         investigator=investigator_name,
                         status=None,

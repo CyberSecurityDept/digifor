@@ -385,7 +385,21 @@ async def update_person(
                         )
                     setattr(suspect, 'status', normalized_status)
             else:
-                pass
+                if person_name is not None and person_name.strip() and suspect_status is not None and suspect_status.strip():
+                    setattr(suspect, 'is_unknown', False)
+                    setattr(suspect, 'name', person_name.strip())
+                    normalized_status = normalize_suspect_status(suspect_status)
+                    if normalized_status is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        )
+                    setattr(suspect, 'status', normalized_status)
+                elif person_name is not None or suspect_status is not None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Both person_name and suspect_status are required to change from unknown person to known person"
+                    )
         
         db.commit()
         db.refresh(suspect)
@@ -573,7 +587,7 @@ async def save_suspect_notes(
         
         first_evidence = evidence_list[0]
         current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
-        
+
         existing_notes = None
         if isinstance(current_notes, dict):
             existing_notes = current_notes.get('suspect_notes')
@@ -588,7 +602,7 @@ async def save_suspect_notes(
                     "message": f"Notes already exist for this suspect. Use PUT /api/v1/persons/edit-suspect-notes/{suspect_id} to update existing notes."
                 }
             )
-        
+
         if isinstance(current_notes, dict):
             current_notes['suspect_notes'] = notes_trimmed
         elif isinstance(current_notes, str):
@@ -698,7 +712,7 @@ async def edit_suspect_notes(
                 for evidence in evidence_by_number:
                     if evidence.id not in evidence_ids:
                         evidence_records.append(evidence)
-            # Sort by ID to ensure consistent ordering
+
             evidence_list = sorted(evidence_records, key=lambda x: x.id)
         
         if not evidence_list or len(evidence_list) == 0:
