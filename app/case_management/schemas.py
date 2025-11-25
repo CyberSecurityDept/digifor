@@ -96,6 +96,7 @@ class CaseUpdate(BaseModel):
     work_unit_id: Optional[int] = None
     agency_name: Optional[str] = None
     work_unit_name: Optional[str] = None
+    notes: Optional[str] = None
     
     class Config:
         extra = "ignore"

@@ -275,6 +275,30 @@ class CaseService:
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
+        # Store old values for tracking changes
+        old_values = {
+            'case_number': case.case_number,
+            'title': case.title,
+            'description': getattr(case, 'description', None) or '',
+            'main_investigator': case.main_investigator,
+            'notes': getattr(case, 'notes', None) or '',
+            'agency_id': getattr(case, 'agency_id', None),
+            'work_unit_id': getattr(case, 'work_unit_id', None)
+        }
+        
+        # Get old agency and work unit names
+        old_agency_name = None
+        if old_values['agency_id']:
+            old_agency = db.query(Agency).filter(Agency.id == old_values['agency_id']).first()
+            if old_agency:
+                old_agency_name = old_agency.name
+        
+        old_work_unit_name = None
+        if old_values['work_unit_id']:
+            old_work_unit = db.query(WorkUnit).filter(WorkUnit.id == old_values['work_unit_id']).first()
+            if old_work_unit:
+                old_work_unit_name = old_work_unit.name
+        
         update_data = case_data.dict(exclude_unset=True)
         
         agency = None
@@ -366,6 +390,90 @@ class CaseService:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == case.work_unit_id).first()
             if work_unit:
                 work_unit_name = work_unit.name
+        
+        changed_fields = []
+        changed_by = None
+        if current_user:
+            changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
+            changed_by = f"By: {changed_by}"
+        else:
+            changed_by = "By: Unknown User"
+        
+        if 'case_number' in update_data:
+            new_case_number = case.case_number
+            if str(old_values['case_number']) != str(new_case_number):
+                changed_fields.append(f"Case Number: {old_values['case_number']} | {new_case_number}")
+        
+        if 'title' in update_data:
+            new_title = case.title
+            if str(old_values['title']) != str(new_title):
+                changed_fields.append(f"Case Name: {old_values['title']} | {new_title}")
+        
+        if 'description' in update_data:
+            new_description = getattr(case, 'description', None) or ''
+            old_desc_str = str(old_values['description'])
+            new_desc_str = str(new_description)
+            if old_desc_str != new_desc_str:
+                if len(old_desc_str) > 50 or len(new_desc_str) > 50:
+                    changed_fields.append(f"Description: {old_desc_str[:50]}... | {new_desc_str[:50]}...")
+                else:
+                    changed_fields.append(f"Description: {old_desc_str} | {new_desc_str}")
+
+        if 'main_investigator' in update_data:
+            new_main_investigator = getattr(case, 'main_investigator', None) or ''
+            if str(old_values['main_investigator']) != str(new_main_investigator):
+                changed_fields.append(f"Main Investigator: {old_values['main_investigator']} | {new_main_investigator}")
+        
+        if 'agency_id' in update_data or 'agency_name' in case_data.dict(exclude_unset=True):
+            new_agency_id = getattr(case, 'agency_id', None)
+            if new_agency_id != old_values['agency_id']:
+                new_agency_name = agency_name or (old_agency_name if new_agency_id == old_values['agency_id'] else None)
+                if new_agency_name is None and new_agency_id is not None:
+                    new_agency_obj = db.query(Agency).filter(Agency.id == new_agency_id).first()
+                    if new_agency_obj:
+                        new_agency_name = new_agency_obj.name
+                changed_fields.append(f"Agency: {old_agency_name or 'None'} | {new_agency_name or 'None'}")
+
+        if 'work_unit_id' in update_data or 'work_unit_name' in case_data.dict(exclude_unset=True):
+            new_work_unit_id = getattr(case, 'work_unit_id', None)
+            if new_work_unit_id != old_values['work_unit_id']:
+                new_work_unit_name = work_unit_name or (old_work_unit_name if new_work_unit_id == old_values['work_unit_id'] else None)
+                if new_work_unit_name is None and new_work_unit_id is not None:
+                    new_work_unit_obj = db.query(WorkUnit).filter(WorkUnit.id == new_work_unit_id).first()
+                    if new_work_unit_obj:
+                        new_work_unit_name = new_work_unit_obj.name
+                changed_fields.append(f"Work Unit: {old_work_unit_name or 'None'} | {new_work_unit_name or 'None'}")
+
+        if 'notes' in update_data:
+            new_notes = getattr(case, 'notes', None) or ''
+            old_notes_str = str(old_values['notes'])
+            new_notes_str = str(new_notes)
+            if old_notes_str != new_notes_str:
+                if len(old_notes_str) > 50 or len(new_notes_str) > 50:
+                    changed_fields.append(f"Summary: {old_notes_str[:50]}... | {new_notes_str[:50]}...")
+                else:
+                    changed_fields.append(f"Summary: {old_notes_str} | {new_notes_str}")
+
+        if changed_fields:
+            for change_detail_text in changed_fields:
+                try:
+                    case_log = CaseLog(
+                        case_id=case_id,
+                        action="Edit",
+                        changed_by=changed_by,
+                        change_detail=f"Change: {change_detail_text}",
+                        notes="",
+                        status=case.status
+                    )
+                    db.add(case_log)
+                except Exception as e:
+                    print(f"Warning: Could not create case log for field change: {str(e)}")
+            
+            try:
+                db.commit()
+            except Exception as e:
+                print(f"Warning: Could not commit case logs: {str(e)}")
+                db.rollback()
 
         date_created = case.created_at.strftime("%d/%m/%Y")
         date_updated = case.updated_at.strftime("%d/%m/%Y")
@@ -652,7 +760,7 @@ class CaseLogService:
             "created_at": log.created_at.strftime("%d %b %y, %H:%M")
         }
     
-    def update_case_log(self, db: Session, case_id: int, log_data: dict) -> dict:
+    def update_case_log(self, db: Session, case_id: int, log_data: dict, current_user=None) -> dict:
         try:
             case = db.query(Case).filter(Case.id == case_id).first()
             if not case:
@@ -668,11 +776,23 @@ class CaseLogService:
                 raise HTTPException(status_code=400, detail="Notes/alasan wajib diisi ketika mengubah status case")
             notes = notes.strip()
             
+            changed_by_value = ""
+            change_detail_value = ""
+            
+            if new_status == "Re-open":
+                if current_user:
+                    changed_by_value = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                    changed_by_value = f"By: {changed_by_value}"
+                else:
+                    changed_by_value = "By: "
+                
+                change_detail_value = f"Change: Adding Status {new_status}"
+            
             log_entry = CaseLog(
                 case_id=case_id,
                 action=new_status,
-                changed_by="",
-                change_detail="",
+                changed_by=changed_by_value,
+                change_detail=change_detail_value,
                 notes=notes,
                 status=new_status
             )
@@ -727,7 +847,7 @@ class CaseLogService:
         
         return result
     
-    def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10) -> List[dict]:
+    def get_case_logs(self, db: Session, case_id: int, skip: int = 0, limit: int = 10, current_user=None) -> List[dict]:
         case = db.query(Case).filter(Case.id == case_id).first()
         current_case_status = case.status if case else None
         logs = db.query(CaseLog).filter(CaseLog.case_id == case_id)\
@@ -764,6 +884,34 @@ class CaseLogService:
                         "change_detail": change_detail
                     }]
                     log_dict["edit"] = edit_array
+            elif log_action == "Re-open":
+                changed_by = getattr(log, 'changed_by', '') or ''
+                change_detail = getattr(log, 'change_detail', '') or ''
+                
+                if not changed_by or not changed_by.strip():
+                    if current_user:
+                        user_name = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
+                        changed_by = f"By: {user_name}"
+                    else:
+                        changed_by = "By: Unknown User"
+                
+                elif not changed_by.strip().startswith("By: "):
+                    changed_by = f"By: {changed_by.strip()}"
+                
+                if not change_detail or not change_detail.strip():
+                    change_detail = f"Change: Adding Status {log_status}"
+                elif not change_detail.strip().startswith("Change: "):
+                    change_detail = f"Change: {change_detail.strip()}"
+                
+                edit_array = [{
+                    "changed_by": changed_by,
+                    "change_detail": change_detail
+                }]
+                log_dict["edit"] = edit_array
+                log_dict["status"] = log.status
+                notes_value = getattr(log, 'notes', None)
+                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                    log_dict["notes"] = notes_value
             else:
                 log_dict["status"] = log.status
                 notes_value = getattr(log, 'notes', None)
@@ -776,7 +924,7 @@ class CaseLogService:
     def get_log_count(self, db: Session, case_id: int) -> int:
         return db.query(CaseLog).filter(CaseLog.case_id == case_id).count()
 
-    def get_case_log_detail(self, db: Session, log_id: int) -> dict:
+    def get_case_log_detail(self, db: Session, log_id: int, current_user=None) -> dict:
         try:
             log = db.query(CaseLog).filter(CaseLog.id == log_id).first()
             if not log:
@@ -811,6 +959,35 @@ class CaseLogService:
                         "change_detail": change_detail
                     }]
                     result["edit"] = edit_array
+            elif log_action == "Re-open":
+                changed_by = getattr(log, 'changed_by', '') or ''
+                change_detail = getattr(log, 'change_detail', '') or ''
+
+                if not changed_by or not changed_by.strip():
+                    if current_user:
+                        user_name = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
+                        changed_by = f"By: {user_name}"
+                    else:
+                        changed_by = "By: Unknown User"
+
+                elif not changed_by.strip().startswith("By: "):
+                    changed_by = f"By: {changed_by.strip()}"
+                
+                if not change_detail or not change_detail.strip():
+                    change_detail = f"Change: Adding Status {log_status}"
+
+                elif not change_detail.strip().startswith("Change: "):
+                    change_detail = f"Change: {change_detail.strip()}"
+                
+                edit_array = [{
+                    "changed_by": changed_by,
+                    "change_detail": change_detail
+                }]
+                result["edit"] = edit_array
+                result["status"] = log.status
+                notes_value = getattr(log, 'notes', None)
+                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                    result["notes"] = notes_value
             else:
                 result["status"] = log.status
                 notes_value = getattr(log, 'notes', None)

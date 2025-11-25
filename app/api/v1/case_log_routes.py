@@ -25,7 +25,7 @@ async def update_case_log(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        log = case_log_service.update_case_log(db, case_id, log_data.dict())
+        log = case_log_service.update_case_log(db, case_id, log_data.dict(), current_user)
         cleaned_log = {k: v for k, v in log.items() if v is not None}
         
         return JSONResponse(
@@ -60,7 +60,7 @@ async def get_case_logs(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        logs = case_log_service.get_case_logs(db, case_id, skip, limit)
+        logs = case_log_service.get_case_logs(db, case_id, skip, limit, current_user)
         total = case_log_service.get_log_count(db, case_id)
         
         cleaned_logs = []
@@ -102,7 +102,7 @@ async def get_case_log_detail(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {log_obj.case_id} not found")
         
-        log = case_log_service.get_case_log_detail(db, log_id)
+        log = case_log_service.get_case_log_detail(db, log_id, current_user)
         logger.info(f"Successfully retrieved case log detail for log_id: {log_id}")
         
         cleaned_log = {k: v for k, v in log.items() if v is not None}
