@@ -549,6 +549,7 @@ async def get_evidence_detail(
         "id": evidence.id,
         "evidence_number": evidence.evidence_number,
         "title": evidence.title,
+        "file_path": evidence.file_path,
         "description": evidence.description,
         "suspect_name": suspect_name,
         "case_name": case_name,
@@ -1105,7 +1106,7 @@ async def edit_evidence_notes(
                 status_code=500
         )
 
-BASE_UPLOAD_DIR = "uploads/custody"
+BASE_UPLOAD_DIR = "data/custody"
 def save_uploaded_file(file, custody_type: str):
     folder_path = os.path.join(BASE_UPLOAD_DIR, custody_type)
     os.makedirs(folder_path, exist_ok=True)
