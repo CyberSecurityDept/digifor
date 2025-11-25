@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from datetime import datetime, timezone, timedelta
 from enum import Enum as PyEnum
 from app.db.base import Base
+from app.utils.timezone import get_indonesia_time
 
 WIB = timezone(timedelta(hours=7))
 
@@ -50,8 +51,8 @@ class Case(Base):
     work_unit_id = Column(Integer, ForeignKey("work_units.id"), nullable=True)
     notes = Column(Text, nullable=True)
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime, default=get_indonesia_time, nullable=False)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)
     
     logs = relationship("CaseLog", back_populates="case", cascade="all, delete-orphan")
     evidence = relationship("Evidence", back_populates="case", cascade="all, delete-orphan")
@@ -79,7 +80,8 @@ class CaseLog(Base):
     change_detail = Column(Text, nullable=True, default="")
     notes = Column(Text, nullable=True, default="")
     status = Column(Enum("Open", "Closed", "Re-open", name="casestatus"), default="Open")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime, default=get_indonesia_time, nullable=False)
+    updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)
 
     case = relationship("Case", back_populates="logs")
 
