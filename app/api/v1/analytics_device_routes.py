@@ -66,8 +66,22 @@ async def add_device(
             return JSONResponse(
                 {
                     "status": 400, 
-                    "message": f"File method '{file_record.method}' does not match analytic method '{analytic.method}'", 
-                    "data": []
+                    "message": f"File method '{file_method}' does not match analytic method '{analytic_method}'", 
+                    "data": {
+                        "file_info": {
+                            "file_id": file_id,
+                            "file_name": getattr(file_record, 'file_name', 'Unknown'),
+                            "file_method": file_method
+                        },
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": getattr(analytic, 'analytic_name', 'Unknown'),
+                            "analytic_method": analytic_method
+                        },
+                        "next_action": "create_analytic",
+                        "redirect_to": "/analytics/start-analyzing",
+                        "instruction": f"File method '{file_method}' does not match current analytic method '{analytic_method}'. Please create a new analytic with method '{file_method}' or select a file with method '{analytic_method}'."
+                    }
                 },
                 status_code=400
             )
