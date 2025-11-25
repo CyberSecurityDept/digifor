@@ -119,7 +119,6 @@ def create_analytic_with_devices(
                 status_code=400
             )
 
-        # Add user information to created_by field for access control filtering
         user_fullname = getattr(current_user, 'fullname', '') or ''
         user_email = getattr(current_user, 'email', '') or ''
         created_by_info = f"Created by: {user_fullname} ({user_email})" if user_fullname or user_email else ""
@@ -482,7 +481,6 @@ def get_hashfile_analytics(
 ):
     return _get_hashfile_analytics_data(analytic_id, db, current_user)
 
-
 @router.post("/analytics/start-extraction")
 def start_data_extraction(
     analytic_id: int = Query(..., description="Analytic ID"),
@@ -619,26 +617,42 @@ def get_all_analytic(
     try:
         query = db.query(Analytic)
 
-        # Restriction for non-admin
         user_role = getattr(current_user, 'role', None)
+        user_fullname = ''
+        user_email = ''
+        
         if user_role != "admin":
             user_fullname = getattr(current_user, 'fullname', '') or ''
             user_email = getattr(current_user, 'email', '') or ''
+            
+            logger.info(f"Filtering analytics for non-admin user: fullname='{user_fullname}', email='{user_email}'")
+            
+            filter_conditions = []
+            
+            if user_fullname and user_fullname.strip():
+                filter_conditions.append(Analytic.analytic_name.ilike(f"%{user_fullname.strip()}%"))
+            if user_email and user_email.strip():
+                filter_conditions.append(Analytic.analytic_name.ilike(f"%{user_email.strip()}%"))
+            
+            if user_fullname and user_fullname.strip():
+                filter_conditions.append(Analytic.summary.ilike(f"%{user_fullname.strip()}%"))
+            if user_email and user_email.strip():
+                filter_conditions.append(Analytic.summary.ilike(f"%{user_email.strip()}%"))
+            
+            if user_fullname and user_fullname.strip():
+                filter_conditions.append(Analytic.created_by.ilike(f"%{user_fullname.strip()}%"))
+            if user_email and user_email.strip():
+                filter_conditions.append(Analytic.created_by.ilike(f"%{user_email.strip()}%"))
+            
+            if filter_conditions:
+                query = query.filter(or_(*filter_conditions))
+                logger.info(f"Applied {len(filter_conditions)} filter conditions for non-admin user")
+            else:
+                logger.warning(f"No filter conditions for user with no fullname/email")
+                query = query.filter(False)
 
-            query = query.filter(
-                or_(
-                    Analytic.analytic_name.ilike(f"%{user_fullname}%"),
-                    Analytic.analytic_name.ilike(f"%{user_email}%"),
-                    Analytic.summary.ilike(f"%{user_fullname}%"),
-                    Analytic.summary.ilike(f"%{user_email}%"),
-                    Analytic.created_by.ilike(f"%{user_fullname}%"),
-                    Analytic.created_by.ilike(f"%{user_email}%")
-                )
-            )
-
-        # Search filter
-        if search:
-            search_pattern = f"%{search}%"
+        if search and search.strip():
+            search_pattern = f"%{search.strip()}%"
             query = query.filter(
                 or_(
                     Analytic.analytic_name.ilike(search_pattern),
@@ -647,21 +661,31 @@ def get_all_analytic(
                 )
             )
 
-        # Method filter → now supports multiple
-        if method:
-            # convert "a,b,c" string into array
-            parsed_methods = []
-            for m in method:
-                if "," in m:
-                    parsed_methods.extend(m.split(","))
-                else:
-                    parsed_methods.append(m)
+        if method and len(method) > 0:
+            method_list = [m for m in method if m and m.strip()]
+            if method_list:
+                parsed_methods = []
+                for m in method_list:
+                    if "," in m:
+                        parsed_methods.extend(m.split(","))
+                    else:
+                        parsed_methods.append(m)
 
-            parsed_methods = [m.strip() for m in parsed_methods]
+                parsed_methods = [m.strip() for m in parsed_methods if m and m.strip()]
 
-            query = query.filter(Analytic.method.in_(parsed_methods))
+                if parsed_methods:
+                    query = query.filter(Analytic.method.in_(parsed_methods))
 
         analytics = query.order_by(Analytic.created_at.desc()).all()
+        
+        if user_role != "admin":
+            user_fullname = getattr(current_user, 'fullname', '') or ''
+            user_email = getattr(current_user, 'email', '') or ''
+        else:
+            user_fullname = 'N/A'
+            user_email = 'N/A'
+        
+        logger.info(f"Found {len(analytics)} analytics after filtering (user_role={user_role}, user_fullname='{user_fullname}', user_email='{user_email}')")
 
         formatted_analytics = [
             {
