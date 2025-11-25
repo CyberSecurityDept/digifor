@@ -216,6 +216,8 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
         device_ids = list(set(device_ids))
         
         if not device_ids:
+            logger.warning(f"No devices linked to analytic {analytic_id}")
+            analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"
             return JSONResponse(
                 content={
                     "status": 404,
@@ -223,7 +225,7 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                     "data": {
                         "analytic_info": {
                             "analytic_id": analytic_id,
-                            "analytic_name": analytic.analytic_name or "Unknown"
+                            "analytic_name": analytic_name_value
                         },
                         "device_count": 0,
                         "required_minimum": 2,
@@ -241,12 +243,12 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
             logger.warning(f"Insufficient devices for analytic {analytic_id}: {total_device_count} < 2")
             return JSONResponse(
                 content={
-                    "status": 400,
+                    "status": 404,
                     "message": f"Deep Communication Analytics requires minimum 2 devices. Current analytic has {total_device_count} device(s).",
                     "data": {
                         "analytic_info": {
                             "analytic_id": analytic_id,
-                            "analytic_name": analytic.analytic_name or "Unknown"
+                            "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
                         },
                         "device_count": total_device_count,
                         "required_minimum": 2,
@@ -255,24 +257,27 @@ def get_deep_communication_analytics(  # type: ignore[reportGeneralTypeIssues]
                         "instruction": "Please add at least 2 devices to continue with Deep Communication Analytics"
                     }
                 },
-                status_code=400
+                status_code=404
             )
 
         if device_id is not None:
             if device_id not in device_ids:
+                logger.warning(f"Device {device_id} not found in analytic {analytic_id}")
                 return JSONResponse(
                     content={
                         "status": 404,
-                        "message": "Device not found in this analytic",
+                        "message": f"Device with ID {device_id} not found in this analytic",
                         "data": {
                             "analytic_info": {
                                 "analytic_id": analytic_id,
-                                "analytic_name": analytic.analytic_name or "Unknown"
+                                "analytic_name": getattr(analytic, 'analytic_name', None) or "Unknown"
                             },
                             "device_id": device_id,
+                            "device_count": total_device_count,
+                            "required_minimum": 2,
                             "next_action": "add_device",
                             "redirect_to": "/analytics/devices",
-                            "instruction": "The specified device is not linked to this analytic. Please add the device first."
+                            "instruction": "The specified device is not linked to this analytic. Please add the device or ensure you have at least 2 devices to continue with Deep Communication Analytics"
                         }
                     },
                     status_code=404
