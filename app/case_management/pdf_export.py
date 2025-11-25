@@ -697,12 +697,12 @@ def generate_case_detail_pdf(case_data: dict, output_path: str) -> str:
                     story.append(Spacer(1, 10))
                     
                     if evidence_table:
-                        story.append(Spacer(1, 7))
-                        story.append(evidence_table)
-                        story.append(Spacer(1, 20))
-                    else:
-                        story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
-                        story.append(Spacer(1, 20))
+                    story.append(Spacer(1, 7))
+                    story.append(evidence_table)
+                    story.append(Spacer(1, 20))
+                else:
+                    story.append(Paragraph("<i>No evidence available</i>", poi_info_text_style))
+                    story.append(Spacer(1, 20))
 
         notes_value = case_notes.strip() if case_notes and case_notes.strip() else "<i>No notes available</i>"
         notes_data = [
