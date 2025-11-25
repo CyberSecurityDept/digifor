@@ -1105,7 +1105,7 @@ async def edit_evidence_notes(
                 status_code=500
         )
 
-BASE_UPLOAD_DIR = "uploads/custody"
+BASE_UPLOAD_DIR = "data/custody"
 def save_uploaded_file(file, custody_type: str):
     folder_path = os.path.join(BASE_UPLOAD_DIR, custody_type)
     os.makedirs(folder_path, exist_ok=True)
