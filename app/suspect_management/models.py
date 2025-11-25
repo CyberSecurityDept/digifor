@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.utils.timezone import get_indonesia_time
 
 
 class Suspect(Base):    
@@ -18,8 +19,8 @@ class Suspect(Base):
     evidence_number = Column(String(100))
     evidence_source = Column(String(100))
     created_by = Column(String(255), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=get_indonesia_time, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)
     
     case = relationship("Case", back_populates="suspects")
     
