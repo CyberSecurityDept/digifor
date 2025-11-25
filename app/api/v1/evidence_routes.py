@@ -510,10 +510,12 @@ async def get_evidence_detail(
     case_id = evidence.case.case_number if evidence.case else None
 
     suspect_name = None
+    suspect_status = None
     if evidence.suspect_id: # type: ignore
         suspect = db.query(Suspect).filter(Suspect.id == evidence.suspect_id).first()
         if suspect:
             suspect_name = suspect.name
+            suspect_status = suspect.status
 
     evidence_source = getattr(evidence, 'source', None)  
 
@@ -552,6 +554,7 @@ async def get_evidence_detail(
         "file_path": evidence.file_path,
         "description": evidence.description,
         "suspect_name": suspect_name,
+        "suspect_status": suspect_status,
         "case_name": case_name,
         "case_id": case_id,
         "source": evidence_source,
