@@ -549,6 +549,7 @@ async def get_evidence_detail(
         "id": evidence.id,
         "evidence_number": evidence.evidence_number,
         "title": evidence.title,
+        "file_path": evidence.file_path,
         "description": evidence.description,
         "suspect_name": suspect_name,
         "case_name": case_name,
