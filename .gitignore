@@ -51,6 +51,7 @@ logs/
 
 # Data Files
 data/uploads/*
+data/custody/*
 data/evidence/*
 data/analysis/*
 data/reports/*
