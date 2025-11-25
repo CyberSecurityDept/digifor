@@ -4,6 +4,9 @@ from sqlalchemy import or_
 from app.suspect_management.models import Suspect
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate
 from app.case_management.models import Case, Agency
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SuspectService:
     def _format_datetime(self, dt_value):
@@ -69,64 +72,47 @@ class SuspectService:
         search: Optional[str] = None, status: Optional[List[str]] = None,
         current_user=None
     ) -> Tuple[List[dict], int]:
+        logger.info(f"get_suspects called with skip={skip}, limit={limit}, search={search}, status={status}")
 
         query = db.query(Suspect)
+        
+        total_before = query.count()
+        logger.info(f"Total suspects before filtering: {total_before}")
 
-        # ===============================
-        # MULTIPLE STATUS FILTER (AMANKAN SEMUA FORMAT)
-        # ===============================
         if status:
-
-            # FastAPI bisa mengirim ["A,B,C"] (string di dalam list)
-            # Kita ubah menjadi satu string lalu split
             if isinstance(status, list):
                 if len(status) == 1 and isinstance(status[0], str) and "," in status[0]:
                     status = status[0].split(",")
             elif isinstance(status, str):
                 status = status.split(",")
 
-            # Bersihkan whitespace
-            status = [s.strip() for s in status if s.strip()]
+            status = [s.strip() for s in status if s and s.strip()]
 
             if len(status) > 0:
                 query = query.filter(Suspect.status.in_(status))
 
-        # ===============================
-        # FILTER YANG BUKAN UNKNOWN
-        # ===============================
-        query = query.filter(Suspect.is_unknown == False)
-
-        # ===============================
-        # SEARCH FILTER
-        # ===============================
-        if search:
+        if search and search.strip():
             search_filter = or_(
-                Suspect.name.ilike(f"%{search}%"),
-                Suspect.case_name.ilike(f"%{search}%"),
-                Suspect.investigator.ilike(f"%{search}%")
+                Suspect.name.ilike(f"%{search.strip()}%"),
+                Suspect.case_name.ilike(f"%{search.strip()}%"),
+                Suspect.investigator.ilike(f"%{search.strip()}%")
             )
             query = query.filter(search_filter)
 
-        # ===============================
-        # ORDER BY TERBARU
-        # ===============================
+
         query = query.order_by(Suspect.id.desc())
 
-        # Hitung total (setelah filter)
         total = query.count()
+        logger.info(f"Total suspects after filtering: {total}")
 
-        # Pagination
         suspects = query.offset(skip).limit(limit).all()
+        logger.debug(f"Retrieved {len(suspects)} suspects (skip={skip}, limit={limit})")
 
-        # ===============================
-        # BUILD RESPONSE
-        # ===============================
         result = []
         for suspect in suspects:
             created_at_str = suspect.created_at.isoformat() if getattr(suspect, 'created_at', None) else None
             updated_at_str = suspect.updated_at.isoformat() if getattr(suspect, 'updated_at', None) else None
 
-            # Ambil agency via case
             agency_name = None
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             if case:

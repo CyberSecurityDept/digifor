@@ -1,10 +1,3 @@
-"""rename_investigator_to_created_by_in_custody_reports
-
-Revision ID: f1a2b3c4d5e6
-Revises: b1c2d3e4f5a6
-Create Date: 2025-12-31 14:00:00.000000
-
-"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,7 +5,6 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 
-# revision identifiers, used by Alembic.
 revision: str = 'f1a2b3c4d5e6'
 down_revision: Union[str, None] = 'b1c2d3e4f5a6'
 branch_labels: Union[str, Sequence[str], None] = None
