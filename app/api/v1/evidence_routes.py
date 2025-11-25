@@ -1133,6 +1133,25 @@ def save_uploaded_file(file, custody_type: str):
 
     return file_path
 
+@router.get('/custody/download-file')
+async def download_file(path: str):
+    # Gabungkan path yang diminta ke direktori dasar
+    file_path = os.path.join(BASE_UPLOAD_DIR, path)
+
+    # Cek apakah file benar-benar berada dalam direktori BASE_UPLOAD_DIR
+    real_base = os.path.realpath(BASE_UPLOAD_DIR)
+    real_target = os.path.realpath(file_path)
+
+    if not real_target.startswith(real_base):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    # Cek apakah file ada
+    if not os.path.isfile(real_target):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Kembalikan file sebagai download
+    return FileResponse(real_target, filename=os.path.basename(real_target))
+
 @router.get("/{evidence_id}/custody-logs")
 async def get_custody_logs(
     evidence_id: int,
