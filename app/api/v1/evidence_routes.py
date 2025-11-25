@@ -323,7 +323,7 @@ async def create_evidence(
                     name="Unknown",
                     case_id=case_id,
                     case_name=case.title if case else None,
-                    evidence_id=evidence_number,
+                    evidence_number=evidence_number,
                     evidence_source=source,
                     investigator=investigator_name,
                     status=None,
