@@ -501,10 +501,13 @@ class UploadService:
                 
                 if fallback_used or "failed to parse" in error_msg.lower() or "tools" in error_msg.lower() or "parse" in error_msg.lower():
                     detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                    if detected_tool and detected_tool != "Unknown":
-                        final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
-                    else:
-                        final_error_msg = f"Tools tidak sesuai dengan file: {error_msg}"
+                    if not detected_tool or detected_tool == "Unknown":
+                        
+                        try:
+                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        except:
+                            detected_tool = "Unknown"
+                    final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
                     
                     self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                     try:
@@ -549,10 +552,17 @@ class UploadService:
                                     detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                                 except:
                                     pass
+                            
                             if detected_tool and detected_tool != "Unknown":
                                 final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                             else:
-                                final_error_msg = "File upload failed. Please upload this file using Tools"
+                                
+                                if not detected_tool:
+                                    try:
+                                        detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                                    except:
+                                        detected_tool = "Unknown"
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
                         
                         self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                         try:
@@ -729,10 +739,14 @@ class UploadService:
                         
                         detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                         parsing_result["detected_tool"] = detected_tool
-                        if detected_tool and detected_tool != "Unknown":
-                            parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool}"
-                        else:
-                            parsing_result["chat_messages_error"] = "Tidak ada chat messages yang ditemukan. File mungkin tidak memiliki sheet 'Chats' atau format file tidak sesuai."
+                        if not detected_tool or detected_tool == "Unknown":
+                            
+                            try:
+                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                                parsing_result["detected_tool"] = detected_tool
+                            except:
+                                detected_tool = "Unknown"
+                        parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
                         print(f"No chat messages found, setting chat_messages_count to 0. Detected tool: {detected_tool}")
                     self._progress[upload_id].update({
                         "message": "Inserting chat messages data to database...",
@@ -742,10 +756,14 @@ class UploadService:
                     print(f"Error parsing chat messages: {e}")
                     detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                     parsing_result["detected_tool"] = detected_tool
-                    if detected_tool and detected_tool != "Unknown":
-                        parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool}"
-                    else:
-                        parsing_result["chat_messages_error"] = str(e)
+                    if not detected_tool or detected_tool == "Unknown":
+                        
+                        try:
+                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                            parsing_result["detected_tool"] = detected_tool
+                        except:
+                            detected_tool = "Unknown"
+                    parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
             
             elif method == "Contact Correlation":
                 try:
@@ -896,10 +914,13 @@ class UploadService:
                         except:
                             pass
                     
-                    if detected_tool and detected_tool != "Unknown":
-                        error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
-                    else:
-                        error_msg = "File upload failed. Please upload this file using Tools"
+                    # Always use format with detected_tool
+                    if not detected_tool:
+                        try:
+                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        except:
+                            detected_tool = "Unknown"
+                    error_msg = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
                     print(f"[ERROR] No data inserted. No parsing error but also no data found.")
                 
                 self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
@@ -913,12 +934,26 @@ class UploadService:
                         except:
                             pass
                 
+                # Ensure detected_tool is used in final_error_msg
                 if has_parsing_error:
+                    # For parsing errors, prefer detected_tool if available
+                    if not detected_tool or detected_tool == "Unknown":
+                        
+                        try:
+                            if os.path.exists(original_path_abs):
+                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        except:
+                            detected_tool = "Unknown"
                     if detected_tool and detected_tool != "Unknown":
                         final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                     else:
-                        final_error_msg = error_msg
+                        # Use error_msg if it already has detected_tool format, otherwise use detected_tool
+                        if "File upload failed. Please upload this file using Tools" in error_msg:
+                            final_error_msg = error_msg
+                        else:
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool if detected_tool else 'Unknown'}"
                 else:
+                    # For no data errors, error_msg already has detected_tool format
                     final_error_msg = error_msg
                 
                 self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
