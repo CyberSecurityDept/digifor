@@ -92,4 +92,4 @@ class SuspectListResponse(BaseModel):
 
 class SuspectNotesRequest(BaseModel):
     suspect_id: int = Field(..., description="Suspect ID")
-    notes: str = Field(..., description="Suspect notes text")
+    notes: str | None = Field(..., description="Suspect notes text")

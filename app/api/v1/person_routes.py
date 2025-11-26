@@ -14,7 +14,7 @@ import traceback, os, hashlib
 from app.case_management.service import check_case_access
 
 class SuspectNotesBody(BaseModel):
-    notes: str = Field(..., description="Suspect notes text")
+    notes: str | None = Field(..., description="Suspect notes text")
 
 VALID_SUSPECT_STATUSES = ["Witness", "Reported", "Suspected", "Suspect", "Defendant"]
 
@@ -552,14 +552,6 @@ async def save_suspect_notes(
                 )
         
         notes_trimmed = notes.strip() if notes else ""
-        if not notes_trimmed:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": 400,
-                    "message": "Notes cannot be empty"
-                }
-            )
         
         evidence_list = []
         if suspect_id is not None:
