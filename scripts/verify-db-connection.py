@@ -69,7 +69,7 @@ def verify_connection():
             ORDER BY schema_name
         """)
         schemas = [s[0] for s in cur.fetchall()]
-        print(f"\n📂 Available Schemas:")
+        print(f"\nAvailable Schemas:")
         for schema in schemas:
             marker = " ← DEFAULT" if schema == 'public' else ""
             print(f"   - {schema}{marker}")

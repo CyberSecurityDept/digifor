@@ -102,7 +102,7 @@ Upload gagal dengan berbagai alasan.
 }
 ```
 
-**b. Tools mismatch (detected tool tersedia)**
+**b. Tools mismatch atau parsing error (dengan tool name)**
 
 ```json
 {
@@ -117,22 +117,37 @@ Upload gagal dengan berbagai alasan.
 }
 ```
 
-**c. Upload gagal (detected tool tidak tersedia)**
+**c. Upload gagal (tool name dari parameter tools)**
 
 ```json
 {
     "status": "Failed",
-    "message": "File upload failed. Please upload this file using Tools Oxygen",
+    "message": "File upload failed. Please upload this file using Tools Cellebrite",
     "upload_id": "upload_1234567890_abc123",
     "file_name": "example_file.xlsx",
-    "size": "Upload Failed! Please try again",
+    "size": "Upload Failed! Please upload this file using Tools 'Cellebrite'",
     "percentage": "Error",
     "upload_status": "Failed",
     "data": []
 }
 ```
 
-**d. Unknown status**
+**d. Upload gagal (fallback ke parameter tools atau generic message)**
+
+```json
+{
+    "status": "Failed",
+    "message": "File upload failed. Please upload this file using Tools the correct tools",
+    "upload_id": "upload_1234567890_abc123",
+    "file_name": "example_file.xlsx",
+    "size": "Upload Failed! Please upload this file using Tools 'the correct tools'",
+    "percentage": "Error",
+    "upload_status": "Failed",
+    "data": []
+}
+```
+
+**e. Unknown status**
 
 ```json
 {
@@ -177,7 +192,9 @@ Upload gagal dengan berbagai alasan.
 - Status Code: `404`
 - Status: `"Failed"`
 - Message: `"Upload ID not found"`
-- Size: `"Upload Failed! Please try again"` atau `"Upload Failed! Please upload this file using Tools '{detected_tool}'"` jika detected tool tersedia
+- Size: `"Upload Failed! Please try again"` atau `"Upload Failed! Please upload this file using Tools '{tool_name}'"` jika tool name tersedia dari upload service
+
+**Catatan:** Sistem akan mencoba mengambil `detected_tool` dari upload service jika tersedia. Tool name yang valid adalah: `"Cellebrite"`, `"Oxygen"`, `"Magnet Axiom"`, atau `"Encase"`.
 
 **Contoh:**
 ```json
@@ -200,13 +217,21 @@ Upload gagal dengan berbagai alasan.
 **Response:**
 - Status Code: `200`
 - Status: `"Failed"`
-- Message: `"File upload failed. Please upload this file using Tools {detected_tool}"`
-- Size: `"Upload Failed! Please upload this file using Tools '{detected_tool}'"`
+- Message: `"File upload failed. Please upload this file using Tools {tool_name}"`
+- Size: `"Upload Failed! Please upload this file using Tools '{tool_name}'"`
 
-**Detected Tools yang mungkin:**
+**Tool Detection Priority:**
+1. **Deteksi dari Sheet Names**: Sistem akan mencoba mendeteksi tool dari sheet names di file Excel berdasarkan method yang dipilih
+2. **Normalisasi dari Parameter Tools**: Jika deteksi dari sheet gagal, sistem akan menormalisasi parameter `tools` yang diberikan user
+3. **Fallback ke Parameter Tools**: Jika normalisasi gagal, sistem akan menggunakan parameter `tools` langsung atau `"the correct tools"`
+
+**Tool Names yang Valid:**
+- `"Cellebrite"` - Untuk file dengan sheet "Chats" atau "Social Media" (Deep Communication, Contact Correlation, Social Media Correlation)
 - `"Oxygen"` - Untuk file iOS dengan sheet seperti "Telegram Messages - iOS", "Instagram Direct Messages", dll
-- `"Cellebrite"` - Untuk file dengan sheet "Chats" atau "Social Media"
 - `"Magnet Axiom"` - Untuk file Android dengan sheet seperti "Android WhatsApp Messages", "Telegram Messages - Android", dll
+- `"Encase"` - Untuk file dengan format Encase (Hashfile Analytics)
+
+**Catatan:** Sistem tidak akan menggunakan `"Unknown"` sebagai tool name. Jika tool tidak bisa dideteksi, sistem akan menggunakan normalisasi dari parameter `tools` atau fallback ke parameter `tools` langsung.
 
 **Contoh:**
 ```json
@@ -229,8 +254,16 @@ Upload gagal dengan berbagai alasan.
 **Response:**
 - Status Code: `200`
 - Status: `"Failed"`
-- Message: Pesan error dari parsing atau `"File upload failed. Please upload this file using Tools {detected_tool}"`
-- Size: `"Upload Failed! Please upload this file using Tools '{detected_tool}'"` atau `"Upload Failed! Please try again"`
+- Message: `"File upload failed. Please upload this file using Tools {tool_name}"` (selalu menggunakan tool name yang valid)
+- Size: `"Upload Failed! Please upload this file using Tools '{tool_name}'"`
+
+**Tool Name Source:**
+1. Dari `parsing_result["detected_tool"]` jika tersedia
+2. Deteksi dari sheet names menggunakan `_detect_tool_from_sheets()`
+3. Normalisasi dari parameter `tools` menggunakan `_normalize_tool_name()`
+4. Fallback ke parameter `tools` langsung atau `"the correct tools"`
+
+**Catatan:** Sistem akan selalu mencoba menampilkan tool name yang valid dalam error message. Tidak akan ada error message tanpa tool name kecuali dalam kasus yang sangat spesifik.
 
 **Contoh:**
 ```json
@@ -301,16 +334,22 @@ Pending → Progress → Success
 
 1. **Polling Frequency**: Disarankan untuk melakukan polling setiap 1-2 detik untuk mendapatkan update progress yang real-time.
 
-2. **Detected Tool**: Ketika upload gagal karena tools mismatch, sistem akan mencoba mendeteksi tools yang benar berdasarkan:
-   - Method yang dipilih (Deep Communication Analytics, Contact Correlation, Social Media Correlation, Hashfile Analytics)
-   - Sheet names yang ada di file Excel
-   - Format file yang digunakan
+2. **Tool Detection & Normalization**: Ketika upload gagal karena tools mismatch atau parsing error, sistem akan mencoba mendapatkan tool name yang valid dengan urutan prioritas:
+   - **Deteksi dari Sheet Names**: Berdasarkan method yang dipilih (Deep Communication Analytics, Contact Correlation, Social Media Correlation, Hashfile Analytics) dan sheet names yang ada di file Excel
+   - **Normalisasi dari Parameter Tools**: Jika deteksi gagal, sistem akan menormalisasi parameter `tools` yang diberikan user menjadi format standar:
+     - `"cellebrite"` atau `"celebrate"` → `"Cellebrite"`
+     - `"oxygen"` → `"Oxygen"`
+     - `"magnet axiom"` atau `"magnet"` + `"axiom"` → `"Magnet Axiom"`
+     - `"encase"` → `"Encase"`
+   - **Fallback**: Jika normalisasi juga gagal, sistem akan menggunakan parameter `tools` langsung atau `"the correct tools"`
+   
+   **Catatan Penting:** Sistem tidak akan menggunakan `"Unknown"` sebagai tool name. Semua error message akan selalu mencoba menampilkan tool name yang valid.
 
 3. **Size Field**: 
    - Format normal: `"{uploaded_size} MB/{total_size} MB"` (contoh: `"2.345 MB/5.234 MB"`)
    - Format success: `"{total_size} MB"` (contoh: `"5.234 MB"`)
-   - Format error dengan detected tool: `"Upload Failed! Please upload this file using Tools '{detected_tool}'"`
-   - Format error tanpa detected tool: `"Upload Failed! Please try again"`
+   - Format error dengan tool name: `"Upload Failed! Please upload this file using Tools '{tool_name}'"` (tool_name: Cellebrite, Oxygen, Magnet Axiom, Encase, atau parameter tools)
+   - Format error fallback: `"Upload Failed! Please upload this file using Tools 'the correct tools'"` (hanya jika semua deteksi dan normalisasi gagal)
 
 4. **Percentage Field**:
    - Range: `0` sampai `100` untuk status Progress
@@ -396,6 +435,36 @@ GET /api/v1/analytics/upload-progress?upload_id=upload_1234567890_abc123
     "upload_id": "invalid_upload_id",
     "file_name": null,
     "size": "Upload Failed! Please try again",
+    "percentage": "Error",
+    "upload_status": "Failed",
+    "data": []
+}
+```
+
+**Catatan:** Jika `detected_tool` tersedia dari upload service, `size` akan berisi `"Upload Failed! Please upload this file using Tools '{tool_name}'"` dengan tool name yang valid.
+
+### Error Response (Parsing Error dengan Tool Name)
+```json
+{
+    "status": "Failed",
+    "message": "File upload failed. Please upload this file using Tools Magnet Axiom",
+    "upload_id": "upload_1234567890_abc123",
+    "file_name": "example_file.xlsx",
+    "size": "Upload Failed! Please upload this file using Tools 'Magnet Axiom'",
+    "percentage": "Error",
+    "upload_status": "Failed",
+    "data": []
+}
+```
+
+### Error Response (No Data Parsed dengan Tool Name)
+```json
+{
+    "status": "Failed",
+    "message": "File upload failed. Please upload this file using Tools Encase",
+    "upload_id": "upload_1234567890_abc123",
+    "file_name": "example_file.xlsx",
+    "size": "Upload Failed! Please upload this file using Tools 'Encase'",
     "percentage": "Error",
     "upload_status": "Failed",
     "data": []
