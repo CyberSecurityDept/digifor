@@ -36,7 +36,7 @@ from reportlab.lib.utils import ImageReader
 logger = logging.getLogger(__name__)
 
 class SummaryRequest(BaseModel):
-    summary: str
+    summary: Optional[str] = None
 
 router = APIRouter()
 
@@ -175,17 +175,17 @@ def save_analytic_summary(
         
         if current_user is not None and not check_analytic_access(analytic, current_user):
             return JSONResponse(
-                content={"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic",
+                    "data": None
+                },
                 status_code=403,
             )
 
-        if not request.summary or not request.summary.strip():
-            return JSONResponse(
-                content={"status": 400, "message": "Summary cannot be empty", "data": None},
-                status_code=400,
-            )
+        summary_text = request.summary.strip() if request.summary else ""
 
-        setattr(analytic, 'summary', request.summary.strip())
+        analytic.summary = summary_text # type: ignore
         db.commit()
         db.refresh(analytic)
 
@@ -213,6 +213,7 @@ def save_analytic_summary(
             },
             status_code=500,
         )
+
 
 @router.put("/analytic/edit-summary")
 def edit_analytic_summary(
