@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.analytics.analytics_management.models import Analytic, AnalyticDevice
 from app.analytics.device_management.models import Device, File
-from app.analytics.analytics_management.models import ApkAnalytic
+from app.analytics.analytics_management.models import ApkAnalytic, AnalyticFile
 from typing import List
 from app.utils.timezone import get_indonesia_time
 from app.analytics.utils.scan_apk import load_suspicious_indicators
@@ -180,15 +180,17 @@ def log_response(prefix: str, resp):
         print(f"       Response JSON (truncated):\n{dump}")
     except Exception:
         print(f"       Response text (truncated): {resp.text[:500]}")
-
 def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     print(f"\n==== Starting analysis for file_id={file_id}, analytic_id={analytic_id} ====")
 
+    # ============================
+    # 1. VALIDASI FILE
+    # ============================
     file_obj = db.query(File).filter(File.id == file_id).first()
     if not file_obj:
         raise ValueError(f"File dengan id={file_id} tidak ditemukan")
 
-    file_path = getattr(file_obj, "file_path", None) or getattr(file_obj, "path", None)
+    file_path = file_obj.file_path
     if not file_path:
         raise ValueError("File path tidak ditemukan di DB")
 
@@ -202,43 +204,103 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
     ext = os.path.splitext(file_path)[1].lower()
     scan_type = "apk" if ext == ".apk" else "ipa" if ext == ".ipa" else "app"
 
+    # ============================
+    # 2. UPLOAD TO MOBSF
+    # ============================
     api_key = get_mobsf_api_key()
     headers = {"Authorization": api_key}
 
     print("[*] Uploading to MobSF...")
     with open(file_path, "rb") as f:
-        filename = os.path.basename(file_path)
-        files = {"file": (filename, f, "application/octet-stream")}
+        files = {"file": (os.path.basename(file_path), f, "application/octet-stream")}
         resp = requests.post(f"{settings.MOBSF_URL}/api/v1/upload", files=files, headers=headers)
+
     log_response("Upload", resp)
     if resp.status_code != 200:
         raise RuntimeError(f"Upload gagal: {resp.text}")
-    file_hash = resp.json().get("hash")
+
+    resp_json = resp.json()
+    file_hash = resp_json.get("hash")
     if not file_hash:
         raise RuntimeError("Tidak dapat membaca hash dari response upload")
-    
+
+    # ============================
+    # 3. MULAI SCAN
+    # ============================
     print("[*] Starting MobSF scan...")
     scan_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/scan", data={"hash": file_hash}, headers=headers)
     log_response("Scan", scan_resp)
     if scan_resp.status_code != 200:
         raise RuntimeError(f"Scan gagal: {scan_resp.text}")
 
+    # ============================
+    # 4. GET REPORT JSON
+    # ============================
     print("[*] Fetching MobSF JSON report...")
     json_resp = requests.post(f"{settings.MOBSF_URL}/api/v1/report_json", data={"hash": file_hash}, headers=headers)
     log_response("Report JSON", json_resp)
     if json_resp.status_code != 200:
         raise RuntimeError(f"Gagal ambil report JSON: {json_resp.text}")
+
     report_json = json_resp.json()
-    
-    permissions = report_json.get('permissions', {})
+
+    permissions = report_json.get("permissions", {})
     print(f"[*] Extracted {len(permissions)} permissions from report.")
 
+    # ============================
+    # 5. ANALYZE PERMISSIONS
+    # ============================
     suspicious_set = load_suspicious_indicators(os.path.dirname(os.path.realpath(__file__)))
+
     safety_score, classification, reason, dangerous_list, risk_weight = classify_permissions(
         permissions, suspicious_set
     )
-    security_score = report_json.get("appsec",{}).get("security_score")
+    security_score = report_json.get("appsec", {}).get("security_score")
 
+    # =====================================================
+    # 6. TEMUKAN analytic_file UNTUK MENYIMPAN HASIL
+    # =====================================================
+    analytic_file = (
+        db.query(AnalyticFile)
+        .filter(AnalyticFile.analytic_id == analytic_id, AnalyticFile.file_id == file_id)
+        .first()
+    )
+
+    if not analytic_file:
+        raise RuntimeError("AnalyticFile tidak ditemukan! Pastikan endpoint store-analytic-file dipanggil terlebih dahulu.")
+
+    analytic_file.scoring = security_score or safety_score
+    analytic_file.status = "scanned"
+    db.commit()
+
+    # ============================
+    # 7. SIMPAN PERMISSION KE ApkAnalytic
+    # ============================
+    print("[*] Saving analysis results to database...")
+
+    # Hapus existing permissions
+    db.query(ApkAnalytic).filter(ApkAnalytic.analytic_file_id == analytic_file.id).delete()
+
+    for perm, value in permissions.items():
+        status, desc = normalize_permission_entry(value)
+        print(f"    • {perm} → status={status}")
+
+        db.add(
+            ApkAnalytic(
+                item=perm,
+                status=status,
+                description=desc,
+                malware_scoring=security_score,
+                analytic_file_id=analytic_file.id,   # 🔥 satu-satunya FK yang valid sekarang
+                created_at=datetime.utcnow(),
+            )
+        )
+
+    db.commit()
+
+    # ============================
+    # 8. RETURN RESULT
+    # ============================
     result = {
         "file": os.path.basename(file_path),
         "package": report_json.get("package_name", "N/A"),
@@ -255,24 +317,5 @@ def analyze_apk_from_file(db, file_id: int, analytic_id: int):
         }
     }
 
-    print("[*] Saving analysis results to database...")
-    for perm, value in permissions.items():
-        status, desc = normalize_permission_entry(value)
-        print(f"    • {perm} → status={status}")
-        db.add(
-            ApkAnalytic(
-                item=perm,
-                status=status,
-                description=desc,
-                malware_scoring=security_score,
-                file_id=file_id,
-                analytic_id=analytic_id,
-                created_at=datetime.utcnow(),
-            )
-        )
-    db.commit()
-
-    print(f"[+] Analysis completed and saved for file: {file_path}")
-    print(f"    → Classification: {classification} | Score: {safety_score}")
-
+    print(f"[+] Analysis completed!")
     return result

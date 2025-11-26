@@ -3,14 +3,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.analytics_management.service import analyze_apk_from_file
-from app.analytics.analytics_management.models import ApkAnalytic, Analytic
+from app.analytics.analytics_management.models import ApkAnalytic, Analytic, AnalyticFile
 from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
 from app.auth.models import User
 from app.api.deps import get_current_user
 import asyncio, time, uuid, traceback
 from app.api.v1.analytics_management_routes import check_analytic_access
-
+import os
 router = APIRouter()
 
 @router.post("/analytics/upload-apk")
@@ -72,100 +72,116 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
 
 @router.post("/analytics/analyze-apk")
 def analyze_apk(
-    file_id: int, 
-    analytic_id: int, 
+    file_id: int,
+    analytic_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
         analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic_obj:
-            return JSONResponse(
-                {"status": 404, "message": f"Analytics Not Found", "data": None},
-                status_code=404,
-            )
-        
-        
-        if current_user is not None and not check_analytic_access(analytic_obj, current_user):
-            return JSONResponse(
-                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
-                status_code=403,
-            )
-        
-        method_value = analytic_obj.method
-        if method_value is None or str(method_value) != "APK Analytics":
-            return JSONResponse(
-                {
-                    "status": 400,
-                    "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
-                    "data": None
-                },
-                status_code=400,
-            )
-        
+            return JSONResponse({"status": 404, "message": "Analytics Not Found", "data": None}, 404)
+
+        if current_user and not check_analytic_access(analytic_obj, current_user):
+            return JSONResponse({"status": 403, "message": "Forbidden", "data": None}, 403)
+
+        if analytic_obj.method != "APK Analytics":
+            return JSONResponse({"status": 400, "message": "Wrong Analytic Method", "data": None}, 400)
+
         file_obj = db.query(File).filter(File.id == file_id).first()
         if not file_obj:
-            return JSONResponse(
-                {"status": 404, "message": f"File Not Found", "data": None},
-                status_code=404,
-            )
+            return JSONResponse({"status": 404, "message": "File Not Found", "data": None}, 404)
 
+        # 🔥 Format File Size
+        file_size_raw = getattr(file_obj, "total_size", None)
+
+        # fallback ke file path jika DB size tidak ada
+        if not file_size_raw and os.path.exists(file_obj.file_path):
+            file_size_raw = os.path.getsize(file_obj.file_path)
+
+        formatted_file_size = format_file_size(file_size_raw)
+
+        # 🔍 FIND OR CREATE AnalyticFile
+        analytic_file = (
+            db.query(AnalyticFile)
+            .filter(AnalyticFile.analytic_id == analytic_id, AnalyticFile.file_id == file_id)
+            .first()
+        )
+
+        if not analytic_file:
+            analytic_file = AnalyticFile(
+                analytic_id=analytic_id,
+                file_id=file_id,
+                status="pending",
+            )
+            db.add(analytic_file)
+            db.commit()
+            db.refresh(analytic_file)
+
+        # 🔎 RUN ANALYSIS
         result = analyze_apk_from_file(db, file_id=file_id, analytic_id=analytic_id)
-        if not result or not isinstance(result, dict):
-            return JSONResponse(
-                {"status": 400, "message": "Invalid analysis result or file not supported", "data": None},
-                status_code=400,
-            )
-
-        analysis = result.get("permission_analysis", {})
-        malware_scoring = str(analysis.get("security_score", analysis.get("safety_score", 0)))
+        if not isinstance(result, dict):
+            return JSONResponse({"status": 400, "message": "Invalid analysis result", "data": None}, 400)
 
         permissions_dict = result.get("permissions", {})
-        if not permissions_dict:
-            return JSONResponse(
-                {"status": 400, "message": "No permissions found in analysis result", "data": None},
-                status_code=400,
-            )
+        analysis = result.get("permission_analysis", {})
+        scoring = str(analysis.get("security_score", analysis.get("safety_score", 0)))
 
-        permissions_list = []
-        for idx, (perm, value) in enumerate(permissions_dict.items(), start=1):
-            if isinstance(value, dict):
-                status = value.get("status", "unknown")
-                desc = value.get("description", value.get("info", ""))
-            else:
-                status = str(value)
-                desc = ""
-            permissions_list.append({
-                "id": idx,
-                "item": perm,
-                "status": status,
-                "description": desc
-            })
+        # UPDATE AnalyticFile
+        analytic_file.status = "scanned"
+        analytic_file.scoring = scoring
+        db.commit()
 
-        formatted_data = {
-            "analytic_name": analytic_obj.analytic_name if hasattr(analytic_obj, "analytic_name") else f"Analytic {analytic_id}",
+        # DELETE OLD PERMISSIONS
+        db.query(ApkAnalytic).filter(ApkAnalytic.analytic_file_id == analytic_file.id).delete()
+
+        # INSERT NEW PERMISSIONS
+        for perm, value in permissions_dict.items():
+            status = value.get("status", "unknown")
+            desc = value.get("description", "")
+
+            db.add(ApkAnalytic(
+                item=perm,
+                status=status,
+                description=desc,
+                malware_scoring=scoring,
+                analytic_file_id=analytic_file.id
+            ))
+
+        db.commit()
+
+        # FETCH NORMALIZED PERMISSIONS
+        permission_rows = db.query(ApkAnalytic).filter(
+            ApkAnalytic.analytic_file_id == analytic_file.id
+        ).all()
+
+        permissions_list = [
+            {
+                "id": row.id,
+                "item": row.item,
+                "status": row.status,
+                "description": row.description,
+            }
+            for row in permission_rows
+        ]
+
+        # FINAL RESPONSE
+        final_response = {
+            "analytic_name": analytic_obj.analytic_name,
             "method": "APK Analytics",
-            "malware_scoring": malware_scoring,
-            "permissions": permissions_list
+            "status": analytic_file.status,
+            "malware_scoring": scoring,
+            "file_size": formatted_file_size,  # ✔ ADDED
+            "permissions": permissions_list,
+            "summary": analytic_obj.summary
         }
 
-        return JSONResponse(
-            {"status": 200, "message": "Success", "data": formatted_data},
-            status_code=200,
-        )
+        return JSONResponse({"status": 200, "message": "Success", "data": final_response}, 200)
 
-    except FileNotFoundError as e:
-        return JSONResponse(
-            {"status": 404, "message": f"File not found: {str(e)}", "data": None},
-            status_code=404,
-        )
-
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
-        return JSONResponse(
-            {"status": 500, "message": "Something went wrong, please try again later!", "data": None},
-            status_code=500,
-        )
+        return JSONResponse({"status": 500, "message": "Server error!", "data": None}, 500)
+
 
 UPLOAD_PROGRESS = {}
 def format_file_size(size_bytes: int) -> str:
@@ -244,44 +260,51 @@ def get_apk_analysis(
     if not analytic_obj:
         return JSONResponse(
             {"status": 404, "message": "Analytic not found", "data": {}},
-            status_code=404,
+            404,
         )
     
     if current_user is not None and not check_analytic_access(analytic_obj, current_user):
         return JSONResponse(
-            {"status": 403, "message": "You do not have permission to access this analytic", "data": {}},
-            status_code=403,
+            {"status": 403, "message": "Forbidden", "data": {}},
+            403,
         )
     
-    method_value = analytic_obj.method
-    if method_value is None or str(method_value) != "APK Analytics":
+    if analytic_obj.method != "APK Analytics":
         return JSONResponse(
-            {
-                "status": 400,
-                "message": f"This endpoint is only for APK Analytics. Current analytic method is '{method_value}'",
-                "data": {}
-            },
-            status_code=400,
+            {"status": 400, "message": "Wrong Method", "data": {}},
+            400,
         )
     
+    # Ambil AnalyticFile
+    analytic_file = (
+        db.query(AnalyticFile)
+        .filter(AnalyticFile.analytic_id == analytic_id)
+        .order_by(AnalyticFile.created_at.desc())
+        .first()
+    )
+
+    if not analytic_file:
+        return JSONResponse(
+            {"status": 404, "message": "No APK analysis found", "data": {}},
+            404,
+        )
+
+    # Ambil file untuk size
+    file_obj = db.query(File).filter(File.id == analytic_file.file_id).first()
+
+    file_size_raw = getattr(file_obj, "total_size", None)
+    if not file_size_raw and os.path.exists(file_obj.file_path):
+        file_size_raw = os.path.getsize(file_obj.file_path)
+
+    formatted_file_size = format_file_size(file_size_raw)
+
+    # Ambil permission
     apk_records = (
         db.query(ApkAnalytic)
-        .filter(ApkAnalytic.analytic_id == analytic_id)
+        .filter(ApkAnalytic.analytic_file_id == analytic_file.id)
         .order_by(ApkAnalytic.created_at.desc())
         .all()
     )
-    
-    if not apk_records:
-        return JSONResponse(
-            {
-                "status": 404,
-                "message": f"No APK analysis found for analytic_id={analytic_id}",
-                "data": {}
-            },
-            status_code=404,
-        )
-
-    malware_scoring = apk_records[0].malware_scoring if apk_records else None
 
     permissions = [
         {
@@ -298,12 +321,89 @@ def get_apk_analysis(
             "status": 200,
             "message": "Success",
             "data": {
-                "analytic_name": apk_records[0].analytic.analytic_name if apk_records else None,
-                "method": apk_records[0].analytic.method if apk_records else None,
-                "malware_scoring": malware_scoring,
+                "analytic_name": analytic_obj.analytic_name,
+                "method": analytic_obj.method,
+                "status": analytic_file.status,
+                "malware_scoring": analytic_file.scoring,
+                "file_size": formatted_file_size,  # ✔ ADDED
+                "file_id": analytic_file.file_id,  # ✔ ADDED
                 "permissions": permissions,
-                "summary" : apk_records[0].analytic.summary if apk_records else None,
+                "summary": analytic_obj.summary,
             }
         },
-        status_code=200,
+        200,
     )
+@router.post("/analytics/store-analytic-file")
+def store_analytic_file(
+    analytic_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        analytic_obj = db.query(Analytic).filter(Analytic.id == analytic_id).first()
+        if not analytic_obj:
+            return JSONResponse(
+                {"status": 404, "message": "Analytic not found", "data": None},
+                status_code=404,
+            )
+
+        if current_user and not check_analytic_access(analytic_obj, current_user):
+            return JSONResponse(
+                {"status": 403, "message": "Forbidden", "data": None},
+                status_code=403,
+            )
+
+        file_obj = db.query(File).filter(File.id == file_id).first()
+        if not file_obj:
+            return JSONResponse(
+                {"status": 404, "message": "File not found", "data": None},
+                status_code=404,
+            )
+
+        analytic_file = (
+            db.query(AnalyticFile)
+            .filter(AnalyticFile.analytic_id == analytic_id, AnalyticFile.file_id == file_id)
+            .first()
+        )
+
+        if analytic_file:
+            return JSONResponse(
+                {"status": 200, "message": "Already exists", "data": {
+                    "id": analytic_file.id,
+                    "analytic_id": analytic_file.analytic_id,
+                    "file_id": analytic_file.file_id,
+                    "status": analytic_file.status
+                }},
+                status_code=200,
+            )
+
+        analytic_file = AnalyticFile(
+            analytic_id=analytic_id,
+            file_id=file_id,
+            status="pending"
+        )
+        db.add(analytic_file)
+        db.commit()
+        db.refresh(analytic_file)
+
+        return JSONResponse(
+            {
+                "status": 201,
+                "message": "Analytic File Stored",
+                "data": {
+                    "id": analytic_file.id,
+                    "analytic_id": analytic_file.analytic_id,
+                    "file_id": analytic_file.file_id,
+                    "status": analytic_file.status
+                }
+            },
+            status_code=201,
+        )
+
+    except Exception:
+        traceback.print_exc()
+        return JSONResponse(
+            {"status": 500, "message": "Server error!", "data": None},
+            status_code=500,
+        )
