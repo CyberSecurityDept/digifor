@@ -175,17 +175,17 @@ def save_analytic_summary(
         
         if current_user is not None and not check_analytic_access(analytic, current_user):
             return JSONResponse(
-                content={"status": 403, "message": "You do not have permission to access this analytic", "data": None},
+                content={
+                    "status": 403,
+                    "message": "You do not have permission to access this analytic",
+                    "data": None
+                },
                 status_code=403,
             )
 
-        if not request.summary or not request.summary.strip():
-            return JSONResponse(
-                content={"status": 400, "message": "Summary cannot be empty", "data": None},
-                status_code=400,
-            )
+        summary_text = request.summary.strip() if request.summary else ""
 
-        setattr(analytic, 'summary', request.summary.strip())
+        setattr(analytic, 'summary', summary_text)
         db.commit()
         db.refresh(analytic)
 
@@ -202,6 +202,12 @@ def save_analytic_summary(
             },
             status_code=200,
         )
+    except Exception as e:
+        return JSONResponse(
+            content={"status": 500, "message": str(e), "data": None},
+            status_code=500,
+        )
+
 
     except Exception as e:
         db.rollback()
