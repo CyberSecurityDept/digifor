@@ -18,6 +18,7 @@ class Suspect(Base):
     is_unknown = Column(Boolean, default=False)
     evidence_number = Column(String(100))
     evidence_source = Column(String(100))
+    notes = Column(Text, nullable=True)
     created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_indonesia_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_indonesia_time, onupdate=get_indonesia_time, nullable=False)

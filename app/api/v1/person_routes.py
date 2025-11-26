@@ -324,6 +324,7 @@ async def update_person(
     person_name: Optional[str] = Form(None),
     suspect_status: Optional[str] = Form(None),
     is_unknown_person: Optional[bool] = Form(None),
+    notes: Optional[str] = Form(None),
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
@@ -331,6 +332,13 @@ async def update_person(
         suspect = db.query(Suspect).filter(Suspect.id == person_id).first()
         if not suspect:
             raise HTTPException(status_code=404, detail=f"Person with ID {person_id} not found")
+        
+        old_name = getattr(suspect, 'name', None)
+        old_status = getattr(suspect, 'status', None)
+        old_notes = getattr(suspect, 'notes', None)
+        name_changed = False
+        status_changed = False
+        notes_changed = False
         
         case = db.query(Case).filter(Case.id == suspect.case_id).first()
         if case:
@@ -340,6 +348,10 @@ async def update_person(
             setattr(suspect, 'is_unknown', is_unknown_person)
 
             if is_unknown_person:
+                if old_name != "Unknown":
+                    name_changed = True
+                if old_status is not None:
+                    status_changed = True
                 setattr(suspect, 'name', "Unknown")
                 setattr(suspect, 'status', None)
             else:
@@ -353,13 +365,18 @@ async def update_person(
                         status_code=400,
                         detail="suspect_status is required when is_unknown_person is false"
                     )
-                setattr(suspect, 'name', person_name.strip())
+                new_name = person_name.strip()
+                if old_name != new_name:
+                    name_changed = True
+                setattr(suspect, 'name', new_name)
                 normalized_status = normalize_suspect_status(suspect_status)
                 if normalized_status is None:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                     )
+                if old_status != normalized_status:
+                    status_changed = True
                 setattr(suspect, 'status', normalized_status)
         else:
             current_is_unknown = getattr(suspect, 'is_unknown', False)
@@ -370,7 +387,10 @@ async def update_person(
                             status_code=400,
                             detail="person_name cannot be empty"
                         )
-                    setattr(suspect, 'name', person_name.strip())
+                    new_name = person_name.strip()
+                    if old_name != new_name:
+                        name_changed = True
+                    setattr(suspect, 'name', new_name)
                 if suspect_status is not None:
                     if not suspect_status.strip():
                         raise HTTPException(
@@ -383,17 +403,24 @@ async def update_person(
                             status_code=400,
                             detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                         )
+                    if old_status != normalized_status:
+                        status_changed = True
                     setattr(suspect, 'status', normalized_status)
             else:
                 if person_name is not None and person_name.strip() and suspect_status is not None and suspect_status.strip():
                     setattr(suspect, 'is_unknown', False)
-                    setattr(suspect, 'name', person_name.strip())
+                    new_name = person_name.strip()
+                    if old_name != new_name:
+                        name_changed = True
+                    setattr(suspect, 'name', new_name)
                     normalized_status = normalize_suspect_status(suspect_status)
                     if normalized_status is None:
                         raise HTTPException(
                             status_code=400,
                             detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                         )
+                    if old_status != normalized_status:
+                        status_changed = True
                     setattr(suspect, 'status', normalized_status)
                 elif person_name is not None or suspect_status is not None:
                     raise HTTPException(
@@ -401,21 +428,72 @@ async def update_person(
                         detail="Both person_name and suspect_status are required to change from unknown person to known person"
                     )
         
+        if notes is not None:
+            new_notes = notes.strip() if notes else None
+            if old_notes != new_notes:
+                notes_changed = True
+            setattr(suspect, 'notes', new_notes)
+        
         db.commit()
         db.refresh(suspect)
+        
         try:
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             current_status = case.status if case else "Open"
             changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-            case_log = CaseLog(
-                case_id=suspect.case_id,
-                action="Edit",
-                changed_by=f"By: {changed_by}",
-                change_detail=f"Change: Updating suspect {suspect.name}",
-                notes="",
-                status=current_status
-            )
-            db.add(case_log)
+            suspect_name = getattr(suspect, 'name', 'Unknown')
+            
+            if name_changed:
+                old_name_display = old_name if old_name else "Unknown"
+                new_name_display = getattr(suspect, 'name', 'Unknown')
+                case_log_name = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Updating person {old_name_display} | {new_name_display}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log_name)
+            
+            if status_changed:
+                old_status_display = old_status if old_status else "None"
+                new_status_display = getattr(suspect, 'status', None) if getattr(suspect, 'status', None) else "None"
+                case_log_status = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Updating status person: {old_status_display} | {new_status_display}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log_status)
+            
+            if notes_changed:
+                old_notes_display = old_notes if old_notes and old_notes.strip() else "None"
+                new_notes_display = getattr(suspect, 'notes', None)
+                new_notes_display = new_notes_display if new_notes_display and new_notes_display.strip() else "None"
+                case_log_notes = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Updating notes person: {old_notes_display} | {new_notes_display}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log_notes)
+            
+            if not name_changed and not status_changed and not notes_changed and (person_name is not None or suspect_status is not None or is_unknown_person is not None or notes is not None):
+                case_log = CaseLog(
+                    case_id=suspect.case_id,
+                    action="Edit",
+                    changed_by=f"By: {changed_by}",
+                    change_detail=f"Change: Updating person {suspect_name}",
+                    notes="",
+                    status=current_status
+                )
+                db.add(case_log)
+            
             db.commit()
         except Exception as e:
             print(f"Warning: Could not create case log: {str(e)}")
@@ -579,7 +657,7 @@ async def save_suspect_notes(
         
         first_evidence = evidence_list[0]
         current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
-
+        
         existing_notes = None
         if isinstance(current_notes, dict):
             existing_notes = current_notes.get('suspect_notes')
@@ -594,7 +672,7 @@ async def save_suspect_notes(
                     "message": f"Notes already exist for this suspect. Use PUT /api/v1/persons/edit-suspect-notes/{suspect_id} to update existing notes."
                 }
             )
-
+        
         if isinstance(current_notes, dict):
             current_notes['suspect_notes'] = notes_trimmed
         elif isinstance(current_notes, str):
