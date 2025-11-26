@@ -85,23 +85,20 @@ def analyze_apk(
         if current_user and not check_analytic_access(analytic_obj, current_user):
             return JSONResponse({"status": 403, "message": "Forbidden", "data": None}, 403)
 
-        if analytic_obj.method != "APK Analytics":
+        if getattr(analytic_obj, 'method', None) != "APK Analytics":
             return JSONResponse({"status": 400, "message": "Wrong Analytic Method", "data": None}, 400)
 
         file_obj = db.query(File).filter(File.id == file_id).first()
         if not file_obj:
             return JSONResponse({"status": 404, "message": "File Not Found", "data": None}, 404)
 
-        # 🔥 Format File Size
         file_size_raw = getattr(file_obj, "total_size", None)
 
-        # fallback ke file path jika DB size tidak ada
         if not file_size_raw and os.path.exists(file_obj.file_path):
             file_size_raw = os.path.getsize(file_obj.file_path)
 
         formatted_file_size = format_file_size(file_size_raw)
 
-        # 🔍 FIND OR CREATE AnalyticFile
         analytic_file = (
             db.query(AnalyticFile)
             .filter(AnalyticFile.analytic_id == analytic_id, AnalyticFile.file_id == file_id)
@@ -118,7 +115,6 @@ def analyze_apk(
             db.commit()
             db.refresh(analytic_file)
 
-        # 🔎 RUN ANALYSIS
         result = analyze_apk_from_file(db, file_id=file_id, analytic_id=analytic_id)
         if not isinstance(result, dict):
             return JSONResponse({"status": 400, "message": "Invalid analysis result", "data": None}, 400)
@@ -127,15 +123,12 @@ def analyze_apk(
         analysis = result.get("permission_analysis", {})
         scoring = str(analysis.get("security_score", analysis.get("safety_score", 0)))
 
-        # UPDATE AnalyticFile
-        analytic_file.status = "scanned"
-        analytic_file.scoring = scoring
+        setattr(analytic_file, 'status', "scanned")
+        setattr(analytic_file, 'scoring', scoring)
         db.commit()
 
-        # DELETE OLD PERMISSIONS
         db.query(ApkAnalytic).filter(ApkAnalytic.analytic_file_id == analytic_file.id).delete()
 
-        # INSERT NEW PERMISSIONS
         for perm, value in permissions_dict.items():
             status = value.get("status", "unknown")
             desc = value.get("description", "")
@@ -150,7 +143,6 @@ def analyze_apk(
 
         db.commit()
 
-        # FETCH NORMALIZED PERMISSIONS
         permission_rows = db.query(ApkAnalytic).filter(
             ApkAnalytic.analytic_file_id == analytic_file.id
         ).all()
@@ -165,13 +157,12 @@ def analyze_apk(
             for row in permission_rows
         ]
 
-        # FINAL RESPONSE
         final_response = {
             "analytic_name": analytic_obj.analytic_name,
             "method": "APK Analytics",
             "status": analytic_file.status,
             "malware_scoring": scoring,
-            "file_size": formatted_file_size,  # ✔ ADDED
+            "file_size": formatted_file_size,
             "permissions": permissions_list,
             "summary": analytic_obj.summary
         }
@@ -269,13 +260,12 @@ def get_apk_analysis(
             403,
         )
     
-    if analytic_obj.method != "APK Analytics":
+    if getattr(analytic_obj, 'method', None) != "APK Analytics":
         return JSONResponse(
             {"status": 400, "message": "Wrong Method", "data": {}},
             400,
         )
     
-    # Ambil AnalyticFile
     analytic_file = (
         db.query(AnalyticFile)
         .filter(AnalyticFile.analytic_id == analytic_id)
@@ -289,7 +279,6 @@ def get_apk_analysis(
             404,
         )
 
-    # Ambil file untuk size
     file_obj = db.query(File).filter(File.id == analytic_file.file_id).first()
 
     file_size_raw = getattr(file_obj, "total_size", None)
@@ -298,7 +287,6 @@ def get_apk_analysis(
 
     formatted_file_size = format_file_size(file_size_raw)
 
-    # Ambil permission
     apk_records = (
         db.query(ApkAnalytic)
         .filter(ApkAnalytic.analytic_file_id == analytic_file.id)
@@ -325,8 +313,8 @@ def get_apk_analysis(
                 "method": analytic_obj.method,
                 "status": analytic_file.status,
                 "malware_scoring": analytic_file.scoring,
-                "file_size": formatted_file_size,  # ✔ ADDED
-                "file_id": analytic_file.file_id,  # ✔ ADDED
+                "file_size": formatted_file_size,
+                "file_id": analytic_file.file_id,
                 "permissions": permissions,
                 "summary": analytic_obj.summary,
             }
