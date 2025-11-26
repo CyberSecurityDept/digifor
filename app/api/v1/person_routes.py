@@ -691,14 +691,6 @@ async def edit_suspect_notes(
                 )
         
         notes_trimmed = notes.strip() if notes else ""
-        if not notes_trimmed:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": 400,
-                    "message": "Notes cannot be empty"
-                }
-            )
         
         evidence_list = []
         if suspect_id is not None:

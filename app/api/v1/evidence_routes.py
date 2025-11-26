@@ -1645,7 +1645,7 @@ async def create_analysis_report(
 async def update_custody_notes(
     evidence_id: int,
     report_id: int,
-    notes: str = Form(...),
+    notes: str | None = Form(""),
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
