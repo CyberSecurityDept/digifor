@@ -71,7 +71,14 @@ async def get_suspect_summary(
     db: Session = Depends(get_database)
 ):
     try:
-        total_person = db.query(Suspect).filter(Suspect.is_unknown == False).count()
+        total_person = (
+            db.query(Suspect)
+            .filter(
+                Suspect.status.isnot(None),      # hanya status non-null
+                Suspect.is_unknown.is_(False)    # bukan unknown
+            )
+            .count()
+        )
 
         total_evidence = db.query(Evidence).count()
 

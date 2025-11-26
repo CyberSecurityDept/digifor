@@ -535,17 +535,16 @@ class CaseService:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
-        
-        if not notes or not notes.strip():
-            raise ValueError("Notes cannot be empty")
-        
-        setattr(case, 'notes', notes.strip())
+
+        final_notes = notes.strip() if notes else ""
+
+        setattr(case, 'notes', final_notes)
         db.commit()
         db.refresh(case)
-        
+
         updated_at_value = getattr(case, 'updated_at', None)
         updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
+
         return {
             "case_id": case.id,
             "case_number": case.case_number,
@@ -553,6 +552,7 @@ class CaseService:
             "notes": getattr(case, 'notes', None),
             "updated_at": updated_at_str
         }
+
     
     def _get_chain_of_custody(self, db: Session, evidence_id: int) -> dict:
         custody_logs = db.query(CustodyLog).filter(
