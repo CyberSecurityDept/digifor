@@ -83,7 +83,7 @@ def _get_contact_correlation_data(analytic_id: int, db: Session, current_user=No
     device_ids = []
     for link in device_links:
         device_ids.extend(link.device_ids)
-    device_ids = list(set(device_ids))
+    device_ids = list(set(device_ids)) 
     
     if not device_ids:
         analytic_name_value = getattr(analytic, 'analytic_name', None) or "Unknown"

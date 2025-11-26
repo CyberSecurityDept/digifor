@@ -67,6 +67,20 @@ async def run_real_upload_and_finalize(
                 file_bytes=file_bytes,
                 method=method,
             )
+           
+            if isinstance(resp, dict) and resp.get("status") not in (200, "200"):
+                error_message = resp.get("message", "Upload Failed! Please try again")
+                UPLOAD_PROGRESS[upload_id] = {
+                    "status": "Failed",
+                    "message": error_message,
+                    "upload_id": upload_id,
+                    "file_name": file_name,
+                    "size": "Upload Failed! Please try again",
+                    "percentage": "Error",
+                    "upload_status": "Failed",
+                    "data": [],
+                }
+                return
         else:
             resp = {"status": 200, "message": "Upload in progress", "data": {}}
 
@@ -124,38 +138,80 @@ async def run_real_upload_and_finalize(
                     UPLOAD_PROGRESS[upload_id]["status"] = "Progress"
                     UPLOAD_PROGRESS[upload_id]["upload_status"] = "Progress"
                 
-                if svc_data.get("done") or (percent >= 100 and code == 200):
+                is_done = svc_data.get("done", False)
+                has_error = svc_data.get("error", False)
+                
+                if is_done or (percent >= 100 and code == 200):
                     upload_service_done = True
+                    if has_error:
+                        error_message = svc_resp.get("message", "Upload Failed! Please try again")
+                        detected_tool = svc_data.get("detected_tool", "Unknown")
+                        # Format size message with detected tool if available
+                        if detected_tool and detected_tool != "Unknown":
+                            size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                        else:
+                            size_value = "Upload Failed! Please try again"
+                        UPLOAD_PROGRESS[upload_id] = {
+                            "status": "Failed",
+                            "message": error_message,
+                            "upload_id": upload_id,
+                            "file_name": file_name,
+                            "size": size_value,
+                            "percentage": "Error",
+                            "upload_status": "Failed",
+                            "data": [],
+                        }
+                        return
                     await asyncio.sleep(2)
                     break
             await asyncio.sleep(0.5)
             wait_count += 1
 
-        if upload_service_done and isinstance(resp, dict) and resp.get("status") in (200, "200"):
-            data = resp.get("data", {})
-            UPLOAD_PROGRESS[upload_id] = {
-                "status": "Success",
-                "message": "Upload successful",
-                "upload_status": "Success",
-                "file_name": file_name,
-                "total_size": total_size,
-                "uploaded": total_size,
-                "percentage": 100,
-                "data": [
-                    {
-                        "file_id": data.get("file_id"),
-                        "file_path": data.get("file_path"),
-                        "notes": notes,
-                        "type": type,
-                        "tools": tools,
-                        "method": method,
-                        "total_size": format_file_size(total_size),
-                        "amount_of_data": str((data.get("parsing_result") or {}).get("amount_of_data_count", 0)),
-                        "create_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "update_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                ],
-            }
+        if upload_service_done and isinstance(resp, dict):
+            resp_status = resp.get("status")
+            if resp_status in (200, "200"):
+                data = resp.get("data", {})
+                UPLOAD_PROGRESS[upload_id] = {
+                    "status": "Success",
+                    "message": "Upload successful",
+                    "upload_status": "Success",
+                    "file_name": file_name,
+                    "total_size": total_size,
+                    "uploaded": total_size,
+                    "percentage": 100,
+                    "data": [
+                        {
+                            "file_id": data.get("file_id"),
+                            "file_path": data.get("file_path"),
+                            "notes": notes,
+                            "type": type,
+                            "tools": tools,
+                            "method": method,
+                            "total_size": format_file_size(total_size),
+                            "amount_of_data": str((data.get("parsing_result") or {}).get("amount_of_data_count", 0)),
+                            "create_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "update_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                    ],
+                }
+            else:
+                error_message = resp.get("message", "Upload Failed! Please try again")
+                detected_tool = resp.get("detected_tool", None)
+                # Format size message with detected tool if available
+                if detected_tool and detected_tool != "Unknown":
+                    size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                else:
+                    size_value = "Upload Failed! Please try again"
+                UPLOAD_PROGRESS[upload_id] = {
+                    "status": "Failed",
+                    "message": error_message,
+                    "upload_id": upload_id,
+                    "file_name": file_name,
+                    "size": size_value,
+                    "percentage": "Error",
+                    "upload_status": "Failed",
+                    "data": [],
+                }
         else:
             UPLOAD_PROGRESS[upload_id] = {
                 "status": "Failed",
@@ -168,12 +224,28 @@ async def run_real_upload_and_finalize(
                 "data": [],
             }
     except Exception as e:
+        # Try to get detected tool from progress if available
+        detected_tool = None
+        try:
+            svc_resp, code = upload_service.get_progress(upload_id)
+            if code == 200:
+                svc_data = svc_resp.get("data", {})
+                detected_tool = svc_data.get("detected_tool", "Unknown")
+        except:
+            pass
+        
+        # Format size message with detected tool if available
+        if detected_tool and detected_tool != "Unknown":
+            size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+        else:
+            size_value = "Upload Failed! Please try again"
+        
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Failed",
             "message": f"Upload Failed! {str(e)}",
             "upload_id": upload_id,
             "file_name": file_name,
-            "size": "Upload Failed! Please try again",
+            "size": size_value,
             "percentage": "Error",
             "upload_status": "Failed",
             "data": [],
@@ -420,13 +492,29 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 }
 
         if upload_id not in prog_dict:
+           
+            detected_tool = None
+            try:
+                svc_resp, code = upload_service.get_progress(upload_id)
+                if code == 200:
+                    svc_data = svc_resp.get("data", {})
+                    detected_tool = svc_data.get("detected_tool", "Unknown")
+            except:
+                pass
+            
+            
+            if detected_tool and detected_tool != "Unknown":
+                size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+            else:
+                size_value = "Upload Failed! Please try again"
+            
             return JSONResponse(
                 {
                     "status": "Failed",
                     "message": "Upload ID not found",
                     "upload_id": upload_id,
                     "file_name": None,
-                    "size": "Upload Failed! Please try again",
+                    "size": size_value,
                     "percentage": "Error",
                     "upload_status": "Failed",
                     "data": [],
@@ -454,8 +542,38 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
         if code == 200:
             svc_data = svc_resp.get("data", {})
             done = bool(svc_data.get("done"))
+            has_error = bool(svc_data.get("error", False))
             percent = int((svc_data.get("percent") or 0))
             total_size_fmt = svc_data.get("total_size") or format_file_size(progress.get("total_size") or 0)
+
+            if done and has_error:
+                error_message = svc_resp.get("message", "Upload Failed! Please try again")
+                detected_tool = svc_data.get("detected_tool", "Unknown")
+                
+                if detected_tool and detected_tool != "Unknown":
+                    size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                else:
+                    size_value = "Upload Failed! Please try again"
+                prog_dict[upload_id] = {
+                    "status": "Failed",
+                    "message": error_message,
+                    "upload_id": upload_id,
+                    "file_name": progress.get("file_name"),
+                    "size": size_value,
+                    "percentage": "Error",
+                    "upload_status": "Failed",
+                    "data": [],
+                }
+                return {
+                    "status": "Failed",
+                    "message": error_message,
+                    "upload_id": upload_id,
+                    "file_name": progress.get("file_name"),
+                    "size": size_value,
+                    "percentage": "Error",
+                    "upload_status": "Failed",
+                    "data": [],
+                }
             
             if done and percent == 100 and status == "Progress":
                 percent = 97
@@ -479,7 +597,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                         match = re.search(r'([\d.]+)', progress_size)
                         if match:
                             size_num = float(match.group(1))
-                            # Convert to bytes (assuming MB)
+                            
                             if "MB" in progress_size:
                                 uploaded_bytes = int(size_num * 1024 * 1024)
                             elif "KB" in progress_size:
@@ -488,7 +606,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                                 uploaded_bytes = int(size_num)
                             prog_dict[upload_id]["uploaded"] = uploaded_bytes
                     elif done and percent >= 100:
-                        # If done, set uploaded to total_size
+                        
                         prog_dict[upload_id]["uploaded"] = progress.get("total_size", 0)
                 except:
                     pass
@@ -549,11 +667,28 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 }
 
         elif status == "Failed":
+            detected_tool = progress.get("detected_tool", None)
+            if not detected_tool:
+                try:
+                    svc_resp, code = upload_service.get_progress(upload_id)
+                    if code == 200:
+                        svc_data = svc_resp.get("data", {})
+                        detected_tool = svc_data.get("detected_tool", "Unknown")
+                except:
+                    detected_tool = "Unknown"
+            
+            if detected_tool and detected_tool != "Unknown":
+                size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+            else:
+                size_value = progress.get("size", "Upload Failed! Please try again")
+            
             return {
                 "status": "Failed",
                 "message": progress.get("message", "Upload Failed! Please try again"),
                 "upload_id": upload_id,
                 "file_name": progress.get("file_name"),
+                "size": size_value,
+                "percentage": progress.get("percentage", "Error"),
                 "upload_status": "Failed",
                 "data": [],
             }

@@ -31,7 +31,6 @@ KEY_DIR = os.path.join(BASE_DIR, "keys")
 for d in [UPLOAD_DIR, DATA_DIR, ENCRYPTED_DIR, KEY_DIR]:
     os.makedirs(d, exist_ok=True)
 
-
 def _load_existing_private_key() -> bytes:
     private_key_path = os.path.join(KEY_DIR, "private.key")
     if not os.path.exists(private_key_path):
@@ -74,12 +73,211 @@ class UploadService:
             return True
         return data.get("cancel", False)
 
-    def _mark_done(self, upload_id: str, message: str):
+    def _detect_tool_from_sheets(self, file_path: str, method: str = None) -> str:
+        try:
+            file_ext = Path(file_path).suffix.lower()
+            if file_ext not in ['.xlsx', '.xls']:
+                return "Unknown"
+            
+            try:
+                xls = pd.ExcelFile(file_path, engine='openpyxl')
+                sheet_names_lower = [str(s).lower() for s in xls.sheet_names]
+                sheet_names_str = ' '.join(sheet_names_lower)
+                
+                print(f"[TOOL DETECTION] Analyzing sheets: {', '.join(xls.sheet_names[:10])}...")
+                if method:
+                    print(f"[TOOL DETECTION] Method: {method}")
+                
+                if method == "Deep Communication Analytics":
+                    if 'messages' in sheet_names_lower or 'message' in sheet_names_lower:
+                        oxygen_ios_indicators = [
+                            'telegram messages - ios', 'telegram chats - ios',
+                            'telegram groups - ios', 'telegram users - ios',
+                            'telegram accounts', 'instagram direct messages',
+                            'instagram media', 'instagram profiles',
+                            'ios messages preferences', 'ip addresses - audio-video call'
+                        ]
+                        for indicator in oxygen_ios_indicators:
+                            if indicator in sheet_names_str:
+                                print(f"[TOOL DETECTION] Detected Oxygen (Deep Communication) based on: {indicator}")
+                                return "Oxygen"
+                        
+                        for sheet in sheet_names_lower:
+                            if 'telegram' in sheet and 'ios' in sheet:
+                                print(f"[TOOL DETECTION] Detected Oxygen (Deep Communication) based on: {sheet}")
+                                return "Oxygen"
+                            if 'instagram' in sheet and ('direct' in sheet or 'media' in sheet or 'profiles' in sheet):
+                                print(f"[TOOL DETECTION] Detected Oxygen (Deep Communication) based on: {sheet}")
+                                return "Oxygen"
+                            if 'ip addresses' in sheet and ('audio' in sheet or 'video' in sheet or 'call' in sheet):
+                                print(f"[TOOL DETECTION] Detected Oxygen (Deep Communication) based on: {sheet}")
+                                return "Oxygen"
+                        
+                        print(f"[TOOL DETECTION] Detected Oxygen (Deep Communication) based on Messages sheet")
+                        return "Oxygen"
+                    
+                    if 'chats' in sheet_names_lower:
+                        print(f"[TOOL DETECTION] Detected Cellebrite (Deep Communication) based on 'Chats' sheet")
+                        return "Cellebrite"
+                    
+                    axiom_indicators = [
+                        'android whatsapp messages', 'android whatsapp chats',
+                        'telegram messages - android', 'telegram chats - android',
+                        'android instagram', 'android telegram',
+                        'telegram messages - ios', 'instagram direct messages'
+                    ]
+                    for indicator in axiom_indicators:
+                        if indicator in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Deep Communication) based on: {indicator}")
+                            return "Magnet Axiom"
+                    
+                    for sheet in sheet_names_lower:
+                        if 'android' in sheet and ('whatsapp' in sheet or 'telegram' in sheet):
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Deep Communication) based on: {sheet}")
+                            return "Magnet Axiom"
+                
+                elif method == "Contact Correlation":
+                    if 'contacts' in sheet_names_lower:
+                        if 'social media' in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Cellebrite (Contact Correlation) based on Contacts + Social Media")
+                            return "Cellebrite"
+                        
+                        oxygen_indicators = ['telegram', 'instagram', 'ios messages', 'ip addresses']
+                        if any(ind in sheet_names_str for ind in oxygen_indicators):
+                            print(f"[TOOL DETECTION] Detected Oxygen (Contact Correlation) based on Contacts + iOS indicators")
+                            return "Oxygen"
+                        
+                        if any('android' in sheet for sheet in sheet_names_lower):
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Contact Correlation) based on Contacts + Android")
+                            return "Magnet Axiom"
+                        
+                        print(f"[TOOL DETECTION] Detected Cellebrite (Contact Correlation) based on Contacts sheet")
+                        return "Cellebrite"
+                
+                elif method == "Social Media Correlation":
+                    oxygen_ios_indicators = [
+                        'telegram messages - ios', 'telegram chats - ios',
+                        'telegram groups - ios', 'telegram users - ios',
+                        'telegram accounts', 'instagram direct messages',
+                        'instagram media', 'instagram profiles',
+                        'ios messages preferences'
+                    ]
+                    for indicator in oxygen_ios_indicators:
+                        if indicator in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Oxygen (Social Media) based on: {indicator}")
+                            return "Oxygen"
+                    
+                    for sheet in sheet_names_lower:
+                        if 'telegram' in sheet and 'ios' in sheet:
+                            print(f"[TOOL DETECTION] Detected Oxygen (Social Media) based on: {sheet}")
+                            return "Oxygen"
+                        if 'instagram' in sheet and ('direct' in sheet or 'media' in sheet or 'profiles' in sheet):
+                            print(f"[TOOL DETECTION] Detected Oxygen (Social Media) based on: {sheet}")
+                            return "Oxygen"
+                    
+                    if 'social media' in sheet_names_str:
+                        print(f"[TOOL DETECTION] Detected Cellebrite (Social Media) based on 'Social Media' sheet")
+                        return "Cellebrite"
+                    
+                    axiom_indicators = [
+                        'android whatsapp messages', 'android whatsapp chats',
+                        'telegram messages - android', 'telegram chats - android',
+                        'android instagram', 'android telegram'
+                    ]
+                    for indicator in axiom_indicators:
+                        if indicator in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Social Media) based on: {indicator}")
+                            return "Magnet Axiom"
+                    
+                    for sheet in sheet_names_lower:
+                        if 'android' in sheet and ('whatsapp' in sheet or 'telegram' in sheet):
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Social Media) based on: {sheet}")
+                            return "Magnet Axiom"
+                
+                elif method == "Hashfile Analytics":
+                    hash_indicators = ['hash', 'md5', 'sha1', 'sha256']
+                    if any(ind in sheet_names_str for ind in hash_indicators):
+                        if any('telegram' in sheet and 'ios' in sheet for sheet in sheet_names_lower):
+                            print(f"[TOOL DETECTION] Detected Oxygen (Hashfile) based on hash + iOS indicators")
+                            return "Oxygen"
+                        if 'social media' in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on hash + Social Media")
+                            return "Cellebrite"
+                        if any('android' in sheet for sheet in sheet_names_lower):
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom (Hashfile) based on hash + Android")
+                            return "Magnet Axiom"
+                
+                else:
+                    oxygen_ios_indicators = [
+                        'telegram messages - ios', 'telegram chats - ios',
+                        'telegram groups - ios', 'telegram users - ios',
+                        'telegram accounts', 'instagram direct messages',
+                        'instagram media', 'instagram profiles',
+                        'ios messages preferences', 'ip addresses - audio-video call'
+                    ]
+                    for indicator in oxygen_ios_indicators:
+                        if indicator in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Oxygen based on: {indicator}")
+                            return "Oxygen"
+                    
+                    for sheet in sheet_names_lower:
+                        if 'telegram' in sheet and 'ios' in sheet:
+                            print(f"[TOOL DETECTION] Detected Oxygen based on: {sheet}")
+                            return "Oxygen"
+                        if 'instagram' in sheet and ('direct' in sheet or 'media' in sheet or 'profiles' in sheet):
+                            print(f"[TOOL DETECTION] Detected Oxygen based on: {sheet}")
+                            return "Oxygen"
+                        if 'ip addresses' in sheet and ('audio' in sheet or 'video' in sheet or 'call' in sheet):
+                            print(f"[TOOL DETECTION] Detected Oxygen based on: {sheet}")
+                            return "Oxygen"
+                    
+                    if 'chats' in sheet_names_lower:
+                        print(f"[TOOL DETECTION] Detected Cellebrite based on 'Chats' sheet")
+                        return "Cellebrite"
+                    if 'social media' in sheet_names_str:
+                        print(f"[TOOL DETECTION] Detected Cellebrite based on 'Social Media' sheet")
+                        return "Cellebrite"
+                    
+                    axiom_indicators = [
+                        'android whatsapp messages', 'android whatsapp chats',
+                        'telegram messages - android', 'telegram chats - android',
+                        'android instagram', 'android telegram'
+                    ]
+                    for indicator in axiom_indicators:
+                        if indicator in sheet_names_str:
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom based on: {indicator}")
+                            return "Magnet Axiom"
+                    
+                    for sheet in sheet_names_lower:
+                        if 'android' in sheet and ('whatsapp' in sheet or 'telegram' in sheet):
+                            print(f"[TOOL DETECTION] Detected Magnet Axiom based on: {sheet}")
+                            return "Magnet Axiom"
+                
+            except Exception as e:
+                print(f"[TOOL DETECTION] Error reading Excel file: {e}")
+                return "Unknown"
+        except Exception as e:
+            print(f"[TOOL DETECTION] Error detecting tool: {e}")
+            return "Unknown"
+        
+        return "Unknown"
+
+    def _mark_done(self, upload_id: str, message: str, is_error: bool = False, detected_tool: str = None):
         data = self._progress.get(upload_id)
         if not data:
-            self._progress[upload_id] = {"message": message, "done": True}
+            self._progress[upload_id] = {
+                "message": message, 
+                "done": True,
+                "error": is_error,
+                "detected_tool": detected_tool
+            }
         else:
-            data.update({"message": message, "done": True})
+            data.update({
+                "message": message, 
+                "done": True,
+                "error": is_error,
+                "detected_tool": detected_tool
+            })
 
     def _cleanup_failed_upload(self, file_id: int = None, file_path: str = None):
         try:
@@ -122,6 +320,7 @@ class UploadService:
                 "progress_size": data.get("progress_size", "0 B"),
                 "total_size": data.get("total_size"),
                 "done": data.get("done", False),
+                "error": data.get("error", False),
                 "file_id": data.get("file_id"),
             },
         }, 200
@@ -168,7 +367,7 @@ class UploadService:
         try:
             original_filename = file.filename
             if not original_filename:
-                self._mark_done(upload_id, "Filename is required")
+                self._mark_done(upload_id, "Filename is required", is_error=True)
                 return {"status": 400, "message": "Filename is required", "data": None}
             
             total_size = len(file_bytes)
@@ -210,10 +409,10 @@ class UploadService:
                             timeout=300.0
                         )
                     except asyncio.TimeoutError:
-                        self._mark_done(upload_id, "Decryption timeout: Process took too long (exceeded 5 minutes)")
+                        self._mark_done(upload_id, "Decryption timeout: Process took too long (exceeded 5 minutes)", is_error=True)
                         return {"status": 500, "message": "Decryption timeout: Process took too long", "data": None}
                     except Exception as e:
-                        self._mark_done(upload_id, f"Decryption error: {str(e)}")
+                        self._mark_done(upload_id, f"Decryption error: {str(e)}", is_error=True)
                         return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
                     
                     self._progress[upload_id].update({"message": "Decryption completed", "percent": 80})
@@ -233,7 +432,7 @@ class UploadService:
                         except Exception:
                             pass
                 except Exception as e:
-                    self._mark_done(upload_id, f"Decryption error: {str(e)}")
+                    self._mark_done(upload_id, f"Decryption error: {str(e)}", is_error=True)
                     return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
 
                 original_path_abs = decrypted_path_abs
@@ -287,14 +486,74 @@ class UploadService:
                     timeout=600.0
                 )
             except asyncio.TimeoutError:
-                self._mark_done(upload_id, "Parsing timeout: Process took too long (exceeded 10 minutes)")
+                self._mark_done(upload_id, "Parsing timeout: Process took too long (exceeded 10 minutes)", is_error=True)
                 return {"status": 500, "message": "Parsing timeout: Process took too long", "data": None}
             except Exception as e:
                 error_msg = f"Parsing error: {str(e)}"
                 print(f"[ERROR] {error_msg}")
                 traceback.print_exc()
-                self._mark_done(upload_id, error_msg)
+                self._mark_done(upload_id, error_msg, is_error=True)
                 return {"status": 500, "message": error_msg, "data": None}
+            
+            if "error" in parsed_data:
+                error_msg = parsed_data.get("error", "Tools tidak sesuai dengan format file")
+                fallback_used = parsed_data.get("fallback") is not None
+                
+                if fallback_used or "failed to parse" in error_msg.lower() or "tools" in error_msg.lower() or "parse" in error_msg.lower():
+                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                    if detected_tool and detected_tool != "Unknown":
+                        final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                    else:
+                        final_error_msg = f"Tools tidak sesuai dengan file: {error_msg}"
+                    
+                    self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
+                    try:
+                        if os.path.exists(original_path_abs):
+                            os.remove(original_path_abs)
+                            print(f"[CLEANUP] Deleted file due to tools mismatch: {original_path_abs}")
+                    except Exception as cleanup_error:
+                        print(f"[CLEANUP] Error deleting file: {str(cleanup_error)}")
+                    return {"status": 400, "message": final_error_msg, "data": None, "detected_tool": detected_tool}
+            
+            if method not in ["Deep Communication Analytics", "Social Media Correlation"]:
+                contacts_count = len(parsed_data.get("contacts", []))
+                messages_count = len(parsed_data.get("messages", []))
+                calls_count = len(parsed_data.get("calls", []))
+                total_parsed_count = contacts_count + messages_count + calls_count
+                
+                if total_parsed_count == 0 and tools and tools.lower() not in ["automatic", "auto"]:
+                    file_ext = Path(original_path_abs).suffix.lower()
+                    tools_lower = tools.lower()
+                    
+                    expected_extensions = {
+                        "magnet axiom": [".xlsx", ".xls"],
+                        "cellebrite": [".xlsx", ".xls"],
+                        "oxygen": [".xls", ".xlsx"],
+                        "encase": [".txt", ".csv"]
+                    }
+                    
+                    tool_matched = False
+                    for tool_name, extensions in expected_extensions.items():
+                        if tool_name in tools_lower:
+                            if file_ext in extensions:
+                                tool_matched = True
+                                break
+                    
+                    if not tool_matched and file_ext not in [".xlsx", ".xls", ".txt", ".csv", ".xml"]:
+                        detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        if detected_tool and detected_tool != "Unknown":
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                        else:
+                            final_error_msg = f"Tools '{tools}' tidak sesuai dengan format file '{file_ext}'. Tidak ada data yang berhasil di-parse."
+                        
+                        self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
+                        try:
+                            if os.path.exists(original_path_abs):
+                                os.remove(original_path_abs)
+                                print(f"[CLEANUP] Deleted file due to tools mismatch: {original_path_abs}")
+                        except Exception as cleanup_error:
+                            print(f"[CLEANUP] Error deleting file: {str(cleanup_error)}")
+                        return {"status": 400, "message": final_error_msg, "data": None, "detected_tool": detected_tool}
             
             self._progress[upload_id].update({
                 "message": "Parsing completed. Starting data insertion...",
@@ -324,7 +583,6 @@ class UploadService:
                         pass
                 except Exception as e:
                     pass
-            
             
             is_social_media = (
                 "social" in file_name.lower() or
@@ -460,14 +718,26 @@ class UploadService:
                         print(f"Set chat_messages_count to {len(chat_messages_result)}")
                     else:
                         parsing_result["chat_messages_count"] = 0
-                        print(f"No chat messages found, setting chat_messages_count to 0")
+                        
+                        detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        parsing_result["detected_tool"] = detected_tool
+                        if detected_tool and detected_tool != "Unknown":
+                            parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                        else:
+                            parsing_result["chat_messages_error"] = "Tidak ada chat messages yang ditemukan. File mungkin tidak memiliki sheet 'Chats' atau format file tidak sesuai."
+                        print(f"No chat messages found, setting chat_messages_count to 0. Detected tool: {detected_tool}")
                     self._progress[upload_id].update({
                         "message": "Inserting chat messages data to database...",
                         "percent": 98.5
                     })
                 except Exception as e:
                     print(f"Error parsing chat messages: {e}")
-                    parsing_result["chat_messages_error"] = str(e)
+                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                    parsing_result["detected_tool"] = detected_tool
+                    if detected_tool and detected_tool != "Unknown":
+                        parsing_result["chat_messages_error"] = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                    else:
+                        parsing_result["chat_messages_error"] = str(e)
             
             elif method == "Contact Correlation":
                 try:
@@ -590,8 +860,49 @@ class UploadService:
             actual_chat_messages_count = db.query(ChatMessage).filter(ChatMessage.file_id == file_record.id).count()
             
             actual_amount_of_data = actual_social_media_count + actual_contacts_count + actual_calls_count + actual_hashfiles_count + actual_chat_messages_count
+            if actual_amount_of_data == 0:
+                
+                has_parsing_error = (
+                    "error" in parsing_result or 
+                    "parsing_error" in parsing_result or 
+                    parsing_result.get("parsing_success") == False or
+                    "chat_messages_error" in parsing_result or
+                    "social_media_error" in parsing_result
+                )
+                
+                if has_parsing_error:
+                    error_msg = (
+                        parsing_result.get("parsing_error") or 
+                        parsing_result.get("error") or 
+                        parsing_result.get("chat_messages_error") or
+                        parsing_result.get("social_media_error") or
+                        "Tools tidak sesuai dengan format file"
+                    )
+                    print(f"[ERROR] No data inserted. Parsing error detected: {error_msg}")
+                else:
+                    
+                    error_msg = "Tidak ada data yang berhasil di-parse. File mungkin tidak sesuai dengan format yang diharapkan untuk tools dan method yang dipilih."
+                    print(f"[ERROR] No data inserted. No parsing error but also no data found.")
+                
+                self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
+                
+                detected_tool = parsing_result.get("detected_tool", None)
+                if not detected_tool:
+                    try:
+                        if os.path.exists(original_path_abs):
+                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                    except:
+                        pass
+                
+                if detected_tool and detected_tool != "Unknown":
+                    final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                else:
+                    final_error_msg = error_msg
+                
+                self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
+                return {"status": 400, "message": final_error_msg, "data": None, "detected_tool": detected_tool}
             
-            file_record.amount_of_data = actual_amount_of_data
+            setattr(file_record, 'amount_of_data', actual_amount_of_data)
             db.commit()
             
             print(f"Updated amount_of_data to {actual_amount_of_data} (Social Media: {actual_social_media_count}, Contacts: {actual_contacts_count}, Calls: {actual_calls_count}, Hash Files: {actual_hashfiles_count}, Chat Messages: {actual_chat_messages_count})")
@@ -694,7 +1005,7 @@ class UploadService:
         except Exception as e:
             if file_record_inserted and file_id:
                 self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
-            self._mark_done(upload_id, f"Upload error: {str(e)}")
+            self._mark_done(upload_id, f"Upload error: {str(e)}", is_error=True)
             return {"status": 500, "message": f"Unexpected upload error: {str(e)}", "data": None}
 
     async def start_device_processing(
@@ -808,7 +1119,7 @@ class UploadService:
             }
             
         except Exception as e:
-            self._mark_done(upload_id, f"Device processing error: {str(e)}")
+            self._mark_done(upload_id, f"Device processing error: {str(e)}", is_error=True)
             return {"status": 500, "message": f"Device processing error: {str(e)}", "data": None}
 
     async def start_upload_and_process(
@@ -918,7 +1229,7 @@ class UploadService:
         except Exception as e:
             print(f"[ERROR] start_app_upload error: {str(e)}")
             traceback.print_exc()
-            self._mark_done(upload_id, f"App upload error: {str(e)}")
+            self._mark_done(upload_id, f"App upload error: {str(e)}", is_error=True)
             return {"status": 500, "message": f"Unexpected app upload error: {str(e)}", "data": None}
 
 upload_service = UploadService()
