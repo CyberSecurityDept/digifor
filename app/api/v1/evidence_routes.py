@@ -323,7 +323,7 @@ async def create_evidence(
                     name="Unknown",
                     case_id=case_id,
                     case_name=case.title if case else None,
-                    evidence_id=evidence_number,
+                    evidence_number=evidence_number,
                     evidence_source=source,
                     investigator=investigator_name,
                     status=None,
@@ -704,6 +704,161 @@ async def export_evidence_detail_pdf(
             detail=f"Failed to export evidence detail PDF: {str(e)}"
         )
 
+def _handle_suspect_id_update(evidence, suspect_id, current_case_id, person_name, suspect_status, db):
+    selected_suspect = db.query(Suspect).filter(
+        Suspect.id == suspect_id,
+        Suspect.case_id == current_case_id
+    ).first()
+    
+    if not selected_suspect:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Suspect with ID {suspect_id} not found for this case"
+        )
+    
+    if person_name and person_name.strip():
+        setattr(selected_suspect, 'name', person_name.strip())
+        setattr(selected_suspect, 'is_unknown', False)
+    
+    if suspect_status is not None:
+        normalized_status = normalize_suspect_status(suspect_status)
+        if normalized_status is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+            )
+        setattr(selected_suspect, 'status', normalized_status)
+    
+    setattr(evidence, 'suspect_id', selected_suspect.id)
+
+def _handle_unknown_person_update(evidence, current_case_id, current_user, db):
+    current_suspect_id = getattr(evidence, 'suspect_id', None)
+    if current_suspect_id:
+        current_suspect = db.query(Suspect).filter(Suspect.id == current_suspect_id).first()
+        if current_suspect:
+            setattr(current_suspect, 'name', "Unknown")
+            setattr(current_suspect, 'is_unknown', True)
+            setattr(current_suspect, 'status', None)
+    else:
+        existing_unknown_suspect = db.query(Suspect).filter(
+            Suspect.case_id == current_case_id,
+            Suspect.name == "Unknown",
+            Suspect.is_unknown == True
+        ).order_by(Suspect.id.desc()).first()
+        
+        if existing_unknown_suspect:
+            setattr(evidence, 'suspect_id', existing_unknown_suspect.id)
+        else:
+            case = db.query(Case).filter(Case.id == current_case_id).first()
+            investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            new_suspect = Suspect(
+                name="Unknown",
+                case_id=current_case_id,
+                case_name=case.title if case else None,
+                evidence_number=evidence.evidence_number,
+                evidence_source=evidence.source,
+                investigator=investigator_name,
+                status=None,
+                is_unknown=True,
+                created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            )
+            db.add(new_suspect)
+            db.flush()
+            setattr(evidence, 'suspect_id', new_suspect.id)
+
+def _handle_known_person_update(evidence, current_case_id, person_name, suspect_status, current_user, db):
+    if not person_name or not person_name.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="person_name is required when is_unknown_person is false"
+        )
+    
+    person_name_clean = person_name.strip()
+    current_suspect_id = getattr(evidence, 'suspect_id', None)
+    
+    if current_suspect_id:
+        current_suspect = db.query(Suspect).filter(Suspect.id == current_suspect_id).first()
+        if current_suspect:
+            setattr(current_suspect, 'name', person_name_clean)
+            setattr(current_suspect, 'is_unknown', False)
+            if suspect_status is not None:
+                normalized_status = normalize_suspect_status(suspect_status)
+                if normalized_status is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                    )
+                setattr(current_suspect, 'status', normalized_status)
+            else:
+                setattr(current_suspect, 'status', None)
+    else:
+        existing_suspect = db.query(Suspect).filter(
+            Suspect.case_id == current_case_id,
+            Suspect.name == person_name_clean
+        ).first()
+        
+        if existing_suspect:
+            if suspect_status is not None:
+                normalized_status = normalize_suspect_status(suspect_status)
+                if normalized_status is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                    )
+                setattr(existing_suspect, 'status', normalized_status)
+            setattr(evidence, 'suspect_id', existing_suspect.id)
+        else:
+            case = db.query(Case).filter(Case.id == current_case_id).first()
+            investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            new_suspect = Suspect(
+                name=person_name_clean,
+                case_id=current_case_id,
+                case_name=case.title if case else None,
+                evidence_number=evidence.evidence_number,
+                evidence_source=evidence.source,
+                investigator=investigator_name,
+                status=normalize_suspect_status(suspect_status) if suspect_status else None,
+                is_unknown=False,
+                created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            )
+            db.add(new_suspect)
+            db.flush()
+            setattr(evidence, 'suspect_id', new_suspect.id)
+
+def _handle_person_name_update(evidence, current_case_id, person_name, suspect_status, current_user, db):
+    person_name_clean = person_name.strip()
+    existing_suspect = db.query(Suspect).filter(
+        Suspect.case_id == current_case_id,
+        Suspect.name == person_name_clean
+    ).first()
+    
+    if existing_suspect:
+        if suspect_status is not None:
+            normalized_status = normalize_suspect_status(suspect_status)
+            if normalized_status is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                )
+            setattr(existing_suspect, 'status', normalized_status)
+        setattr(evidence, 'suspect_id', existing_suspect.id)
+    else:
+        case = db.query(Case).filter(Case.id == current_case_id).first()
+        investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+        new_suspect = Suspect(
+            name=person_name_clean,
+            case_id=current_case_id,
+            case_name=case.title if case else None,
+            evidence_number=evidence.evidence_number,
+            evidence_source=evidence.source,
+            investigator=investigator_name,
+            status=normalize_suspect_status(suspect_status) if suspect_status else None,
+            is_unknown=False,
+            created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+        )
+        db.add(new_suspect)
+        setattr(evidence, 'suspect_id', new_suspect.id)
+
 @router.put("/update-evidence/{evidence_id}")
 async def update_evidence(
     evidence_id: int,
@@ -738,21 +893,20 @@ async def update_evidence(
             if not evidence_number:
                 raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
             
-            existing_evidence = db.query(Evidence).filter(
-                Evidence.evidence_number == evidence_number,
-                Evidence.id != evidence_id
-            ).first()
+            current_evidence_number = getattr(evidence, 'evidence_number', None)
             
-            if existing_evidence:
-                current_evidence_number = getattr(evidence, 'evidence_number', None)
-                if current_evidence_number != evidence_number:
+            if current_evidence_number != evidence_number:
+                existing_evidence = db.query(Evidence).filter(
+                    Evidence.evidence_number == evidence_number,
+                    Evidence.id != evidence_id
+                ).first()
+                
+                if existing_evidence:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Evidence number '{evidence_number}' already exists for another evidence (ID: {existing_evidence.id})"
                     )
-            else:
-                current_evidence_number = getattr(evidence, 'evidence_number', None)
-                if current_evidence_number != evidence_number:
+                else:
                     setattr(evidence, 'evidence_number', evidence_number)
         
         if type is not None:
@@ -805,111 +959,29 @@ async def update_evidence(
             setattr(evidence, 'file_extension', file_extension)
         
         current_case_id = evidence.case_id
-        if suspect_id is not None:
-            selected_suspect = db.query(Suspect).filter(
-                Suspect.id == suspect_id,
-                Suspect.case_id == current_case_id
-            ).first()
-            
-            if not selected_suspect:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Suspect with ID {suspect_id} not found for this case"
-                )
-            
-            if person_name and person_name.strip():
-                setattr(selected_suspect, 'name', person_name.strip())
-                setattr(selected_suspect, 'is_unknown', False)
-            
-            if suspect_status is not None:
-                normalized_status = normalize_suspect_status(suspect_status)
-                if normalized_status is None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
-                    )
-                setattr(selected_suspect, 'status', normalized_status)
-            
-            db.commit()
-            db.refresh(selected_suspect)
-            setattr(evidence, 'suspect_id', selected_suspect.id)
-        elif is_unknown_person is not None:
-            if is_unknown_person:
-                current_suspect_id = getattr(evidence, 'suspect_id', None)
-                if current_suspect_id:
-                    current_suspect = db.query(Suspect).filter(Suspect.id == current_suspect_id).first()
-                    if current_suspect:
-                        setattr(current_suspect, 'name', "Unknown")
-                        setattr(current_suspect, 'is_unknown', True)
-                        setattr(current_suspect, 'status', None)
-                        db.commit()
-                        db.refresh(current_suspect)
-                
-                existing_unknown_suspect = db.query(Suspect).filter(
-                    Suspect.case_id == current_case_id,
-                    Suspect.name == "Unknown",
-                    Suspect.is_unknown == True
-                ).order_by(Suspect.id.desc()).first()
-                
-                if existing_unknown_suspect:
-                    setattr(evidence, 'suspect_id', existing_unknown_suspect.id)
-                else:
-                    case = db.query(Case).filter(Case.id == current_case_id).first()
-                    investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                    new_suspect = Suspect(
-                        name="Unknown",
-                        case_id=current_case_id,
-                        case_name=case.title if case else None,
-                        evidence_number=evidence.evidence_number,
-                        evidence_source=evidence.source,
-                        investigator=investigator_name,
-                        status=None,
-                        is_unknown=True,
-                        created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                    )
-                    db.add(new_suspect)
-                    db.commit()
-                    db.refresh(new_suspect)
-                    setattr(evidence, 'suspect_id', new_suspect.id)
-        elif person_name and person_name.strip():
-            person_name_clean = person_name.strip()
-            existing_suspect = db.query(Suspect).filter(
-                Suspect.case_id == current_case_id,
-                Suspect.name == person_name_clean
-            ).first()
-            
-            if existing_suspect:
-                if suspect_status is not None:
-                    normalized_status = normalize_suspect_status(suspect_status)
-                    if normalized_status is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
-                        )
-                    setattr(existing_suspect, 'status', normalized_status)
-                db.commit()
-                setattr(evidence, 'suspect_id', existing_suspect.id)
+        
+        # Parse is_unknown_person correctly (handle both string and bool from form-data)
+        is_unknown_person_bool = None
+        if is_unknown_person is not None:
+            if isinstance(is_unknown_person, str):
+                is_unknown_person_bool = is_unknown_person.lower() in ('true', '1', 'yes')
             else:
-                case = db.query(Case).filter(Case.id == current_case_id).first()
-                investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                new_suspect = Suspect(
-                    name=person_name_clean,
-                    case_id=current_case_id,
-                    case_name=case.title if case else None,
-                    evidence_number=evidence.evidence_number,
-                    evidence_source=evidence.source,
-                    investigator=investigator_name,
-                    status=normalize_suspect_status(suspect_status) if suspect_status else None,
-                    is_unknown=False,
-                    created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                )
-                db.add(new_suspect)
-                db.commit()
-                db.refresh(new_suspect)
-                setattr(evidence, 'suspect_id', new_suspect.id)
+                is_unknown_person_bool = bool(is_unknown_person)
+        
+        if suspect_id is not None:
+            _handle_suspect_id_update(evidence, suspect_id, current_case_id, person_name, suspect_status, db)
+        elif is_unknown_person_bool is not None:
+            if is_unknown_person_bool:
+                _handle_unknown_person_update(evidence, current_case_id, current_user, db)
+            else:
+                _handle_known_person_update(evidence, current_case_id, person_name, suspect_status, current_user, db)
+        elif person_name and person_name.strip():
+            _handle_person_name_update(evidence, current_case_id, person_name, suspect_status, current_user, db)
         
         db.commit()
         db.refresh(evidence)
+        
+        db.expire_all()
         
         case = db.query(Case).filter(Case.id == evidence.case_id).first()
         case_title = case.title if case else None
@@ -935,6 +1007,21 @@ async def update_evidence(
         
         investigator_name = evidence.investigator or (case.main_investigator if case else None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         
+        # Query suspect again to get the latest data after all updates
+        person_name_from_db = None
+        suspect_id_from_evidence = getattr(evidence, 'suspect_id', None)
+        if suspect_id_from_evidence:
+            # Query suspect again to ensure we get the latest data after all updates
+            suspect = db.query(Suspect).filter(Suspect.id == suspect_id_from_evidence).first()
+            if suspect:
+                # Refresh suspect to get latest data from database
+                db.refresh(suspect)
+                # Only return person_name if suspect is not unknown
+                is_unknown = getattr(suspect, 'is_unknown', False)
+                if not is_unknown:
+                    person_name_from_db = suspect.name
+                # If suspect is unknown, person_name_from_db remains None (null in response)
+        
         response_data = {
             "id": evidence.id,
             "case_id": evidence.case_id,
@@ -945,7 +1032,7 @@ async def update_evidence(
             "title": case_title,
             "investigator": investigator_name,
             "agency": agency_name,
-            "person_name": person_name if person_name and person_name.strip() else None,
+            "person_name": person_name_from_db,
             "updated_at": updated_at_str
         }
         
@@ -1138,21 +1225,17 @@ def save_uploaded_file(file, custody_type: str):
 
 @router.get('/custody/download-file')
 async def download_file(path: str):
-    # Gabungkan path yang diminta ke direktori dasar
     file_path = os.path.join(BASE_UPLOAD_DIR, path)
 
-    # Cek apakah file benar-benar berada dalam direktori BASE_UPLOAD_DIR
     real_base = os.path.realpath(BASE_UPLOAD_DIR)
     real_target = os.path.realpath(file_path)
 
     if not real_target.startswith(real_base):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Cek apakah file ada
     if not os.path.isfile(real_target):
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Kembalikan file sebagai download
     return FileResponse(real_target, filename=os.path.basename(real_target))
 
 @router.get("/{evidence_id}/custody-logs")

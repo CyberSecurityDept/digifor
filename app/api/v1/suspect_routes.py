@@ -263,7 +263,7 @@ async def create_suspect(
             "is_unknown": is_unknown_flag,
             "evidence_number": evidence_number,
             "evidence_source": evidence_source,
-            "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User'),
+            "created_by": getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User'),
         }
         suspect_data = SuspectCreate(**suspect_dict)
         suspect = suspect_service.create_suspect(db, suspect_data)
