@@ -153,7 +153,7 @@ async def create_person(
                 "is_unknown": True,
                 "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
-                "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
+                "created_by": getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
             }
             
             suspect = Suspect(**suspect_dict)
@@ -196,7 +196,7 @@ async def create_person(
                 "is_unknown": False,
                 "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
-                "created_by": getattr(current_user, 'email', '') or getattr(current_user, 'fullname', 'Unknown User')
+                "created_by": getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
             }
             
             suspect = Suspect(**suspect_dict)
