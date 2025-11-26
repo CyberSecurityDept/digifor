@@ -134,7 +134,7 @@ class TimelineFlowable(Flowable):
                 font_name = "NotoSans" if pdfmetrics.getFont("NotoSans") else "Helvetica"
             except:
                 font_name = "Helvetica"
-            canvas.setFont(font_name, 6.31)  # Medium weight (500), size 6.31px
+            canvas.setFont(font_name, 6.31)
             canvas.setFillColor(colors.HexColor("#000000"))
             name_width = canvas.stringWidth(name_str, font_name, 6.31)
             canvas.drawString(x - name_width / 2, name_y, name_str)
@@ -326,7 +326,6 @@ class CaseDetailPageCanvas(canvas.Canvas):
         self.setFillColor(colors.HexColor("#333333"))
         self.drawString(left_margin_footer, footer_y, footer_text)
         
-        # Set different style for page number
         self.setFont("Helvetica", 12)
         self.setFillColor(colors.HexColor("#0C0C0C"))
         self.drawRightString(page_width - right_margin_footer, footer_y, page_text)

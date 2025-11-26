@@ -544,7 +544,15 @@ class UploadService:
                         if detected_tool and detected_tool != "Unknown":
                             final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                         else:
-                            final_error_msg = f"Tools '{tools}' tidak sesuai dengan format file '{file_ext}'. Tidak ada data yang berhasil di-parse."
+                            if not detected_tool:
+                                try:
+                                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                                except:
+                                    pass
+                            if detected_tool and detected_tool != "Unknown":
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                            else:
+                                final_error_msg = "File upload failed. Please upload this file using Tools"
                         
                         self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                         try:
@@ -880,22 +888,36 @@ class UploadService:
                     )
                     print(f"[ERROR] No data inserted. Parsing error detected: {error_msg}")
                 else:
+                    detected_tool = parsing_result.get("detected_tool", None)
+                    if not detected_tool:
+                        try:
+                            if os.path.exists(original_path_abs):
+                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        except:
+                            pass
                     
-                    error_msg = "Tidak ada data yang berhasil di-parse. File mungkin tidak sesuai dengan format yang diharapkan untuk tools dan method yang dipilih."
+                    if detected_tool and detected_tool != "Unknown":
+                        error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                    else:
+                        error_msg = "File upload failed. Please upload this file using Tools"
                     print(f"[ERROR] No data inserted. No parsing error but also no data found.")
                 
                 self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
                 
-                detected_tool = parsing_result.get("detected_tool", None)
                 if not detected_tool:
-                    try:
-                        if os.path.exists(original_path_abs):
-                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                    except:
-                        pass
+                    detected_tool = parsing_result.get("detected_tool", None)
+                    if not detected_tool:
+                        try:
+                            if os.path.exists(original_path_abs):
+                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                        except:
+                            pass
                 
-                if detected_tool and detected_tool != "Unknown":
-                    final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                if has_parsing_error:
+                    if detected_tool and detected_tool != "Unknown":
+                        final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                    else:
+                        final_error_msg = error_msg
                 else:
                     final_error_msg = error_msg
                 
