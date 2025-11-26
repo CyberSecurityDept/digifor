@@ -275,7 +275,6 @@ class CaseService:
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
-        # Store old values for tracking changes
         old_values = {
             'case_number': case.case_number,
             'title': case.title,
@@ -286,7 +285,6 @@ class CaseService:
             'work_unit_id': getattr(case, 'work_unit_id', None)
         }
         
-        # Get old agency and work unit names
         old_agency_name = None
         if old_values['agency_id']:
             old_agency = db.query(Agency).filter(Agency.id == old_values['agency_id']).first()
@@ -553,7 +551,6 @@ class CaseService:
             "updated_at": updated_at_str
         }
 
-    
     def _get_chain_of_custody(self, db: Session, evidence_id: int) -> dict:
         custody_logs = db.query(CustodyLog).filter(
             CustodyLog.evidence_id == evidence_id
@@ -830,20 +827,23 @@ class CaseLogService:
             "created_at": formatted_date
         }
         
-        if log_action == "Edit" and log_status == current_case_status:
-            changed_by = getattr(log_entry, 'changed_by', '') or ''
-            change_detail = getattr(log_entry, 'change_detail', '') or ''
-            if changed_by or change_detail:
-                edit_array = [{
-                    "changed_by": changed_by,
-                    "change_detail": change_detail
-                }]
-                result["edit"] = edit_array
-        else:
-            result["status"] = log_entry.status
-            notes_value = getattr(log_entry, 'notes', None)
-            if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
-                result["notes"] = notes_value
+        result["status"] = log_entry.status
+        notes_value = getattr(log_entry, 'notes', None)
+        if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+            result["notes"] = notes_value
+        
+        changed_by = getattr(log_entry, 'changed_by', '') or ''
+        change_detail = getattr(log_entry, 'change_detail', '') or ''
+        
+        if changed_by.startswith("By: "):
+            changed_by = changed_by[4:].strip()
+        
+        if changed_by or change_detail:
+            edit_array = [{
+                "changed_by": changed_by,
+                "change_detail": change_detail
+            }]
+            result["edit"] = edit_array
         
         return result
     
@@ -876,7 +876,25 @@ class CaseLogService:
                     "created_at": formatted_date
                 }
                 
-                if log_action == "Edit":
+                if log_action in ["Open", "Closed", "Re-open"]:
+                    log_dict["status"] = log.status
+                    notes_value = getattr(log, 'notes', None)
+                    
+                    if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                        log_dict["notes"] = notes_value
+                    
+                    changed_by = getattr(log, 'changed_by', '') or ''
+                    change_detail = getattr(log, 'change_detail', '') or ''
+                    
+                    if changed_by.startswith("By: "):
+                        changed_by = changed_by[4:].strip()
+                    
+                    edit_array = [{
+                        "changed_by": changed_by if changed_by else "Unknown User",
+                        "change_detail": change_detail if change_detail else f"Updating status cases: Unknown | {log_status}"
+                    }]
+                    log_dict["edit"] = edit_array
+                elif log_action == "Edit":
                     changed_by = getattr(log, 'changed_by', '') or ''
                     change_detail = getattr(log, 'change_detail', '') or ''
                     if changed_by or change_detail:
@@ -885,38 +903,6 @@ class CaseLogService:
                             "change_detail": change_detail
                         }]
                         log_dict["edit"] = edit_array
-                elif log_action == "Re-open":
-                    changed_by = getattr(log, 'changed_by', '') or ''
-                    change_detail = getattr(log, 'change_detail', '') or ''
-                    
-                    if not changed_by or not changed_by.strip():
-                        if current_user:
-                            user_name = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
-                            changed_by = f"By: {user_name}"
-                        else:
-                            changed_by = "By: Unknown User"
-                    elif changed_by and changed_by.strip() and not changed_by.strip().startswith("By: "):
-                        changed_by = f"By: {changed_by.strip()}"
-                    
-                    if not change_detail or not change_detail.strip():
-                        change_detail = f"Change: Adding Status {log_status}"
-                    elif not change_detail.strip().startswith("Change: "):
-                        change_detail = f"Change: {change_detail.strip()}"
-                    
-                    edit_array = [{
-                        "changed_by": changed_by,
-                        "change_detail": change_detail
-                    }]
-                    log_dict["edit"] = edit_array
-                    log_dict["status"] = log.status
-                    notes_value = getattr(log, 'notes', None)
-                    if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
-                        log_dict["notes"] = notes_value
-                else:
-                    log_dict["status"] = log.status
-                    notes_value = getattr(log, 'notes', None)
-                    if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
-                        log_dict["notes"] = notes_value
                 
                 result.append(log_dict)
             return result
@@ -954,7 +940,26 @@ class CaseLogService:
                 "created_at": formatted_date
             }
             
-            if log_action == "Edit":
+            if log_action in ["Open", "Closed", "Re-open"]:
+                result["status"] = log.status
+                notes_value = getattr(log, 'notes', None)
+                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
+                    result["notes"] = notes_value
+                
+                changed_by = getattr(log, 'changed_by', '') or ''
+                change_detail = getattr(log, 'change_detail', '') or ''
+                
+                # Remove "By: " prefix from changed_by if present
+                if changed_by.startswith("By: "):
+                    changed_by = changed_by[4:].strip()
+                
+                # Always add edit array for status change actions
+                edit_array = [{
+                    "changed_by": changed_by if changed_by else "Unknown User",
+                    "change_detail": change_detail if change_detail else f"Updating status cases: Unknown | {log_status}"
+                }]
+                result["edit"] = edit_array
+            elif log_action == "Edit":
                 changed_by = getattr(log, 'changed_by', '') or ''
                 change_detail = getattr(log, 'change_detail', '') or ''
                 if changed_by or change_detail:
@@ -963,40 +968,6 @@ class CaseLogService:
                         "change_detail": change_detail
                     }]
                     result["edit"] = edit_array
-            elif log_action == "Re-open":
-                changed_by = getattr(log, 'changed_by', '') or ''
-                change_detail = getattr(log, 'change_detail', '') or ''
-
-                if not changed_by or not changed_by.strip():
-                    if current_user:
-                        user_name = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
-                        changed_by = f"By: {user_name}"
-                    else:
-                        changed_by = "By: Unknown User"
-
-                elif not changed_by.strip().startswith("By: "):
-                    changed_by = f"By: {changed_by.strip()}"
-                
-                if not change_detail or not change_detail.strip():
-                    change_detail = f"Change: Adding Status {log_status}"
-
-                elif not change_detail.strip().startswith("Change: "):
-                    change_detail = f"Change: {change_detail.strip()}"
-                
-                edit_array = [{
-                    "changed_by": changed_by,
-                    "change_detail": change_detail
-                }]
-                result["edit"] = edit_array
-                result["status"] = log.status
-                notes_value = getattr(log, 'notes', None)
-                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
-                    result["notes"] = notes_value
-            else:
-                result["status"] = log.status
-                notes_value = getattr(log, 'notes', None)
-                if notes_value is not None and isinstance(notes_value, str) and notes_value.strip() != '':
-                    result["notes"] = notes_value
             
             return result
         except HTTPException:
