@@ -36,7 +36,7 @@ from reportlab.lib.utils import ImageReader
 logger = logging.getLogger(__name__)
 
 class SummaryRequest(BaseModel):
-    summary: str
+    summary: Optional[str] = None
 
 router = APIRouter()
 
@@ -185,7 +185,7 @@ def save_analytic_summary(
 
         summary_text = request.summary.strip() if request.summary else ""
 
-        setattr(analytic, 'summary', summary_text)
+        analytic.summary = summary_text # type: ignore
         db.commit()
         db.refresh(analytic)
 
@@ -202,12 +202,6 @@ def save_analytic_summary(
             },
             status_code=200,
         )
-    except Exception as e:
-        return JSONResponse(
-            content={"status": 500, "message": str(e), "data": None},
-            status_code=500,
-        )
-
 
     except Exception as e:
         db.rollback()
@@ -219,6 +213,7 @@ def save_analytic_summary(
             },
             status_code=500,
         )
+
 
 @router.put("/analytic/edit-summary")
 def edit_analytic_summary(
