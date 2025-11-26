@@ -776,14 +776,15 @@ class CaseLogService:
             changed_by_value = ""
             change_detail_value = ""
             
-            if new_status == "Re-open":
-                if current_user:
-                    changed_by_value = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
-                    changed_by_value = f"By: {changed_by_value}"
-                else:
-                    changed_by_value = "By: "
-                
-                change_detail_value = f"Change: Adding Status {new_status}"
+            if current_user:
+                changed_by_value = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            else:
+                changed_by_value = "Unknown User"
+            
+
+            old_status_display = str(old_status) if old_status is not None else "None"
+            new_status_display = str(new_status) if new_status is not None else "None"
+            change_detail_value = f"Updating status cases: {old_status_display} | {new_status_display}"
             
             log_entry = CaseLog(
                 case_id=case_id,
