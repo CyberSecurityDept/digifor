@@ -53,6 +53,11 @@ class File(Base):
         back_populates="file",
         cascade="all, delete-orphan"
     )
+    analytic_files = relationship(
+        "AnalyticFile",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
 
 
 class Device(Base):

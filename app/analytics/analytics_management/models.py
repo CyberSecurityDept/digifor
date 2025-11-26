@@ -21,8 +21,8 @@ class Analytic(Base):
         cascade="all, delete-orphan"
     )
 
-    apk_analytics = relationship(
-        "ApkAnalytic",
+    analytic_files = relationship(
+        "AnalyticFile",
         back_populates="analytic",
         cascade="all, delete-orphan"
     )
@@ -39,6 +39,29 @@ class AnalyticDevice(Base):
 
     analytic = relationship("Analytic", back_populates="analytic_devices")
 
+class AnalyticFile(Base):
+    __tablename__ = "analytic_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    analytic_id = Column(Integer, ForeignKey("analytics_history.id"), nullable=False)
+
+    status = Column(String, default="pending")
+    scoring = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    file = relationship("File", back_populates="analytic_files")
+    analytic = relationship("Analytic", back_populates="analytic_files")
+
+    apk_analytics = relationship(
+        "ApkAnalytic",
+        back_populates="analytic_file",
+        cascade="all, delete-orphan"
+    )
+
+
 
 class ApkAnalytic(Base):
     __tablename__ = "apk_analytics"
@@ -50,7 +73,6 @@ class ApkAnalytic(Base):
     malware_scoring = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    analytic_id = Column(Integer, ForeignKey("analytics_history.id"), nullable=False)
-    
-    analytic = relationship("Analytic", back_populates="apk_analytics")
+    analytic_file_id = Column(Integer, ForeignKey("analytic_files.id"), nullable=False)
+
+    analytic_file = relationship("AnalyticFile", back_populates="apk_analytics")
