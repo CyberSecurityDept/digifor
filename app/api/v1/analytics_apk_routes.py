@@ -272,14 +272,48 @@ def get_apk_analysis(
     )
     
     if not apk_records:
-        return JSONResponse(
-            {
-                "status": 404,
-                "message": f"No APK analysis found for analytic_id={analytic_id}",
-                "data": {}
-            },
-            status_code=404,
-        )
+        files = db.query(File).filter(File.analytic_id == analytic_id).all()
+        
+        if not files:
+            return JSONResponse(
+                {
+                    "status": 404,
+                    "message": f"No APK analysis found for analytic_id={analytic_id}. Please upload an APK file first.",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": getattr(analytic_obj, 'analytic_name', None) or "Unknown",
+                            "method": "APK Analytics"
+                        },
+                        "next_action": "upload_apk",
+                        "redirect_to": "/analytics/upload-apk",
+                        "instruction": "Please upload an APK file to analyze. After uploading, you can analyze the APK file."
+                    }
+                },
+                status_code=404,
+            )
+        else:
+            return JSONResponse(
+                {
+                    "status": 404,
+                    "message": f"No APK analysis found for analytic_id={analytic_id}. Please analyze the uploaded APK file.",
+                    "data": {
+                        "analytic_info": {
+                            "analytic_id": analytic_id,
+                            "analytic_name": getattr(analytic_obj, 'analytic_name', None) or "Unknown",
+                            "method": "APK Analytics"
+                        },
+                        "file_info": {
+                            "file_count": len(files),
+                            "file_ids": [f.id for f in files]
+                        },
+                        "next_action": "analyze_apk",
+                        "redirect_to": "/analytics/analyze-apk",
+                        "instruction": "Please analyze the uploaded APK file to view the analysis results."
+                    }
+                },
+                status_code=404,
+            )
 
     malware_scoring = apk_records[0].malware_scoring if apk_records else None
 
