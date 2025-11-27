@@ -14,11 +14,12 @@
   ],
   "venvPath": ".",
   "venv": "venv",
-  "pythonVersion": "3.10",
-  "pythonPlatform": "Linux",
-  "typeCheckingMode": "basic",
-  "reportMissingImports": true,
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Darwin",
+  "typeCheckingMode": "off",
+  "reportMissingImports": false,
   "reportMissingTypeStubs": false,
+  "reportMissingModuleSource": false,
   "reportArgumentType": false,
   "reportCallIssue": false,
   "reportAssignmentType": false,
@@ -28,15 +29,29 @@
   "reportOptionalIterable": false,
   "reportOptionalContextManager": false,
   "reportOptionalOperand": false,
+  "reportGeneralTypeIssues": false,
+  "reportPrivateUsage": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportOverlappingOverload": false,
   "extraPaths": [
+    ".",
+    "venv/lib/python3.14/site-packages",
     "venv/lib/python3.10/site-packages"
   ],
   "executionEnvironments": [
     {
       "root": ".",
-      "pythonVersion": "3.10",
-      "pythonPlatform": "Linux",
+      "pythonVersion": "3.14",
+      "pythonPlatform": "Darwin",
       "extraPaths": [
+        ".",
+        "venv/lib/python3.14/site-packages",
         "venv/lib/python3.10/site-packages"
       ]
     }

@@ -1,4 +1,4 @@
-from fastapi import (  # type: ignore
+from fastapi import (
     APIRouter,
     Depends,
     UploadFile,
@@ -7,8 +7,8 @@ from fastapi import (  # type: ignore
     Query,
     BackgroundTasks
 )
-from fastapi.responses import JSONResponse  # type: ignore
-from sqlalchemy.orm import Session  # type: ignore
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.analytics.device_management.service import get_all_files
 from app.analytics.shared.models import File, Analytic
@@ -16,7 +16,7 @@ from app.analytics.utils.upload_pipeline import upload_service
 from typing import Optional
 import os, time, uuid, asyncio, re
 from app.api.v1.analytics_apk_routes import UPLOAD_PROGRESS as APK_PROGRESS, run_real_upload_and_finalize as run_real_upload_and_finalize_apk
-from sqlalchemy import or_  # type: ignore
+from sqlalchemy import or_
 from app.auth.models import User
 from app.api.deps import get_current_user
 
@@ -146,7 +146,6 @@ async def run_real_upload_and_finalize(
                     if has_error:
                         error_message = svc_resp.get("message", "Upload Failed! Please try again")
                         detected_tool = svc_data.get("detected_tool", "Unknown")
-                        # Format size message with detected tool if available
                         if detected_tool and detected_tool != "Unknown":
                             size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
                         else:
@@ -197,7 +196,6 @@ async def run_real_upload_and_finalize(
             else:
                 error_message = resp.get("message", "Upload Failed! Please try again")
                 detected_tool = resp.get("detected_tool", None)
-                # Format size message with detected tool if available
                 if detected_tool and detected_tool != "Unknown":
                     size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
                 else:
@@ -224,7 +222,6 @@ async def run_real_upload_and_finalize(
                 "data": [],
             }
     except Exception as e:
-        # Try to get detected tool from progress if available
         detected_tool = None
         try:
             svc_resp, code = upload_service.get_progress(upload_id)
@@ -234,7 +231,6 @@ async def run_real_upload_and_finalize(
         except:
             pass
         
-        # Format size message with detected tool if available
         if detected_tool and detected_tool != "Unknown":
             size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
         else:
@@ -667,15 +663,21 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 }
 
         elif status == "Failed":
+            error_message = progress.get("message", "Upload Failed! Please try again")
             detected_tool = progress.get("detected_tool", None)
-            if not detected_tool:
-                try:
-                    svc_resp, code = upload_service.get_progress(upload_id)
-                    if code == 200:
-                        svc_data = svc_resp.get("data", {})
-                        detected_tool = svc_data.get("detected_tool", "Unknown")
-                except:
-                    detected_tool = "Unknown"
+            
+            try:
+                svc_resp, code = upload_service.get_progress(upload_id)
+                if code == 200:
+                    svc_data = svc_resp.get("data", {})
+                    if svc_data.get("error", False):
+                        svc_message = svc_resp.get("message", "")
+                        if svc_message:
+                            error_message = svc_message
+                    if not detected_tool:
+                        detected_tool = svc_data.get("detected_tool", None)
+            except:
+                pass
             
             if detected_tool and detected_tool != "Unknown":
                 size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
@@ -684,7 +686,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
             
             return {
                 "status": "Failed",
-                "message": progress.get("message", "Upload Failed! Please try again"),
+                "message": error_message,
                 "upload_id": upload_id,
                 "file_name": progress.get("file_name"),
                 "size": size_value,

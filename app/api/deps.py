@@ -22,7 +22,6 @@ def get_current_user(request: Request) -> User:
 
 def require_role(allowed_roles: List[str]):
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        # Use getattr to avoid SQLAlchemy Column type issues
         user_role = getattr(current_user, "role", None)
         if user_role not in allowed_roles:
             raise HTTPException(
@@ -41,7 +40,6 @@ def require_any_role(*allowed_roles: str):
     return require_role(allowed_roles_list)
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    # Use getattr to avoid SQLAlchemy Column type issues
     user_role = getattr(current_user, "role", None)
     if user_role != "admin":
         raise HTTPException(
@@ -55,7 +53,6 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 def require_active_user(current_user: User = Depends(get_current_user)) -> User:
-    # Check is_active using getattr to avoid SQLAlchemy Column type issues
     is_active = getattr(current_user, "is_active", False)
     if not is_active:
         raise HTTPException(

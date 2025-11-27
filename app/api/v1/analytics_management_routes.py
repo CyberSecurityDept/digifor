@@ -693,7 +693,7 @@ def get_all_analytic(
                 "analytic_name": a.analytic_name,
                 "method": a.method,
                 "summary": a.summary,
-                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at else None # type: ignore
+                "date": a.created_at.strftime("%d/%m/%Y") if a.created_at else None
             }
             for a in analytics
         ]

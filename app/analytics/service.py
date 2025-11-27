@@ -10,7 +10,6 @@ from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
 import tempfile
 
 def store_analytic(db: Session, analytic_name: str, type: str = None, notes: str = None):
-    """Buat analytic baru dan simpan ke database"""
     new_analytic = Analytic(
         analytic_name=analytic_name,
         type=type,
@@ -24,22 +23,17 @@ def store_analytic(db: Session, analytic_name: str, type: str = None, notes: str
 
 
 def get_all_analytics(db: Session):
-    """Ambil semua data analytic"""
     analytics = db.query(Analytic).order_by(Analytic.created_at.desc()).all()
     return analytics
-
 
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 KEY_DIR = os.path.join(os.getcwd(), "keys")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(KEY_DIR, exist_ok=True)
 
-
 def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key_path: str) -> str:
     public_key_path = os.path.join(KEY_DIR, "public.key")
     private_key_path = os.path.join(KEY_DIR, "private.key")
-
-    # 🔐 Generate keypair kalau belum ada
     if not (os.path.exists(public_key_path) and os.path.exists(private_key_path)):
         print("⚙️  Keypair belum ada — generate baru...")
         private_key, public_key = generate_keypair()
@@ -47,31 +41,21 @@ def encrypt_and_store_file(original_filename: str, file_bytes: bytes, public_key
             f.write(private_key)
         with open(public_key_path, "wb") as f:
             f.write(public_key)
-        print(f"✅ Keypair dibuat: {public_key_path}, {private_key_path}")
+        print(f"Keypair dibuat: {public_key_path}, {private_key_path}")
 
-    # Tentukan nama file hasil enkripsi
     encrypted_filename = f"{original_filename}.sdp"
     encrypted_path = os.path.join(UPLOAD_DIR, encrypted_filename)
 
-    # Buat file sementara untuk proses enkripsi
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
-
     try:
-        # Baca public key
         with open(public_key_path, "rb") as f:
             pub_key = f.read()
-
-        # Enkripsi file sementara → hasil di folder uploads/
         encrypt_to_sdp(pub_key, tmp_path, encrypted_path)
-
     finally:
-        # Hapus file sementara setelah enkripsi selesai
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-    # ✅ Kembalikan path RELATIF, bukan full absolute path
     return os.path.join("uploads", encrypted_filename)
 
 
@@ -81,7 +65,6 @@ def create_device(
     messages: List[dict],
     calls: List[dict]
 ) -> int:
-    """Simpan data Device + HashFile + detail lain ke DB (tanpa analytic_id)."""
     db = SessionLocal()
     try:
         device = Device(
@@ -96,7 +79,6 @@ def create_device(
         db.refresh(device)
         device_id = device.id
 
-        # --- 2️⃣ Simpan file info ke HashFile ---
         if device_data.get("file_path"):
             db.add(HashFile(
                 device_id=device_id,
@@ -104,7 +86,6 @@ def create_device(
                 created_at=datetime.utcnow(),
             ))
 
-        # --- 3️⃣ Simpan Contacts ---
         for c in contacts:
             db.add(Contact(
                 device_id=device_id,
@@ -118,7 +99,6 @@ def create_device(
                 other=_to_str(c.get("Other")),
             ))
 
-        # --- 4️⃣ Simpan Messages ---
         for m in messages:
             db.add(Message(
                 device_id=device_id,
@@ -135,7 +115,6 @@ def create_device(
                 attachment=_to_str(m.get("Attachment")),
             ))
 
-        # --- 5️⃣ Simpan Calls ---
         for c in calls:
             db.add(Call(
                 device_id=device_id,
@@ -151,7 +130,6 @@ def create_device(
                 thread_id=normalize_str(_to_str(c.get("Thread id"))),
             ))
 
-        # --- 6️⃣ Commit semua perubahan ---
         db.commit()
         return device_id
 
@@ -174,13 +152,11 @@ def format_bytes(n: int) -> str:
     return f"{int(x)} {units[i]}" if i == 0 else f"{x:.2f} {units[i]}"
 
 def infer_peer(msg, device_owner: str):
-    """Menentukan lawan chat (peer) berdasarkan arah pesan"""
     d = (msg.direction or "").lower()
     sender = (msg.sender or "").strip() if msg.sender else None
     receiver = (msg.receiver or "").strip() if msg.receiver else None
     owner = (device_owner or "").strip().lower() if device_owner else None
 
-    # tentukan peer
     if "out" in d:
         return receiver or (sender if sender and sender.lower() != owner else None)
     elif "in" in d:

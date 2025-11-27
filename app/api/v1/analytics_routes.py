@@ -17,9 +17,6 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 @router.get("/get-all-file")
 def get_files(db: Session = Depends(get_db)):
-    """
-    Endpoint GET untuk mengambil semua file.
-    """
     return get_all_files(db)
 
 @router.post("/upload-data")
@@ -84,13 +81,11 @@ async def add_device(
 
 @router.get("/upload-progress/{upload_id}")
 async def get_upload_progress(upload_id: str):
-    """Cek progres proses file."""
     data, status_code = upload_service.get_progress(upload_id)
     return JSONResponse(content=data, status_code=status_code)
 
 @router.post("/upload-cancel/{upload_id}")
 async def cancel_upload(upload_id: str):
-    """Batalkan proses upload/analisis berjalan."""
     data, status_code = upload_service.cancel(upload_id)
     return JSONResponse(content=data, status_code=status_code)
 
@@ -189,16 +184,10 @@ def get_device_threads_by_platform(
     device_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Ambil daftar thread komunikasi per platform (WhatsApp, Telegram, dll)
-    - Tiap thread 1 record (tidak digabungkan per peer)
-    - Nama peer diambil dari pesan 'Incoming'
-    """
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         return {"status": 404, "message": "Device not found", "data": []}
 
-    # ambil semua platform unik dari message device ini
     platforms = (
         db.query(models.Message.type)
         .filter(models.Message.device_id == device.id)
@@ -213,7 +202,6 @@ def get_device_threads_by_platform(
     platform_map = {}
 
     for plat in platforms:
-        # ambil semua thread unik di platform itu
         thread_ids = (
             db.query(models.Message.thread_id)
             .filter(models.Message.device_id == device.id)
@@ -226,7 +214,6 @@ def get_device_threads_by_platform(
         thread_list = []
 
         for tid in thread_ids:
-            # ambil semua pesan dalam thread
             msgs = (
                 db.query(
                     models.Message.direction,
@@ -244,7 +231,6 @@ def get_device_threads_by_platform(
             if not msgs:
                 continue
 
-            # tentukan siapa peer (prioritas dari pesan Incoming)
             incoming_msg = next(
                 (m for m in msgs if (m.direction or "").lower().startswith("in")), None
             )
@@ -252,7 +238,6 @@ def get_device_threads_by_platform(
             if incoming_msg:
                 peer_name = (incoming_msg.sender or incoming_msg.receiver or "Unknown").strip()
             else:
-                # fallback: ambil siapa pun yang bukan owner
                 owner = (device.owner_name or "").strip().lower()
                 peer_name = None
                 for m in msgs:
@@ -266,7 +251,6 @@ def get_device_threads_by_platform(
                         break
                 peer_name = peer_name or "Unknown"
 
-            # hitung intensitas & waktu
             message_count = len(msgs)
             timestamps = [m.timestamp for m in msgs if m.timestamp]
             first_ts = min(timestamps) if timestamps else None
@@ -281,7 +265,6 @@ def get_device_threads_by_platform(
                 "platform": plat or "Unknown"
             })
 
-        # urutkan thread berdasarkan intensitas terbesar
         thread_list.sort(key=lambda x: x["intensity"], reverse=True)
         platform_map[plat.lower()] = thread_list
 
@@ -303,9 +286,6 @@ def get_thread_messages(
     thread_id: str,
     db: Session = Depends(get_db)
 ):
-    """
-    Ambil semua message dari 1 thread_id di device tertentu.
-    """
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         return {"status": 404, "message": "Device not found", "data": []}

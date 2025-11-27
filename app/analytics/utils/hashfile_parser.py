@@ -231,16 +231,16 @@ class HashFileParser:
             if hasattr(self.db, 'bind') and self.db.bind:
                 bind = self.db.bind
                 if hasattr(bind, 'connect'):
-                    engine = bind  # type: ignore[assignment]
+                    engine = bind
 
                 elif hasattr(bind, 'engine'):
-                    engine = bind.engine  # type: ignore[assignment]
+                    engine = bind.engine
             
             if not engine:
                 try:
                     conn_temp = self.db.connection()
                     if hasattr(conn_temp, 'engine'):
-                        engine = conn_temp.engine  # type: ignore[assignment]
+                        engine = conn_temp.engine
                     conn_temp.close()
                 except Exception:
                     pass
@@ -249,7 +249,7 @@ class HashFileParser:
                 batch = records[batch_idx:batch_idx + batch_size]
                 
                 if engine and hasattr(engine, 'connect'):
-                    with engine.connect() as conn:  # type: ignore[misc]
+                    with engine.connect() as conn:
                         trans = conn.begin()
                         try:
                             conn.execute(insert_query, batch)
@@ -827,7 +827,6 @@ class HashFileParser:
                         sha1_hash_val = sha1_val if sha1_normalized else None
                         algorithm = determine_algorithm(md5_hash_val, sha1_hash_val)
                         
-                        # Cari kolom path dengan berbagai nama
                         path_val = None
                         for path_col in ['Full path', 'Path', 'Full Path', 'File Path']:
                             if path_col in row:

@@ -18,7 +18,6 @@ class Analytic(Base):
         cascade="all, delete-orphan"
     )
 
-    # Shortcut ke Device (tanpa pivot table langsung)
     devices = relationship(
         "Device",
         secondary="analytic_device",
@@ -65,7 +64,6 @@ class Device(Base):
         cascade="all, delete-orphan"
     )
 
-    # Shortcut ke Analytic (melalui pivot)
     analytics = relationship(
         "Analytic",
         secondary="analytic_device",
@@ -85,8 +83,7 @@ class AnalyticDevice(Base):
     analytic_id = Column(Integer, ForeignKey("analytics.id", ondelete="CASCADE"), nullable=False)
     device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
+    
     analytic = relationship("Analytic", back_populates="analytic_devices")
     device = relationship("Device", back_populates="analytic_devices")
 

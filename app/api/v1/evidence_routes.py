@@ -512,7 +512,7 @@ async def get_evidence_detail(
     suspect_name = None
     suspect_status = None
     suspect_id = None
-    if evidence.suspect_id: # type: ignore
+    if evidence.suspect_id:
         suspect = db.query(Suspect).filter(Suspect.id == evidence.suspect_id).first()
         if suspect:
             suspect_name = suspect.name
@@ -1670,7 +1670,7 @@ async def update_custody_notes(
             "data": None
         }
 
-    report.notes = notes # type: ignore
+    report.notes = notes
     db.commit()
     db.refresh(report)
 

@@ -3,7 +3,7 @@ import logging, sys, os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from sqlalchemy import create_engine, inspect  # type: ignore
+from sqlalchemy import create_engine, inspect
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -20,7 +20,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
 
 def init_database():
     try:

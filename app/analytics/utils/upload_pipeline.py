@@ -40,7 +40,6 @@ def _load_existing_private_key() -> bytes:
     with open(private_key_path, "rb") as f:
         return f.read()
 
-
 def format_bytes(n: int) -> str:
     try:
         n = int(n)
@@ -672,7 +671,7 @@ class UploadService:
             db.commit()
             db.refresh(file_record)
             
-            file_id = int(file_record.id)  # type: ignore[assignment]
+            file_id = int(file_record.id)
             file_record_inserted = True
             
             parsing_result = {
@@ -836,8 +835,18 @@ class UploadService:
                     
                     if contacts_result:
                         parsing_result["contacts_count"] = len(contacts_result)
+                    else:
+                        parsing_result["contacts_count"] = 0
                     if calls_result:
                         parsing_result["calls_count"] = len(calls_result)
+                    else:
+                        parsing_result["calls_count"] = 0
+
+                    if not contacts_result and not calls_result:
+                        detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                        parsing_result["contacts_calls_error"] = f"Contacts and calls data not found in file with {method} method and {detected_tool_for_error} tools."
+                        print(f"[WARNING] No contacts or calls data found in file for method '{method}' with tools '{tools}'")
+                    
                     self._progress[upload_id].update({
                         "message": "Inserting contacts and calls data to database...",
                         "percent": 98.5
@@ -890,6 +899,11 @@ class UploadService:
                     else:
                         parsing_result["hashfiles_count"] = 0
                     
+                    if parsing_result["hashfiles_count"] == 0:
+                        detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                        parsing_result["hashfiles_error"] = f"Hash data not found in file with {method} method and {detected_tool_for_error} tools."
+                        print(f"[WARNING] No hashfile data found in file for method '{method}' with tools '{tools}'")
+                    
                     self._progress[upload_id].update({
                         "message": f"Hashfile parsing completed ({parsing_result['hashfiles_count']:,} records)...",
                         "percent": 99.0,
@@ -938,10 +952,11 @@ class UploadService:
                 
                 has_parsing_error = (
                     "error" in parsing_result or 
-                    "parsing_error" in parsing_result or 
-                    parsing_result.get("parsing_success") == False or
+                    "parsing_error" in parsing_result or parsing_result.get("parsing_success") == False or
                     "chat_messages_error" in parsing_result or
-                    "social_media_error" in parsing_result
+                    "social_media_error" in parsing_result or
+                    "contacts_calls_error" in parsing_result or
+                    "hashfiles_error" in parsing_result
                 )
                 
                 detected_tool = None
@@ -952,6 +967,8 @@ class UploadService:
                         parsing_result.get("error") or 
                         parsing_result.get("chat_messages_error") or
                         parsing_result.get("social_media_error") or
+                        parsing_result.get("contacts_calls_error") or
+                        parsing_result.get("hashfiles_error") or
                         "Tools tidak sesuai dengan format file"
                     )
                     print(f"[ERROR] No data inserted. Parsing error detected: {error_msg}")
@@ -1005,17 +1022,18 @@ class UploadService:
                     if not detected_tool or detected_tool == "Unknown":
                         detected_tool = self._normalize_tool_name(tools)
                     
-                    if detected_tool and detected_tool != "Unknown":
+                    if "File upload failed. Please upload this file using Tools" in error_msg:
+                        final_error_msg = error_msg
+                    elif error_msg and ("Hash data not found" in error_msg or "Contacts and calls data not found" in error_msg or "not found" in error_msg.lower()):
+                        final_error_msg = error_msg
+                    elif detected_tool and detected_tool != "Unknown":
                         final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                     else:
-                        if "File upload failed. Please upload this file using Tools" in error_msg and "Tools " in error_msg and error_msg.count("Tools") == 1:
-                            final_error_msg = error_msg
+                        normalized_tool = self._normalize_tool_name(tools)
+                        if normalized_tool:
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
                         else:
-                            normalized_tool = self._normalize_tool_name(tools)
-                            if normalized_tool:
-                                final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
-                            else:
-                                final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
                 else:
                     if error_msg == "File upload failed. Please upload this file using Tools":
                         normalized_tool = self._normalize_tool_name(tools)
@@ -1194,7 +1212,7 @@ class UploadService:
                 device = Device(
                     owner_name=device_data.get("owner_name"),
                     phone_number=device_data.get("phone_number"),
-                    file_id=int(file_id_from_data),  # type: ignore[arg-type]
+                    file_id=int(file_id_from_data),
                     created_at=get_indonesia_time(),
                 )
                 

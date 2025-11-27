@@ -74,8 +74,8 @@ async def get_suspect_summary(
         total_person = (
             db.query(Suspect)
             .filter(
-                Suspect.status.isnot(None),      # hanya status non-null
-                Suspect.is_unknown.is_(False)    # bukan unknown
+                Suspect.status.isnot(None),
+                Suspect.is_unknown.is_(False)
             )
             .count()
         )
@@ -100,7 +100,6 @@ async def get_suspect_summary(
             status_code=500,
             detail=f"Unexpected server error: {str(e)}"
         )
-
 
 @router.post("/create-suspect", response_model=SuspectResponse)
 async def create_suspect(

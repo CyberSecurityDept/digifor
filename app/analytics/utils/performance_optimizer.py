@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from typing import Dict, List, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd

@@ -548,7 +548,6 @@ class AxiomParser:
             print(f"Error parsing Twitter Users: {e}")
         return results
 
-
     def _parse_axiom_telegram_accounts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         try:
@@ -581,7 +580,6 @@ class AxiomParser:
         except Exception as e:
             print(f"Error parsing Telegram Accounts: {e}")
         return results
-
 
     def _parse_axiom_tiktok_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -634,7 +632,6 @@ class AxiomParser:
             print(f"Error parsing Facebook Contacts: {e}")
         return results
 
-
     def _parse_axiom_facebook_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         try:
@@ -657,7 +654,6 @@ class AxiomParser:
         except Exception as e:
             print(f"Error parsing Facebook Users: {e}")
         return results
-
 
     def _parse_axiom_whatsapp_contacts(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -682,7 +678,6 @@ class AxiomParser:
             print(f"Error parsing WhatsApp Contacts: {e}")
         return results
 
-
     def _parse_axiom_whatsapp_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         try:
@@ -706,7 +701,6 @@ class AxiomParser:
             print(f"Error parsing WhatsApp Users: {e}")
         return results
 
-
     def _parse_axiom_social_media(self, tool_folder: Path, file_id: int) -> List[Dict[str, Any]]:
         results = []
         excel_files = list(tool_folder.glob("*.xlsx")) + list(tool_folder.glob("*.xls"))
@@ -718,7 +712,6 @@ class AxiomParser:
             except Exception as e:
                 print(f"Error parsing Axiom file {excel_file.name}: {e}")
         return results
-
 
     def parse_axiom_chat_messages(self, file_path: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -801,7 +794,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
         try:
@@ -858,7 +850,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_instagram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -908,7 +899,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -925,7 +915,8 @@ class AxiomParser:
                     skipped_count += 1
                     continue
 
-                message_data = {                    "file_id": file_id,
+                message_data = {                    
+                    "file_id": file_id,
                     "platform": "TikTok",
                     "message_text": str(row.get('Message', '')),
                     "from_name": str(row.get('Sender', '')),
@@ -957,7 +948,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_twitter_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -974,7 +964,8 @@ class AxiomParser:
                     skipped_count += 1
                     continue
 
-                message_data = {                    "file_id": file_id,
+                message_data = {                    
+                    "file_id": file_id,
                     "platform": "X",
                     "message_text": str(row.get('Text', '')),
                     "from_name": str(row.get('Sender Name', '')),
@@ -1005,7 +996,6 @@ class AxiomParser:
             print(f"Error parsing Twitter messages: {e}")
 
         return results
-
 
     def _parse_axiom_whatsapp_accounts_info(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -1043,7 +1033,6 @@ class AxiomParser:
             print(f"Error parsing {sheet_name} sheet: {e}")
 
         return results
-
 
     def _parse_axiom_whatsapp_chats(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -1092,7 +1081,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_axiom_whatsapp_contacts_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -1136,7 +1124,6 @@ class AxiomParser:
             print(f"Error parsing {sheet_name} sheet: {e}")
 
         return results
-
 
     def _parse_axiom_whatsapp_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -1184,7 +1171,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_axiom_whatsapp_user_profiles(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -1222,7 +1208,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_axiom_telegram_chats(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -1259,7 +1244,6 @@ class AxiomParser:
             print(f"Error parsing {sheet_name} sheet: {e}")
 
         return results
-
 
     def _parse_axiom_telegram_contacts_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
@@ -1302,7 +1286,6 @@ class AxiomParser:
 
         return results
 
-
     def _parse_axiom_telegram_messages(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -1340,7 +1323,6 @@ class AxiomParser:
             print(f"Error parsing {sheet_name} sheet: {e}")
 
         return results
-
 
     def _parse_axiom_telegram_users_android(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []

@@ -3,14 +3,13 @@ import pandas as pd
 import re, warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-from app.db.init_db import SessionLocal, engine, Base
+from app.db.session import SessionLocal, engine
+from app.db.base import Base
 from app.analytics.shared.models import Device, Contact, Call
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-
 def sanitize_headers(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(axis=1, how='all')
-
     def _norm(c):
         if not isinstance(c, str):
             return c

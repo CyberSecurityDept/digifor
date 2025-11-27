@@ -3,7 +3,7 @@ import os, sys, logging
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from sqlalchemy import create_engine, text  # type: ignore
+from sqlalchemy import create_engine, text
 from app.core.config import settings
 
 logging.basicConfig(

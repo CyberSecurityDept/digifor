@@ -29,7 +29,7 @@ def create_user(
     user = models.User(
         email=email,
         fullname=fullname,
-        password=password,  # Store plain text password
+        password=password,
         hashed_password=hashed_pw,
         role=role,
         is_active=True,
@@ -77,7 +77,7 @@ def use_refresh_token(db: Session, token_str: str) -> Optional[models.User]:
         return None
     expires_at = rt.expires_at
     if expires_at is not None:
-        if expires_at < datetime.utcnow():  # type: ignore[operator]
+        if expires_at < datetime.utcnow():
             return None
     return db.query(models.User).filter(models.User.id == rt.user_id).first()
 
@@ -107,7 +107,7 @@ def is_token_blacklisted(db: Session, token: str) -> bool:
     if blacklisted is not None:
         expires_at = blacklisted.expires_at
         if expires_at is not None:
-            if expires_at < datetime.utcnow():  # type: ignore[operator]
+            if expires_at < datetime.utcnow():
                 db.delete(blacklisted)
                 db.commit()
                 return False

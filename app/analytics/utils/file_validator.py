@@ -10,7 +10,6 @@ warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector 
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
 
-
 class FileValidator:
     def __init__(self):
         warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")

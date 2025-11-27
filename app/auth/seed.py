@@ -2,8 +2,8 @@ import warnings
 warnings.filterwarnings('ignore', message='.*bcrypt.*')
 warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-from sqlalchemy.orm import Session  # type: ignore
-from passlib.context import CryptContext  # type: ignore
+from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 from app.db.session import SessionLocal
 from app.auth.models import User
 
@@ -23,28 +23,13 @@ def seed_users():
                 "role": "admin",
                 "tag":"Admin"
             }
-            # ,
-            # {
-            #     "email": "investigator@gmail.com",
-            #     "fullname": "Ivestigator",
-            #     "password": "admin.admin",
-            #     "role": "user",
-            #     "tag":"Investigator"
-            # },
-            # {
-            #     "email": "ahliforensic@gmail.com",
-            #     "fullname": "Ahli Forensic",
-            #     "password": "admin.admin",
-            #     "role": "user",
-            #     "tag":"Ahli Forensic"
-            # },
         ]
 
         for u in users_to_seed:
             existing_user = db.query(User).filter(User.email == u["email"]).first()
             if existing_user:
                 hashed_pw = get_password_hash(u["password"])
-                setattr(existing_user, 'password', u["password"])  # Store plain text password
+                setattr(existing_user, 'password', u["password"])
                 setattr(existing_user, 'hashed_password', hashed_pw)
                 setattr(existing_user, 'is_active', True)
                 db.add(existing_user)
@@ -54,7 +39,7 @@ def seed_users():
                 new_user = User(
                     email=u["email"],
                     fullname=u["fullname"],
-                    password=u["password"],  # Store plain text password
+                    password=u["password"],
                     hashed_password=hashed_pw,
                     role=u["role"],
                     is_active=True,

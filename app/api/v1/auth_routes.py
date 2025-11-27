@@ -104,7 +104,7 @@ def get_me(
             "fullname": current_user.fullname,
             "tag": current_user.tag,
             "role": current_user.role,
-            "password": current_user.password or ""  # Return plain text password
+            "password": current_user.password or ""
         }
         
         return JSONResponse(

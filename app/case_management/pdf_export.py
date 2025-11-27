@@ -162,7 +162,7 @@ class CaseDetailPageCanvas(canvas.Canvas):
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
-        self._startPage()  # type: ignore[reportAttributeAccessIssue]
+        self._startPage()  
         self._page_number += 1
 
     def save(self):
@@ -782,7 +782,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
-        self._startPage()  # type: ignore[reportAttributeAccessIssue]
+        self._startPage()  
         self._page_number += 1
 
     def save(self):
@@ -1245,7 +1245,7 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
-        self._startPage()  # type: ignore[reportAttributeAccessIssue]
+        self._startPage()  
         self._page_number += 1
 
     def save(self):

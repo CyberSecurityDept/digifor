@@ -1,5 +1,5 @@
-from sqlalchemy import create_engine, event  # type: ignore
-from sqlalchemy.orm import sessionmaker  # type: ignore
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
 from typing import Generator
 from app.core.config import settings
 from app.db.base import Base
@@ -15,7 +15,6 @@ engine = create_engine(
     connect_args={"options": "-c timezone=Asia/Jakarta"}
 )
 
-# Set timezone for each new connection
 @event.listens_for(engine, "connect")
 def set_timezone(dbapi_conn, connection_record):
     cursor = dbapi_conn.cursor()

@@ -3,7 +3,7 @@ import logging, os, sys
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from sqlalchemy import create_engine, text  # type: ignore
+from sqlalchemy import create_engine, text
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -14,7 +14,6 @@ def list_all_tables():
         engine = create_engine(settings.DATABASE_URL)
         
         with engine.connect() as conn:
-            # Get all tables
             result = conn.execute(text("""
                 SELECT 
                     table_name,

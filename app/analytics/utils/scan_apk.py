@@ -1,10 +1,6 @@
-import json
-import sys
-import os
-import re
+import json, sys, os, re
 
 def classify_permissions(permissions, suspicious_set=None):
-    """Classify app based on permissions only."""
     if not permissions:
         print("[!] No permissions found in report.")
         return 100, "Safe", "No permissions requested.", [], 0

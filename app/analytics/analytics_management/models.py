@@ -27,7 +27,6 @@ class Analytic(Base):
         cascade="all, delete-orphan"
     )
 
-
 class AnalyticDevice(Base):
     __tablename__ = "analytic_device"
 
@@ -60,8 +59,6 @@ class AnalyticFile(Base):
         back_populates="analytic_file",
         cascade="all, delete-orphan"
     )
-
-
 
 class ApkAnalytic(Base):
     __tablename__ = "apk_analytics"

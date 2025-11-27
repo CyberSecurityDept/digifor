@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
@@ -10,14 +9,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ContactService:
-    
     def __init__(self):
-        self.parser = None  # type: ignore
-    
-    def parse_and_save_contacts(self, file_path: Path, device_id: int) -> Dict[str, Any]:  # type: ignore[reportAttributeAccessIssue]
+        self.parser = None
+
+    def parse_and_save_contacts(self, file_path: Path, device_id: int) -> Dict[str, Any]:
         try:
-            contacts = self.parser.parse_contacts_from_file(file_path)  # type: ignore[reportAttributeAccessIssue]
-            
+            contacts = self.parser.parse_contacts_from_file(file_path)
             if not contacts:
                 return {
                     "success": False,
@@ -25,13 +22,10 @@ class ContactService:
                     "contacts_parsed": 0,
                     "contacts_saved": 0
                 }
-            
-            normalized_contacts = self.parser.normalize_contacts(contacts)  # type: ignore[reportAttributeAccessIssue]
-            
+            normalized_contacts = self.parser.normalize_contacts(contacts)
             result = self._save_contacts_to_db(normalized_contacts, device_id)
             saved_count = result.get('saved_count', 0)
             skipped_count = result.get('skipped_count', 0)
-            
             return {
                 "success": True,
                 "message": f"Successfully parsed and saved {saved_count} contacts, skipped {skipped_count} duplicates",
@@ -40,7 +34,6 @@ class ContactService:
                 "contacts_skipped": skipped_count,
                 "contacts_normalized": len(normalized_contacts)
             }
-            
         except Exception as e:
             logger.error(f"Error parsing and saving contacts: {e}")
             return {

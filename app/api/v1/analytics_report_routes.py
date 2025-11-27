@@ -185,7 +185,7 @@ def save_analytic_summary(
 
         summary_text = request.summary.strip() if request.summary else ""
 
-        analytic.summary = summary_text # type: ignore
+        analytic.summary = summary_text
         db.commit()
         db.refresh(analytic)
 
@@ -280,7 +280,7 @@ class GlobalPageCanvas(canvas.Canvas):
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
-        self._startPage()  # type: ignore[reportAttributeAccessIssue]
+        self._startPage()  
 
     def save(self):
         total_pages = len(self.pages)
@@ -295,16 +295,12 @@ class GlobalPageCanvas(canvas.Canvas):
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
 
-        # garis footer
         self.setStrokeColor(colors.HexColor("#466086"))
         self.setLineWidth(1.5)
         self.line(30, 40, 569, 40)
 
         padding_y = 25
 
-        # ============================
-        # WRAPPED FOOTER TEXT (prevent overlap)
-        # ============================
         from reportlab.platypus import Paragraph
         from reportlab.lib.styles import ParagraphStyle
 
@@ -319,7 +315,7 @@ class GlobalPageCanvas(canvas.Canvas):
 
         para = Paragraph(self.footer_text, footer_style)
 
-        max_width = 480  # cukup aman
+        max_width = 480
         w, h = para.wrap(max_width, 100)
 
         para.drawOn(self, 30, padding_y - (h - 10))
@@ -679,9 +675,6 @@ def _generate_deep_communication_report(
         chat_data = {}
         conversation_history = []
 
-    # ---------------------------------------------------------
-    # STYLES
-    # ---------------------------------------------------------
     style_time_center = ParagraphStyle(
         "TimeCenter",
         fontSize=11,
@@ -706,15 +699,11 @@ def _generate_deep_communication_report(
 
     story = []
 
-    # ---------------------------------------------------------
-    # INFO SECTION (responsive)
-    # ---------------------------------------------------------
     platform_name = chat_data.get("platform") or (source or "-")
     chat_type = (chat_data.get("chat_type") or "").lower()
     is_group = chat_type in ["group", "broadcast"]
     is_whatsapp = platform_name.lower() in ["whatsapp", "wa", "whats app"]
 
-    # --- PERIOD ---
     def fmt_date(ts):
         if not ts:
             return "-"
@@ -735,7 +724,6 @@ def _generate_deep_communication_report(
     else:
         period_value = "-"
 
-    # --- SENDER / RECEIVER ---
     def fmt_contact(cid, name):
         cid = cid or "-"
         name = name or "-"
@@ -757,7 +745,6 @@ def _generate_deep_communication_report(
 
     total_messages = sum(len(c.get("messages", []) or []) for c in conversation_history)
 
-    # --- TABLES LEFT & RIGHT ---
     left_info = [
         ["Period", Paragraph(":", wrap12), Paragraph(period_value, wrap12)],
         ["Source", Paragraph(":", wrap12), Paragraph(platform_name, wrap12)],
@@ -791,9 +778,6 @@ def _generate_deep_communication_report(
     story.append(combined_table)
     story.append(Spacer(1, 12))
 
-    # ---------------------------------------------------------
-    # CHAT TABLE
-    # ---------------------------------------------------------
     col_time = 140
     col_chat = usable_width - col_time
     table_data = [["Time", "Chat"]]
@@ -848,15 +832,9 @@ def _generate_deep_communication_report(
         story.append(tbl)
         story.append(Spacer(1, 8))
 
-    # ---------------------------------------------------------
-    # SUMMARY
-    # ---------------------------------------------------------
     story.append(Spacer(1, 20))
     story.extend(_build_summary_section(usable_width, chat_data.get("summary") or analytic.summary))
 
-    # ---------------------------------------------------------
-    # *** DYNAMIC HEADER HEIGHT CALC ***
-    # ---------------------------------------------------------
     dyn_title_style = ParagraphStyle(
         "DynHead",
         fontName="Helvetica-Bold",
@@ -867,21 +845,13 @@ def _generate_deep_communication_report(
 
     temp_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
     _, title_h = temp_para.wrap(page_width - 60, 400)
-
-    # header height dari top sampai bawah method ~ (title_h + buffer)
-    # buffer 140pt supaya konten selalu di bawah "Method"
     doc.topMargin = title_h + 110
-
     header_ts = timestamp_now
 
-    # ---------------------------------------------------------
-    # DRAW HEADER (responsive pages 1+)
-    # ---------------------------------------------------------
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
             canvas_obj.drawImage(
@@ -892,22 +862,17 @@ def _generate_deep_communication_report(
                 mask="auto"
             )
 
-        # EXPORTED
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.drawRightString(
             page_w - 30, page_h - 45,
             f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # TITLE (wrap)
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         _, h = title_para.wrap(page_w - 60, 400)
-
-        # Jarak dari top ke area title: 85pt sama seperti sebelumnya
         title_y = page_h - 85 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # METHOD — tepat di bawah title (pakai leading supaya konsisten)
         method_y = title_y - dyn_title_style.leading + 10
         canvas_obj.setFont("Helvetica", 12)
         canvas_obj.drawString(
@@ -952,7 +917,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     usable_width = page_width - left_margin - right_margin
     header_height = 120
 
-    # Will be overridden after title height calc
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
@@ -962,7 +926,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
         bottomMargin=60,
     )
 
-    # ========= FETCH DATA =========
     styles = getSampleStyleSheet()
     heading_style = ParagraphStyle("Heading", fontSize=12, leading=15, fontName="Helvetica-Bold")
     normal_style = ParagraphStyle("Normal", fontSize=10.5, leading=14, alignment=TA_LEFT)
@@ -985,7 +948,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     story = []
     story.append(Spacer(1, 5))
 
-    # ========= INFO SECTION =========
     info_left = usable_width * 0.50
     info_right = usable_width * 0.50
 
@@ -1059,7 +1021,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     story.append(info_container)
     story.append(Spacer(1, 20))
 
-    # ========= TABLE STYLES =========
     def table_style_no_border():
         return TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#466086")),
@@ -1072,7 +1033,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
             ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ])
 
-    # ========= MALICIOUS =========
     malicious_header = Table(
         [[Paragraph("Malicious", ParagraphStyle("MalHeader", fontSize=12, leading=14))]],
         colWidths=[usable_width]
@@ -1101,7 +1061,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
 
     story.append(Spacer(1, 20))
 
-    # ========= COMMON =========
     common_header = Table(
         [[Paragraph("Common", ParagraphStyle("ComHeader", fontSize=12, leading=14))]],
         colWidths=[usable_width]
@@ -1129,9 +1088,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
 
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
-    # =========================================================
-    # DYNAMIC HEADER HEIGHT WRAP
-    # =========================================================
     dyn_title_style = ParagraphStyle(
         "DynHead",
         fontName="Helvetica-Bold",
@@ -1143,21 +1099,16 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
     temp_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
     _, title_h = temp_para.wrap(page_width - 60, 400)
 
-    # turun sesuai tinggi title
     doc.topMargin = title_h + 110
 
     header_timestamp = timestamp_now
 
-    # =========================================================
-    # DRAW HEADER (WRAPPED)
-    # =========================================================
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
         top_y = page_h - 30
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
             canvas_obj.drawImage(
@@ -1168,7 +1119,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
                 mask="auto"
             )
 
-        # EXPORTED
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.drawRightString(
             page_w - 30,
@@ -1176,14 +1126,12 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
             f"Exported: {header_timestamp.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # ======= WRAPPED TITLE =======
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         max_w = page_w - 60
         w, h = title_para.wrap(max_w, 400)
         title_y = top_y - 55 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # ======= METHOD (auto turun) =======
         method_y = title_y - dyn_title_style.leading + 10
         canvas_obj.setFont("Helvetica", 12)
         canvas_obj.drawString(
@@ -1192,7 +1140,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
             f"Method: {analytic.method.replace('_', ' ').title()}"
         )
 
-        # FILE UPLOADED
         uploaded = (
             analytic.created_at.strftime("%d/%m/%Y")
             if analytic.created_at
@@ -1206,9 +1153,6 @@ def _generate_apk_analytics_report(analytic, db, report_type, filename_prefix, d
 
         canvas_obj.restoreState()
 
-    # =========================================================
-    # BUILD DOCUMENT
-    # =========================================================
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -1248,9 +1192,6 @@ def _generate_social_media_correlation_report(
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
 
-    # ============================
-    # HEADER DEFAULT HEIGHT (will be updated after wrap calculation)
-    # ============================
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
@@ -1260,36 +1201,25 @@ def _generate_social_media_correlation_report(
         bottomMargin=60,
     )
 
-    # ============================
-    # TITLE WRAP STYLE (same as deep/contact/apk)
-    # ============================
     dyn_title_style = ParagraphStyle(
         "DynHead",
         fontName="Helvetica-Bold",
         fontSize=20,
-        leading=26,    # konsisten
+        leading=26,
         wordWrap="CJK",
     )
 
-    # ============================
-    # HITUNG TINGGI TITLE
-    # ============================
     temp_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
     _, title_height = temp_para.wrap(page_width - 60, 500)
 
-    # topMargin disesuaikan otomatis
     doc.topMargin = title_height + 110
 
-    # ============================
-    # FETCH DATA
-    # ============================
     try:
         from app.api.v1.analytics_social_media_routes import _get_social_media_correlation_data
         response = _get_social_media_correlation_data(analytic.id, db, source or "Instagram")
     except Exception:
         response = None
 
-    # parse response
     data_block = {}
     try:
         if hasattr(response, "body"):
@@ -1309,21 +1239,14 @@ def _generate_social_media_correlation_report(
     total_devices = len(devices)
     total_accounts = sum(len(bucket.get("devices", [])) for bucket in buckets)
 
-    # force big dataset (like your test)
     buckets = buckets * 50
 
-    # ============================
-    # STYLES
-    # ============================
     styles = getSampleStyleSheet()
     normal_style = ParagraphStyle("Normal", fontSize=12, leading=14)
     wrap_style = ParagraphStyle("Wrap", fontSize=12, leading=14, wordWrap="CJK")
 
     story = []
 
-    # ============================
-    # INFO TABLE
-    # ============================
     info_data = [
         ["Source", f": {platform_name}"],
         ["Total Device", f": {total_devices} Devices"],
@@ -1339,9 +1262,6 @@ def _generate_social_media_correlation_report(
     story.append(info_table)
     story.append(Spacer(1, 16))
 
-    # ============================
-    # DEVICE SUMMARY
-    # ============================
     device_summary_header = Table(
         [[Paragraph("Device Identification Summary", normal_style)]],
         colWidths=[usable_width]
@@ -1355,7 +1275,6 @@ def _generate_social_media_correlation_report(
     story.append(device_summary_header)
     story.append(Spacer(1, 8))
 
-    # Device table
     dev_table_data = [["Device ID", "Registered Owner", "Phone Number"]]
     for d in devices:
         dev_table_data.append([
@@ -1382,9 +1301,6 @@ def _generate_social_media_correlation_report(
     story.append(dev_tbl)
     story.append(Spacer(1, 20))
 
-    # ============================
-    # CORRELATION SUMMARY
-    # ============================
     corr_title = Table([[Paragraph("Device Account Correlation", normal_style)]], colWidths=[usable_width])
     corr_title.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#cccccc")),
@@ -1395,11 +1311,9 @@ def _generate_social_media_correlation_report(
     story.append(corr_title)
     story.append(Spacer(1, 6))
 
-    # If no buckets
     if not buckets:
         story.append(Paragraph("No correlation data available.", normal_style))
     else:
-        # Build table
         corr_data = [["Connections", "Involved Device", "Correlated Accounts"]]
 
         for b in buckets:
@@ -1433,22 +1347,15 @@ def _generate_social_media_correlation_report(
         ]))
         story.append(corr_tbl)
 
-    # ============================
-    # SUMMARY
-    # ============================
     story.append(Spacer(1, 20))
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
     header_ts = timestamp_now
 
-    # ============================
-    # DRAW HEADER (FIRST + NEXT PAGES)
-    # ============================
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
             canvas_obj.drawImage(
@@ -1459,7 +1366,6 @@ def _generate_social_media_correlation_report(
                 mask="auto",
             )
 
-        # EXPORTED
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.drawRightString(
             page_w - 30,
@@ -1467,13 +1373,11 @@ def _generate_social_media_correlation_report(
             f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # TITLE (WRAPPED)
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         _, h = title_para.wrap(page_w - 60, 400)
         title_y = page_h - 85 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # METHOD
         method_y = title_y - dyn_title_style.leading + 10
         canvas_obj.setFont("Helvetica", 12)
         canvas_obj.drawString(
@@ -1482,13 +1386,11 @@ def _generate_social_media_correlation_report(
             f"Method: {analytic.method.replace('_',' ').title()}"
         )
 
-        # FILE UPLOADED
         uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_ts.strftime("%d/%m/%Y")
         canvas_obj.drawRightString(page_w - 30, method_y, f"File Uploaded: {uploaded}")
 
         canvas_obj.restoreState()
 
-    # BUILD PDF
     doc.build(
         story,
         onFirstPage=draw_header,
@@ -1661,28 +1563,21 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
     "DynHead",
     fontName="Helvetica-Bold",
     fontSize=20,
-    leading=26,            # sama seperti deep communication
+    leading=26,
     wordWrap="CJK",
 )
 
-# hitung tinggi judul untuk menentukan topMargin
     temp_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
     _, title_h = temp_para.wrap(page_width - 60, 400)
 
-    # sama seperti deep comm → title + method + buffer
     doc.topMargin = title_h + 110
 
     header_ts = timestamp_now
 
-
-    # ---------------------------------------------------------
-    # DRAW HEADER — KONSISTEN SEPERTI DEEP_COMM
-    # ---------------------------------------------------------
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
-        # LOGO
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
             canvas_obj.drawImage(
@@ -1693,7 +1588,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
                 mask="auto"
             )
 
-        # EXPORTED TIME (right)
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.drawRightString(
             page_w - 30,
@@ -1701,15 +1595,13 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # WRAPPED TITLE
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         max_w = page_w - 60
         _, h = title_para.wrap(max_w, 400)
 
-        title_y = page_h - 85 - h   # sama dengan deep comm
+        title_y = page_h - 85 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # METHOD (tepat di bawah title, pakai leading)
         method_y = title_y - dyn_title_style.leading + 10
         canvas_obj.setFont("Helvetica", 12)
         canvas_obj.drawString(
@@ -1718,7 +1610,6 @@ def _generate_contact_correlation_report(analytic, db, report_type, filename_pre
             f"Method: {analytic.method.replace('_',' ').title()}"
         )
 
-        # FILE UPLOADED (right aligned)
         uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_ts.strftime("%d/%m/%Y")
         canvas_obj.drawRightString(page_w - 30, method_y, f"File Uploaded: {uploaded}")
 
@@ -1758,7 +1649,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     left_margin, right_margin = 30, 30
     usable_width = page_width - left_margin - right_margin
 
-    # ========== DYNAMIC TITLE STYLE (SAMA SEMUA REPORT) ==========
     dyn_title_style = ParagraphStyle(
         "DynHead",
         fontName="Helvetica-Bold",
@@ -1767,11 +1657,9 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         wordWrap="CJK",
     )
 
-    # Hitung tinggi judul (wrap)
     temp_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
     _, title_h = temp_para.wrap(page_width - 60, 500)
 
-    # Top margin otomatis supaya konten tidak numpuk header
     doc = SimpleDocTemplate(
         file_path,
         pagesize=A4,
@@ -1781,7 +1669,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         bottomMargin=60,
     )
 
-    # ========= DATA FETCH =========
     response = _get_hashfile_analytics_data(analytic.id, db)
     data = {}
     try:
@@ -1798,11 +1685,9 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     devices = data.get("devices", [])
     hashfiles = data.get("correlations") or []
 
-    # Group 4 device per batch
     group_size = 4
     groups = [devices[i:i+group_size] for i in range(0, len(devices), group_size)]
 
-    # ========= STORY =========
     story = []
     story.append(Spacer(1, 5))
 
@@ -1819,7 +1704,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         start_dev = (g_index - 1) * group_size + 1
         end_dev = start_dev + len(group) - 1
 
-        # Info section
         info_data = [
             ["Source", ": Handphone"],
             ["Total Device", f": {len(devices)} Devices (Device {start_dev}-{end_dev})"],
@@ -1837,7 +1721,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         story.append(info_table)
         story.append(Spacer(1, 12))
 
-        # Header row (filename + per device)
         header_row = ["Filename"]
         for d in group:
             owner = d.get("owner_name", "Unknown")
@@ -1846,7 +1729,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         table_data = [header_row]
 
-        # Body
         for h in hashfiles:
             row = [Paragraph(h.get("file_name", "-"), normal_center)]
             found = h.get("devices", [])
@@ -1857,7 +1739,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
             table_data.append(row)
 
-        # Chunking (if huge data)
         col_widths = [usable_width * 0.25] + [(usable_width * 0.75) / len(group)] * len(group)
         chunk_size = 2000
         body_rows = table_data[1:]
@@ -1893,12 +1774,10 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
     header_ts = timestamp_now
 
-    # ========== DRAW HEADER (WRAPPED TITLE) ==========
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
-        # Logo
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
             canvas_obj.drawImage(
@@ -1910,7 +1789,6 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
                 mask="auto",
             )
 
-        # Export time
         canvas_obj.setFont("Helvetica", 10)
         canvas_obj.drawRightString(
             page_w - 30,
@@ -1918,25 +1796,21 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
             f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB"
         )
 
-        # Title (wrap)
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         _, h = title_para.wrap(page_w - 60, 400)
         title_y = page_h - 85 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # Method
         method_y = title_y - dyn_title_style.leading + 10
         canvas_obj.setFont("Helvetica", 12)
         canvas_obj.drawString(30, method_y,
                               f"Method: {analytic.method.replace('_',' ').title()}")
 
-        # File Uploaded
         uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_ts.strftime("%d/%m/%Y")
         canvas_obj.drawRightString(page_w - 30, method_y, f"File Uploaded: {uploaded}")
 
         canvas_obj.restoreState()
 
-    # ========= BUILD PDF =========
     doc.build(
         story,
         onFirstPage=draw_header,

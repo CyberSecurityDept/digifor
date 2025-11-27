@@ -596,7 +596,7 @@ class SocialMediaParsersExtended:
             
             elif any(keyword in ' '.join(xls.sheet_names).lower() for keyword in ['instagram', 'facebook', 'twitter', 'whatsapp', 'telegram', 'tiktok']):
                 print("Detected Oxygen format - parsing dedicated social media sheets")
-                results.extend(self.parse_oxygen_social_media(file_path, file_id))  # type: ignore[reportAttributeAccessIssue]
+                results.extend(self.parse_oxygen_social_media(file_path, file_id))
             
             else:
                 print("Unknown format - attempting generic parsing")
@@ -700,31 +700,25 @@ class SocialMediaParsersExtended:
     
     def _parse_cellebrite_social_media_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
                 df = df.reset_index(drop=True)
-            
             for _, row in df.iterrows():
                 if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
-                
                 source = self._clean(row.get('Source', ''))
                 author = self._clean(row.get('Author', ''))
                 body = self._clean(row.get('Body', ''))
                 url = self._clean(row.get('URL', ''))
                 account = self._clean(row.get('Account', ''))
-                
                 if source and source.lower() == 'instagram':
                     if author and account:
                         parts = author.split()
                         user_id = parts[0] if parts else account
                         account_name = ' '.join(parts[1:]) if len(parts) > 1 else account
-                        
                         acc = {
                             "file_id": file_id,
                             "source": source,
@@ -739,7 +733,6 @@ class SocialMediaParsersExtended:
                             "sheet_name": sheet_name,
                         }
                         results.append(acc)
-                
                 elif source and source.lower() == 'facebook':
                     if author and account:
                         parts = author.split()
@@ -760,7 +753,6 @@ class SocialMediaParsersExtended:
                             "sheet_name": sheet_name,
                         }
                         results.append(acc)
-                
                 elif source and source.lower() == 'twitter':
                     if author and account:
                         parts = author.split()
@@ -783,18 +775,14 @@ class SocialMediaParsersExtended:
                         results.append(acc)
             
             print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
-            
         except Exception as e:
             print(f"Error parsing {sheet_name} sheet: {e}")
-        
         return results
     
     def _parse_cellebrite_generic_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -804,9 +792,7 @@ class SocialMediaParsersExtended:
                 for col_name, col_value in row.items():
                     if self._is_na(col_value) or not isinstance(col_value, str):
                         continue
-                    
                     col_value_lower = col_value.lower()
-                    
                     if 'tiktok' in col_value_lower:
                         tiktok_match = re.search(r'tiktok\.com/@([a-zA-Z0-9_.]+)', col_value)
                         if tiktok_match:
@@ -844,7 +830,6 @@ class SocialMediaParsersExtended:
                                 "sheet_name": sheet_name,
                             }
                             results.append(acc)
-                    
                     elif 'whatsapp' in col_value_lower:
                         phone_number = None
                         if '@s.whatsapp.net' in col_value:
@@ -867,7 +852,6 @@ class SocialMediaParsersExtended:
                                 "sheet_name": sheet_name,
                             }
                             results.append(acc)
-                    
                     elif 'telegram' in col_value_lower:
                         telegram_match = re.search(r'@([a-zA-Z0-9_]+)', col_value)
                         if telegram_match:
@@ -886,7 +870,6 @@ class SocialMediaParsersExtended:
                                 "sheet_name": sheet_name,
                             }
                             results.append(acc)
-                    
                     elif 'twitter' in col_value_lower or 'x.com' in col_value_lower:
                         twitter_match = re.search(r'(?:twitter\.com|x\.com)/([a-zA-Z0-9_]+)', col_value)
                         if twitter_match:
@@ -905,7 +888,6 @@ class SocialMediaParsersExtended:
                                 "sheet_name": sheet_name,
                             }
                             results.append(acc)
-                    
                     elif 'facebook' in col_value_lower:
                         facebook_match = re.search(r'facebook\.com/([a-zA-Z0-9_.]+)', col_value)
                         if facebook_match:
@@ -924,21 +906,17 @@ class SocialMediaParsersExtended:
                                 "sheet_name": sheet_name,
                             }
                             results.append(acc)
-            
             if results:
                 print(f"Found {len(results)} social media accounts in {sheet_name} sheet")
             
         except Exception as e:
             print(f"Error parsing {sheet_name} sheet: {e}")
-        
         return results
     
     def _parse_cellebrite_user_accounts_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
@@ -947,13 +925,11 @@ class SocialMediaParsersExtended:
             for _, row in df.iterrows():
                 if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
-                
                 username = self._clean(row.get('Username', ''))
                 service_type = self._clean(row.get('Service Type', ''))
                 account_name = self._clean(row.get('Account Name', ''))
                 entries = self._clean(row.get('Entries', ''))
                 source = self._clean(row.get('Source', ''))
-                
                 if not username or username.lower() == 'n/a':
                     continue
 
@@ -1067,38 +1043,29 @@ class SocialMediaParsersExtended:
     
     def _parse_cellebrite_contacts_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
-            
             if any('Unnamed' in str(col) for col in df.columns):
                 df.columns = df.iloc[0]
                 df = df.drop(df.index[0])
                 df = df.reset_index(drop=True)
-            
             required_columns = ['Source', 'Entries']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 print(f"  Missing required columns in Contacts sheet: {missing_columns}")
                 return results
-            
             social_media_keywords = ['Instagram', 'WhatsApp', 'Twitter', 'Facebook', 'Telegram', 'Tiktok', 'X']
-            
             for _, row in df.iterrows():
                 if self._is_na(row.get('#', '')) or str(row.get('#', '')).strip() == '#':
                     continue
-                
                 source = self._clean(row.get('Source', ''))
                 name = self._clean(row.get('Name', ''))
                 entries = self._clean(row.get('Entries', ''))
-                
                 if not source:
                     continue
-                
                 source_lower = (source or '').lower()
                 platform = None
                 platform_id_field = None
-                
                 if 'instagram' in source_lower:
                     platform = 'instagram'
                     platform_id_field = 'instagram_id'
@@ -1120,7 +1087,7 @@ class SocialMediaParsersExtended:
                 
                 if not platform:
                     continue
-                
+
                 account_name = None
                 platform_id = None
                 phone_number = None
@@ -1238,7 +1205,6 @@ class SocialMediaParsersExtended:
     
     def _parse_cellebrite_chats_sheet(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
@@ -1404,7 +1370,7 @@ class SocialMediaParsersExtended:
         try:
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             total_count = 0
-           
+
             if 'Social Media' in xls.sheet_names:
                 df = pd.read_excel(file_path, sheet_name='Social Media', engine='openpyxl', dtype=str)
                 instagram_count = len(df[df['Unnamed: 8'] == 'Instagram'])
@@ -1436,7 +1402,6 @@ class SocialMediaParsersExtended:
 
     def _parse_axiom_instagram_profiles(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
@@ -1478,7 +1443,6 @@ class SocialMediaParsersExtended:
 
     def _parse_axiom_instagram_following(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
@@ -1511,12 +1475,10 @@ class SocialMediaParsersExtended:
                 
         except Exception as e:
             print(f"Error parsing Android Instagram Following: {e}")
-        
         return results
 
     def _parse_axiom_instagram_users(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
-        
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl', dtype=str)
             
@@ -1916,7 +1878,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Axiom file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Axiom file {excel_file.name}: {e}")
@@ -1932,7 +1894,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Cellebrite file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Cellebrite file {excel_file.name}: {e}")
@@ -1947,7 +1909,7 @@ class SocialMediaParsersExtended:
         for excel_file in excel_files:
             print(f"Parsing Oxygen file: {excel_file.name}")
             try:
-                file_results = self.parse_oxygen_social_media(excel_file, file_id)  # type: ignore[reportAttributeAccessIssue]
+                file_results = self.parse_oxygen_social_media(excel_file, file_id)  
                 results.extend(file_results)
             except Exception as e:
                 print(f"Error parsing Oxygen file {excel_file.name}: {e}")

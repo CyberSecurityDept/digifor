@@ -20,7 +20,6 @@ warnings.filterwarnings('ignore', message='.*file size.*not.*multiple of sector 
 warnings.filterwarnings('ignore', message='.*SSCS size is 0 but SSAT size is non-zero.*')
 warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
 
-
 class FilteredStderr(io.TextIOWrapper):
     def write(self, s):
         if isinstance(s, str):
@@ -28,7 +27,6 @@ class FilteredStderr(io.TextIOWrapper):
                 super().write(s)
         else:
             super().write(s)
-
 try:
     if sys.stderr:
         original_stderr = sys.stderr
@@ -451,7 +449,8 @@ class SocialMediaParser(SocialMediaParsersExtended):
                             "user_id": twitter_col,
                             "full_name": twitter_col,
                             "source_tool": "Oxygen",
-                            "sheet_name": "X (Twitter)",                            "file_id": file_id,
+                            "sheet_name": "X (Twitter)",
+                            "file_id": file_id,
                         }
                         results.append(acc)
                     
@@ -840,7 +839,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         return None
     
     def _extract_nickname(self, text: str) -> Optional[str]:
-        """Extract nickname dari Contact field"""
         if not text:
             return None
         
@@ -851,7 +849,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
         return None
     
     def _extract_location(self, text: str) -> Optional[str]:
-        """Extract location dari Addresses field"""
         if not text:
             return None
         
@@ -878,7 +875,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
                 phone = re.sub(r'[^\d]', '', phone)
             if phone and len(phone) >= 8 and phone not in ['0', '+0']:
                 return phone
-        
         
         phone_match = re.search(r"(?:Home|Mobile|Work|Cell|Phone|Office)[:\s]+([\+\d\s\-\(\)]+)", text_str, re.IGNORECASE)
         if phone_match:
@@ -1064,7 +1060,7 @@ class SocialMediaParser(SocialMediaParsersExtended):
         
         return None
 
-    def _parse_oxygen_contacts_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:  # type: ignore[reportGeneralTypeIssues]
+    def _parse_oxygen_contacts_sheet(self, file_path: str, xls: pd.ExcelFile, file_id: int, engine: str) -> List[Dict[str, Any]]:
         results = []
         
         try:
@@ -1319,11 +1315,11 @@ class SocialMediaParser(SocialMediaParsersExtended):
                     phones_emails_field = self._clean(row.get("Phones & Emails"))
                     
                     print(f"\nProcessing WhatsApp Row {row_idx}:")
-                    print(f"   Type: {type_field}")
-                    print(f"   Source: {source_field}")
-                    print(f"   Contact: {contact_field[:80] if contact_field else 'None'}")
-                    print(f"   Internet: {internet_field[:80] if internet_field else 'None'}")
-                    print(f"   Phones & Emails: {phones_emails_field[:80] if phones_emails_field else 'None'}")
+                    print(f"Type: {type_field}")
+                    print(f"Source: {source_field}")
+                    print(f"Contact: {contact_field[:80] if contact_field else 'None'}")
+                    print(f"Internet: {internet_field[:80] if internet_field else 'None'}")
+                    print(f"Phones & Emails: {phones_emails_field[:80] if phones_emails_field else 'None'}")
                     
                     account_name = None
                     
@@ -2846,8 +2842,6 @@ class SocialMediaParser(SocialMediaParsersExtended):
     def _extract_phone_number(self, phones_emails_field: Optional[str]) -> Optional[str]:
         if not phones_emails_field:
             return None
-        
-        
         phones_found = []
         
         mobile_pattern = r'mobile[:\s]+(\+?\d+)'

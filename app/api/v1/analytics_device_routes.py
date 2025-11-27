@@ -137,8 +137,8 @@ async def add_device(
             device_id_value = int(device.id) if device.id is not None else None
             if device_id_value is not None and device_id_value not in current_ids:
                 current_ids.append(device_id_value)
-                setattr(existing_link, 'device_ids', current_ids)  # type: ignore[reportAttributeAccessIssue]
-                setattr(existing_link, 'updated_at', get_indonesia_time())  # type: ignore[reportAttributeAccessIssue]
+                setattr(existing_link, 'device_ids', current_ids)  
+                setattr(existing_link, 'updated_at', get_indonesia_time())  
                 db.add(existing_link)
         else:
             new_link = AnalyticDevice(

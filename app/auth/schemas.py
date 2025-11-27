@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from datetime import datetime
 
-# ROLE
 class RoleBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     description: str | None = Field(None, max_length=255)

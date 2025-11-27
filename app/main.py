@@ -7,11 +7,11 @@ warnings.filterwarnings('ignore', message=r'.*WARNING \*\*\*.*')
 warnings.filterwarnings('ignore', message='.*bcrypt.*')
 warnings.filterwarnings('ignore', message='.*error reading bcrypt.*')
 
-from fastapi import FastAPI, Request, HTTPException  # type: ignore
-from fastapi.responses import JSONResponse, Response  # type: ignore
-from fastapi.exceptions import RequestValidationError  # type: ignore
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, Response
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-import uvicorn  # type: ignore
+import uvicorn
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -39,7 +39,7 @@ from app.api.v1 import (
     report_routes,
     user_routes,
 )
-from fastapi.openapi.utils import get_openapi  # type: ignore
+from fastapi.openapi.utils import get_openapi
 from app.db.init_db import init_db
 from fastapi.staticfiles import StaticFiles
 
