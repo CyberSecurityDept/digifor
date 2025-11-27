@@ -1,6 +1,5 @@
-import hashlib
+import hashlib, os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import os
 
 class ChunkProcessor:
     def __init__(self, chunk_size=10 * 1024 * 1024):

@@ -1,8 +1,4 @@
-import os
-import json
-import base64
-import hashlib
-import struct
+import os, json, base64, hashlib, struct, os
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import x25519
@@ -19,7 +15,6 @@ class SDPCrypto:
     
     @staticmethod
     def generate_keypair():
-        """Generate X25519 key pair"""
         private_key = x25519.X25519PrivateKey.generate()
         public_key = private_key.public_key()
         
@@ -38,7 +33,6 @@ class SDPCrypto:
 
     @staticmethod
     def derive_symmetric_key(private_key, peer_public_key, salt, info=b"sdp_encryption_v1"):
-        """Derive AES key using ECDH + HKDF"""
         if isinstance(private_key, bytes):
             private_key = x25519.X25519PrivateKey.from_private_bytes(private_key)
         if isinstance(peer_public_key, bytes):
@@ -57,15 +51,6 @@ class SDPCrypto:
 
     @staticmethod
     def encrypt_to_sdp(recipient_public_key, input_path, output_path, chunk_size=None):
-        """
-        Encrypt any file to .sdp format - No size limits
-        
-        Args:
-            recipient_public_key: Public key bytes
-            input_path: Input file path
-            output_path: Output .sdp path
-            chunk_size: Chunk size in bytes (default: 10MB)
-        """
         if chunk_size is None:
             chunk_size = SDPCrypto.CHUNK_SIZE
             
@@ -141,17 +126,6 @@ class SDPCrypto:
 
     @staticmethod
     def decrypt_from_sdp(recipient_private_key, input_path, output_dir=None):
-        """
-        Decrypt .sdp file to original file - No size limits
-        
-        Args:
-            recipient_private_key: Private key bytes
-            input_path: Input .sdp path
-            output_dir: Output directory (optional)
-            
-        Returns:
-            str: Path to decrypted file
-        """
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"SDP file not found: {input_path}")
         

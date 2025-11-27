@@ -781,7 +781,6 @@ class CaseLogService:
             else:
                 changed_by_value = "Unknown User"
             
-
             old_status_display = str(old_status) if old_status is not None else "None"
             new_status_display = str(new_status) if new_status is not None else "None"
             change_detail_value = f"Updating status cases: {old_status_display} | {new_status_display}"
@@ -950,11 +949,9 @@ class CaseLogService:
                 changed_by = getattr(log, 'changed_by', '') or ''
                 change_detail = getattr(log, 'change_detail', '') or ''
                 
-                # Remove "By: " prefix from changed_by if present
                 if changed_by.startswith("By: "):
                     changed_by = changed_by[4:].strip()
                 
-                # Always add edit array for status change actions
                 edit_array = [{
                     "changed_by": changed_by if changed_by else "Unknown User",
                     "change_detail": change_detail if change_detail else f"Updating status cases: Unknown | {log_status}"

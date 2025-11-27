@@ -137,25 +137,19 @@ class SocialMedia(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    
     type = Column(String, nullable=True)
     source = Column(String, nullable=True)
-    
     phone_number = Column(String, nullable=True)
     full_name = Column(Text, nullable=True)
     account_name = Column(Text, nullable=True)
-    
     whatsapp_id = Column(String, nullable=True)
     telegram_id = Column(String, nullable=True)
     instagram_id = Column(String, nullable=True)
     X_id = Column(String, nullable=True)
     facebook_id = Column(String, nullable=True)
     tiktok_id = Column(String, nullable=True)
-    
     location = Column(Text, nullable=True)
-    
     sheet_name = Column(String, nullable=True)
-    
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 

@@ -5,9 +5,8 @@ from sqlalchemy.orm import Session
 from app.analytics.device_management.models import SocialMedia, ChatMessage
 from app.db.session import get_db
 from .file_validator import file_validator
-import warnings
 from pathlib import Path
-import re, traceback, logging
+import re, traceback, logging, warnings
 
 logger = logging.getLogger(__name__)
 
@@ -291,7 +290,6 @@ class AxiomParser:
 
         return unique_results
 
-
     def count_axiom_social_media(self, file_path: str) -> int:
         try:
             file_ext = Path(file_path).suffix.lower()
@@ -349,7 +347,6 @@ class AxiomParser:
         except Exception as e:
             return 0
 
-
     def _parse_axiom_instagram_profiles(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
 
@@ -390,7 +387,6 @@ class AxiomParser:
             print(f"Error parsing Instagram Profiles: {e}")
 
         return results
-
 
     def _parse_axiom_instagram_following(self, file_path: str, sheet_name: str, file_id: int) -> List[Dict[str, Any]]:
         results = []
