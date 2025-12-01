@@ -454,7 +454,7 @@ async def get_suspect_detail(
                     "list_evidence": evidence_list
                 }
             ],
-            "suspect_notes": suspect_notes
+            "suspect_notes": suspect.notes
         }
         
         return JSONResponse(

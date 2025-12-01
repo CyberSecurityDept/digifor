@@ -19,10 +19,11 @@ router = APIRouter(prefix="/cases", tags=["Case Management"])
 @router.post("/create-case", response_model=CaseResponse)
 async def create_case(
     case_data: CaseCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        case_dict = case_service.create_case(db, case_data)
+        case_dict = case_service.create_case(db, case_data, current_user)
         if isinstance(case_dict.get("created_at"), datetime):
             case_dict["created_at"] = case_dict["created_at"].strftime("%d/%m/%Y")
         if isinstance(case_dict.get("updated_at"), datetime):

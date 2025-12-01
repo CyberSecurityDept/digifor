@@ -607,127 +607,67 @@ async def save_suspect_notes(
     db: Session = Depends(get_database)
 ):
     try:
-        notes = request.notes
+        notes_trimmed = request.notes.strip() if request.notes else ""
+
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             return JSONResponse(
                 status_code=404,
-                content={
-                    "status": 404,
-                    "message": f"Suspect with ID {suspect_id} not found"
-                }
+                content={"status": 404, "message": f"Suspect with ID {suspect_id} not found"}
             )
-        
-        if suspect.case_id is not None:
+
+        # Check akses case
+        if suspect.case_id:
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             if case and not check_case_access(case, current_user):
                 return JSONResponse(
                     status_code=403,
-                    content={
-                        "status": 403,
-                        "message": "You do not have permission to access this case"
-                    }
+                    content={"status": 403, "message": "You do not have permission to access this case"}
                 )
-        
-        notes_trimmed = notes.strip() if notes else ""
-        
-        evidence_list = []
-        if suspect_id is not None:
-            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
-            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
-                evidence_by_number = db.query(Evidence).filter(
-                    Evidence.evidence_number == suspect.evidence_number,
-                    Evidence.case_id == suspect.case_id
-                ).order_by(Evidence.id.asc()).all()
-                evidence_ids = {e.id for e in evidence_records}
-                for evidence in evidence_by_number:
-                    if evidence.id not in evidence_ids:
-                        evidence_records.append(evidence)
 
-            evidence_list = sorted(evidence_records, key=lambda x: x.id)
-        
-        if not evidence_list or len(evidence_list) == 0:
+        # Notes sudah ada?
+        if suspect.notes and suspect.notes.strip():
             return JSONResponse(
                 status_code=400,
                 content={
                     "status": 400,
-                    "message": "Cannot save notes: No evidence found for this suspect. Please create evidence first."
+                    "message": f"Notes already exist for this suspect. Use PUT /edit-suspect-notes/{suspect_id} to update."
                 }
             )
-        
-        first_evidence = evidence_list[0]
-        current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
-        
-        existing_notes = None
-        if isinstance(current_notes, dict):
-            existing_notes = current_notes.get('suspect_notes')
-        elif isinstance(current_notes, str):
-            existing_notes = current_notes
-        
-        if existing_notes is not None and str(existing_notes).strip():
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": 400,
-                    "message": f"Notes already exist for this suspect. Use PUT /api/v1/persons/edit-suspect-notes/{suspect_id} to update existing notes."
-                }
-            )
-        
-        if isinstance(current_notes, dict):
-            current_notes['suspect_notes'] = notes_trimmed
-        elif isinstance(current_notes, str):
-            current_notes = {'suspect_notes': notes_trimmed, 'text': current_notes}
-        else:
-            current_notes = {'suspect_notes': notes_trimmed}
-        
-        setattr(first_evidence, 'notes', current_notes)
-        flag_modified(first_evidence, 'notes')
+
+        # Simpan ke tabel suspect
+        suspect.notes = notes_trimmed
         db.commit()
-        db.refresh(first_evidence)
-        
+        db.refresh(suspect)
+
+        # Create case log
         try:
-            case = None
-            if suspect.case_id is not None:
-                case = db.query(Case).filter(Case.id == suspect.case_id).first()
-            if case:
-                current_status = case.status if case else "Open"
-                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            if suspect.case_id:
+                changed_by = getattr(current_user, "fullname", "") or current_user.email
                 case_log = CaseLog(
                     case_id=suspect.case_id,
                     action="Edit",
                     changed_by=f"By: {changed_by}",
-                    change_detail=f"Change: Added notes for suspect {suspect.name}",
+                    change_detail=f"Added notes for suspect {suspect.name}",
                     notes="",
-                    status=current_status
+                    status=case.status if case else "Open"
                 )
                 db.add(case_log)
                 db.commit()
-        except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
-        
+        except:
+            pass
+
         return JSONResponse(
             status_code=201,
             content={
                 "status": 201,
                 "message": "Suspect notes saved successfully",
-                "data": {
-                    "suspect_id": suspect_id,
-                    "notes": notes_trimmed
-                }
+                "data": {"suspect_id": suspect_id, "notes": notes_trimmed}
             }
         )
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
-            }
-        )
+        return JSONResponse(status_code=500, content={"status": 500, "message": str(e)})
 
 @router.put("/edit-suspect-notes/{suspect_id}")
 async def edit_suspect_notes(
@@ -737,128 +677,64 @@ async def edit_suspect_notes(
     db: Session = Depends(get_database)
 ):
     try:
-        notes = request.notes
-        
+        notes_trimmed = request.notes.strip() if request.notes else ""
+
         suspect = db.query(Suspect).filter(Suspect.id == suspect_id).first()
         if not suspect:
             return JSONResponse(
                 status_code=404,
-                content={
-                    "status": 404,
-                    "message": f"Suspect with ID {suspect_id} not found"
-                }
+                content={"status": 404, "message": f"Suspect with ID {suspect_id} not found"}
             )
-        
-        if suspect.case_id is not None:
+
+        # Check akses case
+        if suspect.case_id:
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             if case and not check_case_access(case, current_user):
                 return JSONResponse(
                     status_code=403,
-                    content={
-                        "status": 403,
-                        "message": "You do not have permission to access this case"
-                    }
+                    content={"status": 403, "message": "You do not have permission to access this case"}
                 )
-        
-        notes_trimmed = notes.strip() if notes else ""
-        
-        evidence_list = []
-        if suspect_id is not None:
-            evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).order_by(Evidence.id.asc()).all()
-            if suspect.evidence_number is not None and str(suspect.evidence_number).strip():
-                evidence_by_number = db.query(Evidence).filter(
-                    Evidence.evidence_number == suspect.evidence_number,
-                    Evidence.case_id == suspect.case_id
-                ).order_by(Evidence.id.asc()).all()
-                evidence_ids = {e.id for e in evidence_records}
-                for evidence in evidence_by_number:
-                    if evidence.id not in evidence_ids:
-                        evidence_records.append(evidence)
 
-            evidence_list = sorted(evidence_records, key=lambda x: x.id)
-        
-        if not evidence_list or len(evidence_list) == 0:
+        # Notes tidak ada → tidak bisa edit
+        if not suspect.notes or not suspect.notes.strip():
             return JSONResponse(
                 status_code=400,
                 content={
                     "status": 400,
-                    "message": "Cannot edit notes: No evidence found for this suspect. Please create evidence first."
+                    "message": f"No notes found for this suspect. Use POST /save-suspect-notes/{suspect_id} to create notes."
                 }
             )
-        
-        first_evidence = evidence_list[0]
-        current_notes = first_evidence.notes if hasattr(first_evidence, 'notes') and first_evidence.notes is not None else {}
-        
-        existing_notes = None
-        if isinstance(current_notes, dict):
-            existing_notes = current_notes.get('suspect_notes')
-        elif isinstance(current_notes, str):
-            existing_notes = current_notes
-        
-        if existing_notes is None or not str(existing_notes).strip():
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "status": 400,
-                    "message": f"No notes found for this suspect. Use POST /api/v1/persons/save-suspect-notes/{suspect_id} to create new notes."
-                }
-            )
-        
-        if isinstance(current_notes, dict):
-            current_notes['suspect_notes'] = notes_trimmed
-        elif isinstance(current_notes, str):
-            current_notes = {'suspect_notes': notes_trimmed, 'text': current_notes}
-        else:
-            current_notes = {'suspect_notes': notes_trimmed}
-        
-        setattr(first_evidence, 'notes', current_notes)
-        flag_modified(first_evidence, 'notes')
-        db.add(first_evidence)
-        db.flush()
+
+        # Update notes
+        suspect.notes = notes_trimmed
         db.commit()
-        db.refresh(first_evidence)
-        
+        db.refresh(suspect)
+
+        # Create case log
         try:
-            case = None
-            if suspect.case_id is not None:
-                case = db.query(Case).filter(Case.id == suspect.case_id).first()
-            if case:
-                current_status = case.status if case else "Open"
-                changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            if suspect.case_id:
+                changed_by = getattr(current_user, "fullname", "") or current_user.email
                 case_log = CaseLog(
                     case_id=suspect.case_id,
                     action="Edit",
                     changed_by=f"By: {changed_by}",
-                    change_detail=f"Change: Updated notes for suspect {suspect.name}",
+                    change_detail=f"Updated notes for suspect {suspect.name}",
                     notes="",
-                    status=current_status
+                    status=case.status if case else "Open"
                 )
                 db.add(case_log)
                 db.commit()
-        except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
-        
+        except:
+            pass
+
         return JSONResponse(
             status_code=200,
             content={
                 "status": 200,
                 "message": "Suspect notes updated successfully",
-                "data": {
-                    "suspect_id": suspect_id,
-                    "notes": notes_trimmed
-                }
+                "data": {"suspect_id": suspect_id, "notes": notes_trimmed}
             }
         )
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
-            }
-        )
-
+        return JSONResponse(status_code=500, content={"status": 500, "message": str(e)})
