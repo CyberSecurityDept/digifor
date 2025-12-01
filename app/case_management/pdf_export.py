@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from datetime import datetime, timezone, timedelta
 from io import BytesIO
@@ -139,8 +140,8 @@ class TimelineFlowable(Flowable):
             name_width = canvas.stringWidth(name_str, font_name, 6.31)
             canvas.drawString(x - name_width / 2, name_y, name_str)
         
-        
         canvas.restoreState()
+        
 class CaseDetailPageCanvas(canvas.Canvas):
     def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
                  case_status: str = "", case_officer: str = "", created_date: str = "",
@@ -304,7 +305,7 @@ class CaseDetailPageCanvas(canvas.Canvas):
                 self.drawString(date_x, investigator_y, date_text)
         
         footer_y = 30
-        line_y = footer_y + 25
+        line_y = footer_y + 35
         left_margin_footer = MARGIN_LEFT
         right_margin_footer = MARGIN_RIGHT
         usable_width_footer = page_width - left_margin_footer - right_margin_footer
@@ -924,7 +925,7 @@ class SuspectDetailPageCanvas(canvas.Canvas):
                 self.drawString(date_x, investigator_y, date_text)
         
         footer_y = 30
-        line_y = footer_y + 25
+        line_y = footer_y + 35
         left_margin_footer = MARGIN_LEFT
         right_margin_footer = MARGIN_RIGHT
         usable_width_footer = page_width - left_margin_footer - right_margin_footer
@@ -1225,7 +1226,6 @@ def generate_suspect_detail_pdf(suspect_data: dict, output_path: str) -> str:
         logger.error(f"Error generating suspect detail PDF: {str(e)}", exc_info=True)
         raise
 
-
 class EvidenceDetailPageCanvas(canvas.Canvas):
     def __init__(self, *args, case_title: str = "", case_id: str = "", export_time: str = "",
                  case_officer: str = "", created_date: str = "", person_related: str = "",
@@ -1316,6 +1316,22 @@ class EvidenceDetailPageCanvas(canvas.Canvas):
             self.drawString(left_margin, investigator_date_y, f"Investigator: {self.case_officer}")
             self.drawRightString(page_width - right_margin, investigator_date_y, f"Date Created: {self.created_date}")
 
+        border_width = 547
+        border_height = 0
+        border_line_width = 1.5
+        border_color = colors.HexColor("#466086")
+        border_y = 63
+        
+        border_x_start = (page_width - border_width) / 2 -3.5
+        
+        border_x_end = border_x_start + border_width
+        
+        self.saveState()
+        self.setStrokeColor(border_color)
+        self.setLineWidth(border_line_width)
+        self.line(border_x_start, border_y, border_x_end, border_y)
+        self.restoreState()
+        
         footer_text = f"{self.case_title} - {self.case_id}"
         self.setFont("Helvetica", 10)
         self.setFillColor(colors.HexColor("#333333"))
@@ -1389,6 +1405,9 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         )
         table_text_style = ParagraphStyle(
             "TableText", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
+        )
+        step_text_style = ParagraphStyle(
+            "StepText", fontSize=12, leading=14, alignment=TA_LEFT, textColor=colors.HexColor("#0C0C0C"), fontName="Helvetica"
         )
     
         person_source_style = ParagraphStyle(
@@ -1529,7 +1548,7 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
         col_width_2 = USABLE_WIDTH * 0.5
         summary_table = Table(summary_table_data, colWidths=[col_width_1, col_width_2])
         summary_table.setStyle(TableStyle([
-            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#466086")),
+            ("BOX", (0, 0), (-1, -1), 2, colors.HexColor("#466086")),
             ("SPAN", (0, 0), (1, 0)),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
@@ -1600,7 +1619,7 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
             ("TOPPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (0, 0), 8),
-            ("LINEBELOW", (0, -1), (-1, -1), 1, colors.HexColor("#466086")),
+            ("LINEBELOW", (0, -1), (-1, -1), 2, colors.HexColor("#466086")),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ]))
         story.append(chain_table)
@@ -1671,12 +1690,28 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                     [Paragraph(custody_type, subtitle_style), date_investigator_table]
                 ]
             else:
-                date_investigator_text = f"{date_str} {investigator}"
-                date_investigator_style = ParagraphStyle(
-                    "DateInvestigator", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+                date_style = ParagraphStyle(
+                    "DateStyle", fontSize=12, textColor=colors.HexColor("#0C0C0C"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
                 )
+                investigator_style = ParagraphStyle(
+                    "InvestigatorStyle", fontSize=10, textColor=colors.HexColor("#545454"), spaceAfter=0, alignment=TA_RIGHT, fontName="Helvetica"
+                )
+                
+                date_investigator_table_data = [
+                    [Paragraph(date_str, date_style)],
+                    [Paragraph(investigator, investigator_style)]
+                ]
+                date_investigator_table = Table(date_investigator_table_data, colWidths=[USABLE_WIDTH * 0.3])
+                date_investigator_table.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 17),
+                    ("TOPPADDING", (0, 0), (0, 0), 0),
+                    ("TOPPADDING", (0, 1), (0, 1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
                 section_title_data = [
-                    [Paragraph(custody_type, subtitle_style), Paragraph(date_investigator_text, date_investigator_style)]
+                    [Paragraph(custody_type, subtitle_style), date_investigator_table]
                 ]
             section_title_table = Table(
                 section_title_data,
@@ -1689,31 +1724,29 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]))
-            story.append(section_title_table)
-            story.append(Spacer(1, 10))
-
             details = report.get("details", {})
             
-            if custody_type.lower() == "acquisition" and details:
-                    steps_title_table = Table(
-                        [[Paragraph("Steps for Confiscating Evidence", acquisition_investigator_name_subtitle_style)]],
-                        colWidths=[USABLE_WIDTH]
-                    )
-                    steps_title_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), COLOR_TABLE_HEADER_BG),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#F4F6F8")),
-                    ]))
-                    story.append(steps_title_table)
-                    story.append(Spacer(1, 5))
-                    
-                    steps_table_data = [[
-                        Paragraph("Image", table_header_style),
-                        Paragraph("Steps for Confiscating Evidence", table_header_style)
-                    ]]
+            if custody_type.lower() == "acquisition":
+                steps_table_data = [[
+                    Paragraph("Image", table_header_style),
+                    Paragraph("Steps for Confiscating Evidence", table_header_style)
+                ]]
 
-                    steps_list = details if isinstance(details, list) else details.get("steps", [])
+                steps_list = []
+                if isinstance(details, list):
+                    steps_list = details
+                elif isinstance(details, dict):
+                    steps_list = details.get("steps", [])
+                
+                has_no_data = False
+                if not steps_list or len(steps_list) == 0:
+                    no_data_style = ParagraphStyle(
+                        "NoDataStyle", fontSize=12, textColor=colors.HexColor("#666666"), 
+                        spaceAfter=0, alignment=TA_CENTER, fontName="Helvetica", fontStyle="italic"
+                    )
+                    steps_table_data.append([Paragraph("<i>No data available</i>", no_data_style), ""])
+                    has_no_data = True
+                else:
                     for step_item in steps_list:
                         if isinstance(step_item, dict):
                             step_text = step_item.get("steps", step_item.get("text", ""))
@@ -1722,7 +1755,25 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                             step_text = str(step_item)
                             step_image_path = None
                         
+                        if step_text:
+                            step_text = re.sub(r'^\d+\.\s*', '', step_text).strip()
+                        
+                        image_width = 130
+                        image_height = 78
                         pic_cell = Paragraph("<i>Image not available</i>", table_text_style)
+                        
+                        placeholder_table = Table([[pic_cell]], colWidths=[image_width], rowHeights=[image_height])
+                        placeholder_table.setStyle(TableStyle([
+                            ("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor("#C3CFE0")),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                            ("TOPPADDING", (0, 0), (-1, -1), 8),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ]))
+                        pic_cell = placeholder_table
+                        
                         if step_image_path:
                             resolved_path = None
                             if os.path.isabs(step_image_path):
@@ -1748,50 +1799,126 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                             if resolved_path and os.path.exists(resolved_path):
                                 try:
                                     img = PILImage.open(resolved_path)
-                                    image_width = 130
-                                    image_height = 78
                                     img = img.resize((int(image_width), int(image_height)), PILImage.Resampling.LANCZOS)
                                     buf = BytesIO()
                                     img.save(buf, format="PNG")
                                     buf.seek(0)
-                                    pic_cell = Image(buf, width=image_width, height=image_height)
+                                    image_obj = Image(buf, width=image_width, height=image_height)
+                                    
+                                    image_table = Table([[image_obj]], colWidths=[image_width], rowHeights=[image_height])
+                                    image_table.setStyle(TableStyle([
+                                        ("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor("#C3CFE0")),
+                                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                                    ]))
+                                    pic_cell = image_table
                                 except Exception as e:
                                     logger.warning(f"Failed to load step image: {e}")
                         
                         steps_table_data.append([pic_cell, Paragraph(step_text, table_text_style)])
-                    
-                    steps_table = Table(steps_table_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
-                    steps_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
-                        ("FONTSIZE", (0, 0), (-1, 0), 12),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                        ("TOPPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-                    ]))
-                    story.append(steps_table)
-                    story.append(Spacer(1, 20))
+                
+                steps_table = Table(steps_table_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7], repeatRows=1)
+                num_data_rows = len(steps_table_data) - 1
+                
+                table_style = [
+                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 12),
+                    ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (1, 1), (1, -1), 12),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("LINEABOVE", (0, 0), (-1, 0), 1, colors.grey),
+                    ("LINEBELOW", (0, 0), (-1, -1), 1, colors.grey),
+                ]
+                
+                for row_idx in range(1, len(steps_table_data)):
+                    if has_no_data and row_idx == 1:
+                        table_style.append(("SPAN", (0, row_idx), (-1, row_idx)))
+                        table_style.append(("ALIGN", (0, row_idx), (-1, row_idx), "CENTER"))
+                        table_style.append(("VALIGN", (0, row_idx), (-1, row_idx), "MIDDLE"))
+                    elif not has_no_data and (row_idx - 1) % 2 == 0:
+                        table_style.append(("BACKGROUND", (0, row_idx), (-1, row_idx), COLOR_ROW_BACKGROUND_ODD))
+                
+                steps_table.setStyle(TableStyle(table_style))
+                
+                notes_text = report.get("notes", "") or ""
+                notes_width = 545
+                notes_border_width = 1
+                notes_bg_color = colors.HexColor("#F2F2F2")
+                min_height = 72
+                
+                summary_subtitle_table = Table(
+                    [[Paragraph("Summary", summary_subtitle_style)]],
+                    colWidths=[509],
+                    rowHeights=[14]
+                )
+                summary_subtitle_table.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]))
+                
+                if notes_text:
+                    notes_content = Paragraph(notes_text, summary_text_style)
+                else:
+                    notes_content = Paragraph("<i>No notes available</i>", summary_text_style)
+                
+                notes_table_data = [
+                    [summary_subtitle_table],
+                    [notes_content]
+                ]
+                
+                title_row_height = 22
+                content_row_height = min_height - title_row_height
+                
+                notes_table = Table(notes_table_data, colWidths=[notes_width], rowHeights=[title_row_height, content_row_height])
+                notes_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), notes_bg_color),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#000000")),
+                    ("BOX", (0, 0), (-1, -1), notes_border_width, colors.black),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                    ("TOPPADDING", (0, 0), (0, 0), 8),
+                    ("TOPPADDING", (0, 1), (0, 1), 8),
+                    ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                ]))
+                
+                estimated_min_height = 30 + 15 + 30 + 100
+                story.append(CondPageBreak(estimated_min_height))
+                
+                story.append(Spacer(1, -8))
+                story.append(section_title_table)
+                story.append(Spacer(1, 10))
+                story.append(Spacer(1, 5))
+                story.append(steps_table)
+                story.append(Spacer(1, 20))
+                
+                story.append(notes_table)
+                story.append(Spacer(1, 20))
             
-            if isinstance(details, dict):
-                if custody_type.lower() == "preparation" and details:
-                    tools_title_table = Table(
-                        [[Paragraph("Tools and Investigation Hypothesis", subtitle_style)]],
-                        colWidths=[USABLE_WIDTH]
-                    )
-                    tools_title_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ]))
-                    story.append(tools_title_table)
-                    story.append(Spacer(1, 5))
-
-                    tools_data = [["Tools", "Investigation Hypothesis"]]
-                    tools_list = details if isinstance(details, list) else details.get("tools", [])
+            if custody_type.lower() == "preparation":
+                tools_data = [["Tools", "Investigation Hypothesis"]]
+                if isinstance(details, dict):
+                    tools_list = details.get("tools", [])
+                elif isinstance(details, list):
+                    tools_list = details
+                else:
+                    tools_list = []
+                
+                has_no_data_prep = False
+                if tools_list and len(tools_list) > 0:
                     for item in tools_list:
                         if isinstance(item, dict):
                             tool_name = item.get("tools", item.get("name", ""))
@@ -1803,52 +1930,125 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                             Paragraph(tool_name, table_text_style),
                             Paragraph(hypothesis, table_text_style)
                         ])
-                    
-                    tools_table = Table(tools_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
-                    tools_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
-                        ("FONTSIZE", (0, 0), (-1, 0), 12),
-                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                        ("TOPPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ]))
-                    story.append(tools_table)
-                    story.append(Spacer(1, 20))
-                
-                elif custody_type.lower() == "extraction" and details:
-                    files_title_table = Table(
-                        [[Paragraph("File Details", subtitle_style)]],
-                        colWidths=[USABLE_WIDTH]
+                else:
+                    no_data_style = ParagraphStyle(
+                        "NoDataStyle", fontSize=12, textColor=colors.HexColor("#666666"), 
+                        spaceAfter=0, alignment=TA_CENTER, fontName="Helvetica", fontStyle="italic"
                     )
-                    files_title_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ]))
-                    story.append(files_title_table)
-                    story.append(Spacer(1, 5))
-
+                    tools_data.append([Paragraph("<i>No data available</i>", no_data_style), ""])
+                    has_no_data_prep = True
+                
+                tools_table = Table(tools_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7], repeatRows=1)
+                
+                tools_table_style = [
+                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 12),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 1), (-1, -1), 12),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("LINEABOVE", (0, 0), (-1, 0), 1, colors.grey),
+                    ("LINEBELOW", (0, 0), (-1, -1), 1, colors.grey),
+                ]
+                
+                for row_idx in range(1, len(tools_data)):
+                    if has_no_data_prep and row_idx == 1:
+                        tools_table_style.append(("SPAN", (0, row_idx), (-1, row_idx)))
+                        tools_table_style.append(("ALIGN", (0, row_idx), (-1, row_idx), "CENTER"))
+                        tools_table_style.append(("VALIGN", (0, row_idx), (-1, row_idx), "MIDDLE"))
+                    elif not has_no_data_prep and (row_idx - 1) % 2 == 0:
+                        tools_table_style.append(("BACKGROUND", (0, row_idx), (-1, row_idx), COLOR_ROW_BACKGROUND_ODD))
+                
+                tools_table.setStyle(TableStyle(tools_table_style))
+                
+                notes_text = report.get("notes", "") or ""
+                notes_width = 545
+                notes_border_width = 1
+                notes_bg_color = colors.HexColor("#F2F2F2")
+                min_height = 72
+                
+                summary_subtitle_table = Table(
+                    [[Paragraph("Summary", summary_subtitle_style)]],
+                    colWidths=[509],
+                    rowHeights=[14]
+                )
+                summary_subtitle_table.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]))
+                
+                if notes_text:
+                    notes_content = Paragraph(notes_text, summary_text_style)
+                else:
+                    notes_content = Paragraph("<i>No notes available</i>", summary_text_style)
+                
+                notes_table_data = [
+                    [summary_subtitle_table],
+                    [notes_content]
+                ]
+                
+                title_row_height = 22
+                content_row_height = min_height - title_row_height
+                
+                notes_table = Table(notes_table_data, colWidths=[notes_width], rowHeights=[title_row_height, content_row_height])
+                notes_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), notes_bg_color),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#000000")),
+                    ("BOX", (0, 0), (-1, -1), notes_border_width, colors.black),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                    ("TOPPADDING", (0, 0), (0, 0), 8),
+                    ("TOPPADDING", (0, 1), (0, 1), 8),
+                    ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                ]))
+                
+                estimated_min_height = 30 + 20 + 30 + 50
+                story.append(CondPageBreak(estimated_min_height))
+                
+                story.append(Spacer(1, -5))
+                story.append(section_title_table)
+                story.append(Spacer(1, 10))
+                story.append(Spacer(1, 10))
+                story.append(tools_table)
+                story.append(Spacer(1, 20))
+                
+                story.append(notes_table)
+                story.append(Spacer(1, 20))
+            
+            if isinstance(details, dict):
+                if custody_type.lower() == "extraction" and details:
                     files_data = [["File Size", "File Name"]]
+                    has_file_data = False
+                    
                     if isinstance(details, dict) and "extraction_file" in details:
                         file_size = details.get("file_size", "N/A")
                         file_name = details.get("file_name", "N/A")
-                        files_data.append([
-                            Paragraph(str(file_size), table_text_style),
-                            Paragraph(file_name, table_text_style)
-                        ])
-                    elif isinstance(details, dict) and "files" in details:
-                        for file_info in details.get("files", []):
-                            file_size = file_info.get("size", "N/A")
-                            file_name = file_info.get("name", "N/A")
+                        if file_size != "N/A" or file_name != "N/A":
                             files_data.append([
                                 Paragraph(str(file_size), table_text_style),
                                 Paragraph(file_name, table_text_style)
                             ])
+                            has_file_data = True
+                    elif isinstance(details, dict) and "files" in details:
+                        files_list = details.get("files", [])
+                        if files_list and len(files_list) > 0:
+                            for file_info in files_list:
+                                file_size = file_info.get("size", "N/A")
+                                file_name = file_info.get("name", "N/A")
+                                files_data.append([
+                                    Paragraph(str(file_size), table_text_style),
+                                    Paragraph(file_name, table_text_style)
+                                ])
+                            has_file_data = True
                     else:
                         file_size = evidence_info.get("file_size", 0)
                         if file_size:
@@ -1864,84 +2064,217 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
                         file_name = evidence_info.get("file_path", "N/A")
                         if file_name and file_name != "N/A":
                             file_name = os.path.basename(file_name)
+                            has_file_data = True
                         files_data.append([
                             Paragraph(file_size_str, table_text_style),
                             Paragraph(file_name, table_text_style)
                         ])
                     
-                    files_table = Table(files_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7])
-                    files_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
-                        ("FONTSIZE", (0, 0), (-1, 0), 12),
-                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                        ("TOPPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ]))
-                    story.append(files_table)
-                    story.append(Spacer(1, 20))
-                
-                elif custody_type.lower() == "analysis" and details:
-                    results_title_table = Table(
-                        [[Paragraph("Investigation Hypothesis and Analysis Result", subtitle_style)]],
-                        colWidths=[USABLE_WIDTH]
-                    )
-                    results_title_table.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                    ]))
-                    story.append(results_title_table)
-                    story.append(Spacer(1, 5))
-
-                    results_data = [["Investigation Hypothesis", "Analysis Result"]]
-                    results_list = details if isinstance(details, list) else details.get("results", [])
-                    for item in results_list:
-                        if isinstance(item, dict):
-                            hypothesis = item.get("hypothesis", "")
-                            analysis_result = item.get("result", "")
-                        else:
-                            hypothesis = str(item) if item else ""
-                            analysis_result = ""
-                        results_data.append([
-                            Paragraph(hypothesis, table_text_style),
-                            Paragraph(analysis_result, table_text_style)
-                        ])
+                    has_no_data_ext = False
+                    if not has_file_data:
+                        no_data_style = ParagraphStyle(
+                            "NoDataStyle", fontSize=12, textColor=colors.HexColor("#666666"), 
+                            spaceAfter=0, alignment=TA_CENTER, fontName="Helvetica", fontStyle="italic"
+                        )
+                        files_data.append([Paragraph("<i>No data available</i>", no_data_style), ""])
+                        has_no_data_ext = True
                     
-                    results_table = Table(results_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5])
-                    results_table.setStyle(TableStyle([
+                    files_table = Table(files_data, colWidths=[USABLE_WIDTH * 0.3, USABLE_WIDTH * 0.7], repeatRows=1)
+                    
+                    files_table_style = [
                         ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
                         ("FONTSIZE", (0, 0), (-1, 0), 12),
-                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 12),
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
                         ("LEFTPADDING", (0, 0), (-1, -1), 8),
                         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                         ("TOPPADDING", (0, 0), (-1, -1), 8),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.grey),
+                        ("LINEBELOW", (0, 0), (-1, -1), 1, colors.grey),
+                    ]
+                    
+                    for row_idx in range(1, len(files_data)):
+                        if has_no_data_ext and row_idx == 1:
+                            files_table_style.append(("SPAN", (0, row_idx), (-1, row_idx)))
+                            files_table_style.append(("ALIGN", (0, row_idx), (-1, row_idx), "CENTER"))
+                            files_table_style.append(("VALIGN", (0, row_idx), (-1, row_idx), "MIDDLE"))
+                        elif not has_no_data_ext and (row_idx - 1) % 2 == 0:
+                            files_table_style.append(("BACKGROUND", (0, row_idx), (-1, row_idx), COLOR_ROW_BACKGROUND_ODD))
+                    
+                    files_table.setStyle(TableStyle(files_table_style))
+                    
+                    notes_text = report.get("notes", "") or ""
+                    notes_width = 545
+                    notes_border_width = 1
+                    notes_bg_color = colors.HexColor("#F2F2F2")
+                    min_height = 72
+                    
+                    summary_subtitle_table = Table(
+                        [[Paragraph("Summary", summary_subtitle_style)]],
+                        colWidths=[509],
+                        rowHeights=[14]
+                    )
+                    summary_subtitle_table.setStyle(TableStyle([
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ]))
+                    
+                    if notes_text:
+                        notes_content = Paragraph(notes_text, summary_text_style)
+                    else:
+                        notes_content = Paragraph("<i>No notes available</i>", summary_text_style)
+                    
+                    notes_table_data = [
+                        [summary_subtitle_table],
+                        [notes_content]
+                    ]
+                    
+                    title_row_height = 22
+                    content_row_height = min_height - title_row_height
+                    
+                    notes_table = Table(notes_table_data, colWidths=[notes_width], rowHeights=[title_row_height, content_row_height])
+                    notes_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), notes_bg_color),
+                        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#000000")),
+                        ("BOX", (0, 0), (-1, -1), notes_border_width, colors.black),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                        ("TOPPADDING", (0, 0), (0, 0), 8),
+                        ("TOPPADDING", (0, 1), (0, 1), 8),
+                        ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                    ]))
+                    
+                    estimated_min_height = 30 + 21 + 30 + 50
+                    story.append(CondPageBreak(estimated_min_height))
+                    
+                    story.append(Spacer(1, -5))
+                    story.append(section_title_table)
+                    story.append(Spacer(1, 10))
+                    story.append(Spacer(1, 11))
+                    story.append(files_table)
+                    story.append(Spacer(1, 20))
+                    
+                    story.append(notes_table)
+                    story.append(Spacer(1, 20))
+                
+                elif custody_type.lower() == "analysis" and details:
+                    results_data = [["Investigation Hypothesis", "Analysis Result"]]
+                    results_list = details if isinstance(details, list) else details.get("results", [])
+                    
+                    has_no_data_ana = False
+                    if results_list and len(results_list) > 0:
+                        for item in results_list:
+                            if isinstance(item, dict):
+                                hypothesis = item.get("hypothesis", "")
+                                analysis_result = item.get("result", "")
+                            else:
+                                hypothesis = str(item) if item else ""
+                                analysis_result = ""
+                            results_data.append([
+                                Paragraph(hypothesis, table_text_style),
+                                Paragraph(analysis_result, table_text_style)
+                            ])
+                    else:
+                        no_data_style = ParagraphStyle(
+                            "NoDataStyle", fontSize=12, textColor=colors.HexColor("#666666"), 
+                            spaceAfter=0, alignment=TA_CENTER, fontName="Helvetica", fontStyle="italic"
+                        )
+                        results_data.append([Paragraph("<i>No data available</i>", no_data_style), ""])
+                        has_no_data_ana = True
+                    
+                    results_table = Table(results_data, colWidths=[USABLE_WIDTH * 0.5, USABLE_WIDTH * 0.5], repeatRows=1)
+                    
+                    results_table_style = [
+                        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#F4F6F8")),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 12),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 12),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.grey),
+                        ("LINEBELOW", (0, 0), (-1, -1), 1, colors.grey),
+                    ]
+                    
+                    for row_idx in range(1, len(results_data)):
+                        if has_no_data_ana and row_idx == 1:
+                            results_table_style.append(("SPAN", (0, row_idx), (-1, row_idx)))
+                            results_table_style.append(("ALIGN", (0, row_idx), (-1, row_idx), "CENTER"))
+                            results_table_style.append(("VALIGN", (0, row_idx), (-1, row_idx), "MIDDLE"))
+                        elif not has_no_data_ana and (row_idx - 1) % 2 == 0:
+                            results_table_style.append(("BACKGROUND", (0, row_idx), (-1, row_idx), COLOR_ROW_BACKGROUND_ODD))
+                    
+                    results_table.setStyle(TableStyle(results_table_style))
+                    
+                    notes_text = report.get("notes", "") or ""
+                    notes_width = 545
+                    notes_border_width = 1
+                    notes_bg_color = colors.HexColor("#F2F2F2")
+                    min_height = 72
+                    
+                    summary_subtitle_table = Table(
+                        [[Paragraph("Summary", summary_subtitle_style)]],
+                        colWidths=[509],
+                        rowHeights=[14]
+                    )
+                    summary_subtitle_table.setStyle(TableStyle([
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]))
+                    
+                    if notes_text:
+                        notes_content = Paragraph(notes_text, summary_text_style)
+                    else:
+                        notes_content = Paragraph("<i>No notes available</i>", summary_text_style)
+                    
+                    notes_table_data = [
+                        [summary_subtitle_table],
+                        [notes_content]
+                    ]
+                    
+                    title_row_height = 22
+                    content_row_height = min_height - title_row_height
+                    
+                    notes_table = Table(notes_table_data, colWidths=[notes_width], rowHeights=[title_row_height, content_row_height])
+                    notes_table.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), notes_bg_color),
+                        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#000000")),
+                        ("BOX", (0, 0), (-1, -1), notes_border_width, colors.black),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                        ("TOPPADDING", (0, 0), (0, 0), 8),
+                        ("TOPPADDING", (0, 1), (0, 1), 8),
+                        ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+                    ]))
+
+                    estimated_min_height = 30 + 21 + 30 + 50
+                    story.append(CondPageBreak(estimated_min_height))
+                    
+                    story.append(Spacer(1, -5))
+                    story.append(section_title_table)
+                    story.append(Spacer(1, 10))
+                    story.append(Spacer(1, 11))
                     story.append(results_table)
                     story.append(Spacer(1, 20))
-
-            story.append(Spacer(1, 10))
-            summary_section_title_table = Table(
-                [[Paragraph("Summary", subtitle_style)]],
-                colWidths=[USABLE_WIDTH]
-            )
-            summary_section_title_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#CCCCCC")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ]))
-            story.append(summary_section_title_table)
-            story.append(Spacer(1, 5))
-            story.append(Paragraph(evidence_description, summary_text_style))
-            story.append(Spacer(1, 20))
+                    
+                    story.append(notes_table)
+                    story.append(Spacer(1, 20))
 
         logo_path = settings.LOGO_PATH
         if not os.path.isabs(logo_path):
@@ -1970,7 +2303,6 @@ def generate_evidence_detail_pdf(evidence_data: dict, output_path: str) -> str:
             canvasmaker=canvas_maker
         )
 
-        logger.info(f"Evidence detail PDF generated successfully: {output_path}")
         return output_path
 
     except Exception as e:

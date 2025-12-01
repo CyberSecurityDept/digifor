@@ -521,6 +521,10 @@ async def get_evidence_detail(
 
     evidence_source = getattr(evidence, 'source', None)  
 
+    custody_logs_query = db.query(CustodyLog).filter(
+        CustodyLog.evidence_id == evidence_id
+    ).order_by(CustodyLog.id.asc()).all()
+    
     custody_logs = [
         {
             "id": log.id,
@@ -529,9 +533,13 @@ async def get_evidence_detail(
             "created_by": log.created_by,
             "created_at": log.created_at
         }
-        for log in evidence.custody_logs
+        for log in custody_logs_query
     ]
 
+    custody_reports_query = db.query(CustodyReport).filter(
+        CustodyReport.evidence_id == evidence_id
+    ).order_by(CustodyReport.id.asc()).all()
+    
     custody_reports = [
         {
             "id": rpt.id,
@@ -546,7 +554,7 @@ async def get_evidence_detail(
             "created_at": rpt.created_at,
             "updated_at": rpt.updated_at,
         }
-        for rpt in evidence.custody_reports
+        for rpt in custody_reports_query
     ]
 
     data = {
@@ -635,6 +643,39 @@ async def export_evidence_detail_pdf(
             except (AttributeError, TypeError):
                 case_created_date = "N/A"
 
+        custody_reports_data = []
+        for report in custody_reports:
+            created_by_value = report.created_by
+            user_fullname = created_by_value
+            
+            if created_by_value:
+                user = db.query(User).filter(User.email == created_by_value).first()
+                if not user:
+                    try:
+                        user_id = int(created_by_value)
+                        user = db.query(User).filter(User.id == user_id).first()
+                    except (ValueError, TypeError):
+                        pass
+                
+                if user and hasattr(user, 'fullname') and user.fullname:
+                    user_fullname = user.fullname
+            
+            details_value = report.details if report.details is not None else ({} if report.custody_type != "acquisition" else [])
+            
+            custody_reports_data.append({
+                "id": report.id,
+                "custody_type": report.custody_type,
+                "created_by": user_fullname,
+                "location": report.location,
+                "notes": report.notes,
+                "details": details_value,
+                "evidence_source": report.evidence_source,
+                "evidence_type": report.evidence_type,
+                "evidence_detail": report.evidence_detail,
+                "created_at": report.created_at.isoformat() if getattr(report, 'created_at', None) is not None else None,
+                "updated_at": report.updated_at.isoformat() if getattr(report, 'updated_at', None) is not None else None,
+            })
+
         evidence_data = {
             "evidence": {
                 "id": evidence.id,
@@ -658,22 +699,7 @@ async def export_evidence_detail_pdf(
             "suspect": {
                 "name": suspect.name if suspect else "N/A",
             },
-            "custody_reports": [
-                {
-                    "id": report.id,
-                    "custody_type": report.custody_type,
-                    "created_by": report.created_by,
-                    "location": report.location,
-                    "notes": report.notes,
-                    "details": report.details if isinstance(report.details, dict) else {},
-                    "evidence_source": report.evidence_source,
-                    "evidence_type": report.evidence_type,
-                    "evidence_detail": report.evidence_detail,
-                    "created_at": report.created_at.isoformat() if getattr(report, 'created_at', None) is not None else None,
-                    "updated_at": report.updated_at.isoformat() if getattr(report, 'updated_at', None) is not None else None,
-                }
-                for report in custody_reports
-            ]
+            "custody_reports": custody_reports_data
         }
 
         os.makedirs(settings.REPORTS_DIR, exist_ok=True)
@@ -960,7 +986,6 @@ async def update_evidence(
         
         current_case_id = evidence.case_id
         
-        # Parse is_unknown_person correctly (handle both string and bool from form-data)
         is_unknown_person_bool = None
         if is_unknown_person is not None:
             if isinstance(is_unknown_person, str):
@@ -1007,20 +1032,15 @@ async def update_evidence(
         
         investigator_name = evidence.investigator or (case.main_investigator if case else None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         
-        # Query suspect again to get the latest data after all updates
         person_name_from_db = None
         suspect_id_from_evidence = getattr(evidence, 'suspect_id', None)
         if suspect_id_from_evidence:
-            # Query suspect again to ensure we get the latest data after all updates
             suspect = db.query(Suspect).filter(Suspect.id == suspect_id_from_evidence).first()
             if suspect:
-                # Refresh suspect to get latest data from database
                 db.refresh(suspect)
-                # Only return person_name if suspect is not unknown
                 is_unknown = getattr(suspect, 'is_unknown', False)
                 if not is_unknown:
                     person_name_from_db = suspect.name
-                # If suspect is unknown, person_name_from_db remains None (null in response)
         
         response_data = {
             "id": evidence.id,
