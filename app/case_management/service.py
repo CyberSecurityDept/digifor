@@ -49,7 +49,7 @@ def get_or_create_work_unit(db: Session, name: str, agency: Agency):
 
 class CaseService:
     
-    def create_case(self, db: Session, case_data: CaseCreate) -> dict:
+    def create_case(self, db: Session, case_data: CaseCreate, current_user=None) -> dict:
         case_dict = case_data.dict()
         
         if not case_dict.get("status"):
@@ -74,6 +74,13 @@ class CaseService:
         work_unit = None
         work_unit_name = None
         work_unit_id = case_dict.get("work_unit_id")
+
+        changed_by = None
+        if current_user:
+            changed_by = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', '') or getattr(current_user, 'username', 'Unknown User')
+            changed_by = f"By: {changed_by}"
+        else:
+            changed_by = "By: Unknown User"
 
         if work_unit_id and work_unit_id > 0:
             work_unit = db.query(WorkUnit).filter(WorkUnit.id == work_unit_id).first()
@@ -141,8 +148,8 @@ class CaseService:
             initial_log = CaseLog(
                 case_id=case.id,
                 action="Open",
-                changed_by="",
-                change_detail="",
+                changed_by=changed_by,
+                change_detail="Case opened",
                 notes="",
                 status="Open"
             )
