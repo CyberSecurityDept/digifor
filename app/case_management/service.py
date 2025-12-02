@@ -711,7 +711,7 @@ class CaseService:
                 "id": case.id,
                 "case_number": case.case_number,
                 "title": case.title,
-                "description": case.description or "No description available",
+                "description": case.description,
                 "status": case.status,
                 "case_officer": case.main_investigator,
                 "agency": agency_name or "N/A",

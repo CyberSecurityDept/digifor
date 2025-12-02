@@ -209,6 +209,10 @@ class UploadService:
                             return "Magnet Axiom"
                 
                 elif method == "Hashfile Analytics":
+                    structure_detected = self._detect_hashfile_tool_from_structure(file_path)
+                    if structure_detected and structure_detected != "Unknown":
+                        return structure_detected
+                    
                     hash_indicators = ['hash', 'md5', 'sha1', 'sha256']
                     if any(ind in sheet_names_str for ind in hash_indicators):
                         if any('telegram' in sheet and 'ios' in sheet for sheet in sheet_names_lower):
@@ -276,22 +280,140 @@ class UploadService:
         
         return "Unknown"
 
-    def _mark_done(self, upload_id: str, message: str, is_error: bool = False, detected_tool: str = None):
+    def _detect_hashfile_tool_from_structure(self, file_path: str) -> str:
+        try:
+            file_ext = Path(file_path).suffix.lower()
+            
+    
+            if file_ext == '.txt':
+                try:
+                    encoding = 'utf-8'
+                    with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
+                        first_lines = [f.readline() for _ in range(5)]
+                    
+                
+                    for line in first_lines:
+                        if line and '\t' in line:
+                            parts = line.split('\t')
+                            if len(parts) >= 3:
+                                lower_parts = [p.lower().strip() for p in parts[:3]]
+                                if any('name' in p for p in lower_parts) and \
+                                   any('md5' in p for p in lower_parts) and \
+                                   any('sha1' in p for p in lower_parts):
+                                    print(f"[TOOL DETECTION] Detected EnCase (Hashfile) based on .txt tab-separated structure")
+                                    return "Encase"
+
+                                if len(parts) >= 3:
+                                    potential_md5 = parts[1].strip() if len(parts) > 1 else ""
+                                    potential_sha1 = parts[2].strip() if len(parts) > 2 else ""
+                                    if (len(potential_md5) == 32 and all(c in '0123456789abcdefABCDEF' for c in potential_md5)) or \
+                                       (len(potential_sha1) == 40 and all(c in '0123456789abcdefABCDEF' for c in potential_sha1)):
+                                        print(f"[TOOL DETECTION] Detected EnCase (Hashfile) based on .txt hash structure")
+                                        return "Encase"
+                except:
+                    pass
+            
+            if file_ext in ['.xlsx', '.xls']:
+                try:
+                    engine = "xlrd" if file_ext == '.xls' else "openpyxl"
+                    xls = pd.ExcelFile(file_path, engine=engine)
+                    sheet_names = xls.sheet_names
+                    sheet_names_lower = [str(s).lower() for s in sheet_names]
+                    sheet_names_str = ' '.join(sheet_names_lower)
+                    
+                    md5_sheet = None
+                    sha1_sheet = None
+                    for sheet in sheet_names:
+                        sheet_upper = str(sheet).upper().strip()
+                        if sheet_upper == 'MD5':
+                            md5_sheet = sheet
+                        elif sheet_upper in ['SHA1', 'SHA-1']:
+                            sha1_sheet = sheet
+                    
+                    if md5_sheet or sha1_sheet:
+                        test_sheet = md5_sheet if md5_sheet else sha1_sheet
+                        try:
+                            df_test = pd.read_excel(file_path, sheet_name=test_sheet, engine=engine, dtype=str, header=0, nrows=3)
+                            columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                            if 'name' in columns_lower and ('md5' in columns_lower or 'sha1' in columns_lower or 'sha-1' in columns_lower):
+                                print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on MD5/SHA1 sheet structure")
+                                return "Cellebrite"
+                        except:
+                            try:
+                                df_test = pd.read_excel(file_path, sheet_name=test_sheet, engine=engine, dtype=str, header=1, nrows=3)
+                                first_row = df_test.iloc[0].tolist() if len(df_test) > 0 else []
+                                if any('name' in str(v).lower() for v in first_row if pd.notna(v)) and \
+                                   any(('md5' in str(v).lower() or 'sha1' in str(v).lower() or 'sha-1' in str(v).lower()) for v in first_row if pd.notna(v)):
+                                    print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on MD5/SHA1 sheet structure (header row 1)")
+                                    return "Cellebrite"
+                            except:
+                                pass
+                    
+                    hashfile_sheets = [s for s in sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
+                    for sheet_name in hashfile_sheets[:3]:
+                        try:
+                            df_test = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine, nrows=3)
+                            columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                            
+                            has_name = any('name' in col for col in columns_lower)
+                            has_md5 = any('hash(md5)' in col or col == 'md5' for col in columns_lower)
+                            has_sha1 = any('hash(sha1)' in col or 'hash(sha-1)' in col or col in ['sha1', 'sha-1'] for col in columns_lower)
+                            
+                            if has_name and (has_md5 or has_sha1):
+                                print(f"[TOOL DETECTION] Detected Oxygen (Hashfile) based on Name/Hash(MD5)/Hash(SHA1) structure")
+                                return "Oxygen"
+                        except:
+                            continue
+                    
+                    for sheet_name in sheet_names[:3]:
+                        try:
+                            df_test = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine, nrows=3)
+                            columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                            
+                            if 'name' in columns_lower and 'md5' in columns_lower and 'sha1' in columns_lower:
+                                print(f"[TOOL DETECTION] Detected EnCase (Hashfile) based on Name/MD5/SHA1 Excel structure")
+                                return "Encase"
+                        except:
+                            continue
+                    
+                except Exception as e:
+                    print(f"[TOOL DETECTION] Error detecting hashfile tool from structure: {e}")
+                    return "Unknown"
+            
+            if file_ext == '.csv':
+                try:
+                    df_test = pd.read_csv(file_path, dtype=str, nrows=3)
+                    columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                    if 'name' in columns_lower and ('md5' in columns_lower or 'sha1' in columns_lower):
+                        print(f"[TOOL DETECTION] Detected Magnet Axiom (Hashfile) based on CSV structure")
+                        return "Magnet Axiom"
+                except:
+                    pass
+            
+        except Exception as e:
+            print(f"[TOOL DETECTION] Error in _detect_hashfile_tool_from_structure: {e}")
+            return "Unknown"
+        
+        return "Unknown"
+
+    def _mark_done(self, upload_id: str, message: str, is_error: bool = False, detected_tool: str = None, method: str = None, tools: str = None):
         data = self._progress.get(upload_id)
+        update_data = {
+            "message": message, 
+            "done": True,
+            "error": is_error,
+            "detected_tool": detected_tool
+        }
+        
+        if method:
+            update_data["method"] = method
+        if tools:
+            update_data["tools"] = tools
+        
         if not data:
-            self._progress[upload_id] = {
-                "message": message, 
-                "done": True,
-                "error": is_error,
-                "detected_tool": detected_tool
-            }
+            self._progress[upload_id] = update_data
         else:
-            data.update({
-                "message": message, 
-                "done": True,
-                "error": is_error,
-                "detected_tool": detected_tool
-            })
+            data.update(update_data)
 
     def _cleanup_failed_upload(self, file_id: int = None, file_path: str = None):
         try:
@@ -386,7 +508,12 @@ class UploadService:
             
             total_size = len(file_bytes)
             self._progress[upload_id].update(
-                {"total_size": format_bytes(total_size), "message": "Memulai upload..."}
+                {
+                    "total_size": format_bytes(total_size), 
+                    "message": "Memulai upload...",
+                    "method": method,
+                    "tools": tools,
+                }
             )
 
             file_ext = Path(original_filename).suffix.lower()
@@ -423,11 +550,15 @@ class UploadService:
                             timeout=300.0
                         )
                     except asyncio.TimeoutError:
-                        self._mark_done(upload_id, "Decryption timeout: Process took too long (exceeded 5 minutes)", is_error=True)
-                        return {"status": 500, "message": "Decryption timeout: Process took too long", "data": None}
+                        detected_tool_for_error = self._normalize_tool_name(tools) if tools else "Unknown"
+                        error_message = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool_for_error} tools."
+                        self._mark_done(upload_id, error_message, is_error=True, detected_tool=detected_tool_for_error, method=method, tools=tools)
+                        return {"status": 500, "message": error_message, "data": None, "detected_tool": detected_tool_for_error}
                     except Exception as e:
-                        self._mark_done(upload_id, f"Decryption error: {str(e)}", is_error=True)
-                        return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
+                        detected_tool_for_error = self._normalize_tool_name(tools) if tools else "Unknown"
+                        error_message = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool_for_error} tools."
+                        self._mark_done(upload_id, error_message, is_error=True, detected_tool=detected_tool_for_error, method=method, tools=tools)
+                        return {"status": 500, "message": error_message, "data": None, "detected_tool": detected_tool_for_error}
                     
                     self._progress[upload_id].update({"message": "Decryption completed", "percent": 80})
                     
@@ -446,8 +577,10 @@ class UploadService:
                         except Exception:
                             pass
                 except Exception as e:
-                    self._mark_done(upload_id, f"Decryption error: {str(e)}", is_error=True)
-                    return {"status": 500, "message": f"Decryption error: {str(e)}", "data": None}
+                    detected_tool_for_error = self._normalize_tool_name(tools) if tools else "Unknown"
+                    error_message = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool_for_error} tools."
+                    self._mark_done(upload_id, error_message, is_error=True, detected_tool=detected_tool_for_error, method=method, tools=tools)
+                    return {"status": 500, "message": error_message, "data": None, "detected_tool": detected_tool_for_error}
 
                 original_path_abs = decrypted_path_abs
                 original_filename = Path(decrypted_path_abs).name
@@ -900,9 +1033,22 @@ class UploadService:
                         parsing_result["hashfiles_count"] = 0
                     
                     if parsing_result["hashfiles_count"] == 0:
-                        detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
-                        parsing_result["hashfiles_error"] = f"Hash data not found in file with {method} method and {detected_tool_for_error} tools."
-                        print(f"[WARNING] No hashfile data found in file for method '{method}' with tools '{tools}'")
+                        detected_tool_for_error = None
+                        try:
+                            if os.path.exists(original_path_abs):
+                                detected_tool_for_error = self._detect_hashfile_tool_from_structure(original_path_abs)
+                        except:
+                            pass
+                        
+                        if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                            detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                        
+                        if detected_tool_for_error and detected_tool_for_error != "Unknown":
+                            parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error}"
+                        else:
+                            parsing_result["hashfiles_error"] = f"Upload hash data not found in file with {method} method and {detected_tool_for_error} tools."
+                        parsing_result["detected_tool"] = detected_tool_for_error
+                        print(f"[WARNING] No hashfile data found in file for method '{method}' with tools '{tools}'. Detected tool: {detected_tool_for_error}")
                     
                     self._progress[upload_id].update({
                         "message": f"Hashfile parsing completed ({parsing_result['hashfiles_count']:,} records)...",
@@ -912,7 +1058,19 @@ class UploadService:
                 except Exception as e:
                     print(f"Error parsing hashfiles: {e}")
                     traceback.print_exc()
-                    parsing_result["hashfiles_error"] = str(e)
+                    
+                    detected_tool_for_error = None
+                    try:
+                        if os.path.exists(original_path_abs):
+                            detected_tool_for_error = self._detect_hashfile_tool_from_structure(original_path_abs)
+                    except:
+                        pass
+                    
+                    if detected_tool_for_error and detected_tool_for_error != "Unknown":
+                        parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error}"
+                        parsing_result["detected_tool"] = detected_tool_for_error
+                    else:
+                        parsing_result["hashfiles_error"] = str(e)
             
             else:
                 if is_social_media:
@@ -1025,7 +1183,21 @@ class UploadService:
                     if "File upload failed. Please upload this file using Tools" in error_msg:
                         final_error_msg = error_msg
                     elif error_msg and ("Hash data not found" in error_msg or "Contacts and calls data not found" in error_msg or "not found" in error_msg.lower()):
-                        final_error_msg = error_msg
+                        if "Hash data not found" in error_msg and method == "Hashfile Analytics":
+                            hashfile_detected_tool = None
+                            try:
+                                if os.path.exists(original_path_abs):
+                                    hashfile_detected_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
+                            except:
+                                pass
+                            
+                            if hashfile_detected_tool and hashfile_detected_tool != "Unknown":
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {hashfile_detected_tool}"
+                                detected_tool = hashfile_detected_tool
+                            else:
+                                final_error_msg = error_msg
+                        else:
+                            final_error_msg = error_msg
                     elif detected_tool and detected_tool != "Unknown":
                         final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                     else:
