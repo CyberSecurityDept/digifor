@@ -67,7 +67,7 @@ pytest tests/ --cov=app
 Tests menggunakan environment yang sama dengan aplikasi:
 
 - Database: SQLite3 test database
-- API Base URL: http://172.15.2.105
+- API Base URL: http://172.15.4.26
 - Default admin: admin / admin123
 
 ### **Test Data**
@@ -110,15 +110,15 @@ List reports successful
 
 ==================================================
 🎯 API Testing completed!
-📖 API Documentation: http://172.15.2.105/docs
-📚 ReDoc: http://172.15.2.105/redoc
+📖 API Documentation: http://172.15.4.26/docs
+📚 ReDoc: http://172.15.4.26/redoc
 ```
 
 ## 🐛 Troubleshooting
 
 ### **Test Failures**
 
-1. Pastikan aplikasi berjalan di http://172.15.2.105
+1. Pastikan aplikasi berjalan di http://172.15.4.26
 2. Check database sudah diinitialize
 3. Check admin user sudah dibuat
 4. Check logs untuk error details
@@ -127,7 +127,7 @@ List reports successful
 
 ```bash
 # Check if server is running
-curl http://172.15.2.105/health
+curl http://172.15.4.26/health
 
 # Restart server if needed
 ./run.sh

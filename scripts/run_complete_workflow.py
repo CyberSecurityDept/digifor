@@ -5,7 +5,7 @@ import os
 import time
 from pathlib import Path
 
-BASE_URL = "http://172.15.2.105"
+BASE_URL = "http://172.15.4.26"
 DATASET_PATH = "sample_dataset"
 
 SAMPLE_FILES = [

@@ -14,9 +14,9 @@ cd backend
 ```
 
 ### 3. **Akses API**
-- **API Documentation**: http://172.15.2.105/docs
-- **ReDoc**: http://172.15.2.105/redoc
-- **Health Check**: http://172.15.2.105/health
+- **API Documentation**: http://172.15.4.26/docs
+- **ReDoc**: http://172.15.4.26/redoc
+- **Health Check**: http://172.15.4.26/health
 
 ### 4. **Login Default**
 - **Username**: admin
@@ -54,15 +54,15 @@ python test_api.py
 ### **Manual Test dengan curl**
 ```bash
 # Health check
-curl http://172.15.2.105/health
+curl http://172.15.4.26/health
 
 # Login
-curl -X POST "http://172.15.2.105/api/v1/auth/token" \
+curl -X POST "http://172.15.4.26/api/v1/auth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=admin&password=admin123"
 
 # Create case (ganti YOUR_TOKEN dengan token dari login)
-curl -X POST "http://172.15.2.105/api/v1/cases/" \
+curl -X POST "http://172.15.4.26/api/v1/cases/" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,7 +138,7 @@ backend/
 ## 🎯 Next Steps
 
 1. **Test API** dengan `python test_api.py`
-2. **Explore Documentation** di http://172.15.2.105/docs
+2. **Explore Documentation** di http://172.15.4.26/docs
 3. **Create test cases** melalui API
 4. **Generate reports** untuk testing
 5. **Integrate dengan frontend** (jika ada)
@@ -147,7 +147,7 @@ backend/
 
 Jika ada masalah:
 1. Check logs di `logs/Digital Forensics.log`
-2. Check health endpoint: http://172.15.2.105/health
+2. Check health endpoint: http://172.15.4.26/health
 3. Restart aplikasi: `./start.sh`
 4. Recreate database: `python init_db.py`
 

@@ -173,10 +173,10 @@ python -c "from app.database import engine; print('Database connected')"
 - Database menggunakan PostgreSQL untuk production
 - Analytics dependencies: pandas, numpy, python-magic
 - System dependencies: libmagic, PostgreSQL
-- API Documentation: http://172.15.2.105/docs
-- Swagger UI: http://172.15.2.105/docs
-- ReDoc: http://172.15.2.105/redoc
-- Health Check: http://172.15.2.105/health
+- API Documentation: http://172.15.4.26/docs
+- Swagger UI: http://172.15.4.26/docs
+- ReDoc: http://172.15.4.26/redoc
+- Health Check: http://172.15.4.26/health
 
 ---
 

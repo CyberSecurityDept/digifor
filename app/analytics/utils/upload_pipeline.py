@@ -290,7 +290,6 @@ class UploadService:
                     encoding = 'utf-8'
                     with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
                         first_lines = [f.readline() for _ in range(5)]
-                    
                 
                     for line in first_lines:
                         if line and '\t' in line:
