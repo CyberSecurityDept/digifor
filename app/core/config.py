@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     SERVER_IP: str = ""
-    API_BASE_URL: str = "http://172.15.2.105"
+    API_BASE_URL: str = "http://172.15.1.207"
 
     ENV: str = "development"
     DEBUG: bool = True
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     HASH_ALGORITHMS: List[str] = ["md5", "sha1", "sha256"]
     MAX_ANALYSIS_THREADS: int = 4
 
-    MOBSF_URL: str = "http://172.15.2.105:5001"
+    MOBSF_URL: str = "http://172.15.1.207:5001"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -3,7 +3,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://172.15.2.105"
+BASE_URL = "http://172.15.1.207"
 
 def get_auth_token():
     login_data = {

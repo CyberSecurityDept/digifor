@@ -3,7 +3,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "http://172.15.2.105"
+BASE_URL = "http://172.15.1.207"
 
 def test_statistics_endpoint():
     try:

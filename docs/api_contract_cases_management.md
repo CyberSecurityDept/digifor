@@ -2,7 +2,7 @@
 ## Digital Forensics Analysis Platform - Backend API
 
 **Version:** 1.0.0  
-**Base URL:** `http://172.15.2.105/api/v1`  
+**Base URL:** `http://172.15.1.207/api/v1`  
 **API Version:** `/api/v1`
 
 ---
@@ -174,7 +174,7 @@ Content-Type: application/json
 
 **Example Request:**
 ```bash
-curl -X POST "http://172.15.2.105/api/v1/auth/refresh" \
+curl -X POST "http://172.15.1.207/api/v1/auth/refresh" \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "d8IL20i8CR4UqcbtydMQ_c7u-mvEHffed9IIS-DYDBelBH3411929NaWEEi1D6p2"
@@ -361,7 +361,7 @@ curl -X POST "http://172.15.2.105/api/v1/auth/refresh" \
 
 **Example Request:**
 ```bash
-curl -X GET "http://172.15.2.105/api/v1/auth/me" \
+curl -X GET "http://172.15.1.207/api/v1/auth/me" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
@@ -472,7 +472,7 @@ curl -X GET "http://172.15.2.105/api/v1/auth/me" \
 
 **Example Request (cURL):**
 ```bash
-curl -X POST "http://172.15.2.105/api/v1/auth/create-user" \
+curl -X POST "http://172.15.1.207/api/v1/auth/create-user" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -486,7 +486,7 @@ curl -X POST "http://172.15.2.105/api/v1/auth/create-user" \
 
 **Example Request (Postman):**
 1. Method: `POST`
-2. URL: `http://172.15.2.105/api/v1/auth/create-user`
+2. URL: `http://172.15.1.207/api/v1/auth/create-user`
 3. Headers:
    - `Authorization`: `Bearer {admin_token}`
    - `Content-Type`: `application/json`
@@ -735,7 +735,7 @@ GET /api/v1/auth/get-all-users?skip=10&limit=5&search=admin
 
 **Example Request (cURL):**
 ```bash
-curl -X PUT "http://172.15.2.105/api/v1/auth/update-user/4" \
+curl -X PUT "http://172.15.1.207/api/v1/auth/update-user/4" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -802,7 +802,7 @@ curl -X PUT "http://172.15.2.105/api/v1/auth/update-user/4" \
 
 **Example Request (cURL):**
 ```bash
-curl -X DELETE "http://172.15.2.105/api/v1/auth/delete-user/4" \
+curl -X DELETE "http://172.15.1.207/api/v1/auth/delete-user/4" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
@@ -1162,13 +1162,13 @@ GET /api/v1/cases/get-all-cases?search=Buronan&sort_by=created_at&sort_order=des
 
 **1. Get case detail dengan ID 1:**
 ```
-GET http://172.15.2.105/api/v1/cases/get-case-detail-comprehensive/1
+GET http://172.15.1.207/api/v1/cases/get-case-detail-comprehensive/1
 Authorization: Bearer <access_token>
 ```
 
 **2. Get case detail dengan ID 2:**
 ```
-GET http://172.15.2.105/api/v1/cases/get-case-detail-comprehensive/2
+GET http://172.15.1.207/api/v1/cases/get-case-detail-comprehensive/2
 Authorization: Bearer <access_token>
 ```
 
@@ -1423,7 +1423,7 @@ Jika title memiliki lebih dari 3 kata, case_number tetap hanya menggunakan 3 kat
 
 **1. Update case dengan ID 1 (update title saja):**
 ```
-PUT http://172.15.2.105/api/v1/cases/update-case/1
+PUT http://172.15.1.207/api/v1/cases/update-case/1
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -1435,7 +1435,7 @@ Body (raw JSON):
 
 **2. Update case dengan ID 2 (update multiple fields):**
 ```
-PUT http://172.15.2.105/api/v1/cases/update-case/2
+PUT http://172.15.1.207/api/v1/cases/update-case/2
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -1449,7 +1449,7 @@ Body (raw JSON):
 
 **3. Update case dengan ID 3 (update agency dan work unit):**
 ```
-PUT http://172.15.2.105/api/v1/cases/update-case/3
+PUT http://172.15.1.207/api/v1/cases/update-case/3
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
@@ -1764,7 +1764,7 @@ The response is a binary PDF file. When saved, it will be named like:
 
 **Example Request:**
 ```
-POST http://172.15.2.105/api/v1/cases/save-notes
+POST http://172.15.1.207/api/v1/cases/save-notes
 Authorization: Bearer {access_token}
 Content-Type: application/json
 
@@ -1776,7 +1776,7 @@ Content-Type: application/json
 
 **Example Request (Edit Notes):**
 ```
-PUT http://172.15.2.105/api/v1/cases/edit-notes
+PUT http://172.15.1.207/api/v1/cases/edit-notes
 Authorization: Bearer {access_token}
 Content-Type: application/json
 
@@ -1929,7 +1929,7 @@ Content-Type: application/json
 
 **URL:**
 ```
-http://172.15.2.105/api/v1/case-logs/case/logs/1
+http://172.15.1.207/api/v1/case-logs/case/logs/1
 ```
 
 **Headers:**
@@ -1945,7 +1945,7 @@ http://172.15.2.105/api/v1/case-logs/case/logs/1
 
 **Example Request (cURL):**
 ```bash
-curl -X GET "http://172.15.2.105/api/v1/case-logs/case/logs/1?skip=0&limit=10" \
+curl -X GET "http://172.15.1.207/api/v1/case-logs/case/logs/1?skip=0&limit=10" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json"
 ```
@@ -2099,7 +2099,7 @@ curl -X GET "http://172.15.2.105/api/v1/case-logs/case/logs/1?skip=0&limit=10" \
 
 **URL:**
 ```
-http://172.15.2.105/api/v1/case-logs/log/5
+http://172.15.1.207/api/v1/case-logs/log/5
 ```
 *Note: Ganti `5` dengan `log_id` yang ingin dilihat detail notes-nya (ambil dari field `id` pada log entry di list case logs)*
 
@@ -2114,12 +2114,12 @@ http://172.15.2.105/api/v1/case-logs/log/5
 - `log_id` adalah **path parameter** di URL, bukan query parameter
 - **JANGAN** tambahkan Authorization atau Content-Type sebagai query parameter di tab "Params"
 - Gunakan tab "Authorization" untuk set Bearer Token
-- Contoh URL yang benar: `http://172.15.2.105/api/v1/case-logs/log/5`
-- Contoh URL yang salah: `http://172.15.2.105/api/v1/case-logs/log/5?Authorization=Bearer&Content-Type=application/json`
+- Contoh URL yang benar: `http://172.15.1.207/api/v1/case-logs/log/5`
+- Contoh URL yang salah: `http://172.15.1.207/api/v1/case-logs/log/5?Authorization=Bearer&Content-Type=application/json`
 
 **Example Request (cURL):**
 ```bash
-curl -X GET "http://172.15.2.105/api/v1/case-logs/log/5" \
+curl -X GET "http://172.15.1.207/api/v1/case-logs/log/5" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json"
 ```
@@ -2298,7 +2298,7 @@ const showNotesButton = hasNotes && !isEditAction;
 
 **URL:**
 ```
-http://172.15.2.105/api/v1/case-logs/change-log/1
+http://172.15.1.207/api/v1/case-logs/change-log/1
 ```
 
 **Headers:**
@@ -2322,7 +2322,7 @@ http://172.15.2.105/api/v1/case-logs/change-log/1
 
 **URL:**
 ```
-http://172.15.2.105/api/v1/case-logs/change-log/1
+http://172.15.1.207/api/v1/case-logs/change-log/1
 ```
 
 **Body (Tab Body → raw → JSON):**
@@ -2335,7 +2335,7 @@ http://172.15.2.105/api/v1/case-logs/change-log/1
 
 **Example Request (cURL):**
 ```bash
-curl -X PUT "http://172.15.2.105/api/v1/case-logs/change-log/1" \
+curl -X PUT "http://172.15.1.207/api/v1/case-logs/change-log/1" \
   -H "Authorization: Bearer {access_token}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -2780,7 +2780,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 **Postman Testing Guide:**
 
 1. **Set Request Method:** `POST`
-2. **Set URL:** `http://172.15.2.105/api/v1/evidence/create-evidence`
+2. **Set URL:** `http://172.15.1.207/api/v1/evidence/create-evidence`
 3. **Tab Authorization:**
    - Type: `Bearer Token`
    - Token: `{{access_token}}` (or paste your access token)
@@ -4091,7 +4091,7 @@ Sebelum mengirim request ke API, frontend akan melakukan validasi required field
 **Postman Testing Guide:**
 
 1. **Set Request Method:** `POST`
-2. **Set URL:** `http://172.15.2.105/api/v1/persons/create-person`
+2. **Set URL:** `http://172.15.1.207/api/v1/persons/create-person`
 3. **Tab Authorization:**
    - Type: `Bearer Token`
    - Token: `{{access_token}}` (or paste your access token)
@@ -4303,7 +4303,7 @@ is_unknown_person: true
 **Postman Testing Guide:**
 
 1. **Set Request Method:** `DELETE`
-2. **Set URL:** `http://172.15.2.105/api/v1/persons/delete-person/{person_id}` (ganti `{person_id}` dengan ID person yang akan dihapus, contoh: `1`)
+2. **Set URL:** `http://172.15.1.207/api/v1/persons/delete-person/{person_id}` (ganti `{person_id}` dengan ID person yang akan dihapus, contoh: `1`)
 3. **Tab Authorization:**
    - Type: `Bearer Token`
    - Token: `{{access_token}}` (or paste your access token)
