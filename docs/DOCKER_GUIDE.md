@@ -529,10 +529,10 @@ docker exec -it digifor-app-1 alembic upgrade head
 
 Setelah services running:
 
-- **API**: `http://172.15.1.207`
-- **API Documentation**: `http://172.15.1.207/docs`
-- **ReDoc**: `http://172.15.1.207/redoc`
-- **Health Check**: `http://172.15.1.207/health`
+- **API**: `http://172.15.4.26`
+- **API Documentation**: `http://172.15.4.26/docs`
+- **ReDoc**: `http://172.15.4.26/redoc`
+- **Health Check**: `http://172.15.4.26/health`
 
 ---
 

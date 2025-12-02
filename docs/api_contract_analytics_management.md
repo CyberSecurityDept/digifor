@@ -2,7 +2,7 @@
 ## Digital Forensics Analysis Platform - Backend API
 
 **Version:** 1.0.0  
-**Base URL:** `http://172.15.1.207/api/v1`  
+**Base URL:** `http://172.15.4.26/api/v1`  
 **API Version:** `/api/v1`
 
 ---

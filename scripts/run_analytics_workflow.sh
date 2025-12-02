@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-BASE_URL="http://172.15.1.207/api/v1"
+BASE_URL="http://172.15.4.26/api/v1"
 TIMEOUT=30
 
 # Colors for output
