@@ -1,32 +1,34 @@
 #!/bin/bash
-# Script untuk menjalankan server backend
 
-echo "Starting Digital Forensics Backend Server"
-echo "=============================================="
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-if [ ! -d "venv" ]; then
-    echo "Virtual environment not found!"
-    echo "Please run: python -m venv venv"
-    echo "Then run: source venv/bin/activate"
-    echo "Then run: pip install -r requirements.txt"
+PROJECT_DIR="/home/me/Documents/digital-forensics-v2/digifor"
+VENV_DIR="$PROJECT_DIR/venv"
+REQ_FILE="$PROJECT_DIR/requirements.txt"
+
+cd "$PROJECT_DIR" || exit 1
+
+if [ ! -f "$VENV_DIR/bin/activate" ]; then
+    echo "ERROR: Virtual environment not found at $VENV_DIR"
     exit 1
 fi
 
-echo "Activating virtual environment..."
-source venv/bin/activate
+source "$VENV_DIR/bin/activate"
 
-if ! python -c "import fastapi" 2>/dev/null; then
-    echo "Dependencies not installed!"
-    echo "Please run: pip install -r requirements.txt"
-    exit 1
+MISSING=0
+while IFS= read -r pkg || [ -n "$pkg" ]; do
+    [[ "$pkg" =~ ^#.*$ || -z "$pkg" ]] && continue
+    PKG_NAME=$(echo "$pkg" | cut -d= -f1)
+    pip show "$PKG_NAME" > /dev/null 2>&1 || MISSING=1
+done < "$REQ_FILE"
+
+if [ $MISSING -eq 1 ]; then
+    echo "Installing missing dependencies..."
+    pip install -r "$REQ_FILE"
+else
+    echo "All requirements already installed."
 fi
 
-echo "Starting server..."
-echo "Server will be available at: http://172.15.4.26"
-echo "API Documentation: http://172.15.4.26/docs"
-echo "Health Check: http://172.15.4.26/health/health"
-echo "=============================================="
-echo "Press Ctrl+C to stop the server"
-echo "=============================================="
+python -m app.auth.seed
 
-python run_dev.py
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000
