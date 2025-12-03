@@ -521,40 +521,89 @@ class CaseService:
         if not notes or not notes.strip():
             raise ValueError("Notes cannot be empty")
         
-        setattr(case, 'notes', notes.strip())
+        old_notes = getattr(case, 'notes', "") or ""
+        new_notes = notes.strip()
+
+        # Update notes
+        case.notes = new_notes
         db.commit()
         db.refresh(case)
-        
-        updated_at_value = getattr(case, 'updated_at', None)
-        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
-        
+
+        # ====== CREATE CASE LOG WITHOUT CUT ======
+        changed_by = (
+            getattr(current_user, 'fullname', '')
+            or getattr(current_user, 'email', '')
+            or getattr(current_user, 'username', 'Unknown User')
+        )
+        changed_by = f"By: {changed_by}"
+
+        change_detail_text = f" Adding Case Notes : {new_notes}"
+
+        log_entry = CaseLog(
+            case_id=case.id,
+            action="Edit",
+            changed_by=changed_by,
+            change_detail=f"Change: {change_detail_text}",
+            notes="",
+            status=case.status
+        )
+
+        db.add(log_entry)
+        db.commit()
+        # ==========================================
+
+        updated_at_str = case.updated_at.isoformat() if case.updated_at else None
+
         return {
             "case_id": case.id,
             "case_number": case.case_number,
             "case_title": case.title,
-            "notes": getattr(case, 'notes', None),
+            "notes": new_notes,
             "updated_at": updated_at_str
         }
-    
+
     def edit_case_notes(self, db: Session, case_id: int, notes: str, current_user=None) -> dict:
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
 
-        final_notes = notes.strip() if notes else ""
+        old_notes = getattr(case, 'notes', "") or ""
+        new_notes = notes.strip() if notes else ""
 
-        setattr(case, 'notes', final_notes)
+        case.notes = new_notes
         db.commit()
         db.refresh(case)
 
-        updated_at_value = getattr(case, 'updated_at', None)
-        updated_at_str = updated_at_value.isoformat() if updated_at_value is not None else None
+        # ====== CREATE CASE LOG WITHOUT CUT ======
+        changed_by = (
+            getattr(current_user, 'fullname', '')
+            or getattr(current_user, 'email', '')
+            or getattr(current_user, 'username', 'Unknown User')
+        )
+        changed_by = f"By: {changed_by}"
+
+        change_detail_text = f" Updating Case Notes : {old_notes} | {new_notes}"
+
+        log_entry = CaseLog(
+            case_id=case.id,
+            action="Edit",
+            changed_by=changed_by,
+            change_detail=f"Change: {change_detail_text}",
+            notes="",
+            status=case.status
+        )
+
+        db.add(log_entry)
+        db.commit()
+        # ==========================================
+
+        updated_at_str = case.updated_at.isoformat() if case.updated_at else None
 
         return {
             "case_id": case.id,
             "case_number": case.case_number,
             "case_title": case.title,
-            "notes": getattr(case, 'notes', None),
+            "notes": new_notes,
             "updated_at": updated_at_str
         }
 
@@ -638,6 +687,7 @@ class CaseService:
                 "suspect_id": suspect.id,
                 "name": suspect.name,
                 "person_type": person_type,
+                "person_notes": suspect.notes,
                 "evidence": []
             }
             
