@@ -293,7 +293,7 @@ class HashFileParser:
             return self.parse_encase_hashfile(file_path, file_id, original_file_path, upload_id, progress_callback)
         else:
             print(f"Unknown tool: {tools}. Supported tools: Magnet Axiom, Cellebrite, Oxygen, Encase")
-            return []
+            raise ValueError(f"Unsupported tool: {tools}. Supported tools: Magnet Axiom, Cellebrite, Oxygen, Encase")
 
     def parse_axiom_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
@@ -408,14 +408,22 @@ class HashFileParser:
                     batch_results = []
 
             inserted_count = total_inserted
+            
+            if inserted_count == 0:
+                print(f"[MAGNET AXIOM HASHFILE] No valid hashfile data found after parsing.")
+                raise ValueError("Upload hash data not found in file")
                 
             print(f"Successfully saved {inserted_count} Axiom hashfiles to database")
             return inserted_count
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error parsing Axiom hashfile: {e}")
             self.db.rollback()
             raise e
+        except Exception as e:
+            print(f"Error parsing Axiom hashfile: {e}")
+            self.db.rollback()
+            raise ValueError("Upload hash data not found in file")
 
     def parse_cellebrite_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
@@ -424,6 +432,7 @@ class HashFileParser:
             
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             sheet_names = xls.sheet_names
+            print(f"[CELLEBRITE HASHFILE] Available sheets: {sheet_names}")
             
             md5_sheet = None
             sha1_sheet = None
@@ -435,38 +444,59 @@ class HashFileParser:
                 elif sheet_lower in ['SHA1', 'SHA-1']:
                     sha1_sheet = sheet
             
+            if not md5_sheet and not sha1_sheet:
+                for sheet in sheet_names:
+                    sheet_lower = str(sheet).upper().strip()
+                    if 'MD5' in sheet_lower and md5_sheet is None:
+                        md5_sheet = sheet
+                        print(f"[CELLEBRITE HASHFILE] Found MD5 sheet (partial match): {sheet}")
+                    elif ('SHA1' in sheet_lower or 'SHA-1' in sheet_lower) and sha1_sheet is None:
+                        sha1_sheet = sheet
+                        print(f"[CELLEBRITE HASHFILE] Found SHA1 sheet (partial match): {sheet}")
+            
             if md5_sheet:
-                print(f"Processing MD5 sheet: {md5_sheet}")
-                df = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=0)
-                
+                print(f"[CELLEBRITE HASHFILE] Processing MD5 sheet: {md5_sheet}")
                 name_col = None
                 md5_col = None
+                df = None
                 
-                for col in df.columns:
-                    col_clean = str(col).strip()
-                    if col_clean.upper() == 'NAME':
-                        name_col = col
-                    elif col_clean.upper() == 'MD5':
-                        md5_col = col
-                
-                if not name_col or not md5_col:
-                    df_test = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=None, nrows=3)
-                    if len(df_test) > 1:
-                        first_row = df_test.iloc[1].tolist()
-                        if any('name' in str(v).lower() for v in first_row if pd.notna(v)) and any('md5' in str(v).lower() for v in first_row if pd.notna(v)):
-                            df = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=1)
-                            # Cek lagi kolomnya
-                            for col in df.columns:
-                                col_clean = str(col).strip()
-                                if col_clean.upper() == 'NAME':
-                                    name_col = col
-                                elif col_clean.upper() == 'MD5':
+                for header_row in [0, 1, 2]:
+                    try:
+                        df_test = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=header_row, nrows=5)
+                        print(f"[CELLEBRITE HASHFILE] Trying header row {header_row}, columns: {list(df_test.columns)}")
+                        
+                        for col in df_test.columns:
+                            col_clean = str(col).strip().upper()
+                            if col_clean == 'NAME':
+                                name_col = col
+                            elif col_clean == 'MD5':
+                                md5_col = col
+                        
+                        if not name_col or not md5_col:
+                            for col in df_test.columns:
+                                col_clean = str(col).strip().upper()
+                                if not name_col and ('NAME' in col_clean or 'FILE' in col_clean):
+                                    if 'NAME' in col_clean or (col_clean.startswith('FILE') and 'NAME' in col_clean):
+                                        name_col = col
+                                if not md5_col and 'MD5' in col_clean:
                                     md5_col = col
+                        
+                        if name_col and md5_col:
+                            df = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=header_row)
+                            print(f"[CELLEBRITE HASHFILE] Found columns with header row {header_row}: Name={name_col}, MD5={md5_col}")
+                            break
+                    except Exception as e:
+                        print(f"[CELLEBRITE HASHFILE] Error trying header row {header_row}: {e}")
+                        continue
+                
+                if df is None:
+                    df = pd.read_excel(file_path, sheet_name=md5_sheet, engine='openpyxl', dtype=str, header=0)
                 
                 columns = [col.strip() for col in df.columns.tolist()]
                 
                 if name_col and md5_col:
-                    print(f"Found columns: Name={name_col}, MD5={md5_col}")
+                    print(f"[CELLEBRITE HASHFILE] Found columns: Name={name_col}, MD5={md5_col}")
+                    print(f"[CELLEBRITE HASHFILE] Total rows in MD5 sheet: {len(df)}")
                     path_col = None
                     size_col = None
                     created_col = None
@@ -482,7 +512,10 @@ class HashFileParser:
                         elif col_clean in ['MODIFIED', 'MODIFIED DATE', 'DATE MODIFIED']:
                             modified_col = col
                     
+                    rows_processed = 0
+                    rows_valid = 0
                     for _, row in df.iterrows():
+                        rows_processed += 1
                         file_name_raw = row.get(name_col)
                         md5_hash_raw = row.get(md5_col)
                         
@@ -522,6 +555,7 @@ class HashFileParser:
                             continue
                         
                         if md5_hash_clean and md5_hash_clean.lower() not in ['nan', 'none', 'null', '']:
+                                rows_valid += 1
                                 algorithm = determine_algorithm(md5_hash_clean, None)
                                 results.append({
                                     "file_id": file_id,
@@ -536,42 +570,55 @@ class HashFileParser:
                                     "algorithm": algorithm,
                                     "source_tool": "cellebrite"
                                 })
+                    
+                    print(f"[CELLEBRITE HASHFILE] MD5 sheet: Processed {rows_processed} rows, {rows_valid} valid records extracted")
                 else:
-                    print(f"Required columns not found in MD5 sheet. Available columns: {columns}")
+                    print(f"[CELLEBRITE HASHFILE] ERROR: Required columns (NAME and MD5) not found in MD5 sheet '{md5_sheet}'. Available columns: {columns}")
+                    print(f"[CELLEBRITE HASHFILE] Please check if the file has 'NAME' and 'MD5' columns in the MD5 sheet.")
             
             if sha1_sheet:
-                print(f"Processing SHA1 sheet: {sha1_sheet}")
-                df = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=0)
-                
+                print(f"[CELLEBRITE HASHFILE] Processing SHA1 sheet: {sha1_sheet}")
                 name_col = None
                 sha1_col = None
+                df = None
                 
-                for col in df.columns:
-                    col_clean = str(col).strip()
-                    if col_clean.upper() == 'NAME':
-                        name_col = col
-                    elif col_clean.upper() in ['SHA1', 'SHA-1']:
-                        sha1_col = col
-                
-                if not name_col or not sha1_col:
-                    df_test = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=None, nrows=3)
-                    if len(df_test) > 1:
-                        first_row = df_test.iloc[1].tolist()
-                        has_name = any('name' in str(v).lower() for v in first_row if pd.notna(v))
-                        has_sha1 = any('sha1' in str(v).lower() or 'sha-1' in str(v).lower() for v in first_row if pd.notna(v))
-                        if has_name and has_sha1:
-                            df = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=1)
-                            for col in df.columns:
-                                col_clean = str(col).strip()
-                                if col_clean.upper() == 'NAME':
-                                    name_col = col
-                                elif col_clean.upper() in ['SHA1', 'SHA-1']:
+                for header_row in [0, 1, 2]:
+                    try:
+                        df_test = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=header_row, nrows=5)
+                        print(f"[CELLEBRITE HASHFILE] Trying header row {header_row}, columns: {list(df_test.columns)}")
+                        
+                        for col in df_test.columns:
+                            col_clean = str(col).strip().upper()
+                            if col_clean == 'NAME':
+                                name_col = col
+                            elif col_clean in ['SHA1', 'SHA-1']:
+                                sha1_col = col
+                        
+                        if not name_col or not sha1_col:
+                            for col in df_test.columns:
+                                col_clean = str(col).strip().upper()
+                                if not name_col and ('NAME' in col_clean or 'FILE' in col_clean):
+                                    if 'NAME' in col_clean or (col_clean.startswith('FILE') and 'NAME' in col_clean):
+                                        name_col = col
+                                if not sha1_col and ('SHA1' in col_clean or 'SHA-1' in col_clean):
                                     sha1_col = col
+                        
+                        if name_col and sha1_col:
+                            df = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=header_row)
+                            print(f"[CELLEBRITE HASHFILE] Found columns with header row {header_row}: Name={name_col}, SHA1={sha1_col}")
+                            break
+                    except Exception as e:
+                        print(f"[CELLEBRITE HASHFILE] Error trying header row {header_row}: {e}")
+                        continue
+                
+                if df is None:
+                    df = pd.read_excel(file_path, sheet_name=sha1_sheet, engine='openpyxl', dtype=str, header=0)
                 
                 columns = [col.strip() for col in df.columns.tolist()]
                 
                 if name_col and sha1_col:
-                    print(f"Found columns: Name={name_col}, SHA1={sha1_col}")
+                    print(f"[CELLEBRITE HASHFILE] Found columns: Name={name_col}, SHA1={sha1_col}")
+                    print(f"[CELLEBRITE HASHFILE] Total rows in SHA1 sheet: {len(df)}")
                     path_col = None
                     size_col = None
                     created_col = None
@@ -587,7 +634,10 @@ class HashFileParser:
                         elif col_clean in ['MODIFIED', 'MODIFIED DATE', 'DATE MODIFIED']:
                             modified_col = col
                     
-                for _, row in df.iterrows():
+                    rows_processed = 0
+                    rows_valid = 0
+                    for _, row in df.iterrows():
+                        rows_processed += 1
                         file_name_raw = row.get(name_col)
                         sha1_hash_raw = row.get(sha1_col)
                         
@@ -626,6 +676,7 @@ class HashFileParser:
                             continue
                         
                         if sha1_hash_clean and sha1_hash_clean.lower() not in ['nan', 'none', 'null', '']:
+                            rows_valid += 1
                             algorithm = determine_algorithm(None, sha1_hash_clean)
                             results.append({
                                 "file_id": file_id,
@@ -640,14 +691,27 @@ class HashFileParser:
                                 "algorithm": algorithm,
                                 "source_tool": "cellebrite"
                             })
+                    
+                    print(f"[CELLEBRITE HASHFILE] SHA1 sheet: Processed {rows_processed} rows, {rows_valid} valid records extracted")
                 else:
-                    print(f"Required columns not found in SHA1 sheet. Available columns: {columns}")
+                    print(f"[CELLEBRITE HASHFILE] ERROR: Required columns (NAME and SHA1) not found in SHA1 sheet '{sha1_sheet}'. Available columns: {columns}")
+                    print(f"[CELLEBRITE HASHFILE] Please check if the file has 'NAME' and 'SHA1' columns in the SHA1 sheet.")
             
             if not md5_sheet and not sha1_sheet:
-                print(f"No MD5 or SHA1 sheet found in file. Available sheets: {sheet_names}")
-                return 0
+                error_msg = f"[CELLEBRITE HASHFILE] No MD5 or SHA1 sheet found in file. Available sheets: {sheet_names}"
+                print(error_msg)
+                raise ValueError("Upload hash data not found in file")
+            
+            if not results:
+                error_msg = f"[CELLEBRITE HASHFILE] No valid hashfile data found after parsing."
+                if md5_sheet:
+                    error_msg += f" MD5 sheet '{md5_sheet}' was found but no valid data extracted."
+                if sha1_sheet:
+                    error_msg += f" SHA1 sheet '{sha1_sheet}' was found but no valid data extracted."
+                print(error_msg)
+                raise ValueError("Upload hash data not found in file")
 
-            inserted_count = self._bulk_insert_ultrafast(results, file_id)
+            inserted_count = self._bulk_insert_ultrafast(results, file_id, upload_id, progress_callback, len(results))
             print(f"Successfully saved {inserted_count} Cellebrite hashfiles to database")
             return inserted_count
 
@@ -664,12 +728,37 @@ class HashFileParser:
             file_path_obj = Path(file_path)
             engine = "xlrd" if file_path_obj.suffix.lower() == '.xls' else "openpyxl"
             xls = pd.ExcelFile(file_path, engine=engine)
-            hashfile_sheets = [s for s in xls.sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
+            sheet_names = xls.sheet_names
+            print(f"[OXYGEN HASHFILE] Available sheets: {sheet_names}")
+            
+            hashfile_sheets = [s for s in sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
+            
+            if not hashfile_sheets:
+                print(f"[OXYGEN HASHFILE] No valid sheets found in file. Available sheets: {sheet_names}")
+                raise ValueError("Upload hash data not found in file")
+            
             for sheet_name in hashfile_sheets:
                 df = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine)
+                columns = list(df.columns)
+                print(f"[OXYGEN HASHFILE] Processing sheet '{sheet_name}', columns: {columns}")
+                
+                # Check if required columns exist
+                has_name = any('name' in str(col).lower() for col in columns)
+                has_hash = any('hash(md5)' in str(col).lower() or 'hash(sha1)' in str(col).lower() or 
+                              'hash(sha-1)' in str(col).lower() or 'md5' in str(col).lower() or 
+                              'sha1' in str(col).lower() for col in columns)
+                
+                if not has_name or not has_hash:
+                    print(f"[OXYGEN HASHFILE] Warning: Sheet '{sheet_name}' missing required columns. Has 'Name': {has_name}, Has hash column: {has_hash}")
+                    continue
+                
                 info_path = original_file_path if original_file_path else file_path
                 file_info = self._get_file_info(info_path)
+                rows_processed = 0
+                rows_valid = 0
+                
                 for _, row in df.iterrows():
+                    rows_processed += 1
                     name_val = str(row.get('Name', ''))
                     if not name_val or name_val.lower() == 'nan':
                         continue
@@ -680,6 +769,10 @@ class HashFileParser:
                     md5_hash_val = None if not md5_hash_val or md5_hash_val.lower() in ['nan', 'none', 'null', ''] else md5_hash_val
                     sha1_hash_val = None if not sha1_hash_val or sha1_hash_val.lower() in ['nan', 'none', 'null', ''] else sha1_hash_val
                     
+                    if not md5_hash_val and not sha1_hash_val:
+                        continue
+                    
+                    rows_valid += 1
                     algorithm = determine_algorithm(md5_hash_val, sha1_hash_val)
                     
                     results.append({
@@ -695,15 +788,25 @@ class HashFileParser:
                         "algorithm": algorithm,
                         "source_tool": "oxygen"
                     })
+                
+                print(f"[OXYGEN HASHFILE] Sheet '{sheet_name}': Processed {rows_processed} rows, {rows_valid} valid records")
 
-            inserted_count = self._bulk_insert_ultrafast(results, file_id)
+            if not results:
+                print(f"[OXYGEN HASHFILE] No valid hashfile data found after parsing.")
+                raise ValueError("Upload hash data not found in file")
+
+            inserted_count = self._bulk_insert_ultrafast(results, file_id, upload_id, progress_callback, len(results))
             print(f"Successfully saved {inserted_count} Oxygen hashfiles to database")
             return inserted_count
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error parsing Oxygen hashfile: {e}")
             self.db.rollback()
             raise e
+        except Exception as e:
+            print(f"Error parsing Oxygen hashfile: {e}")
+            self.db.rollback()
+            raise ValueError("Upload hash data not found in file")
 
     def parse_encase_hashfile(self, file_path: str, file_id: int, original_file_path: str = None, upload_id: str = None, progress_callback = None):
         results = []
@@ -849,11 +952,19 @@ class HashFileParser:
                             "source_tool": "encase"
                         })
 
-            inserted_count = self._bulk_insert_ultrafast(results, file_id)
+            if not results:
+                print(f"[ENCASE HASHFILE] No valid hashfile data found after parsing.")
+                raise ValueError("Upload hash data not found in file")
+
+            inserted_count = self._bulk_insert_ultrafast(results, file_id, upload_id, progress_callback, len(results))
             print(f"Successfully saved {inserted_count} EnCase hashfiles to database")
             return inserted_count
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error parsing EnCase hashfile: {e}")
             self.db.rollback()
             raise e
+        except Exception as e:
+            print(f"Error parsing EnCase hashfile: {e}")
+            self.db.rollback()
+            raise ValueError("Upload hash data not found in file")

@@ -331,38 +331,40 @@ class UploadService:
                     
                     if md5_sheet or sha1_sheet:
                         test_sheet = md5_sheet if md5_sheet else sha1_sheet
-                        try:
-                            df_test = pd.read_excel(file_path, sheet_name=test_sheet, engine=engine, dtype=str, header=0, nrows=3)
-                            columns_lower = [str(col).lower().strip() for col in df_test.columns]
-                            if 'name' in columns_lower and ('md5' in columns_lower or 'sha1' in columns_lower or 'sha-1' in columns_lower):
-                                print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on MD5/SHA1 sheet structure")
-                                return "Cellebrite"
-                        except:
+                        for header_row in [0, 1, 2]:
                             try:
-                                df_test = pd.read_excel(file_path, sheet_name=test_sheet, engine=engine, dtype=str, header=1, nrows=3)
-                                first_row = df_test.iloc[0].tolist() if len(df_test) > 0 else []
-                                if any('name' in str(v).lower() for v in first_row if pd.notna(v)) and \
-                                   any(('md5' in str(v).lower() or 'sha1' in str(v).lower() or 'sha-1' in str(v).lower()) for v in first_row if pd.notna(v)):
-                                    print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on MD5/SHA1 sheet structure (header row 1)")
+                                df_test = pd.read_excel(file_path, sheet_name=test_sheet, engine=engine, dtype=str, header=header_row, nrows=5)
+                                columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                                
+                                has_name = 'name' in columns_lower or any('name' in col for col in columns_lower)
+                                has_md5 = 'md5' in columns_lower or any('md5' in col for col in columns_lower)
+                                has_sha1 = 'sha1' in columns_lower or 'sha-1' in columns_lower or any('sha1' in col or 'sha-1' in col for col in columns_lower)
+                                
+                                has_hash_md5 = any('hash(md5)' in col for col in columns_lower)
+                                has_hash_sha1 = any('hash(sha1)' in col or 'hash(sha-1)' in col for col in columns_lower)
+                                
+                                if has_name and (has_md5 or has_sha1) and not (has_hash_md5 or has_hash_sha1):
+                                    print(f"[TOOL DETECTION] Detected Cellebrite (Hashfile) based on MD5/SHA1 sheet structure (header row {header_row})")
                                     return "Cellebrite"
                             except:
-                                pass
+                                continue
                     
-                    hashfile_sheets = [s for s in sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
-                    for sheet_name in hashfile_sheets[:3]:
-                        try:
-                            df_test = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine, nrows=3)
-                            columns_lower = [str(col).lower().strip() for col in df_test.columns]
-                            
-                            has_name = any('name' in col for col in columns_lower)
-                            has_md5 = any('hash(md5)' in col or col == 'md5' for col in columns_lower)
-                            has_sha1 = any('hash(sha1)' in col or 'hash(sha-1)' in col or col in ['sha1', 'sha-1'] for col in columns_lower)
-                            
-                            if has_name and (has_md5 or has_sha1):
-                                print(f"[TOOL DETECTION] Detected Oxygen (Hashfile) based on Name/Hash(MD5)/Hash(SHA1) structure")
-                                return "Oxygen"
-                        except:
-                            continue
+                    if not md5_sheet and not sha1_sheet:
+                        hashfile_sheets = [s for s in sheet_names if isinstance(s, str) and str(s).lower() not in ['table of contents']]
+                        for sheet_name in hashfile_sheets[:3]:
+                            try:
+                                df_test = pd.read_excel(file_path, sheet_name=sheet_name, dtype=str, engine=engine, nrows=3)
+                                columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                                
+                                has_name = any('name' in col for col in columns_lower)
+                                has_md5 = any('hash(md5)' in col for col in columns_lower)
+                                has_sha1 = any('hash(sha1)' in col or 'hash(sha-1)' in col for col in columns_lower)
+                                
+                                if has_name and (has_md5 or has_sha1):
+                                    print(f"[TOOL DETECTION] Detected Oxygen (Hashfile) based on Name/Hash(MD5)/Hash(SHA1) structure")
+                                    return "Oxygen"
+                            except:
+                                continue
                     
                     for sheet_name in sheet_names[:3]:
                         try:
@@ -447,9 +449,18 @@ class UploadService:
         data = self._progress.get(upload_id)
         if not data:
             return {"status": 404, "message": "Upload ID not found", "data": None}, 404
+        
+        message = data.get("message", "")
+        method = data.get("method")
+        
+        if method == "Hashfile Analytics" and "File upload failed. Please upload this file using Tools" in message and "with method" not in message:
+            tool_match = message.split("Tools ")[1].split()[0] if "Tools " in message else None
+            if tool_match:
+                message = f"File upload failed. Please upload this file using Tools {tool_match} with method {method}"
+        
         return {
             "status": 200,
-            "message": data.get("message", ""),
+            "message": message,
             "data": {
                 "percent": data.get("percent", 0),
                 "progress_size": data.get("progress_size", "0 B"),
@@ -457,6 +468,9 @@ class UploadService:
                 "done": data.get("done", False),
                 "error": data.get("error", False),
                 "file_id": data.get("file_id"),
+                "detected_tool": data.get("detected_tool"),
+                "method": method,
+                "tools": data.get("tools"),
             },
         }, 200
 
@@ -657,13 +671,22 @@ class UploadService:
                         detected_tool = self._normalize_tool_name(tools)
                     
                     if detected_tool and detected_tool != "Unknown":
-                        final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                        if method == "Hashfile Analytics":
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
+                        else:
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                     else:
                         normalized_tool = self._normalize_tool_name(tools)
                         if normalized_tool:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
+                            if method == "Hashfile Analytics":
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool} with method {method}"
+                            else:
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
                         else:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
+                            if method == "Hashfile Analytics":
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'} with method {method}"
+                            else:
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
                     
                     self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                     try:
@@ -710,13 +733,22 @@ class UploadService:
                             detected_tool = self._normalize_tool_name(tools)
                         
                         if detected_tool and detected_tool != "Unknown":
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                            if method == "Hashfile Analytics":
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
+                            else:
+                                final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                         else:
                             normalized_tool = self._normalize_tool_name(tools)
                             if normalized_tool:
-                                final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
+                                if method == "Hashfile Analytics":
+                                    final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool} with method {method}"
+                                else:
+                                    final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
                             else:
-                                final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
+                                if method == "Hashfile Analytics":
+                                    final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'} with method {method}"
+                                else:
+                                    final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
                         
                         self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                         try:
@@ -1036,17 +1068,20 @@ class UploadService:
                         try:
                             if os.path.exists(original_path_abs):
                                 detected_tool_for_error = self._detect_hashfile_tool_from_structure(original_path_abs)
-                        except:
+                                print(f"[TOOL DETECTION] Detected tool from file structure: {detected_tool_for_error}")
+                        except Exception as e:
+                            print(f"[TOOL DETECTION] Error detecting tool from structure: {e}")
                             pass
                         
-                        if not detected_tool_for_error or detected_tool_for_error == "Unknown":
-                            detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
-                        
-                        if detected_tool_for_error and detected_tool_for_error != "Unknown":
-                            parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error}"
+                        if detected_tool_for_error and detected_tool_for_error != "Unknown" and detected_tool_for_error != tools:
+                            print(f"[TOOL DETECTION] Detected tool '{detected_tool_for_error}' differs from user selection '{tools}'. Using detected tool.")
+                            parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error} with method {method or 'Hashfile Analytics'}"
+                            parsing_result["detected_tool"] = detected_tool_for_error
                         else:
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
                             parsing_result["hashfiles_error"] = f"Upload hash data not found in file with {method} method and {detected_tool_for_error} tools."
-                        parsing_result["detected_tool"] = detected_tool_for_error
+                            parsing_result["detected_tool"] = detected_tool_for_error
                         print(f"[WARNING] No hashfile data found in file for method '{method}' with tools '{tools}'. Detected tool: {detected_tool_for_error}")
                     
                     self._progress[upload_id].update({
@@ -1058,18 +1093,32 @@ class UploadService:
                     print(f"Error parsing hashfiles: {e}")
                     traceback.print_exc()
                     
+                    parsing_result["hashfiles_count"] = 0
+ 
+                    error_str = str(e)
+                    
                     detected_tool_for_error = None
                     try:
                         if os.path.exists(original_path_abs):
                             detected_tool_for_error = self._detect_hashfile_tool_from_structure(original_path_abs)
-                    except:
+                            print(f"[TOOL DETECTION] Detected tool from file structure (exception): {detected_tool_for_error}")
+                    except Exception as e:
+                        print(f"[TOOL DETECTION] Error detecting tool from structure: {e}")
                         pass
                     
-                    if detected_tool_for_error and detected_tool_for_error != "Unknown":
-                        parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error}"
+                    if detected_tool_for_error and detected_tool_for_error != "Unknown" and detected_tool_for_error != tools:
+                        print(f"[TOOL DETECTION] Detected tool '{detected_tool_for_error}' differs from user selection '{tools}'. Using detected tool.")
+                        parsing_result["hashfiles_error"] = f"File upload failed. Please upload this file using Tools {detected_tool_for_error} with method {method or 'Hashfile Analytics'}"
                         parsing_result["detected_tool"] = detected_tool_for_error
                     else:
-                        parsing_result["hashfiles_error"] = str(e)
+                        if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                            detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+
+                        if "Upload hash data not found in file" in error_str:
+                            parsing_result["hashfiles_error"] = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool_for_error} tools."
+                        else:
+                            parsing_result["hashfiles_error"] = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool_for_error} tools."
+                        parsing_result["detected_tool"] = detected_tool_for_error
             
             else:
                 if is_social_media:
@@ -1117,20 +1166,38 @@ class UploadService:
                 )
                 
                 detected_tool = None
+                detected_tool = parsing_result.get("detected_tool", None)
                 
                 if has_parsing_error:
                     error_msg = (
-                        parsing_result.get("parsing_error") or 
-                        parsing_result.get("error") or 
+                        parsing_result.get("hashfiles_error") or
                         parsing_result.get("chat_messages_error") or
                         parsing_result.get("social_media_error") or
                         parsing_result.get("contacts_calls_error") or
-                        parsing_result.get("hashfiles_error") or
+                        parsing_result.get("parsing_error") or 
+                        parsing_result.get("error") or 
                         "Tools tidak sesuai dengan format file"
                     )
                     print(f"[ERROR] No data inserted. Parsing error detected: {error_msg}")
+
+                    if not detected_tool or detected_tool == "Unknown":
+                        if method == "Hashfile Analytics":
+                            try:
+                                if os.path.exists(original_path_abs):
+                                    detected_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
+                            except:
+                                pass
+                        
+                        if not detected_tool or detected_tool == "Unknown":
+                            try:
+                                if os.path.exists(original_path_abs):
+                                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                            except:
+                                pass
+                        
+                        if not detected_tool or detected_tool == "Unknown":
+                            detected_tool = self._normalize_tool_name(tools)
                 else:
-                    detected_tool = parsing_result.get("detected_tool", None)
                     if not detected_tool:
                         try:
                             if os.path.exists(original_path_abs):
@@ -1148,72 +1215,47 @@ class UploadService:
                         detected_tool = self._normalize_tool_name(tools)
 
                     if detected_tool and detected_tool != "Unknown":
-                        error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                        if method == "Hashfile Analytics":
+                            error_msg = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
+                        else:
+                            error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
                     else:
                         normalized_tool = self._normalize_tool_name(tools)
                         if normalized_tool:
-                            error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
+                            if method == "Hashfile Analytics":
+                                error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool} with method {method}"
+                            else:
+                                error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
                         else:
-                            error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
+                            if method == "Hashfile Analytics":
+                                error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'} with method {method}"
+                            else:
+                                error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
                     print(f"[ERROR] No data inserted. No parsing error but also no data found.")
                 
                 self._cleanup_failed_upload(file_id=file_id, file_path=rel_path)
                 
-                if not detected_tool:
-                    detected_tool = parsing_result.get("detected_tool", None)
-                    if not detected_tool:
-                        try:
-                            if os.path.exists(original_path_abs):
-                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                        except:
-                            pass
-                
-                if has_parsing_error:
-                    if not detected_tool or detected_tool == "Unknown":
-                        try:
-                            if os.path.exists(original_path_abs):
-                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                        except:
-                            pass
-                    
-                    if not detected_tool or detected_tool == "Unknown":
-                        detected_tool = self._normalize_tool_name(tools)
-                    
-                    if "File upload failed. Please upload this file using Tools" in error_msg:
-                        final_error_msg = error_msg
-                    elif error_msg and ("Hash data not found" in error_msg or "Contacts and calls data not found" in error_msg or "not found" in error_msg.lower()):
-                        if "Hash data not found" in error_msg and method == "Hashfile Analytics":
-                            hashfile_detected_tool = None
-                            try:
-                                if os.path.exists(original_path_abs):
-                                    hashfile_detected_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
-                            except:
-                                pass
-                            
-                            if hashfile_detected_tool and hashfile_detected_tool != "Unknown":
-                                final_error_msg = f"File upload failed. Please upload this file using Tools {hashfile_detected_tool}"
-                                detected_tool = hashfile_detected_tool
-                            else:
-                                final_error_msg = error_msg
+                if "Upload hash data not found in file" in error_msg:
+                    final_error_msg = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool or tools or 'Unknown'} tools."
+                elif "File upload failed. Please upload this file using Tools" in error_msg:
+                    if method == "Hashfile Analytics" and "with method" not in error_msg:
+                        tool_match = error_msg.split("Tools ")[1].split()[0] if "Tools " in error_msg else None
+                        if tool_match:
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {tool_match} with method {method}"
                         else:
                             final_error_msg = error_msg
-                    elif detected_tool and detected_tool != "Unknown":
-                        final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
-                    else:
-                        normalized_tool = self._normalize_tool_name(tools)
-                        if normalized_tool:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
-                        else:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
-                else:
-                    if error_msg == "File upload failed. Please upload this file using Tools":
-                        normalized_tool = self._normalize_tool_name(tools)
-                        if normalized_tool:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {normalized_tool}"
-                        else:
-                            final_error_msg = f"File upload failed. Please upload this file using Tools {tools if tools else 'the correct tools'}"
                     else:
                         final_error_msg = error_msg
+                elif error_msg and ("not found" in error_msg.lower() or "Hash data not found" in error_msg or "Contacts and calls data not found" in error_msg):
+                    if detected_tool and detected_tool != "Unknown":
+                        if method == "Hashfile Analytics":
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
+                        else:
+                            final_error_msg = f"File upload failed. Please upload this file using Tools {detected_tool}"
+                    else:
+                        final_error_msg = f"Upload hash data not found in file with {method or 'Unknown'} method and {detected_tool or tools or 'Unknown'} tools."
+                else:
+                    final_error_msg = error_msg
                 
                 self._mark_done(upload_id, final_error_msg, is_error=True, detected_tool=detected_tool)
                 return {"status": 400, "message": final_error_msg, "data": None, "detected_tool": detected_tool}

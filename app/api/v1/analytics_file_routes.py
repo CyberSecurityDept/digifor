@@ -784,7 +784,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     else:
                         method = "Unknown"
                 
-                # Normalize tool name for error message
                 detected_tool_for_error = detected_tool
                 if not detected_tool_for_error or detected_tool_for_error == "Unknown":
                     if tools:
@@ -792,14 +791,38 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     else:
                         detected_tool_for_error = "Unknown"
                 
-                # Use the actual method
                 final_method = method if method and method != "Unknown" else "Unknown"
                 
-                # Format error message
                 error_message = f"Upload hash data not found in file with {final_method} method and {detected_tool_for_error} tools."
             
-            if detected_tool and detected_tool != "Unknown":
-                size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+            if ("format error" in error_message.lower() or 
+                "must contain" in error_message.lower() or 
+                "No valid hashfile data" in error_message or 
+                "Please check" in error_message or
+                "Expected format" in error_message or
+                "parsing error" in error_message.lower()):
+                size_value = error_message
+            elif "File upload failed. Please upload this file using Tools" in error_message:
+                if "with method" in error_message:
+                    size_value = error_message
+                else:
+                    method = progress.get("method")
+                    if method == "Hashfile Analytics":
+                        tool_match = error_message.split("Tools ")[1].split()[0] if "Tools " in error_message else None
+                        if tool_match:
+                            size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method}"
+                        else:
+                            size_value = error_message
+                    else:
+                        size_value = error_message
+            elif "Upload hash data not found" in error_message or "not found" in error_message.lower():
+                size_value = error_message
+            elif detected_tool and detected_tool != "Unknown":
+                method = progress.get("method")
+                if method == "Hashfile Analytics":
+                    size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}' with method {method}"
+                else:
+                    size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
             else:
                 size_value = progress.get("size", "Upload Failed! Please try again")
             
