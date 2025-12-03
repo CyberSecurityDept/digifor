@@ -6,7 +6,7 @@ import sys
 import datetime
 from pathlib import Path
 
-BASE_URL = "http://172.15.4.26/api/v1"
+BASE_URL = "http://172.15.2.105/api/v1"
 TIMEOUT = 30
 
 class AnalyticsWorkflow:

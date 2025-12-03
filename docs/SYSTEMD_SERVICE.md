@@ -50,13 +50,13 @@ Setelah service berjalan, verifikasi dengan mengakses endpoint:
 
 ```bash
 # Test endpoint root (public, tidak perlu auth)
-curl http://172.15.4.26/
+curl http://172.15.2.105/
 
 # Test health check
-curl http://172.15.4.26/health/health
+curl http://172.15.2.105/health/health
 
 # Test API documentation
-curl http://172.15.4.26/docs
+curl http://172.15.2.105/docs
 ```
 
 Jika berhasil, akan mendapatkan response JSON atau halaman HTML.
@@ -597,7 +597,7 @@ Jika PostgreSQL service tidak berjalan:
 
 3. **Test koneksi langsung:**
    ```bash
-   psql -h 172.15.4.26 -U digifordb -d db_forensics -c "SELECT 1;"
+   psql -h 172.15.2.105 -U digifordb -d db_forensics -c "SELECT 1;"
    ```
 
 4. **Cek firewall:**

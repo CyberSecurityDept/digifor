@@ -25,7 +25,7 @@ class Colors:
     NC = '\033[0m'
 
 class ForenlyticAnalyzer:
-    def __init__(self, base_url: str = "http://172.15.4.26"):
+    def __init__(self, base_url: str = "http://172.15.2.105"):
         self.base_url = base_url
         self.api_base = f"{base_url}/api/v1"
         self.session = requests.Session()

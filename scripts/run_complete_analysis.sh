@@ -6,7 +6,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-BASE_URL="http://172.15.4.26"
+BASE_URL="http://172.15.2.105"
 API_BASE="$BASE_URL/api/v1"
 
 # Function to print colored output

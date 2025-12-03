@@ -25,7 +25,7 @@ def main():
             print(f"Development server is running (PID: {', '.join(pids)})")
             
             try:
-                response = requests.get("http://172.15.4.26/health", timeout=5)
+                response = requests.get("http://172.15.2.105/health", timeout=5)
                 if response.status_code == 200:
                     print("Server is responding to health checks")
                 else:

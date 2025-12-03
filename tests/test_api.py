@@ -3,7 +3,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://172.15.4.26"
+BASE_URL = "http://172.15.2.105"
 
 def test_health():
     print(" Testing health endpoint...")
