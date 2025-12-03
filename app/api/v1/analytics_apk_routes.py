@@ -14,7 +14,11 @@ import os
 router = APIRouter()
 
 @router.post("/analytics/upload-apk")
-async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastAPIFile(...), file_name: str = Form(...)):
+async def upload_apk(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = FastAPIFile(...),
+    file_name: str = Form(...)
+):
     try:
         if not file_name or str(file_name).strip() == "":
             return JSONResponse(
@@ -30,7 +34,15 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
                 status_code=400,
             )
 
-        file_bytes = await file.read()
+        chunk_size = 1024 * 1024  # 1 MB
+        file_bytes = bytearray()
+
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            file_bytes.extend(chunk)
+
         total_size = len(file_bytes)
 
         upload_id = f"upload_{int(time.time())}_{uuid.uuid4().hex[:8]}"
@@ -47,7 +59,7 @@ async def upload_apk(background_tasks: BackgroundTasks, file: UploadFile = FastA
             "_ctx": {
                 "file_obj": file,
                 "file_name": file_name,
-                "file_bytes": file_bytes,
+                "file_bytes": bytes(file_bytes),
                 "total_size": total_size,
             },
             "_started": False,

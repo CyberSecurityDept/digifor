@@ -457,8 +457,8 @@ async def update_person(
                 db.add(case_log_name)
             
             if status_changed:
-                old_status_display = old_status if old_status else "None"
-                new_status_display = getattr(suspect, 'status', None) if getattr(suspect, 'status', None) else "None"
+                old_status_display = old_status if old_status else "Unknown"
+                new_status_display = getattr(suspect, 'status', None) if getattr(suspect, 'status', None) else "Unknown"
                 case_log_status = CaseLog(
                     case_id=suspect.case_id,
                     action="Edit",
