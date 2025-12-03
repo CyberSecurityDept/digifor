@@ -29,6 +29,13 @@ else
     echo "All requirements already installed."
 fi
 
+echo "Initializing database..."
+python3 "$PROJECT_DIR/scripts/init-database.py" || {
+    echo "ERROR: Database initialization failed!"
+    exit 1
+}
+
+echo "Seeding users..."
 python -m app.auth.seed
 
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
