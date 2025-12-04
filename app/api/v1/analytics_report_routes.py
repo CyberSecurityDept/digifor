@@ -1769,6 +1769,7 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
     reports_dir = settings.REPORTS_DIR
     os.makedirs(reports_dir, exist_ok=True)
+
     timestamp_now = get_indonesia_time()
     filename = f"{filename_prefix}_{analytic.id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}.pdf"
     file_path = os.path.join(reports_dir, filename)
@@ -1814,11 +1815,12 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     hashfiles = data.get("correlations") or []
 
     group_size = 4
-    groups = [devices[i:i+group_size] for i in range(0, len(devices), group_size)]
+    groups = [devices[i:i + group_size] for i in range(0, len(devices), group_size)]
 
     story = []
     story.append(Spacer(1, 5))
 
+    # Styles
     normal_center = ParagraphStyle("NormalCenter", fontSize=10, leading=13, alignment=TA_CENTER)
     header_style = ParagraphStyle(
         "HeaderStyle",
@@ -1827,6 +1829,19 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         fontName="Helvetica-Bold",
         fontSize=9
     )
+
+    def format_filename(text: str, wrap_len: int = 40, max_chars: int = 320) -> str:
+        if not text:
+            text = "-"
+
+        if len(text) > max_chars:
+            head = text[:100]   
+            tail = text[-5:]
+            text = f"{head}...{tail}"
+
+        chunks = [text[i:i + wrap_len] for i in range(0, len(text), wrap_len)]
+        return "<br/>".join(chunks)
+
 
     for g_index, group in enumerate(groups, start=1):
         start_dev = (g_index - 1) * group_size + 1
@@ -1840,11 +1855,11 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
 
         info_table = Table(info_data, colWidths=[usable_width * 0.25, usable_width * 0.75])
         info_table.setStyle(TableStyle([
-            ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
-            ("FONTSIZE", (0,0), (-1,-1), 12),
-            ("LEFTPADDING", (0,0), (-1,-1), 0),
-            ("TOPPADDING", (0,0), (-1,-1), 2),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 12),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         story.append(info_table)
         story.append(Spacer(1, 12))
@@ -1858,24 +1873,34 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
         table_data = [header_row]
 
         for h in hashfiles:
-            row = [Paragraph(h.get("file_name", "-"), normal_center)]
-            found = h.get("devices", [])
+            fname = h.get("file_name", "-")
+            formatted = format_filename(fname)
+            row = [Paragraph(formatted, normal_center)]
 
+            found = h.get("devices", [])
             for d in group:
                 mark = "✔" if d.get("device_label") in found else "✘"
                 row.append(Paragraph(mark, normal_center))
 
             table_data.append(row)
 
-        col_widths = [usable_width * 0.25] + [(usable_width * 0.75) / len(group)] * len(group)
+        col_widths = [usable_width * 0.35] + [(usable_width * 0.65) / len(group)] * len(group)
+
         chunk_size = 2000
         body_rows = table_data[1:]
 
         for start in range(0, len(body_rows), chunk_size):
             part = [header_row] + body_rows[start:start + chunk_size]
 
-            tbl = Table(part, colWidths=col_widths, repeatRows=1)
-            tbl.setStyle(TableStyle([
+            tbl = Table(
+                part,
+                colWidths=col_widths,
+                repeatRows=1,
+                splitByRow=True,
+            )
+
+            styles = [
+
                 ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#466086")),
                 ("TEXTCOLOR", (0,0), (-1,0), colors.white),
                 ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
@@ -1885,13 +1910,14 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
                 ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey]),
                 ("ALIGN", (0,1), (-1,-1), "CENTER"),
                 ("VALIGN", (0,1), (-1,-1), "MIDDLE"),
-
                 ("LINEBELOW", (0,1), (-1,-1), 0.5, colors.grey),
                 ("LEFTPADDING", (0,1), (-1,-1), 4),
                 ("RIGHTPADDING", (0,1), (-1,-1), 4),
                 ("TOPPADDING", (0,1), (-1,-1), 6),
                 ("BOTTOMPADDING", (0,1), (-1,-1), 6),
-            ]))
+            ]
+
+            tbl.setStyle(TableStyle(styles))
             story.append(tbl)
 
         if g_index < len(groups):
@@ -1901,39 +1927,25 @@ def _generate_hashfile_analytics_report(analytic, db, report_type, filename_pref
     story.extend(_build_summary_section(usable_width, analytic.summary))
 
     header_ts = timestamp_now
-
     def draw_header(canvas_obj, doc_obj):
         canvas_obj.saveState()
         page_w, page_h = A4
 
         logo_path = settings.LOGO_PATH
         if os.path.exists(logo_path):
-            canvas_obj.drawImage(
-                ImageReader(logo_path),
-                20, page_h - 60,
-                width=191,
-                height=30,
-                preserveAspectRatio=True,
-                mask="auto",
-            )
+            canvas_obj.drawImage(ImageReader(logo_path), 20, page_h - 60, width=191, height=30, preserveAspectRatio=True, mask="auto")
 
         canvas_obj.setFont("Helvetica", 10)
-        canvas_obj.drawRightString(
-            page_w - 30,
-            page_h - 45,
-            f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB"
-        )
+        canvas_obj.drawRightString(page_w - 30, page_h - 45, f"Exported: {header_ts.strftime('%d/%m/%Y %H:%M')} WIB")
 
         title_para = Paragraph(analytic.analytic_name or "", dyn_title_style)
         _, h = title_para.wrap(page_w - 60, 400)
         title_y = page_h - 65 - h
         title_para.drawOn(canvas_obj, 30, title_y)
 
-        # Method
         method_y = title_y - dyn_title_style.leading + 3
         canvas_obj.setFont("Helvetica", 12)
-        canvas_obj.drawString(30, method_y,
-                              f"Method: {analytic.method.replace('_',' ').title()}")
+        canvas_obj.drawString(30, method_y, f"Method: {analytic.method.replace('_',' ').title()}")
 
         uploaded = analytic.created_at.strftime("%d/%m/%Y") if analytic.created_at else header_ts.strftime("%d/%m/%Y")
         canvas_obj.drawRightString(page_w - 30, method_y, f"File Uploaded: {uploaded}")
