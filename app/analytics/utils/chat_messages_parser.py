@@ -55,66 +55,6 @@ class ChatMessagesParser:
         
         return f"{platform}_{file_id}_{index}"
     
-    def parse_chat_messages(self, file_path: str, file_id: int, source_tool: str = "axiom") -> List[Dict[str, Any]]:
-        results = []
-        
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
-                warnings.filterwarnings("ignore", message=".*OLE2 inconsistency.*")
-                warnings.filterwarnings("ignore", message=".*file size.*not.*multiple of sector size.*")
-                
-                file_path_obj = Path(file_path)
-                file_extension = file_path_obj.suffix.lower()
-                
-                if file_extension == '.xls':
-                    engine = "xlrd"
-                else:
-                    engine = "openpyxl"
-                
-                xls = pd.ExcelFile(file_path, engine=engine)
-                
-                print(f"Parsing chat messages from {len(xls.sheet_names)} sheets...")
-                
-                tiktok_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'tiktok' in str(s).lower() and 'message' in str(s).lower()]
-                for sheet in tiktok_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_tiktok_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                instagram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'instagram' in str(s).lower() and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
-                for sheet in instagram_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_instagram_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                whatsapp_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'whatsapp' in str(s).lower() and ('message' in str(s).lower() or 'chat' in str(s).lower())]
-                for sheet in whatsapp_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_whatsapp_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                telegram_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'telegram' in str(s).lower() and 'message' in str(s).lower()]
-                for sheet in telegram_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_telegram_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                x_sheets = [s for s in xls.sheet_names if isinstance(s, str) and ('twitter' in str(s).lower() or 'x ' in str(s).lower()) and ('message' in str(s).lower() or 'dm' in str(s).lower() or 'direct' in str(s).lower())]
-                for sheet in x_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_x_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                facebook_sheets = [s for s in xls.sheet_names if isinstance(s, str) and 'facebook' in str(s).lower() and ('message' in str(s).lower() or 'messenger' in str(s).lower() or 'chat' in str(s).lower())]
-                for sheet in facebook_sheets:
-                    print(f"  Parsing {sheet}...")
-                    results.extend(self._parse_facebook_messages(file_path, sheet, file_id, source_tool, engine))
-                
-                print(f"Successfully parsed {len(results)} chat messages")
-                
-        except Exception as e:
-            print(f"Error parsing chat messages: {e}")
-            
-            traceback.print_exc()
-        
-        return results
-    
     def _parse_tiktok_messages(self, file_path: str, sheet_name: str, file_id: int, source_tool: str, engine: str) -> List[Dict[str, Any]]:
         results = []
         
@@ -592,36 +532,4 @@ class ChatMessagesParser:
             traceback.print_exc()
         
         return results
-    
-    def save_to_database(self, messages: List[Dict[str, Any]]) -> int:
-        saved_count = 0
-        
-        try:
-            for msg in messages:
-                existing = (
-                    self.db.query(ChatMessage)
-                    .filter(
-                        ChatMessage.file_id == msg.get("file_id"),
-                        ChatMessage.platform == msg.get("platform"),
-                        ChatMessage.message_id == msg.get("message_id")
-                    )
-                    .first()
-                )
-                
-                if not existing:
-                    chat_message = ChatMessage(**msg)
-                    self.db.add(chat_message)
-                    saved_count += 1
-            
-            self.db.commit()
-            print(f"Successfully saved {saved_count} chat messages to database")
-            
-        except Exception as e:
-            print(f"Error saving chat messages to database: {e}")
-            self.db.rollback()
-            
-            traceback.print_exc()
-            raise e
-        
-        return saved_count
 

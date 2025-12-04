@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import re
 import warnings
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 from enum import Enum
 
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')

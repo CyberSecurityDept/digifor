@@ -89,29 +89,6 @@ def extract_time_from_timestamp(timestamp: str) -> str:
     
     return ""
 
-def is_valid_person_name(name: str) -> bool:
-    if not name:
-        return False
-    
-    stripped = re.sub(r'[\u200B-\u200D\uFEFF\u00A0\u2060\u200E\u200F\u3164]', '', name).strip()
-    if not stripped:
-        return False
-    
-    if len(stripped) == 1:
-        return False
-    
-    if re.search(r'[a-zA-Z0-9]', stripped):
-        return True
-    
-    meaningful_chars = re.sub(r'[\s\W_]', '', stripped)
-    if not meaningful_chars:
-        return False
-    
-    if len(stripped) < 2:
-        return False
-    
-    return True
-
 def get_chat_messages_for_analytic(
     db: Session,
     analytic_id: int,

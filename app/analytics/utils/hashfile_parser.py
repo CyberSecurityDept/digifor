@@ -3,10 +3,9 @@ import warnings
 from pathlib import Path
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from sqlalchemy.orm import Session
-from app.analytics.device_management.models import HashFile
-import os
-from datetime import datetime
 from sqlalchemy import text
+from app.analytics.device_management.models import HashFile
+from datetime import datetime
 from app.utils.timezone import get_indonesia_time
 
 if TYPE_CHECKING:

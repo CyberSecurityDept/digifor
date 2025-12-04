@@ -40,27 +40,6 @@ def check_analytic_access(analytic: Analytic, current_user) -> bool:
             user_fullname.lower() in analytic_created_by.lower() or 
             user_email.lower() in analytic_created_by.lower())
 
-def parse_date_string(date_str: str) -> datetime:
-    try:
-        parsed = datetime.strptime(date_str, "%d/%m/%Y")
-        if parsed.day > 31:
-            return datetime.strptime(date_str, "%m/%d/%Y")
-        return parsed
-    except ValueError:
-        pass
-    
-    try:
-        return datetime.strptime(date_str, "%m/%d/%Y")
-    except ValueError:
-        pass
-    
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
-        pass
-    
-    raise ValueError(f"Invalid date format: {date_str}. Supported formats: DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD")
-
 class SummaryRequest(BaseModel):
     summary: str
 

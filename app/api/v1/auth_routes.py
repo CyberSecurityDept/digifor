@@ -138,25 +138,6 @@ def get_me(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-def get_current_user_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    try:
-        if service.is_token_blacklisted(db, token):
-            raise HTTPException(status_code=401, detail="Token has been revoked")
-        
-        payload = security.decode_token(token)
-        if payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-        user_id = int(payload["sub"])
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Expired token")
-    except (JWTError, KeyError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user = db.get(User, user_id)
-    if not user or user.is_active is False:
-        raise HTTPException(status_code=401, detail="Inactive user")
-    return user
-
 @router.post(
     "/logout",
     summary="Logout",
@@ -164,7 +145,7 @@ def get_current_user_token(token: str = Depends(oauth2_scheme), db: Session = De
 )
 def logout(
     request: Request,
-    current_user: User = Security(get_current_user_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:

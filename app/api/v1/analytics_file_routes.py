@@ -78,7 +78,7 @@ async def run_real_upload_and_finalize(
                     "size": "Upload Failed! Please try again",
                     "percentage": "Error",
                     "upload_status": "Failed",
-                    "data": [],
+                    "data": None,
                 }
                 return
         else:
@@ -148,9 +148,7 @@ async def run_real_upload_and_finalize(
                         detected_tool = svc_data.get("detected_tool", "Unknown")
                         method_from_svc = svc_data.get("method")
                         
-                        # Check if error message contains "Upload hash data not found"
                         if "Upload hash data not found" in error_message or "not found" in error_message.lower():
-                            # Extract method and tool from error message
                             tool_from_message = None
                             method_from_message = None
                             
@@ -199,7 +197,7 @@ async def run_real_upload_and_finalize(
                             "size": size_value,
                             "percentage": "Error",
                             "upload_status": "Failed",
-                            "data": [],
+                            "data": None,
                             "method": method_from_svc if method_from_svc else method,
                             "tools": tools,
                             "detected_tool": detected_tool if detected_tool != "Unknown" else None,
@@ -243,9 +241,7 @@ async def run_real_upload_and_finalize(
                 error_message = resp.get("message", "Upload Failed! Please try again")
                 detected_tool = resp.get("detected_tool", None)
                 
-                # Check if error message contains "Upload hash data not found"
                 if "Upload hash data not found" in error_message or "not found" in error_message.lower():
-                    # Extract method and tool from error message
                     tool_from_message = None
                     method_from_message = None
                     
@@ -293,7 +289,7 @@ async def run_real_upload_and_finalize(
                     "size": size_value,
                     "percentage": "Error",
                     "upload_status": "Failed",
-                    "data": [],
+                    "data": None,
                     "method": method,
                     "tools": tools,
                     "detected_tool": detected_tool if detected_tool and detected_tool != "Unknown" else None,
@@ -313,7 +309,7 @@ async def run_real_upload_and_finalize(
                 "size": "Upload Failed! Please try again",
                 "percentage": "Error",
                 "upload_status": "Failed",
-                "data": [],
+                "data": None,
                 "method": method,
                 "tools": tools,
             }
@@ -346,7 +342,7 @@ async def run_real_upload_and_finalize(
             "size": size_value,
             "percentage": "Error",
             "upload_status": "Failed",
-            "data": [],
+            "data": None,
             "method": method,
             "tools": tools,
             "detected_tool": detected_tool if detected_tool and detected_tool != "Unknown" else None,
@@ -502,14 +498,13 @@ async def upload_data(
 
 @router.get("/analytics/upload-progress")
 async def get_upload_progress(upload_id: str, type: str = Query("data", description="data or apk")):
+    if type.lower() == "apk":
+        prog_dict = APK_PROGRESS
+        run_func = run_real_upload_and_finalize_apk
+    else:
+        prog_dict = UPLOAD_PROGRESS
+        run_func = run_real_upload_and_finalize
     try:
-        if type.lower() == "apk":
-            prog_dict = APK_PROGRESS
-            run_func = run_real_upload_and_finalize_apk
-        else:
-            prog_dict = UPLOAD_PROGRESS
-            run_func = run_real_upload_and_finalize
-
         prog = prog_dict.get(upload_id)
 
         if prog and not prog.get("_started") and not prog.get("_processing") and prog.get("_ctx"):
@@ -625,7 +620,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": size_value,
                     "percentage": "Error",
                     "upload_status": "Failed",
-                    "data": [],
+                    "data": None,
                 },
                 status_code=404,
             )
@@ -683,18 +678,18 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                             method = "Hashfile Analytics"
                         else:
                             method = "Unknown"
-                    detected_tool_for_error = detected_tool
-                    if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                    detected_tool_for_error = detected_tool if detected_tool and detected_tool != "Unknown" else None
+                    
+                    if not detected_tool_for_error:
                         if tools:
                             detected_tool_for_error = upload_service._normalize_tool_name(tools) or tools
                         else:
                             detected_tool_for_error = "Unknown"
                     
-                    final_method = method if method and method != "Unknown" else "Unknown"
+                    final_method = method if method and method != "Unknown" else "Hashfile Analytics"
                     
                     error_message = f"Upload hash data not found in file with {final_method} method and {detected_tool_for_error} tools."
                 
-                # Handle size_value for "Upload hash data not found" error
                 if "Upload hash data not found" in error_message or "not found" in error_message.lower():
                     tool_from_message = None
                     method_from_message = None
@@ -751,7 +746,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": size_value,
                     "percentage": "Error",
                     "upload_status": "Failed",
-                    "data": [],
+                    "data": None,
                     "method": method_for_storage,
                     "tools": tools_for_storage,
                     "detected_tool": detected_tool if detected_tool != "Unknown" else None,
@@ -764,7 +759,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": size_value,
                     "percentage": "Error",
                     "upload_status": "Failed",
-                    "data": [],
+                    "data": None,
                 }
             
             if done and percent == 100 and status == "Progress":
@@ -861,7 +856,8 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
         elif status == "Failed":
             error_message = progress.get("message", "Upload Failed! Please try again")
             detected_tool = progress.get("detected_tool", None)
-            method = progress.get("method")
+            method = progress.get("method") or None
+            detected_method = progress.get("detected_method", None)
             
             try:
                 svc_resp, code = upload_service.get_progress(upload_id)
@@ -873,10 +869,45 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                             error_message = svc_message
                     if not detected_tool:
                         detected_tool = svc_data.get("detected_tool", None)
+                    elif svc_data.get("detected_tool") and svc_data.get("detected_tool") != "Unknown":
+                        detected_tool = svc_data.get("detected_tool")
                     if not method:
                         method = svc_data.get("method")
+                    if not detected_method:
+                        detected_method = svc_data.get("detected_method")
             except:
                 pass
+            
+            if "Upload hash data not found" in error_message:
+                if not detected_method:
+                    try:
+                        svc_resp_check, code_check = upload_service.get_progress(upload_id)
+                        if code_check == 200:
+                            svc_data_check = svc_resp_check.get("data", {})
+                            detected_method = svc_data_check.get("detected_method")
+                            if not detected_tool or detected_tool == "Unknown":
+                                detected_tool = svc_data_check.get("detected_tool")
+                    except:
+                        pass
+                
+                final_method = detected_method if detected_method else (method if method else "Hashfile Analytics")
+                
+                if not detected_tool or detected_tool == "Unknown":
+                    try:
+                        svc_resp_check, code_check = upload_service.get_progress(upload_id)
+                        if code_check == 200:
+                            svc_data_check = svc_resp_check.get("data", {})
+                            detected_tool = svc_data_check.get("detected_tool")
+                    except:
+                        pass
+                
+                if not detected_tool or detected_tool == "Unknown":
+                    if progress.get("tools"):
+                        detected_tool = upload_service._normalize_tool_name(progress.get("tools")) or progress.get("tools")
+                    else:
+                        detected_tool = "Unknown"
+                
+                error_message = f"Upload hash data not found in file with {final_method} method and {detected_tool} tools."
             
             if not method:
                 if progress.get("_ctx"):
@@ -891,9 +922,10 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                         pass
             
             if "Decryption error" in error_message or "Decryption failed" in error_message:
-                method = progress.get("method")
+                if not method:
+                    method = progress.get("method") or None
                 if not method and progress.get("_ctx"):
-                    method = progress.get("_ctx", {}).get("method")
+                    method = progress.get("_ctx", {}).get("method") or None
                 
                 tools = progress.get("tools")
                 if not tools and progress.get("_ctx"):
@@ -918,14 +950,28 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     else:
                         method = "Unknown"
                 
-                detected_tool_for_error = detected_tool
+                detected_tool_for_error = detected_tool if detected_tool and detected_tool != "Unknown" else None
+                if not detected_tool_for_error:
+                    try:
+                        file_name = progress.get("file_name")
+                        if file_name:
+                            try:
+                                svc_resp_check, code_check = upload_service.get_progress(upload_id)
+                                if code_check == 200:
+                                    svc_data_check = svc_resp_check.get("data", {})
+                                    detected_tool_for_error = svc_data_check.get("detected_tool")
+                            except:
+                                pass
+                    except:
+                        pass
+                
                 if not detected_tool_for_error or detected_tool_for_error == "Unknown":
                     if tools:
                         detected_tool_for_error = upload_service._normalize_tool_name(tools) or tools
                     else:
                         detected_tool_for_error = "Unknown"
                 
-                final_method = method if method and method != "Unknown" else "Unknown"
+                final_method = method if method and method != "Unknown" else "Hashfile Analytics"
                 
                 error_message = f"Upload hash data not found in file with {final_method} method and {detected_tool_for_error} tools."
             
@@ -949,15 +995,15 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                             size_value = error_message
                     else:
                         size_value = error_message
-            elif "Upload hash data not found" in error_message or "not found" in error_message.lower():
-                tool_from_message = None
-                method_from_message = None
+            elif "Upload hash data not found" in error_message or "not found" in error_message.lower() or "Contacts and calls data not found" in error_message:
+                method_from_msg = method
+                tool_from_msg = detected_tool if detected_tool and detected_tool != "Unknown" else None
                 
                 if " with " in error_message and " method" in error_message:
                     try:
                         method_part = error_message.split(" with ")[1].split(" method")[0].strip()
                         if method_part:
-                            method_from_message = method_part
+                            method_from_msg = method_part
                     except:
                         pass
                 
@@ -965,35 +1011,38 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     try:
                         tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
                         if tool_part and tool_part != "Unknown":
-                            tool_from_message = tool_part
+                            tool_from_msg = tool_part
                     except:
                         pass
                 
-                tool_for_size = tool_from_message if tool_from_message else (detected_tool if detected_tool and detected_tool != "Unknown" else None)
-                method_for_size = method_from_message if method_from_message else method
+                if not tool_from_msg or tool_from_msg == "Unknown":
+                    try:
+                        svc_resp_check, code_check = upload_service.get_progress(upload_id)
+                        if code_check == 200:
+                            svc_data_check = svc_resp_check.get("data", {})
+                            tool_from_msg = svc_data_check.get("detected_tool")
+                            if tool_from_msg and tool_from_msg != "Unknown":
+                                detected_tool = tool_from_msg
+                    except:
+                        pass
                 
-                if not method_for_size and "Hashfile Analytics" in error_message:
-                    method_for_size = "Hashfile Analytics"
+                final_method = method_from_msg if method_from_msg else (method if method else "Hashfile Analytics")
+                final_tool = tool_from_msg if tool_from_msg and tool_from_msg != "Unknown" else (detected_tool if detected_tool and detected_tool != "Unknown" else "Unknown")
                 
-                if tool_for_size and method_for_size == "Hashfile Analytics":
-                    size_value = f"File upload failed. Please upload this file using Tools {tool_for_size} with method {method_for_size}"
-                elif tool_for_size and method_for_size:
-                    size_value = f"File upload failed. Please upload this file using Tools {tool_for_size} with method {method_for_size}"
-                elif tool_for_size:
-                    size_value = f"File upload failed. Please upload this file using Tools {tool_for_size}"
+                if final_tool and final_tool != "Unknown":
+                    size_value = f"File upload failed. Please upload this file using Tools {final_tool} with method {final_method}"
                 else:
                     size_value = error_message
             elif detected_tool and detected_tool != "Unknown":
-                if method == "Hashfile Analytics":
-                    size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
-                else:
-                    size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                method_for_check = method if method else progress.get("method") or "Hashfile Analytics"
+                size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method_for_check}"
             else:
                 size_from_progress = progress.get("size", "Upload Failed! Please try again")
-                if "Please upload this file using Tools" in size_from_progress and method == "Hashfile Analytics" and "with method" not in size_from_progress:
+                method_for_size = method if method else progress.get("method")
+                if "Please upload this file using Tools" in size_from_progress and method_for_size == "Hashfile Analytics" and "with method" not in size_from_progress:
                     tool_match = size_from_progress.split("Tools ")[1].split()[0] if "Tools " in size_from_progress else None
                     if tool_match:
-                        size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method}"
+                        size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method_for_size}"
                     else:
                         size_value = size_from_progress
                 else:
@@ -1007,7 +1056,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 "size": size_value,
                 "percentage": progress.get("percentage", "Error"),
                 "upload_status": "Failed",
-                "data": [],
+                "data": None,
             }
 
         else:
@@ -1016,13 +1065,44 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 "message": f"Unknown upload status: {status}",
                 "upload_id": upload_id,
                 "upload_status": "Failed",
-                "data": [],
+                "data": None,
             }
 
     except Exception as e:
+        detected_tool = None
+        method = None
+        
+        try:
+            prog = prog_dict.get(upload_id, {})
+            detected_tool = prog.get("detected_tool")
+            method = prog.get("method")
+            
+            if not method and prog.get("_ctx"):
+                method = prog.get("_ctx", {}).get("method")
+            
+            if not detected_tool or not method:
+                try:
+                    svc_resp, code = upload_service.get_progress(upload_id)
+                    if code == 200:
+                        svc_data = svc_resp.get("data", {})
+                        if not detected_tool:
+                            detected_tool = svc_data.get("detected_tool")
+                        if not method:
+                            method = svc_data.get("method")
+                except:
+                    pass
+        except:
+            pass
+        
+        if detected_tool and detected_tool != "Unknown":
+            final_method = method if method else "Hashfile Analytics"
+            error_message = f"File upload failed. Please upload this file using Tools {detected_tool} with method {final_method}"
+        else:
+            error_message = "File upload failed. Please upload this file using Tools"
+        
         return JSONResponse(
-            {"status": "Failed", "message": f"Internal server error: {str(e)}", "upload_id": upload_id},
-            status_code=500,
+            {"status": "Failed", "message": error_message, "upload_id": upload_id},
+            status_code=200,
         )
     
 @router.get("/analytics/get-files")

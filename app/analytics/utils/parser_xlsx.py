@@ -36,22 +36,6 @@ def cell_to_value(text: Optional[str]):
         return clean if clean else None
     return sval
 
-def parse_sheet(xlsx_path: Path, sheet_keyword: str) -> Optional[List[dict]]:
-    xls = pd.ExcelFile(xlsx_path)
-    target = next((s for s in xls.sheet_names if isinstance(s, str) and sheet_keyword.lower() in str(s).lower()), None)
-    if not target:
-        return None
-    df = pd.read_excel(xlsx_path, sheet_name=target, dtype=str, engine='openpyxl')
-    df = sanitize_headers(df)
-
-    records: List[dict] = []
-    for i, row in df.iterrows():
-        rec = {"index": int(i) + 1}
-        for col in df.columns:
-            rec[col] = cell_to_value(row.get(col))
-        records.append(rec)
-    return records
-
 def _to_str(value):
     if value is None:
         return None
@@ -65,48 +49,3 @@ def normalize_str(val: Optional[str]) -> Optional[str]:
     s = str(val).strip()
     s = re.sub(r"\s+", " ", s)
     return s
-
-def save_device(
-    device_data: Dict[str, Any],
-    contacts: List[dict],
-    messages: List[dict],
-    calls: List[dict],
-) -> int:
-    db: Session = SessionLocal()
-    try:
-        device = Device(
-            owner_name=device_data.get("owner_name"),
-            phone_number=device_data.get("phone_number"),
-        )
-        db.add(device)
-        db.commit()
-        db.refresh(device)
-
-        for c in contacts:
-            db.add(Contact(
-                device_id=device.id,
-                display_name=_to_str(c.get("Contact")),
-                phone_number=_to_str(c.get("Phones & Emails")),
-                type=_to_str(c.get("Type")),
-                last_time_contacted=None
-            ))
-
-        for c in calls:
-            db.add(Call(
-                device_id=device.id,
-                direction=_to_str(c.get("Direction")),
-                source=_to_str(c.get("Source")),
-                type=_to_str(c.get("Type")),
-                timestamp=normalize_str(_to_str(c.get("Time stamp (UTC 0)"))),
-                duration=_to_str(c.get("Duration")),
-                caller=_to_str(c.get("From")),
-                receiver=_to_str(c.get("To")),
-                details=_to_str(c.get("Details")),
-                thread_id=normalize_str(_to_str(c.get("Thread id"))),
-            ))
-
-        db.commit()
-        return int(device.id)
-
-    finally:
-        db.close()

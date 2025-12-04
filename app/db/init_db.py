@@ -11,11 +11,3 @@ from app.auth.models import *
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-
-
-def create_sample_data():
-    db = SessionLocal()
-    try:
-        pass
-    finally:
-        db.close()
