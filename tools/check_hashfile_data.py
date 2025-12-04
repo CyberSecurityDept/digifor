@@ -31,7 +31,7 @@ def check_hashfile_data(analytic_id: int = 1):
         ).all()
         
         device_ids = list({d for link in device_links for d in link.device_ids})
-        print(f"\n📱 Device IDs from AnalyticDevice: {device_ids}")
+        print(f"\nDevice IDs from AnalyticDevice: {device_ids}")
         
         if not device_ids:
             print("No devices linked to this analytic!")

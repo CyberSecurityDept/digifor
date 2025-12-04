@@ -18,7 +18,7 @@ class ContactParser:
         seen_numbers = set()
 
         try:
-            print("📘 Reading Axiom Excel file...")
+            print("Reading Axiom Excel file...")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             print(f"LIST SHEET NAME: {xls.sheet_names}")
             contacts_sheet = None
@@ -172,7 +172,7 @@ class ContactParser:
         seen_numbers = set()
 
         try:
-            print("📘 Reading Cellebrite Excel file...")
+            print("Reading Cellebrite Excel file...")
             xls = pd.ExcelFile(file_path, engine='openpyxl')
             print(f"LIST SHEET NAME: {xls.sheet_names}")
 
@@ -214,7 +214,7 @@ class ContactParser:
                                 candidate = match.group(1)
                                 if 7 <= len(candidate) <= 15:
                                     phone_number = candidate
-                                    print(f"📞 Found WhatsApp number: {phone_number}")
+                                    print(f"Found WhatsApp number: {phone_number}")
                                     break
                                 else:
                                     print(f"Skipped invalid WhatsApp number (length {len(candidate)}): {candidate}")
@@ -224,7 +224,7 @@ class ContactParser:
                             digits = re.sub(r'[^\d+]', '', content)
                             if re.search(r'\d{7,}', digits) and 7 <= len(digits) <= 15:
                                 phone_number = digits
-                                print(f"📱 Found mobile number: {phone_number}")
+                                print(f"Found mobile number: {phone_number}")
                                 break
                             else:
                                 print(f"Skipped Phone-Mobile invalid or non-numeric: {content}")

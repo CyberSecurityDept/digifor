@@ -915,7 +915,7 @@ Content-Type: application/json
 
 ---
 
-## 📱 Device Management
+## Device Management
 
 ### Base Path
 `/api/v1/analytics`

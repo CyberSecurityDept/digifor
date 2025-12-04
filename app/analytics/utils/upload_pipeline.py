@@ -1203,7 +1203,6 @@ class UploadService:
                                     print(f"[ERROR HANDLING] ✗ Could not re-detect hashfile tool (result: {hashfile_tool_check})")
                         except Exception as e:
                             print(f"[ERROR HANDLING] Exception during hashfile re-detection: {e}")
-                            import traceback
                             traceback.print_exc()
                     
                     detected_method_from_error = None
@@ -1330,7 +1329,6 @@ class UploadService:
                                         final_error_msg = error_msg
                         except Exception as e:
                             print(f"[ERROR HANDLING] Exception during final hashfile re-detection: {e}")
-                            import traceback
                             traceback.print_exc()
                             if "Upload hash data not found" in error_msg or "hash data not found" in error_msg.lower():
                                 final_error_msg = f"Upload hash data not found in file with {final_method} method and {detected_tool} tools."
