@@ -911,16 +911,13 @@ class UploadService:
                     else:
                         parsing_result["chat_messages_count"] = 0
                         
-                        # First check if file is actually a hashfile
                         hashfile_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
                         if hashfile_tool and hashfile_tool != "Unknown":
-                            # File is actually a hashfile, redirect to Hashfile Analytics
                             detected_tool = hashfile_tool
                             detected_method = "Hashfile Analytics"
                             parsing_result["detected_tool"] = detected_tool
                             print(f"[DETECTION] File is actually a hashfile ({hashfile_tool}), redirecting to Hashfile Analytics")
                         else:
-                            # Try to detect tool from sheets for Deep Communication Analytics
                             detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                             detected_method = method
                             parsing_result["detected_tool"] = detected_tool
@@ -1051,24 +1048,64 @@ class UploadService:
                             "amount_of_data": progress_info.get("amount_of_data", 0)
                         })
                     
-                    hashfiles_result = hashfile_parser_instance.parse_hashfile(
-                        original_path_abs, 
-                        file_id, 
-                        tools, 
-                        original_file_path,
-                        upload_id=upload_id,
-                        progress_callback=update_hashfile_progress
-                    )
-                    
-                    if hashfiles_result:
-                        if isinstance(hashfiles_result, int):
-                            parsing_result["hashfiles_count"] = hashfiles_result
+                    try:
+                        hashfiles_result = hashfile_parser_instance.parse_hashfile(
+                            original_path_abs, 
+                            file_id, 
+                            tools, 
+                            original_file_path,
+                            upload_id=upload_id,
+                            progress_callback=update_hashfile_progress
+                        )
+                        
+                        if hashfiles_result:
+                            if isinstance(hashfiles_result, int):
+                                parsing_result["hashfiles_count"] = hashfiles_result
+                            else:
+                                parsing_result["hashfiles_count"] = len(hashfiles_result)
                         else:
-                            parsing_result["hashfiles_count"] = len(hashfiles_result)
-                    else:
-                        parsing_result["hashfiles_count"] = 0
+                            parsing_result["hashfiles_count"] = 0
+                    except ValueError as ve:
+                        error_str = str(ve)
+                        if "Upload hash data not found" in error_str or "hash data not found" in error_str.lower():
+                            print(f"[HASHFILE PARSING] ValueError caught: {error_str}")
+                            parsing_result["hashfiles_count"] = 0
+                            
+                            detected_tool_for_error = detected_tool_from_file
+                            
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                try:
+                                    if os.path.exists(original_path_abs):
+                                        detected_tool_for_error = self._detect_hashfile_tool_from_structure(original_path_abs)
+                                        print(f"[TOOL DETECTION] Detected tool from file structure (ValueError): {detected_tool_for_error}")
+                                except Exception as e:
+                                    print(f"[TOOL DETECTION] Error detecting tool from structure: {e}")
+                                    pass
+                            
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                try:
+                                    if os.path.exists(original_path_abs):
+                                        detected_tool_for_error = self._detect_tool_from_sheets(original_path_abs, method)
+                                        if detected_tool_for_error and detected_tool_for_error != "Unknown":
+                                            print(f"[TOOL DETECTION] Detected tool from all sheets (ValueError): {detected_tool_for_error}")
+                                except Exception as e:
+                                    print(f"[TOOL DETECTION] Error detecting tool from all sheets: {e}")
+                                    pass
+                            
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                print(f"[TOOL DETECTION] WARNING: Could not detect tool from file structure (ValueError). Falling back to user selection '{tools}' (this may be incorrect).")
+                                detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                            
+                            print(f"[TOOL DETECTION] Using tool '{detected_tool_for_error}' for error message (ValueError).")
+                            if detected_tool_for_error != tools:
+                                print(f"[TOOL DETECTION] Detected tool '{detected_tool_for_error}' differs from user selection '{tools}'. Using detected tool.")
+                            
+                            parsing_result["hashfiles_error"] = f"Upload hash data not found in file with {method or 'Hashfile Analytics'} method and {detected_tool_for_error} tools."
+                            parsing_result["detected_tool"] = detected_tool_for_error
+                        else:
+                            raise
                     
-                    if parsing_result["hashfiles_count"] == 0:
+                    if parsing_result.get("hashfiles_count", 0) == 0:
                         detected_tool_for_error = detected_tool_from_file
                         
                         if not detected_tool_for_error or detected_tool_for_error == "Unknown":
