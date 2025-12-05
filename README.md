@@ -196,25 +196,6 @@ alembic revision --autogenerate -m "description_of_changes"
 alembic upgrade head
 ```
 
-**Migration Best Practices:**
-1. Always review auto-generated migrations before applying
-2. Test migrations on a development database first
-3. Create backups before running migrations in production
-4. Keep migration files in version control
-5. Document breaking changes in migration comments
-
-## 🔴 Redis Server
-
-### Why Redis?
-
-Redis is used as a message broker for Celery task queue and for caching purposes in this platform:
-
-- **Task Queue**: Celery uses Redis as a message broker to handle asynchronous tasks
-- **Caching**: Fast in-memory data storage for frequently accessed data
-- **Performance**: Sub-millisecond latency for data operations
-- **Persistence**: Optional persistence to disk for data durability
-- **Scalability**: Supports master-slave replication and clustering
-
 ### Redis Installation (Ubuntu/Debian)
 
 #### Install Redis Server
@@ -352,7 +333,7 @@ sudo chmod 755 /var/run/redis/
 
 ### Installation Steps
 
-#### 🍎 macOS
+#### macOS
 
 ```bash
 # 1. Install dependencies (if not installed)
