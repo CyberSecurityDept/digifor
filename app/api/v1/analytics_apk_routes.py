@@ -373,7 +373,8 @@ def store_analytic_file(
                     "id": analytic_file.id,
                     "analytic_id": analytic_file.analytic_id,
                     "file_id": analytic_file.file_id,
-                    "status": analytic_file.status
+                    "status": analytic_file.status,
+                    "file_size": format_file_size(getattr(file_obj, "total_size", 0))
                 }},
                 status_code=200,
             )
@@ -395,7 +396,8 @@ def store_analytic_file(
                     "id": analytic_file.id,
                     "analytic_id": analytic_file.analytic_id,
                     "file_id": analytic_file.file_id,
-                    "status": analytic_file.status
+                    "status": analytic_file.status,
+                    "file_size": format_file_size(getattr(file_obj, "total_size", 0))
                 }
             },
             status_code=201,
