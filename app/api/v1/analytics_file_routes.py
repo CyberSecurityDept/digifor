@@ -858,6 +858,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
             detected_tool = progress.get("detected_tool", None)
             method = progress.get("method") or None
             detected_method = progress.get("detected_method", None)
+            size_value = None  # Initialize size_value
             
             try:
                 svc_resp, code = upload_service.get_progress(upload_id)
@@ -878,7 +879,13 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
             except:
                 pass
             
-            if "Upload hash data not found" in error_message:
+            is_no_data_error_check = (
+                "Contact Correlation data not found in file. The file format is correct" in error_message or
+                "Social Media Correlation data not found in file. The file format is correct" in error_message or
+                "Deep Communication Analytics data not found in file. The file format is correct" in error_message
+            )
+            
+            if "Upload hash data not found" in error_message and not is_no_data_error_check:
                 if not detected_method:
                     try:
                         svc_resp_check, code_check = upload_service.get_progress(upload_id)
@@ -903,7 +910,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     except:
                         pass
                 
-                # Try to extract from error_message if it contains detected tool
                 if (not detected_tool or detected_tool == "Unknown") and " and " in error_message and " tools." in error_message:
                     try:
                         tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
@@ -913,7 +919,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     except:
                         pass
                 
-                # Only use user-selected tool as absolute last resort
                 if not detected_tool or detected_tool == "Unknown":
                     print(f"[ERROR HANDLING] WARNING: Could not get detected_tool. Using user selection as last resort.")
                     if progress.get("tools"):
@@ -1057,7 +1062,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                             size_value = f"File upload failed. Please upload this file using Tools {final_tool}"
                     else:
                         size_value = error_message
-                    size_value = error_message
             elif detected_tool and detected_tool != "Unknown":
                 method_for_check = method if method else progress.get("method") or detected_method
                 if method_for_check == "Hashfile Analytics":
@@ -1078,6 +1082,10 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                         size_value = size_from_progress
                 else:
                     size_value = size_from_progress
+            
+            # Ensure size_value is set (fallback to error_message if still None)
+            if size_value is None:
+                size_value = error_message
             
             return {
                 "status": "Failed",

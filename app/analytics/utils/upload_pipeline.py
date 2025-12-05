@@ -1634,7 +1634,6 @@ class UploadService:
                     print(f"[ERROR] Detected tool from parsing_result: {detected_tool}")
                     print(f"[ERROR] Method from user selection: {method}")
                     
-                    # Re-detect hashfile if method is not Hashfile Analytics and parsing failed
                     if method != "Hashfile Analytics" and ("Upload hash data not found" in error_msg or "not found" in error_msg.lower()):
                         try:
                             if os.path.exists(original_path_abs):
@@ -1778,7 +1777,7 @@ class UploadService:
                 
                 if is_no_data_error:
                     print(f"[ERROR HANDLING] Tools and method are correct, but no data found in file")
-                    final_error_msg = error_msg  # Keep the original message about no data
+                    final_error_msg = error_msg
                     final_method = method or detected_method_from_error or "Hashfile Analytics"
                     detected_tool = self._normalize_tool_name(tools) or tools or detected_tool_from_error or "Unknown"
                 elif detected_method_from_error and detected_tool_from_error and detected_tool_from_error != "Unknown":
