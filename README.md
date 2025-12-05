@@ -449,7 +449,7 @@ docker-compose up --build -d
 # This will:
 # - Build Docker images (with layer caching for faster rebuilds)
 # - Run database migrations automatically (via Dockerfile CMD)
-# - Start application service on http://172.15.2.105
+# - Start application service on http://127.0.0.1
 # - Start seed service to initialize admin user
 # - All services will auto-restart on failure or system reboot (restart: always)
 ```
@@ -656,9 +656,9 @@ docker-compose up -d
 **Accessing the Application:**
 
 Once services are running:
-- **API**: `http://172.15.2.105`
-- **API Documentation**: `http://172.15.2.105/docs`
-- **ReDoc**: `http://172.15.2.105/redoc`
+- **API**: `http://127.0.0.1`
+- **API Documentation**: `http://127.0.0.1/docs`
+- **ReDoc**: `http://127.0.0.1/redoc`
 
 **Note:** All services are configured with `restart: always`, so they will automatically restart on failure or after system reboot.
 
@@ -764,7 +764,7 @@ sudo journalctl -u redis-server --no-pager -n 30
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-API akan tersedia di `http://172.15.2.105`
+API akan tersedia di `http://127.0.0.1`
 
 ## 🚀 Setup Awal dan Menjalankan Service (Linux)
 
@@ -802,9 +802,9 @@ Setelah setup awal selesai:
 
 ```bash
 sudo systemctl daemon-reload        # reload systemd
-sudo systemctl enable digifor-v2    # auto-start saat boot (opsional)
-sudo systemctl start digifor-v2
-sudo systemctl status digifor-v2
+sudo systemctl enable digifor    # auto-start saat boot (opsional)
+sudo systemctl start digifor
+sudo systemctl status digifor
 ```
 
 Untuk informasi lebih detail tentang systemd service, lihat dokumentasi di [`docs/SYSTEMD_SERVICE.md`](docs/SYSTEMD_SERVICE.md).
@@ -813,9 +813,9 @@ Untuk informasi lebih detail tentang systemd service, lihat dokumentasi di [`doc
 
 Once the server is running, you can access:
 
-- **Interactive API Docs**: `http://172.15.2.105/docs`
-- **ReDoc Documentation**: `http://172.15.2.105/redoc`
-- **OpenAPI Schema**: `http://172.15.2.105/openapi.json`
+- **Interactive API Docs**: `http://127.0.0.1/docs`
+- **ReDoc Documentation**: `http://127.0.0.1/redoc`
+- **OpenAPI Schema**: `http://127.0.0.1/openapi.json`
 
 ## 📖 Documentation Files
 
