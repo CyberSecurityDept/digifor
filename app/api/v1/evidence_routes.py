@@ -19,8 +19,18 @@ from app.evidence_management.custody_service import CustodyService
 from app.case_management.models import CaseLog, Case, Agency
 from app.case_management.pdf_export import generate_evidence_detail_pdf
 from app.core.config import settings
-import traceback, os, hashlib, re
+import os, hashlib, re, logging
+import logging
+
+logger = logging.getLogger(__name__)
 from app.suspect_management.models import Suspect
+from app.utils.security import (
+    sanitize_input, 
+    validate_sql_injection_patterns, 
+    validate_and_sanitize_input,
+    sanitize_list_input,
+    validate_file_name
+)
 WIB = timezone(timedelta(hours=7))
 
 def get_wib_now():
@@ -63,14 +73,21 @@ async def get_evidence_list(
         query = db.query(Evidence).options(joinedload(Evidence.case))
 
         if search:
-            search_pattern = f"%{search.strip()}%"
-            query = query.filter(
-                or_(
-                    Evidence.evidence_number.ilike(search_pattern),
-                    Evidence.title.ilike(search_pattern),
-                    Evidence.description.ilike(search_pattern)
+            if not validate_sql_injection_patterns(search):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
                 )
-            )
+            search = sanitize_input(search, max_length=255)
+            if search:
+                search_pattern = f"%{search}%"
+                query = query.filter(
+                    or_(
+                        Evidence.evidence_number.ilike(search_pattern),
+                        Evidence.title.ilike(search_pattern),
+                        Evidence.description.ilike(search_pattern)
+                    )
+                )
         
         if sort_by == "created_at":
             if sort_order and sort_order.lower() == "asc":
@@ -134,10 +151,10 @@ async def get_evidence_list(
     }
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in get_evidence_list: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while retrieving evidence list. Please try again later."
         )
 
 @router.get("/get-evidence-summary")
@@ -164,10 +181,10 @@ async def get_evidence_summary(
             }
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in get_evidence_list: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while retrieving evidence list. Please try again later."
         )
 
 @router.post("/create-evidence")
@@ -199,11 +216,19 @@ async def create_evidence(
                     status_code=400,
                     detail="person_name is required when is_unknown_person is false"
                 )
+            if not validate_sql_injection_patterns(person_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+                )
+            person_name = sanitize_input(person_name)
+            
             if not suspect_status or not suspect_status.strip():
                 raise HTTPException(
                     status_code=400,
                     detail="suspect_status is required when is_unknown_person is false"
                 )
+            suspect_status = sanitize_input(suspect_status, max_length=50)
         
         if evidence_number is not None:
             evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
@@ -233,6 +258,12 @@ async def create_evidence(
         file_extension = None
         
         if evidence_file:
+            if not validate_file_name(evidence_file.filename):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid file name. File name contains dangerous characters."
+                )
+            
             allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
             file_extension = ''
             if evidence_file.filename and '.' in evidence_file.filename:
@@ -260,7 +291,40 @@ async def create_evidence(
             file_hash = hashlib.sha256(file_content).hexdigest()
             file_type = evidence_file.content_type or 'application/octet-stream'
         
-        source_value = source.strip() if source and isinstance(source, str) and source.strip() else None
+        # Validate and sanitize source
+        if source:
+            if not validate_sql_injection_patterns(source):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in source. Please remove any SQL injection attempts or malicious code."
+                )
+            source_value = sanitize_input(source, max_length=100)
+        else:
+            source_value = None
+        
+        if title:
+            if not validate_sql_injection_patterns(title):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in title. Please remove any SQL injection attempts or malicious code."
+                )
+            title = sanitize_input(title)
+        
+        if evidence_summary:
+            if not validate_sql_injection_patterns(evidence_summary):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_summary = sanitize_input(evidence_summary)
+        
+        if investigator:
+            if not validate_sql_injection_patterns(investigator):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in investigator. Please remove any SQL injection attempts or malicious code."
+                )
+            investigator = sanitize_input(investigator, max_length=100)
         
         evidence_dict = {
             "evidence_number": evidence_number,
@@ -348,7 +412,7 @@ async def create_evidence(
                     db.add(case_log)
                     db.commit()
                 except Exception as e:
-                    print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
+                    logger.warning(f"Could not create case log for auto-created suspect: {str(e)}")
         elif person_name and person_name.strip():
             person_name_clean = person_name.strip()
             existing_suspect = db.query(Suspect).filter(
@@ -389,7 +453,7 @@ async def create_evidence(
                     db.add(case_log)
                     db.commit()
                 except Exception as e:
-                    print(f"Warning: Could not create case log for auto-created suspect: {str(e)}")
+                    logger.warning(f"Could not create case log for auto-created suspect: {str(e)}")
         
         evidence_dict["suspect_id"] = suspect_id_value
         
@@ -430,7 +494,7 @@ async def create_evidence(
             db.add(case_log)
             db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log for evidence: {str(e)}")
+                    logger.warning(f"Could not create case log for evidence: {str(e)}")
         
         case_title = case.title if case else None
         agency_name = None
@@ -481,10 +545,10 @@ async def create_evidence(
         raise
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in create_evidence: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while creating evidence. Please try again later."
         )
 
 @router.get("/{evidence_id}/detail")
@@ -724,10 +788,10 @@ async def export_evidence_detail_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error exporting evidence detail PDF: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to export evidence detail PDF: {str(e)}"
+            detail="Failed to export evidence detail PDF. Please try again later."
         )
 
 def _handle_suspect_id_update(evidence, suspect_id, current_case_id, person_name, suspect_status, db):
@@ -743,10 +807,22 @@ def _handle_suspect_id_update(evidence, suspect_id, current_case_id, person_name
         )
     
     if person_name and person_name.strip():
-        setattr(selected_suspect, 'name', person_name.strip())
-        setattr(selected_suspect, 'is_unknown', False)
+        if not validate_sql_injection_patterns(person_name):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+            )
+        person_name_clean = sanitize_input(person_name.strip())
+        if person_name_clean:
+            setattr(selected_suspect, 'name', person_name_clean)
+            setattr(selected_suspect, 'is_unknown', False)
     
     if suspect_status is not None:
+        if not validate_sql_injection_patterns(suspect_status):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in suspect_status. Please remove any SQL injection attempts or malicious code."
+            )
         normalized_status = normalize_suspect_status(suspect_status)
         if normalized_status is None:
             raise HTTPException(
@@ -799,7 +875,26 @@ def _handle_known_person_update(evidence, current_case_id, person_name, suspect_
             detail="person_name is required when is_unknown_person is false"
         )
     
-    person_name_clean = person_name.strip()
+    if not validate_sql_injection_patterns(person_name):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+        )
+    
+    person_name_clean = sanitize_input(person_name.strip())
+    if not person_name_clean:
+        raise HTTPException(
+            status_code=400,
+            detail="person_name cannot be empty after sanitization"
+        )
+    
+    if suspect_status is not None:
+        if not validate_sql_injection_patterns(suspect_status):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in suspect_status. Please remove any SQL injection attempts or malicious code."
+            )
+    
     current_suspect_id = getattr(evidence, 'suspect_id', None)
     
     if current_suspect_id:
@@ -852,7 +947,26 @@ def _handle_known_person_update(evidence, current_case_id, person_name, suspect_
             setattr(evidence, 'suspect_id', new_suspect.id)
 
 def _handle_person_name_update(evidence, current_case_id, person_name, suspect_status, current_user, db):
-    person_name_clean = person_name.strip()
+    if not person_name or not person_name.strip():
+        return
+    
+    if not validate_sql_injection_patterns(person_name):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+        )
+    
+    person_name_clean = sanitize_input(person_name.strip())
+    if not person_name_clean:
+        return
+    
+    if suspect_status is not None:
+        if not validate_sql_injection_patterns(suspect_status):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in suspect_status. Please remove any SQL injection attempts or malicious code."
+            )
+    
     existing_suspect = db.query(Suspect).filter(
         Suspect.case_id == current_case_id,
         Suspect.name == person_name_clean
@@ -919,6 +1033,13 @@ async def update_evidence(
             if not evidence_number:
                 raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
             
+            if not validate_sql_injection_patterns(evidence_number):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_number = sanitize_input(evidence_number, max_length=50)
+            
             current_evidence_number = getattr(evidence, 'evidence_number', None)
             
             if current_evidence_number != evidence_number:
@@ -936,20 +1057,50 @@ async def update_evidence(
                     setattr(evidence, 'evidence_number', evidence_number)
         
         if type is not None:
-            type_name = type.strip()
+            if not validate_sql_injection_patterns(type):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in type. Please remove any SQL injection attempts or malicious code."
+                )
+            type_name = sanitize_input(type.strip(), max_length=100)
             if type_name:
                 setattr(evidence, 'evidence_type', type_name)
         
         if source is not None:
+            if not validate_sql_injection_patterns(source):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in source. Please remove any SQL injection attempts or malicious code."
+                )
+            source = sanitize_input(source, max_length=100)
             setattr(evidence, 'source', source)
         
         if evidence_summary is not None:
+            if not validate_sql_injection_patterns(evidence_summary):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_summary = sanitize_input(evidence_summary)
             setattr(evidence, 'description', evidence_summary)
         
         if investigator is not None:
+            if not validate_sql_injection_patterns(investigator):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in investigator. Please remove any SQL injection attempts or malicious code."
+                )
+            investigator = sanitize_input(investigator, max_length=100)
             setattr(evidence, 'investigator', investigator)
         
         if evidence_file:
+            # Validate file name
+            if not validate_file_name(evidence_file.filename):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid file name. File name contains dangerous characters."
+                )
+            
             allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
             file_extension = ''
             if evidence_file.filename and '.' in evidence_file.filename:
@@ -1081,16 +1232,17 @@ async def update_evidence(
                 status_code=400,
                 detail="Duplicate entry. This value already exists in the database"
             )
+        logger.error(f"Database error in update_evidence: {error_str}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Database error: {error_str}"
+            detail="A database error occurred while updating evidence. Please try again later."
         )
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in update_evidence: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while updating evidence. Please try again later."
         )
 
 @router.post("/save-notes")
@@ -1152,10 +1304,11 @@ async def save_evidence_notes(
                 status_code=404
             )
         else:
+            logger.error(f"Error saving evidence notes: {str(e)}", exc_info=True)
             return JSONResponse(
                 content={
                     "status": 500,
-                    "message": f"Failed to save evidence notes: {str(e)}",
+                    "message": "Failed to save evidence notes. Please try again later.",
                     "data": None
                 },
                 status_code=500
@@ -1188,7 +1341,40 @@ async def edit_evidence_notes(
                 status_code=400
             )
         
-        setattr(evidence, 'notes', request.notes)
+        sanitized_notes = {}
+        for key, value in request.notes.items():
+            if isinstance(value, str):
+                if not validate_sql_injection_patterns(value):
+                    return JSONResponse(
+                        content={
+                            "status": 400,
+                            "message": f"Invalid characters detected in notes.{key}. Please remove any SQL injection attempts or malicious code.",
+                            "data": None
+                        },
+                        status_code=400
+                    )
+                sanitized_notes[key] = sanitize_input(value)
+            elif isinstance(value, dict):
+                sanitized_nested = {}
+                for nested_key, nested_value in value.items():
+                    if isinstance(nested_value, str):
+                        if not validate_sql_injection_patterns(nested_value):
+                            return JSONResponse(
+                                content={
+                                    "status": 400,
+                                    "message": f"Invalid characters detected in notes.{key}.{nested_key}. Please remove any SQL injection attempts or malicious code.",
+                                    "data": None
+                                },
+                                status_code=400
+                            )
+                        sanitized_nested[nested_key] = sanitize_input(nested_value)
+                    else:
+                        sanitized_nested[nested_key] = nested_value
+                sanitized_notes[key] = sanitized_nested
+            else:
+                sanitized_notes[key] = value
+        
+        setattr(evidence, 'notes', sanitized_notes)
         db.commit()
         db.refresh(evidence)
         updated_at_value = getattr(evidence, 'updated_at', None)
@@ -1220,14 +1406,15 @@ async def edit_evidence_notes(
                 status_code=404
             )
         else:
+            logger.error(f"Error editing evidence notes: {str(e)}", exc_info=True)
             return JSONResponse(
                 content={
                     "status": 500,
-                    "message": f"Failed to edit evidence notes: {str(e)}",
+                    "message": "Failed to edit evidence notes. Please try again later.",
                     "data": None
                 },
                 status_code=500
-        )
+            )
 
 BASE_UPLOAD_DIR = "data/custody"
 def save_uploaded_file(file, custody_type: str):
@@ -1283,7 +1470,7 @@ async def get_custody_logs(
         return {
             "status": 200,
             "message": "Success",
-            "data": []
+            "data": None
         }
 
     return {
@@ -1345,6 +1532,7 @@ def human_readable_size(size_bytes: int):
         i += 1
     return f"{size_bytes:.2f} {size_name[i]}"
 
+
 @router.post("/{evidence_id}/custody/acquisition")
 async def create_acquisition_report(
     evidence_id: int,
@@ -1364,13 +1552,50 @@ async def create_acquisition_report(
     if not evidence:
         raise HTTPException(status_code=404, detail="Evidence not found")
 
+    all_inputs = {
+        "investigator": investigator,
+        "location": location,
+        "evidence_source": evidence_source,
+        "evidence_type": evidence_type,
+        "evidence_detail": evidence_detail,
+        "notes": notes,
+    }
+    
+    for field_name, field_value in all_inputs.items():
+        if field_value and not validate_sql_injection_patterns(field_value):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid characters detected in field '{field_name}'. Please remove any SQL injection attempts or malicious code."
+            )
+
+    investigator = sanitize_input(investigator, max_length=100)
+    location = sanitize_input(location)
+    evidence_source = sanitize_input(evidence_source, max_length=100)
+    evidence_type = sanitize_input(evidence_type, max_length=100)
+    evidence_detail = sanitize_input(evidence_detail)
+    notes = sanitize_input(notes)
+    
+    sanitized_steps = []
+    for step in steps:
+        if not validate_sql_injection_patterns(step):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in steps. Please remove any SQL injection attempts or malicious code."
+            )
+        sanitized_step = sanitize_input(step)
+        if sanitized_step:
+            sanitized_steps.append(sanitized_step)
+    
+    if not sanitized_steps:
+        raise HTTPException(status_code=400, detail="At least one step is required")
+
     photo_paths = []
     for ph in photos:
         saved_path = save_uploaded_file(ph, "acquisition")
         photo_paths.append(saved_path)
 
     details = []
-    for idx, step in enumerate(steps):
+    for idx, step in enumerate(sanitized_steps):
         details.append({
             "steps": step,
             "photo": photo_paths[idx] if idx < len(photo_paths) else None
@@ -1384,6 +1609,7 @@ async def create_acquisition_report(
 
     if not investigator:
         investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+        investigator = sanitize_input(investigator, max_length=100)
     
     report = CustodyReport(
         evidence_id=evidence_id,
@@ -1439,13 +1665,45 @@ async def create_preparation_report(
             "data": None
         }
 
+    # Validate and sanitize all inputs
+    all_inputs = {
+        "investigator": investigator,
+        "location": location,
+        "evidence_source": evidence_source,
+        "evidence_type": evidence_type,
+        "evidence_detail": evidence_detail,
+        "notes": notes,
+    }
+    
+    for field_name, field_value in all_inputs.items():
+        if field_value and not validate_sql_injection_patterns(field_value):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid characters detected in field '{field_name}'. Please remove any SQL injection attempts or malicious code."
+            )
+    
+    # Sanitize inputs according to model constraints
+    investigator = sanitize_input(investigator, max_length=100)
+    location = sanitize_input(location)
+    evidence_source = sanitize_input(evidence_source, max_length=100)
+    evidence_type = sanitize_input(evidence_type, max_length=100)
+    evidence_detail = sanitize_input(evidence_detail)
+    notes = sanitize_input(notes)
+    
+    # Validate and sanitize lists
+    sanitized_hypothesis = sanitize_list_input(hypothesis)
+    sanitized_tools = sanitize_list_input(tools)
+    
+    if not sanitized_hypothesis or not sanitized_tools:
+        raise HTTPException(status_code=400, detail="At least one hypothesis and one tool is required")
+
     details = []
-    max_items = max(len(hypothesis), len(tools))
+    max_items = max(len(sanitized_hypothesis), len(sanitized_tools))
 
     for i in range(max_items):
         details.append({
-            "hypothesis": hypothesis[i] if i < len(hypothesis) else None,
-            "tools": tools[i] if i < len(tools) else None
+            "hypothesis": sanitized_hypothesis[i] if i < len(sanitized_hypothesis) else None,
+            "tools": sanitized_tools[i] if i < len(sanitized_tools) else None
         })
     
     if not evidence_source:
@@ -1457,6 +1715,7 @@ async def create_preparation_report(
 
     if not investigator:
         investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+        investigator = sanitize_input(investigator, max_length=100)
     
     report = CustodyReport(
         evidence_id=evidence_id,
@@ -1512,6 +1771,32 @@ async def create_extraction_report(
             "data": None
         }
 
+    all_inputs = {
+        "investigator": investigator,
+        "location": location,
+        "evidence_source": evidence_source,
+        "evidence_type": evidence_type,
+        "evidence_detail": evidence_detail,
+        "notes": notes,
+    }
+    
+    for field_name, field_value in all_inputs.items():
+        if field_value and not validate_sql_injection_patterns(field_value):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid characters detected in field '{field_name}'. Please remove any SQL injection attempts or malicious code."
+            )
+    
+    investigator = sanitize_input(investigator, max_length=100)
+    location = sanitize_input(location)
+    evidence_source = sanitize_input(evidence_source, max_length=100)
+    evidence_type = sanitize_input(evidence_type, max_length=100)
+    evidence_detail = sanitize_input(evidence_detail)
+    notes = sanitize_input(notes)
+    
+    if not validate_file_name(extraction_file.filename):
+        raise HTTPException(status_code=400, detail="Invalid file name. File name contains dangerous characters.")
+
     file_path = save_uploaded_file(extraction_file, "extraction")
     file_name = file_path.split("/")[-1]
 
@@ -1536,6 +1821,7 @@ async def create_extraction_report(
 
     if not investigator:
         investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+        investigator = sanitize_input(investigator, max_length=100)
     
     report = CustodyReport(
         evidence_id=evidence_id,
@@ -1592,18 +1878,53 @@ async def create_analysis_report(
             "data": None
         }
 
+    # Validate and sanitize all inputs
+    all_inputs = {
+        "location": location,
+        "evidence_source": evidence_source,
+        "evidence_type": evidence_type,
+        "evidence_detail": evidence_detail,
+        "notes": notes,
+    }
+    
+    for field_name, field_value in all_inputs.items():
+        if field_value and not validate_sql_injection_patterns(field_value):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid characters detected in field '{field_name}'. Please remove any SQL injection attempts or malicious code."
+            )
+    
+    # Sanitize inputs according to model constraints
+    location = sanitize_input(location)
+    evidence_source = sanitize_input(evidence_source, max_length=100)
+    evidence_type = sanitize_input(evidence_type, max_length=100)
+    evidence_detail = sanitize_input(evidence_detail)
+    notes = sanitize_input(notes)
+    
+    # Validate and sanitize lists
+    sanitized_hypothesis = sanitize_list_input(hypothesis)
+    sanitized_tools = sanitize_list_input(tools)
+    sanitized_result = sanitize_list_input(result)
+    
+    if not sanitized_hypothesis or not sanitized_tools or not sanitized_result:
+        raise HTTPException(status_code=400, detail="At least one hypothesis, tool, and result is required")
+
     results = []
-    max_items = max(len(hypothesis), len(tools), len(result))
+    max_items = max(len(sanitized_hypothesis), len(sanitized_tools), len(sanitized_result))
     for i in range(max_items):
         results.append({
-            "hypothesis": hypothesis[i] if i < len(hypothesis) else None,
-            "tools": tools[i] if i < len(tools) else None,
-            "result": result[i] if i < len(result) else None
+            "hypothesis": sanitized_hypothesis[i] if i < len(sanitized_hypothesis) else None,
+            "tools": sanitized_tools[i] if i < len(sanitized_tools) else None,
+            "result": sanitized_result[i] if i < len(sanitized_result) else None
         })
 
     files_meta = []
     print("DEBUG FILES:", files)
     for f in files:
+        # Validate file name
+        if not validate_file_name(f.filename):
+            raise HTTPException(status_code=400, detail=f"Invalid file name: {f.filename}. File name contains dangerous characters.")
+        
         saved_path = save_uploaded_file(f, "analysis")
 
         f.file.seek(0, 2)
@@ -1629,6 +1950,7 @@ async def create_analysis_report(
         created_by = str(current_user.id)
     
     investigator = getattr(current_user, 'fullname', None) or getattr(current_user, 'email', None) or str(current_user.id)
+    investigator = sanitize_input(investigator, max_length=100)
     
     report = CustodyReport(
         evidence_id=evidence_id,
@@ -1689,6 +2011,17 @@ async def update_custody_notes(
             "message": "Custody report not found",
             "data": None
         }
+
+    # Validate and sanitize notes
+    if notes:
+        if not validate_sql_injection_patterns(notes):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code."
+            )
+        notes = sanitize_input(notes)
+    else:
+        notes = ""
 
     report.notes = notes
     db.commit()

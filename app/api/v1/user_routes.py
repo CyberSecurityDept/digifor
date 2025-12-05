@@ -7,6 +7,10 @@ from app.auth.models import User
 from app.api.deps import require_admin
 from app.user_management import service as user_service
 from app.user_management.schemas import UserCreate, UserUpdate
+from app.utils.security import sanitize_input, validate_sql_injection_patterns
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["User Management"])
 
@@ -25,6 +29,30 @@ def get_all_users(
     db: Session = Depends(get_db)
 ):
     try:
+        if search:
+            if not validate_sql_injection_patterns(search):
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+            search = sanitize_input(search, max_length=255)
+        
+        if tag:
+            if not validate_sql_injection_patterns(tag):
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "Invalid characters detected in tag parameter. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+            tag = sanitize_input(tag, max_length=100)
+        
         result = user_service.get_all_users(db, skip, limit, search, tag)
         users_data = []
         for user in result["users"]:
@@ -53,7 +81,7 @@ def get_all_users(
             status_code=200
         )
     except Exception as e:
-        print(f"Get all users error: {e}")
+        logger.error(f"Error in get_all_users: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,
@@ -75,6 +103,79 @@ def create_user(
     db: Session = Depends(get_db)
 ):
     try:
+        if not validate_sql_injection_patterns(user_data.fullname):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in fullname. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.fullname = sanitize_input(user_data.fullname, max_length=255)
+        
+        if not validate_sql_injection_patterns(user_data.email):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.email = sanitize_input(user_data.email.strip().lower(), max_length=255)
+        
+        if not validate_sql_injection_patterns(user_data.password):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(user_data.confirm_password):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in confirm_password. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(user_data.tag):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in tag. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.tag = sanitize_input(user_data.tag, max_length=100)
+        
+        if '@' not in user_data.email or '.' not in user_data.email.split('@')[1]:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid email format",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if len(user_data.password) < 8 or len(user_data.password) > 128:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Password must be between 8 and 128 characters long",
+                    "data": None
+                },
+                status_code=400
+            )
+        
         user = user_service.create_user(db, user_data)
         created_at_value = getattr(user, 'created_at', None)
         created_at_str = created_at_value.isoformat() if created_at_value is not None else None
@@ -99,7 +200,7 @@ def create_user(
         raise
     except Exception as e:
         db.rollback()
-        print(f"Create user error: {e}")
+        logger.error(f"Error in create_user: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,
@@ -122,6 +223,79 @@ def update_user(
     db: Session = Depends(get_db)
 ):
     try:
+        if not validate_sql_injection_patterns(user_data.fullname):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in fullname. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.fullname = sanitize_input(user_data.fullname, max_length=255)
+        
+        if not validate_sql_injection_patterns(user_data.email):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.email = sanitize_input(user_data.email.strip().lower(), max_length=255)
+        
+        if not validate_sql_injection_patterns(user_data.password):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(user_data.confirm_password):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in confirm_password. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(user_data.tag):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in tag. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        user_data.tag = sanitize_input(user_data.tag, max_length=100)
+        
+        if '@' not in user_data.email or '.' not in user_data.email.split('@')[1]:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid email format",
+                    "data": None
+                },
+                status_code=400
+            )
+        
+        if len(user_data.password) < 8 or len(user_data.password) > 128:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Password must be between 8 and 128 characters long",
+                    "data": None
+                },
+                status_code=400
+            )
+        
         user = user_service.update_user(db, user_id, user_data)
         created_at_value = getattr(user, 'created_at', None)
         created_at_str = created_at_value.isoformat() if created_at_value is not None else None
@@ -146,7 +320,7 @@ def update_user(
         raise
     except Exception as e:
         db.rollback()
-        print(f"Update user error: {e}")
+        logger.error(f"Error in update_user: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,
@@ -182,7 +356,7 @@ def delete_user(
         raise
     except Exception as e:
         db.rollback()
-        print(f"Delete user error: {e}")
+        logger.error(f"Error in delete_user: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,

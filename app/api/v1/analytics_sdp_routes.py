@@ -2,7 +2,10 @@ from fastapi import APIRouter, UploadFile, File as FastAPIFile, Query
 from fastapi.responses import JSONResponse, FileResponse  
 import os,re,json,asyncio, uuid
 from datetime import datetime
-from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair  
+from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
+import logging
+
+logger = logging.getLogger(__name__)  
 
 router = APIRouter()
 
@@ -75,7 +78,7 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
 
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Preparation error: {str(e)}"},
+            {"status": 500, "message": "File preparation error occurred. Please try again later."},
             status_code=500
         )
 
@@ -107,7 +110,8 @@ async def get_convert_progress(upload_id: str = Query(..., description="Upload I
             status_code=200
         )
     except Exception as e:
-        return JSONResponse({"status": 500, "message": f"Progress check error: {str(e)}"}, status_code=500)
+        logger.error(f"Error checking progress: {str(e)}", exc_info=True)
+        return JSONResponse({"status": 500, "message": "Progress check error occurred. Please try again later."}, status_code=500)
 
 async def run_conversion(upload_id: str):
     try:
@@ -162,7 +166,7 @@ async def run_conversion(upload_id: str):
     except Exception as e:
         CONVERT_PROGRESS[upload_id].update({
             "status": "error",
-            "message": f"Conversion failed: {str(e)}"
+            "message": "File conversion failed. Please try again later."
         })
 
 @router.get("/file-encryptor/list-sdp")
@@ -197,7 +201,7 @@ def list_sdp_files():
 
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Error reading file list: {str(e)}"},
+            {"status": 500, "message": "Error reading file list. Please try again later."},
             status_code=500
         )
 
@@ -227,4 +231,5 @@ def download_sdp(
             media_type="application/octet-stream",
         )
     except Exception as e:
-        return JSONResponse({"status": 500, "message": f"Download error: {str(e)}"}, status_code=500)
+        logger.error(f"Error downloading file: {str(e)}", exc_info=True)
+        return JSONResponse({"status": 500, "message": "Download error occurred. Please try again later."}, status_code=500)

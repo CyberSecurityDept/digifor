@@ -154,7 +154,7 @@ def export_analytics_pdf(
         elapsed_time = time.time() - export_start_time
         logger.error(f"PDF Export failed - analytic_id={analytic_id}, error={str(e)}, elapsed_time={elapsed_time:.2f}s", exc_info=True)
         return JSONResponse(
-            content={"status": 500, "message": f"Failed to generate PDF: {str(e)}", "data": None},
+            content={"status": 500, "message": "Failed to generate PDF. Please try again later.", "data": None},
             status_code=500,
         )
 
@@ -208,7 +208,7 @@ def save_analytic_summary(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": f"Failed to save summary: {str(e)}",
+                "message": "Failed to save summary. Please try again later.",
                 "data": None,
             },
             status_code=500,
@@ -265,7 +265,7 @@ def edit_analytic_summary(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": f"Failed to edit summary: {str(e)}",
+                "message": "Failed to edit summary. Please try again later.",
                 "data": None,
             },
             status_code=500,

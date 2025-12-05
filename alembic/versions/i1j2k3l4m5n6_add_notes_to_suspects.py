@@ -23,19 +23,15 @@ def upgrade():
     tables = inspector.get_table_names()
     
     if 'suspects' not in tables:
-        # Table doesn't exist yet, skip this migration
         return
     
-    # Check if column already exists
     columns = [col['name'] for col in inspector.get_columns('suspects')]
     
     if 'notes' not in columns:
-    # Add notes column to suspects table
-    op.add_column('suspects', sa.Column('notes', sa.Text(), nullable=True))
+        op.add_column('suspects', sa.Column('notes', sa.Text(), nullable=True))
 
 
 def downgrade():
-    # Check if suspects table exists
     conn = op.get_bind()
     inspector = inspect(conn)
     tables = inspector.get_table_names()
@@ -43,10 +39,8 @@ def downgrade():
     if 'suspects' not in tables:
         return
     
-    # Check if column exists before dropping
     columns = [col['name'] for col in inspector.get_columns('suspects')]
     
     if 'notes' in columns:
-    # Remove notes column from suspects table
-    op.drop_column('suspects', 'notes')
+        op.drop_column('suspects', 'notes')
 

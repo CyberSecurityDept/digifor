@@ -11,6 +11,10 @@ from collections import defaultdict
 from fastapi import Query
 from app.analytics import models
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+from app.utils.security import sanitize_input, validate_sql_injection_patterns, validate_file_name
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
@@ -30,8 +34,35 @@ async def upload_data(
         if not file.filename:
             return JSONResponse({"status": 400, "message": "File name is required"}, status_code=400)
 
+        if not validate_file_name(file.filename):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid file name. File name contains dangerous characters."},
+                status_code=400
+            )
+
         if not file.filename.lower().endswith(('.xlsx', '.xls')):
             return JSONResponse({"status": 400, "message": "Only Excel files (.xlsx, .xls) are allowed"}, status_code=400)
+
+        if not validate_sql_injection_patterns(notes):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        notes = sanitize_input(notes)
+        
+        if not validate_sql_injection_patterns(type):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in type. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        type = sanitize_input(type, max_length=100)
+        
+        if not validate_sql_injection_patterns(tools):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in tools. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        tools = sanitize_input(tools, max_length=100)
 
         save_dir = "uploads/data"
         os.makedirs(save_dir, exist_ok=True)
@@ -56,7 +87,8 @@ async def upload_data(
         })
 
     except Exception as e:
-        return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
+        logger.error(f"Error in upload_data: {str(e)}", exc_info=True)
+        return JSONResponse({"status": 500, "message": "Upload error occurred. Please try again later."}, status_code=500)
 
 @router.post("/add-device")
 async def add_device(
@@ -66,6 +98,27 @@ async def add_device(
     upload_id: str = Form(...),
 ):
     try:
+        if not validate_sql_injection_patterns(owner_name):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in owner_name. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        owner_name = sanitize_input(owner_name)
+        
+        if not validate_sql_injection_patterns(phone_number):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in phone_number. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        phone_number = sanitize_input(phone_number, max_length=50)
+        
+        if not validate_sql_injection_patterns(upload_id):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in upload_id. Please remove any SQL injection attempts or malicious code."},
+                status_code=400
+            )
+        upload_id = sanitize_input(upload_id)
+        
         resp = await upload_service.start_upload_and_process(
             file_id=file_id,
             owner_name=owner_name,
@@ -75,7 +128,7 @@ async def add_device(
         return JSONResponse(resp, status_code=resp.get("status", 200))
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Unexpected error: {str(e)}"},
+            {"status": 500, "message": "An unexpected error occurred. Please try again later."},
             status_code=500
         )
 
@@ -102,8 +155,8 @@ def get_all_analytic(db: Session = Depends(get_db)):
     except Exception as e:
         return {
             "status": 500,
-            "message": f"Gagal mengambil data: {str(e)}",
-            "data": []
+            "message": "Failed to retrieve data. Please try again later.",
+            "data": None
         }
 
 @router.post("/create-analytic")
@@ -113,7 +166,7 @@ def create_analytic(data: AnalyticCreate, db: Session = Depends(get_db)):
             return {
                 "status": 400,
                 "message": "analytic_name wajib diisi",
-                "data": []
+                "data": None
             }
 
         new_analytic = store_analytic(
@@ -140,8 +193,8 @@ def create_analytic(data: AnalyticCreate, db: Session = Depends(get_db)):
     except Exception as e:
         return {
             "status": 500,
-            "message": f"Gagal membuat analytic: {str(e)}",
-            "data": []
+            "message": "Failed to create analytic. Please try again later.",
+            "data": None
         }
 
 @router.post("/link-device-analytic")
@@ -161,7 +214,7 @@ def link_device_to_analytic(device_id: int, analytic_id: int):
 def get_analytic_devices(analytic_id: int, db: Session = Depends(get_db)):
     analytic = db.query(models.Analytic).filter(models.Analytic.id == analytic_id).first()
     if not analytic:
-        return {"status": 404, "message": "Analytic not found", "data": []}
+        return {"status": 404, "message": "Analytic not found", "data": None}
 
     devices = db.query(models.Device).filter(models.Device.analytic_id == analytic_id).all()
 
@@ -186,7 +239,7 @@ def get_device_threads_by_platform(
 ):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
-        return {"status": 404, "message": "Device not found", "data": []}
+        return {"status": 404, "message": "Device not found", "data": None}
 
     platforms = (
         db.query(models.Message.type)
@@ -197,7 +250,7 @@ def get_device_threads_by_platform(
     platforms = [p[0] or "Unknown" for p in platforms]
 
     if not platforms:
-        return {"status": 200, "message": "No messages", "data": []}
+        return {"status": 200, "message": "No messages", "data": None}
 
     platform_map = {}
 
@@ -279,7 +332,6 @@ def get_device_threads_by_platform(
         }
     }
 
-
 @router.get("/deep-communication/thread/{device_id}/{thread_id}")
 def get_thread_messages(
     device_id: int,
@@ -288,7 +340,7 @@ def get_thread_messages(
 ):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
-        return {"status": 404, "message": "Device not found", "data": []}
+        return {"status": 404, "message": "Device not found", "data": None}
 
     messages = (
         db.query(
@@ -311,7 +363,7 @@ def get_thread_messages(
         return {
             "status": 200,
             "message": "No messages in this thread",
-            "data": []
+            "data": None
         }
 
     return {

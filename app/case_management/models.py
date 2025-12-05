@@ -42,7 +42,7 @@ class Case(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     case_number = Column(String(50), unique=True, nullable=False, index=True)
-    title = Column(String(255), nullable=False)
+    title = Column(Text, nullable=False)
     description = Column(Text)
     status = Column(Enum("Open", "Closed", "Re-open", name="casestatus"), default="Open")
     main_investigator = Column(String(255), nullable=False)

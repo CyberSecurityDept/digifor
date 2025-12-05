@@ -4,7 +4,10 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from datetime import datetime, timezone
-import traceback, os, hashlib, re
+import os, hashlib, re
+import logging
+
+logger = logging.getLogger(__name__)
 from app.api.deps import get_database, get_current_user
 from app.suspect_management.service import suspect_service
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate, SuspectResponse, SuspectListResponse, SuspectNotesRequest
@@ -15,6 +18,7 @@ from app.evidence_management.models import Evidence
 from app.suspect_management.models import Suspect
 from app.case_management.pdf_export import generate_suspect_detail_pdf
 from app.core.config import settings
+from app.utils.security import sanitize_input, validate_sql_injection_patterns, validate_file_name
 
 router = APIRouter(prefix="/suspects", tags=["Suspect Management"])
 
@@ -49,6 +53,28 @@ async def get_suspects(
     db: Session = Depends(get_database)
 ):
     try:
+        if search:
+            if not validate_sql_injection_patterns(search):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
+                )
+            search = sanitize_input(search, max_length=255)
+        
+        if status:
+            sanitized_status = []
+            for s in status:
+                if isinstance(s, str):
+                    if not validate_sql_injection_patterns(s):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid characters detected in status parameter. Please remove any SQL injection attempts or malicious code."
+                        )
+                    sanitized_s = sanitize_input(s, max_length=50)
+                    if sanitized_s:
+                        sanitized_status.append(sanitized_s)
+            status = sanitized_status if sanitized_status else None
+        
         suspects, total = suspect_service.get_suspects(db, skip, limit, search, status, current_user)
         return SuspectListResponse(
             status=200,
@@ -59,10 +85,10 @@ async def get_suspects(
             size=limit
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in get_suspects: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while retrieving suspects. Please try again later."
         )
 
 @router.get("/get-suspect-summary")
@@ -95,10 +121,10 @@ async def get_suspect_summary(
         )
 
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in get_suspects: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while retrieving suspects. Please try again later."
         )
 
 @router.post("/create-suspect", response_model=SuspectResponse)
@@ -139,16 +165,35 @@ async def create_suspect(
                     status_code=400,
                     detail="person_name is required when is_unknown_person is false"
                 )
+            if not validate_sql_injection_patterns(final_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+                )
+            final_name = sanitize_input(final_name)
+            
             if not final_status or not final_status.strip():
                 raise HTTPException(
                     status_code=400,
                     detail="suspect_status is required when is_unknown_person is false"
                 )
+            if not validate_sql_injection_patterns(final_status):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in suspect_status. Please remove any SQL injection attempts or malicious code."
+                )
+            final_status = sanitize_input(final_status, max_length=50)
         
         if evidence_number is not None:
             evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
             if not evidence_number:
                 raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
+            if not validate_sql_injection_patterns(evidence_number):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_number = sanitize_input(evidence_number, max_length=50)
         if not evidence_number and evidence_file:
             date_str = datetime.now().strftime("%Y%m%d")
             evidence_count = db.query(Evidence).filter(Evidence.case_id == case_id).count()
@@ -161,6 +206,12 @@ async def create_suspect(
         file_extension = None
         
         if evidence_file:
+            if not validate_file_name(evidence_file.filename):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid file name. File name contains dangerous characters."
+                )
+            
             allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
             file_extension = ''
             if evidence_file.filename and '.' in evidence_file.filename:
@@ -258,6 +309,31 @@ async def create_suspect(
                     except Exception as e:
                         print(f"Warning: Could not create case log for evidence: {str(e)}")
 
+        # Validate and sanitize optional fields
+        if evidence_source:
+            if not validate_sql_injection_patterns(evidence_source):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_source. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_source = sanitize_input(evidence_source, max_length=100)
+        
+        if evidence_summary:
+            if not validate_sql_injection_patterns(evidence_summary):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
+                )
+            evidence_summary = sanitize_input(evidence_summary)
+        
+        if case_name:
+            if not validate_sql_injection_patterns(case_name):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in case_name. Please remove any SQL injection attempts or malicious code."
+                )
+            case_name = sanitize_input(case_name)
+        
         final_status_value = None if is_unknown_flag else final_status
         
         suspect_dict = {
@@ -312,7 +388,7 @@ async def create_suspect(
             db.add(case_log)
             db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log for suspect: {str(e)}")
+                    logger.warning(f"Could not create case log for suspect: {str(e)}")
         return JSONResponse(
             status_code=201,
             content={
@@ -325,10 +401,10 @@ async def create_suspect(
         raise
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in create_suspect: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Unexpected server error: {str(e)}"
+            detail="An unexpected error occurred while creating suspect. Please try again later."
         )
 
 @router.get("/get-suspect-detail/{suspect_id}")
@@ -466,12 +542,12 @@ async def get_suspect_detail(
             }
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error in get_suspect_detail: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
                 "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
+                "message": "An unexpected error occurred while retrieving suspect details. Please try again later."
             }
         )
 
@@ -596,10 +672,10 @@ async def export_suspect_detail_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error exporting suspect detail PDF: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to export suspect detail PDF: {str(e)}"
+            detail="Failed to export suspect detail PDF. Please try again later."
         )
 
 @router.put("/update-suspect/{suspect_id}", response_model=SuspectResponse)
@@ -726,7 +802,7 @@ async def update_suspect(
             db.add(case_log)
             db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
+                    logger.warning(f"Could not create case log: {str(e)}")
         
         created_at_str = None
         updated_at_str = None
@@ -798,17 +874,17 @@ async def update_suspect(
                 status_code=500,
                 content={
                     "status": 500,
-                    "message": f"Database error: {error_str}"
+                    "message": "A database error occurred. Please try again later."
                 }
             )
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in get_suspect_detail: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
                 "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
+                "message": "An unexpected error occurred while retrieving suspect details. Please try again later."
             }
         )
 
@@ -832,6 +908,18 @@ async def save_suspect_notes(
             )
         
         notes_trimmed = notes.strip() if notes else ""
+        
+        if notes_trimmed:
+            if not validate_sql_injection_patterns(notes_trimmed):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    }
+                )
+            notes_trimmed = sanitize_input(notes_trimmed)
         evidence_list = []
         if suspect_id is not None:
             evidence_records = db.query(Evidence).filter(Evidence.suspect_id == suspect_id).all()
@@ -902,7 +990,7 @@ async def save_suspect_notes(
                 db.add(case_log)
                 db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
+                    logger.warning(f"Could not create case log: {str(e)}")
         
         return JSONResponse(
             status_code=201,
@@ -917,12 +1005,12 @@ async def save_suspect_notes(
         )
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in get_suspect_detail: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
                 "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
+                "message": "An unexpected error occurred while retrieving suspect details. Please try again later."
             }
         )
 
@@ -1018,7 +1106,7 @@ async def edit_suspect_notes(
                 db.add(case_log)
                 db.commit()
         except Exception as e:
-            print(f"Warning: Could not create case log: {str(e)}")
+                    logger.warning(f"Could not create case log: {str(e)}")
         
         return JSONResponse(
             status_code=200,
@@ -1033,12 +1121,12 @@ async def edit_suspect_notes(
         )
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
+        logger.error(f"Error in get_suspect_detail: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={
                 "status": 500,
-                "message": f"Unexpected server error: {str(e)}"
+                "message": "An unexpected error occurred while retrieving suspect details. Please try again later."
             }
         )
 

@@ -11,12 +11,58 @@ from app.core.config import settings
 from app.core import security
 from fastapi.security import OAuth2PasswordBearer
 from app.api.deps import get_current_user
+from app.utils.security import validate_sql_injection_patterns, sanitize_input
+import logging
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth")
 @router.post("/login")
 def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = service.get_user_by_email(db, data.email)
+    if not data.email or not data.email.strip():
+        return JSONResponse(
+            {"status": 400, "message": "Email is required", "data": None},
+            status_code=400
+        )
+    
+    if not validate_sql_injection_patterns(data.email):
+        return JSONResponse(
+            {"status": 400, "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.", "data": None},
+            status_code=400
+        )
+    
+    email = sanitize_input(data.email.strip().lower(), max_length=255)
+    if not email or '@' not in email or '.' not in email.split('@')[1]:
+        return JSONResponse(
+            {"status": 400, "message": "Invalid email format", "data": None},
+            status_code=400
+        )
+    
+    if not data.password or not data.password.strip():
+        return JSONResponse(
+            {"status": 400, "message": "Password is required", "data": None},
+            status_code=400
+        )
+    
+    if not validate_sql_injection_patterns(data.password):
+        return JSONResponse(
+            {"status": 400, "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.", "data": None},
+            status_code=400
+        )
+    
+    password = data.password.strip()
+    if len(password) < 8:
+        return JSONResponse(
+            {"status": 400, "message": "Password must be at least 8 characters long", "data": None},
+            status_code=400
+        )
+    if len(password) > 128:
+        return JSONResponse(
+            {"status": 400, "message": "Password must not exceed 128 characters", "data": None},
+            status_code=400
+        )
+    
+    user = service.get_user_by_email(db, email)
     if not user:
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
@@ -29,7 +75,7 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
             status_code=401
         )
     
-    password_valid = service.verify_password(data.password, user.hashed_password)
+    password_valid = service.verify_password(password, user.hashed_password)
     if not password_valid:
         return JSONResponse(
             {"status": 401, "message": "Invalid credentials", "data": None},
@@ -63,14 +109,34 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/refresh")
 def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
-    user = service.use_refresh_token(db, data.refresh_token)
+    if not data.refresh_token or not data.refresh_token.strip():
+        return JSONResponse(
+            {"status": 400, "message": "Refresh token is required", "data": None},
+            status_code=400
+        )
+    
+    if not validate_sql_injection_patterns(data.refresh_token):
+        return JSONResponse(
+            {"status": 400, "message": "Invalid characters detected in refresh token. Please remove any SQL injection attempts or malicious code.", "data": None},
+            status_code=400
+        )
+    
+    refresh_token_clean = data.refresh_token.strip()
+    
+    if len(refresh_token_clean) < 20 or len(refresh_token_clean) > 1000:
+        return JSONResponse(
+            {"status": 400, "message": "Invalid refresh token format", "data": None},
+            status_code=400
+        )
+    
+    user = service.use_refresh_token(db, refresh_token_clean)
     if not user:
         return JSONResponse(
             {"status": 401, "message": "Invalid or expired refresh token", "data": None},
             status_code=401
         )
 
-    service.revoke_refresh_token(db, data.refresh_token)
+    service.revoke_refresh_token(db, refresh_token_clean)
     
     new_refresh_token = service.create_refresh_token(db, user)
 
@@ -93,10 +159,8 @@ def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
     summary="Get current user profile",
     openapi_extra={"security": [{"BearerAuth": []}]}
 )
-def get_me(
-    request: Request,
-    current_user: User = Depends(get_current_user)
-):
+
+def get_me(request: Request, current_user: User = Depends(get_current_user)):
     try:
         user_data = {
             "id": current_user.id,
@@ -116,7 +180,7 @@ def get_me(
             status_code=200
         )
     except AttributeError as e:
-        print(f"Get me error - Missing user attribute: {e}")
+        logger.error(f"Get me error - Missing user attribute: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,
@@ -126,7 +190,7 @@ def get_me(
             status_code=500
         )
     except Exception as e:
-        print(f"Get me error: {e}")
+        logger.error(f"Get me error: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,
@@ -143,11 +207,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
     summary="Logout",
     openapi_extra={"security": [{"BearerAuth": []}]}
 )
-def logout(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def logout(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -181,7 +241,7 @@ def logout(
         )
     except Exception as e:
         db.rollback()
-        print("Logout error:", e)
+        logger.error(f"Logout error: {str(e)}", exc_info=True)
         return JSONResponse(
             {
                 "status": 500,

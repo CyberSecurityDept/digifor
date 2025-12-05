@@ -5,6 +5,7 @@ from app.auth.models import User
 from app.auth import service as auth_service
 from app.user_management.schemas import UserCreate, UserUpdate
 from fastapi import HTTPException
+from app.utils.security import sanitize_input, validate_sql_injection_patterns
 
 def _tag_to_role(tag: str) -> str:
     tag_lower = tag.strip().lower()
@@ -31,7 +32,8 @@ def get_all_users(
         )
     
     if tag:
-        query = query.filter(func.lower(User.tag).like(f"%{tag.lower()}%"))
+        tag_term = f"%{tag.lower()}%"
+        query = query.filter(func.lower(User.tag).like(tag_term))
 
     total = query.count()
     query = query.order_by(User.id.desc())
@@ -42,6 +44,12 @@ def get_all_users(
     }
 
 def create_user(db: Session, user_data: UserCreate) -> User:
+    if not user_data.email or '@' not in user_data.email:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid email format"
+        )
+    
     existing_user = auth_service.get_user_by_email(db, user_data.email)
     if existing_user is not None:
         raise HTTPException(
@@ -56,7 +64,7 @@ def create_user(db: Session, user_data: UserCreate) -> User:
         fullname=user_data.fullname,
         tag=user_data.tag,
         role=role,
-        password=user_data.password,  # Store plain text password
+        password=user_data.password,
         hashed_password=hashed_password,
         is_active=True
     )
@@ -66,6 +74,12 @@ def create_user(db: Session, user_data: UserCreate) -> User:
     return user
 
 def update_user(db: Session, user_id: int, user_data: UserUpdate) -> User:
+    if not user_data.email or '@' not in user_data.email:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid email format"
+        )
+    
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -73,7 +87,6 @@ def update_user(db: Session, user_id: int, user_data: UserUpdate) -> User:
             detail=f"User with ID {user_id} not found"
         )
     
-    # Check if new email already exists (excluding current user)
     existing_user = auth_service.get_user_by_email(db, user_data.email)
     if existing_user is not None:
         existing_id = getattr(existing_user, 'id', None)
@@ -83,12 +96,11 @@ def update_user(db: Session, user_id: int, user_data: UserUpdate) -> User:
                 detail="User with this email already exists"
             )
     
-    # Update all fields (all required)
     setattr(user, 'email', user_data.email)
     setattr(user, 'fullname', user_data.fullname)
     setattr(user, 'tag', user_data.tag)
     setattr(user, 'role', _tag_to_role(user_data.tag))
-    setattr(user, 'password', user_data.password)  # Store plain text password
+    setattr(user, 'password', user_data.password)
     setattr(user, 'hashed_password', auth_service.get_password_hash(user_data.password))
     
     db.commit()

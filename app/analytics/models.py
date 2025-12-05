@@ -7,8 +7,8 @@ class Analytic(Base):
     __tablename__ = "analytics"
 
     id = Column(Integer, primary_key=True, index=True)
-    analytic_name = Column(String, nullable=False)
-    type = Column(String, nullable=True)
+    analytic_name = Column(String(255), nullable=False)
+    type = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -28,11 +28,11 @@ class File(Base):
     __tablename__ = "files"
 
     id = Column(Integer, primary_key=True, index=True)
-    file_name = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)
-    notes = Column(String, nullable=True)
-    type = Column(String, nullable=False)
-    tools = Column(String, nullable=False)
+    file_name = Column(Text, nullable=False)
+    file_path = Column(Text, nullable=False)
+    notes = Column(Text, nullable=True)
+    type = Column(String(100), nullable=False)
+    tools = Column(String(100), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     device = relationship(
@@ -51,8 +51,8 @@ class Device(Base):
     __tablename__ = "devices"
 
     id = Column(Integer, primary_key=True, index=True)
-    owner_name = Column(String, nullable=True)
-    phone_number = Column(String, nullable=True)
+    owner_name = Column(Text, nullable=True)
+    phone_number = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
@@ -92,8 +92,8 @@ class HashFile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
-    name = Column(String, nullable=True)
-    file_path = Column(String, nullable=False)
+    name = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     device = relationship("Device", back_populates="hash_files")
@@ -104,7 +104,7 @@ class Contact(Base):
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     index_row = Column(Integer, index=True)
-    type = Column(String, nullable=True)
+    type = Column(String(100), nullable=True)
     source = Column(Text, nullable=True)
     contact = Column(Text, nullable=True)
     messages = Column(Text, nullable=True)
@@ -121,15 +121,15 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     index_row = Column(Integer, index=True)
-    direction = Column(String, nullable=True)
-    source = Column(String, nullable=True)
-    type = Column(String, nullable=True)
-    timestamp = Column(String, nullable=True)
+    direction = Column(String(50), nullable=True)
+    source = Column(String(100), nullable=True)
+    type = Column(String(100), nullable=True)
+    timestamp = Column(String(100), nullable=True)
     text = Column(Text, nullable=True)
     sender = Column(Text, nullable=True)
     receiver = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
-    thread_id = Column(String, nullable=True)
+    thread_id = Column(String(255), nullable=True)
     attachment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -141,15 +141,15 @@ class Call(Base):
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     index_row = Column(Integer, index=True)
-    direction = Column(String, nullable=True)
-    source = Column(String, nullable=True)
-    type = Column(String, nullable=True)
-    timestamp = Column(String, nullable=True)
-    duration = Column(String, nullable=True)
+    direction = Column(String(50), nullable=True)
+    source = Column(String(100), nullable=True)
+    type = Column(String(100), nullable=True)
+    timestamp = Column(String(100), nullable=True)
+    duration = Column(String(50), nullable=True)
     caller = Column(Text, nullable=True)
     receiver = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
-    thread_id = Column(String, nullable=True)
+    thread_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     device = relationship("Device", back_populates="calls")

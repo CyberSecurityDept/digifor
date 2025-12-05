@@ -9,6 +9,10 @@ from sqlalchemy import or_
 from app.auth.models import User
 from app.api.deps import get_current_user
 from app.api.v1.analytics_management_routes import check_analytic_access
+from app.utils.security import sanitize_input, validate_sql_injection_patterns
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -37,6 +41,28 @@ async def add_device(
     db: Session = Depends(get_db)
 ):
     try:
+        if not validate_sql_injection_patterns(name):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in name. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        name = sanitize_input(name, max_length=255)
+        
+        if not validate_sql_injection_patterns(phone_number):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in phone_number. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400
+            )
+        phone_number = sanitize_input(phone_number, max_length=50)
+        
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         
         if not analytic:
@@ -59,14 +85,14 @@ async def add_device(
         
         if current_user is not None and not check_analytic_access(analytic, current_user):
             return JSONResponse(
-                {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
                 status_code=403
             )
         
         file_record = db.query(File).filter(File.id == file_id).first()
         if not file_record:
             return JSONResponse(
-                {"status": 404, "message": "File not found", "data": []},
+                {"status": 404, "message": "File not found", "data": None},
                 status_code=404
             )
         
@@ -211,7 +237,7 @@ async def add_device(
     except Exception as e:
         db.rollback()
         return JSONResponse(
-            {"status": 500, "message": f"Failed to add device: {str(e)}", "data": []},
+            {"status": 500, "message": "Failed to add device. Please try again later.", "data": None},
             status_code=500
         )
 
@@ -225,7 +251,7 @@ def get_devices_by_analytic_id(
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
-                {"status": 404, "message": "Analytic not found", "data": []},
+                {"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404
             )
         
@@ -243,7 +269,7 @@ def get_devices_by_analytic_id(
                     user_fullname.lower() in analytic_created_by.lower() or 
                     user_email.lower() in analytic_created_by.lower()):
                 return JSONResponse(
-                    {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                    {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
                     status_code=403
                 )
         
@@ -319,6 +345,6 @@ def get_devices_by_analytic_id(
         
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Failed to get devices: {str(e)}", "data": []},
+            {"status": 500, "message": "Failed to retrieve devices. Please try again later.", "data": None},
             status_code=500
         )

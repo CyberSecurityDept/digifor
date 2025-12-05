@@ -8,10 +8,10 @@ class Analytic(Base):
     __tablename__ = "analytics_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    analytic_name = Column(String, nullable=False)
-    method = Column(String, nullable=True)
+    analytic_name = Column(String(255), nullable=False)
+    method = Column(String(100), nullable=True)
     summary = Column(Text, nullable=True)
-    created_by = Column(String, nullable=True)
+    created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=get_indonesia_time)
     updated_at = Column(DateTime, default=get_indonesia_time, onupdate=get_indonesia_time)
 
@@ -45,8 +45,8 @@ class AnalyticFile(Base):
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
     analytic_id = Column(Integer, ForeignKey("analytics_history.id"), nullable=False)
 
-    status = Column(String, default="pending")
-    scoring = Column(String, nullable=True)
+    status = Column(String(50), default="pending")
+    scoring = Column(String(100), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -64,10 +64,10 @@ class ApkAnalytic(Base):
     __tablename__ = "apk_analytics"
 
     id = Column(Integer, primary_key=True, index=True)
-    item = Column(String, nullable=True)
-    description = Column(String, nullable=True)
-    status = Column(String, nullable=True)
-    malware_scoring = Column(String, nullable=True)
+    item = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    status = Column(String(50), nullable=True)
+    malware_scoring = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     analytic_file_id = Column(Integer, ForeignKey("analytic_files.id"), nullable=False)

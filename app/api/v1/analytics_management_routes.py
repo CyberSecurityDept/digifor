@@ -16,6 +16,7 @@ import logging, os
 from collections import defaultdict
 from app.auth.models import User
 from app.api.deps import get_current_user
+from app.utils.security import sanitize_input, validate_sql_injection_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +76,32 @@ def create_analytic_with_devices(
                 content={
                 "status": 400,
                 "message": "analytic_name wajib diisi",
-                "data": []
+                "data": None
                 },
                 status_code=400
             )
+        
+        if not validate_sql_injection_patterns(analytic_name):
+            return JSONResponse(
+                content={
+                "status": 400,
+                "message": "Invalid characters detected in analytic_name. Please remove any SQL injection attempts or malicious code.",
+                "data": None
+                },
+                status_code=400
+            )
+        analytic_name = sanitize_input(analytic_name, max_length=255)
+        
+        if not validate_sql_injection_patterns(method):
+            return JSONResponse(
+                content={
+                "status": 400,
+                "message": "Invalid characters detected in method. Please remove any SQL injection attempts or malicious code.",
+                "data": None
+                },
+                status_code=400
+            )
+        method = sanitize_input(method, max_length=100)
 
         valid_methods = [
             "Deep Communication Analytics",
@@ -93,7 +116,7 @@ def create_analytic_with_devices(
                 content={
                 "status": 400,
                 "message": f"Invalid method. Must be one of: {valid_methods}",
-                "data": []
+                "data": None
                 },
                 status_code=400
             )
@@ -137,7 +160,7 @@ def create_analytic_with_devices(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": f"Gagal membuat analytic: {str(e)}",
+                "message": "Failed to create analytic. Please try again later.",
                 "data": None
             },
             status_code=500
@@ -446,7 +469,7 @@ def _get_hashfile_analytics_data(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": f"Failed to get hashfile analytics: {str(e)}",
+                "message": "Failed to retrieve hashfile analytics. Please try again later.",
                 "data": None,
             },
             status_code=500,
@@ -470,13 +493,13 @@ def start_data_extraction(
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             return JSONResponse(
-                {"status": 404, "message": "Analytic not found", "data": []},
+                {"status": 404, "message": "Analytic not found", "data": None},
                 status_code=404
             )
         
         if current_user is not None and not check_analytic_access(analytic, current_user):
             return JSONResponse(
-                {"status": 403, "message": "You do not have permission to access this analytic", "data": []},
+                {"status": 403, "message": "You do not have permission to access this analytic", "data": None},
                 status_code=403
             )
 
@@ -580,7 +603,7 @@ def start_data_extraction(
         return JSONResponse(
             content={
                 "status": 500,
-                "message": f"Failed to start data extraction: {str(e)}",
+                "message": "Failed to start data extraction. Please try again later.",
                 "data": None
             },
             status_code=500
@@ -631,7 +654,18 @@ def get_all_analytic(
                 query = query.filter(False)
 
         if search and search.strip():
-            search_pattern = f"%{search.strip()}%"
+            if not validate_sql_injection_patterns(search):
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+            search = sanitize_input(search, max_length=255)
+            if search:
+                search_pattern = f"%{search}%"
             query = query.filter(
                 or_(
                     Analytic.analytic_name.ilike(search_pattern),
@@ -641,16 +675,31 @@ def get_all_analytic(
             )
 
         if method and len(method) > 0:
-            method_list = [m for m in method if m and m.strip()]
-            if method_list:
+            sanitized_methods = []
+            for m in method:
+                if m and m.strip():
+                    if not validate_sql_injection_patterns(m):
+                        return JSONResponse(
+                            {
+                                "status": 400,
+                                "message": "Invalid characters detected in method parameter. Please remove any SQL injection attempts or malicious code.",
+                                "data": None
+                            },
+                            status_code=400
+                        )
+                    sanitized_m = sanitize_input(m, max_length=100)
+                    if sanitized_m:
+                        sanitized_methods.append(sanitized_m)
+            
+            if sanitized_methods:
                 parsed_methods = []
-                for m in method_list:
+                for m in sanitized_methods:
                     if "," in m:
-                        parsed_methods.extend(m.split(","))
+                        parsed_methods.extend([s.strip() for s in m.split(",") if s.strip()])
                     else:
-                        parsed_methods.append(m)
+                        parsed_methods.append(m.strip())
 
-                parsed_methods = [m.strip() for m in parsed_methods if m and m.strip()]
+                parsed_methods = [m for m in parsed_methods if m and m.strip()]
 
                 if parsed_methods:
                     query = query.filter(Analytic.method.in_(parsed_methods))
@@ -687,7 +736,7 @@ def get_all_analytic(
         logger.error(f"Error getting all analytics: {str(e)}")
         return {
             "status": 500,
-            "message": f"Gagal mengambil data: {str(e)}",
+            "message": "Failed to retrieve data. Please try again later.",
             "data": None
         }
 

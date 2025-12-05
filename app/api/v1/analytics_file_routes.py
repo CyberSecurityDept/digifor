@@ -15,10 +15,14 @@ from app.analytics.shared.models import File, Analytic
 from app.analytics.utils.upload_pipeline import upload_service
 from typing import Optional
 import os, time, uuid, asyncio, re
+import logging
+
+logger = logging.getLogger(__name__)
 from app.api.v1.analytics_apk_routes import UPLOAD_PROGRESS as APK_PROGRESS, run_real_upload_and_finalize as run_real_upload_and_finalize_apk
 from sqlalchemy import or_
 from app.auth.models import User
 from app.api.deps import get_current_user
+from app.utils.security import sanitize_input, validate_sql_injection_patterns, validate_file_name
 
 
 router = APIRouter()
@@ -336,7 +340,7 @@ async def run_real_upload_and_finalize(
         
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Failed",
-            "message": f"Upload Failed! {str(e)}",
+            "message": "Upload failed. Please try again later.",
             "upload_id": upload_id,
             "file_name": file_name,
             "size": size_value,
@@ -360,6 +364,66 @@ async def upload_data(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        # Validate and sanitize all inputs
+        if not validate_sql_injection_patterns(file_name):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in file_name. Please remove any SQL injection attempts or malicious code.",
+                },
+                status_code=400,
+            )
+        file_name = sanitize_input(file_name)
+        
+        if notes and not validate_sql_injection_patterns(notes):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code.",
+                },
+                status_code=400,
+            )
+        notes = sanitize_input(notes) if notes else None
+        
+        if not validate_sql_injection_patterns(type):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in type. Please remove any SQL injection attempts or malicious code.",
+                },
+                status_code=400,
+            )
+        type = sanitize_input(type, max_length=100)
+        
+        if not validate_sql_injection_patterns(tools):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in tools. Please remove any SQL injection attempts or malicious code.",
+                },
+                status_code=400,
+            )
+        tools = sanitize_input(tools, max_length=100)
+        
+        if not validate_sql_injection_patterns(method):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in method. Please remove any SQL injection attempts or malicious code.",
+                },
+                status_code=400,
+            )
+        method = sanitize_input(method, max_length=100)
+        
+        if not validate_file_name(file.filename):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid file name. File name contains dangerous characters.",
+                },
+                status_code=400,
+            )
+        
         required_fields = {
             "file_name": file_name,
             "type": type,
@@ -465,7 +529,7 @@ async def upload_data(
             "total_size": total_size,
             "uploaded": 0,
             "percentage": 0,
-            "data": [],
+            "data": None,
             "method": method,
             "tools": tools,
             "_ctx": {
@@ -494,7 +558,8 @@ async def upload_data(
         })
 
     except Exception as e:
-        return JSONResponse({"status": 500, "message": f"Upload error: {str(e)}"}, status_code=500)
+        logger.error(f"Error in upload_data: {str(e)}", exc_info=True)
+        return JSONResponse({"status": 500, "message": "Upload error occurred. Please try again later."}, status_code=500)
 
 @router.get("/analytics/upload-progress")
 async def get_upload_progress(upload_id: str, type: str = Query("data", description="data or apk")):
@@ -578,7 +643,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": size_out,
                     "percentage": percent,
                     "upload_status": "Progress",
-                    "data": []
+                    "data": None
                 }
             else:
                 total_size_mb = prog.get("total_size", 0) / (1024 * 1024)
@@ -591,7 +656,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": f"0.000/{total_size_fmt}",
                     "percentage": 0,
                     "upload_status": "Progress",
-                    "data": []
+                    "data": None
                 }
 
         if upload_id not in prog_dict:
@@ -807,7 +872,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": f"0 MB/{total_size_fmt}",
                     "percentage": 0,
                     "upload_status": "Pending",
-                    "data": [],
+                    "data": None,
                 }
             else:
                 return {
@@ -818,7 +883,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": size_out,
                     "percentage": percent,
                     "upload_status": "Progress",
-                    "data": [],
+                    "data": None,
                 }
 
         elif status == "Progress" or status == "Pending":
@@ -839,7 +904,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": f"0 MB/{total_size_fmt}",
                     "percentage": 0,
                     "upload_status": "Pending",
-                    "data": [],
+                    "data": None,
                 }
             else:
                 return {
@@ -850,7 +915,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     "size": f"{uploaded_mb:.2f} MB/{total_mb:.2f} MB",
                     "percentage": percentage,
                     "upload_status": progress.get("upload_status"),
-                    "data": [],
+                    "data": None,
                 }
 
         elif status == "Failed":
@@ -906,7 +971,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                             svc_data_check = svc_resp_check.get("data", {})
                             detected_tool = svc_data_check.get("detected_tool")
                             if detected_tool and detected_tool != "Unknown":
-                                print(f"[ERROR HANDLING] Got detected_tool from upload_service: {detected_tool}")
+                                logger.debug(f"[ERROR HANDLING] Got detected_tool from upload_service: {detected_tool}")
                     except:
                         pass
                 
@@ -915,12 +980,12 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                         tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
                         if tool_part and tool_part != "Unknown":
                             detected_tool = tool_part
-                            print(f"[ERROR HANDLING] Extracted detected_tool from error_message: {detected_tool}")
+                            logger.debug(f"[ERROR HANDLING] Extracted detected_tool from error_message: {detected_tool}")
                     except:
                         pass
                 
                 if not detected_tool or detected_tool == "Unknown":
-                    print(f"[ERROR HANDLING] WARNING: Could not get detected_tool. Using user selection as last resort.")
+                    logger.warning(f"[ERROR HANDLING] WARNING: Could not get detected_tool. Using user selection as last resort.")
                     if progress.get("tools"):
                         detected_tool = upload_service._normalize_tool_name(progress.get("tools")) or progress.get("tools")
                     else:
@@ -1083,7 +1148,6 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 else:
                     size_value = size_from_progress
             
-            # Ensure size_value is set (fallback to error_message if still None)
             if size_value is None:
                 size_value = error_message
             
@@ -1111,8 +1175,14 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
         detected_tool = None
         method = None
         
+        # Determine which progress dict to use
+        if type.lower() == "apk":
+            prog_dict_except = APK_PROGRESS
+        else:
+            prog_dict_except = UPLOAD_PROGRESS
+        
         try:
-            prog = prog_dict.get(upload_id, {})
+            prog = prog_dict_except.get(upload_id, {})
             detected_tool = prog.get("detected_tool")
             method = prog.get("method")
             
@@ -1178,11 +1248,34 @@ def get_files(
                     )
                 )
 
+        if filter:
+            if not validate_sql_injection_patterns(filter):
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "Invalid characters detected in filter parameter. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+            filter = sanitize_input(filter, max_length=100)
+
         if filter and filter in allowed_methods and filter != "All":
             query = query.filter(File.method == filter)
 
         if search:
-            term = f"%{search.strip()}%"
+            if not validate_sql_injection_patterns(search):
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+            search = sanitize_input(search, max_length=255)
+            if search:
+                term = f"%{search}%"
             query = query.filter(
                 or_(
                     File.file_name.ilike(term),
@@ -1221,6 +1314,6 @@ def get_files(
     except Exception as e:
         return {
             "status": 500,
-            "message": f"Failed to get files: {str(e)}",
-            "data": []
+            "message": "Failed to retrieve files. Please try again later.",
+                        "data": None
         }

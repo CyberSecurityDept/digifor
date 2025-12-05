@@ -10,8 +10,8 @@ class Suspect(Base):
     __tablename__ = "suspects"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
-    case_name = Column(String(200))
+    name = Column(Text, nullable=False)
+    case_name = Column(String(500))
     investigator = Column(String(100))
     status = Column(Enum("Witness", "Reported", "Suspected", "Suspect", "Defendant", name="suspect_status"), nullable=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True)

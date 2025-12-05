@@ -8,7 +8,10 @@ from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
 from app.auth.models import User
 from app.api.deps import get_current_user
-import asyncio, time, uuid, traceback
+import asyncio, time, uuid
+import logging
+
+logger = logging.getLogger(__name__)
 from app.api.v1.analytics_management_routes import check_analytic_access
 import os
 router = APIRouter()
@@ -55,7 +58,7 @@ async def upload_apk(
             "total_size": total_size,
             "uploaded": 0,
             "percentage": 0,
-            "data": [],
+            "data": None,
             "_ctx": {
                 "file_obj": file,
                 "file_name": file_name,
@@ -78,7 +81,7 @@ async def upload_apk(
 
     except Exception as e:
         return JSONResponse(
-            {"status": 500, "message": f"Upload error: {str(e)}"},
+            {"status": 500, "message": "Upload error occurred. Please try again later."},
             status_code=500,
         )
 
@@ -181,9 +184,9 @@ def analyze_apk(
 
         return JSONResponse({"status": 200, "message": "Success", "data": final_response}, 200)
 
-    except Exception:
-        traceback.print_exc()
-        return JSONResponse({"status": 500, "message": "Server error!", "data": None}, 500)
+    except Exception as e:
+        logger.error(f"Error in get_apk_analysis: {str(e)}", exc_info=True)
+        return JSONResponse({"status": 500, "message": "An unexpected error occurred while retrieving APK analysis. Please try again later.", "data": None}, 500)
 
 
 UPLOAD_PROGRESS = {}
@@ -236,21 +239,20 @@ async def run_real_upload_and_finalize(upload_id: str, file: UploadFile, file_na
                 "size": "Upload Failed! Please try again",
                 "percentage": "Error",
                 "upload_status": "Failed",
-                "data": [],
+                "data": None,
             }
 
     except Exception as e:
-        print(f"[ERROR] run_real_upload_and_finalize error: {str(e)}")
-        traceback.print_exc()
+        logger.error(f"Error in run_real_upload_and_finalize: {str(e)}", exc_info=True)
         UPLOAD_PROGRESS[upload_id] = {
             "status": "Failed",
-            "message": f"Upload Failed! {str(e)}",
+            "message": "Upload failed. Please try again later.",
             "upload_id": upload_id,
             "file_name": file_name,
             "size": "Upload Failed! Please try again",
             "percentage": "Error",
             "upload_status": "Failed",
-            "data": [],
+            "data": None,
         }
 
 @router.get("/analytics/apk-analytic")
@@ -403,9 +405,9 @@ def store_analytic_file(
             status_code=201,
         )
 
-    except Exception:
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(f"Error in get_apk_analysis: {str(e)}", exc_info=True)
         return JSONResponse(
-            {"status": 500, "message": "Server error!", "data": None},
+            {"status": 500, "message": "An unexpected error occurred while retrieving APK analysis. Please try again later.", "data": None},
             status_code=500,
         )

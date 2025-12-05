@@ -8,10 +8,13 @@ from app.analytics.device_management.models import ChatMessage
 from collections import defaultdict
 from typing import Optional, List
 from datetime import datetime
-import traceback, re, logging
+import re, logging
+
+logger = logging.getLogger(__name__)
 from app.auth.models import User
 from app.api.deps import get_current_user
 from app.api.v1.analytics_management_routes import check_analytic_access
+from app.utils.security import sanitize_input, validate_sql_injection_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -1008,11 +1011,11 @@ def get_deep_communication_analytics(
     except HTTPException:
         raise
     except Exception as e:
-        error_details = traceback.format_exc()
+        logger.error(f"Error in get_deep_communication_analytics: {str(e)}", exc_info=True)
         return JSONResponse(
             content={
                 "status": 500,
-                "message": "Internal server error: Failed to retrieve deep communication analytics",
+                "message": "An unexpected error occurred while retrieving deep communication analytics. Please try again later.",
                 "data": None
             },
             status_code=500
@@ -1770,11 +1773,11 @@ def get_platform_cards_intensity(
     except HTTPException:
         raise
     except Exception as e:
-        error_details = traceback.format_exc()
+        logger.error(f"Error in get_platform_cards_intensity: {str(e)}", exc_info=True)
         return JSONResponse(
             content={
                 "status": 500,
-                "message": "Internal server error: Failed to retrieve platform cards intensity",
+                "message": "An unexpected error occurred while retrieving platform cards intensity. Please try again later.",
                 "data": None
             },
             status_code=500
@@ -1791,17 +1794,29 @@ def get_chat_detail(
     db: Session = Depends(get_db)
 ):
     try:
-        if not person_name and not search:
-            return JSONResponse(
-                content={
-                    "status": 400,
-                    "message": "Either person_name or search parameter must be provided"
-                },
-                status_code=400
+        if person_name:
+            if not validate_sql_injection_patterns(person_name):
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+                    },
+                    status_code=400
             )
+            person_name = sanitize_input(person_name, max_length=255)
         
         if platform:
-            if not platform.strip():
+            if not validate_sql_injection_patterns(platform):
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in platform. Please remove any SQL injection attempts or malicious code."
+                    },
+                    status_code=400
+                )
+            platform = sanitize_input(platform, max_length=100)
+            
+            if not platform or not platform.strip():
                 return JSONResponse(
                     content={
                         "status": 400,
@@ -1817,6 +1832,26 @@ def get_chat_detail(
                     content={
                         "status": 400,
                     "message": f"Invalid platform. Supported platforms: Instagram, Telegram, WhatsApp, Facebook, X, TikTok"
+                    },
+                    status_code=400
+                )
+        
+        if search:
+            if not validate_sql_injection_patterns(search):
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
+                    },
+                    status_code=400
+                )
+            search = sanitize_input(search, max_length=255)
+        
+        if not person_name and not search:
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Either person_name or search parameter must be provided"
                 },
                 status_code=400
             )
@@ -2459,11 +2494,11 @@ def get_chat_detail(
     except HTTPException:
         raise
     except Exception as e:
-        error_details = traceback.format_exc()
+        logger.error(f"Error in get_chat_detail: {str(e)}", exc_info=True)
         return JSONResponse(
             content={
                 "status": 500,
-                "message": "Internal server error: Failed to retrieve chat detail",
+                "message": "An unexpected error occurred while retrieving chat detail. Please try again later.",
                 "data": None
             },
             status_code=500

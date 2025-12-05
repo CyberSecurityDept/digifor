@@ -5,6 +5,7 @@ from app.suspect_management.models import Suspect
 from app.suspect_management.schemas import SuspectCreate, SuspectUpdate
 from app.case_management.models import Case, Agency
 import logging
+from app.utils.security import sanitize_input
 
 logger = logging.getLogger(__name__)
 
@@ -77,19 +78,14 @@ class SuspectService:
 
         query = db.query(Suspect)
 
-        # -----------------------------------------
-        # FILTER BARU: hilangkan status NULL & is_unknown = True
-        # -----------------------------------------
         query = query.filter(
             Suspect.status.isnot(None),
             Suspect.is_unknown.is_(False)
         )
-        # -----------------------------------------
 
         total_before = query.count()
         logger.info(f"Total suspects before filtering: {total_before}")
 
-        # Filter berdasarkan status (jika diberikan)
         if status:
             if isinstance(status, list):
                 if len(status) == 1 and isinstance(status[0], str) and "," in status[0]:
@@ -102,16 +98,15 @@ class SuspectService:
             if len(status) > 0:
                 query = query.filter(Suspect.status.in_(status))
 
-        # Filter search
         if search and search.strip():
+            search_clean = search.strip()
             search_filter = or_(
-                Suspect.name.ilike(f"%{search.strip()}%"),
-                Suspect.case_name.ilike(f"%{search.strip()}%"),
-                Suspect.investigator.ilike(f"%{search.strip()}%")
+                Suspect.name.ilike(f"%{search_clean}%"),
+                Suspect.case_name.ilike(f"%{search_clean}%"),
+                Suspect.investigator.ilike(f"%{search_clean}%")
             )
             query = query.filter(search_filter)
 
-        # Order
         query = query.order_by(Suspect.id.desc())
 
         total = query.count()
@@ -119,7 +114,6 @@ class SuspectService:
 
         suspects = query.offset(skip).limit(limit).all()
 
-        # Build result
         result = []
         for suspect in suspects:
             created_at_str = suspect.created_at.isoformat() if getattr(suspect, 'created_at', None) else None

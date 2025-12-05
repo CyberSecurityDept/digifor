@@ -9,7 +9,7 @@ class Evidence(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     evidence_number = Column(String(50), unique=True, index=True, nullable=False)
-    title = Column(String(200), nullable=False)
+    title = Column(Text, nullable=False)
     description = Column(Text)
     source = Column(String(100), nullable=True)
     evidence_type = Column(String(100), nullable=True)
@@ -58,7 +58,7 @@ class CustodyReport(Base):
     created_by = Column(String(100), nullable=False)
     investigator = Column(String(100), nullable=True)
     custody_type = Column(String(50), nullable=False)  
-    location = Column(String(200), nullable=True)
+    location = Column(Text, nullable=True)
     evidence_source = Column(String(100), nullable=True)
     evidence_type = Column(String(100), nullable=True)
     evidence_detail = Column(Text, nullable=True)
