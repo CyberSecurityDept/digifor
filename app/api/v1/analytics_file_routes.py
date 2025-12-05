@@ -185,7 +185,7 @@ async def run_real_upload_and_finalize(
                             if method_for_check == "Hashfile Analytics":
                                 size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method_for_check}"
                             else:
-                                size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                                size_value = f"File upload failed. Please upload this file using Tools {detected_tool}"
                         else:
                             size_value = "Upload Failed! Please try again"
                         
@@ -277,7 +277,7 @@ async def run_real_upload_and_finalize(
                     if method == "Hashfile Analytics":
                         size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
                     else:
-                        size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                        size_value = f"File upload failed. Please upload this file using Tools {detected_tool}"
                 else:
                     size_value = "Upload Failed! Please try again"
                 
@@ -726,7 +726,7 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                     if method == "Hashfile Analytics":
                         size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method}"
                     else:
-                        size_value = f"Upload Failed! Please upload this file using Tools '{detected_tool}'"
+                        size_value = f"File upload failed. Please upload this file using Tools {detected_tool}"
                 else:
                     size_value = "Upload Failed! Please try again"
                 
@@ -898,10 +898,24 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                         if code_check == 200:
                             svc_data_check = svc_resp_check.get("data", {})
                             detected_tool = svc_data_check.get("detected_tool")
+                            if detected_tool and detected_tool != "Unknown":
+                                print(f"[ERROR HANDLING] Got detected_tool from upload_service: {detected_tool}")
                     except:
                         pass
                 
+                # Try to extract from error_message if it contains detected tool
+                if (not detected_tool or detected_tool == "Unknown") and " and " in error_message and " tools." in error_message:
+                    try:
+                        tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
+                        if tool_part and tool_part != "Unknown":
+                            detected_tool = tool_part
+                            print(f"[ERROR HANDLING] Extracted detected_tool from error_message: {detected_tool}")
+                    except:
+                        pass
+                
+                # Only use user-selected tool as absolute last resort
                 if not detected_tool or detected_tool == "Unknown":
+                    print(f"[ERROR HANDLING] WARNING: Could not get detected_tool. Using user selection as last resort.")
                     if progress.get("tools"):
                         detected_tool = upload_service._normalize_tool_name(progress.get("tools")) or progress.get("tools")
                     else:
@@ -983,66 +997,83 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
                 "parsing error" in error_message.lower()):
                 size_value = error_message
             elif "File upload failed. Please upload this file using Tools" in error_message:
-                if "with method" in error_message:
+                tool_match = error_message.split("Tools ")[1].split()[0] if "Tools " in error_message else None
+                if tool_match:
+                    method_for_check = method if method else progress.get("method") or detected_method
+                   
+                    if method_for_check == "Hashfile Analytics":
+                        size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method_for_check}"
+                    else:
+                        size_value = f"File upload failed. Please upload this file using Tools {tool_match}"
+                else:
+                    size_value = error_message
+            elif "Upload hash data not found" in error_message or "not found" in error_message.lower() or "Contacts and calls data not found" in error_message or "Contact Correlation data not found" in error_message or "Social Media Correlation data not found" in error_message or "Deep Communication Analytics data not found" in error_message:
+                is_no_data_error = (
+                    "Contact Correlation data not found in file. The file format is correct" in error_message or
+                    "Social Media Correlation data not found in file. The file format is correct" in error_message or
+                    "Deep Communication Analytics data not found in file. The file format is correct" in error_message
+                )
+                
+                if is_no_data_error:
                     size_value = error_message
                 else:
-                    method_for_check = method if method else progress.get("method")
-                    if method_for_check == "Hashfile Analytics":
-                        tool_match = error_message.split("Tools ")[1].split()[0] if "Tools " in error_message else None
-                        if tool_match:
-                            size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method_for_check}"
+                    method_from_msg = method
+                    tool_from_msg = detected_tool if detected_tool and detected_tool != "Unknown" else None
+                    
+                    if " with " in error_message and " method" in error_message:
+                        try:
+                            method_part = error_message.split(" with ")[1].split(" method")[0].strip()
+                            if method_part:
+                                method_from_msg = method_part
+                        except:
+                            pass
+                    
+                    if " and " in error_message and " tools." in error_message:
+                        try:
+                            tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
+                            if tool_part and tool_part != "Unknown":
+                                tool_from_msg = tool_part
+                        except:
+                            pass
+                    
+                    if not tool_from_msg or tool_from_msg == "Unknown":
+                        try:
+                            svc_resp_check, code_check = upload_service.get_progress(upload_id)
+                            if code_check == 200:
+                                svc_data_check = svc_resp_check.get("data", {})
+                                tool_from_msg = svc_data_check.get("detected_tool")
+                                if tool_from_msg and tool_from_msg != "Unknown":
+                                    detected_tool = tool_from_msg
+                        except:
+                            pass
+                    
+                    final_method = method_from_msg if method_from_msg else (method if method else "Hashfile Analytics")
+                    final_tool = tool_from_msg if tool_from_msg and tool_from_msg != "Unknown" else (detected_tool if detected_tool and detected_tool != "Unknown" else "Unknown")
+                    
+                    if final_tool and final_tool != "Unknown":
+                        if final_method == "Hashfile Analytics":
+                            size_value = f"File upload failed. Please upload this file using Tools {final_tool} with method {final_method}"
                         else:
-                            size_value = error_message
+                            size_value = f"File upload failed. Please upload this file using Tools {final_tool}"
                     else:
                         size_value = error_message
-            elif "Upload hash data not found" in error_message or "not found" in error_message.lower() or "Contacts and calls data not found" in error_message:
-                method_from_msg = method
-                tool_from_msg = detected_tool if detected_tool and detected_tool != "Unknown" else None
-                
-                if " with " in error_message and " method" in error_message:
-                    try:
-                        method_part = error_message.split(" with ")[1].split(" method")[0].strip()
-                        if method_part:
-                            method_from_msg = method_part
-                    except:
-                        pass
-                
-                if " and " in error_message and " tools." in error_message:
-                    try:
-                        tool_part = error_message.split(" and ")[-1].replace(" tools.", "").strip()
-                        if tool_part and tool_part != "Unknown":
-                            tool_from_msg = tool_part
-                    except:
-                        pass
-                
-                if not tool_from_msg or tool_from_msg == "Unknown":
-                    try:
-                        svc_resp_check, code_check = upload_service.get_progress(upload_id)
-                        if code_check == 200:
-                            svc_data_check = svc_resp_check.get("data", {})
-                            tool_from_msg = svc_data_check.get("detected_tool")
-                            if tool_from_msg and tool_from_msg != "Unknown":
-                                detected_tool = tool_from_msg
-                    except:
-                        pass
-                
-                final_method = method_from_msg if method_from_msg else (method if method else "Hashfile Analytics")
-                final_tool = tool_from_msg if tool_from_msg and tool_from_msg != "Unknown" else (detected_tool if detected_tool and detected_tool != "Unknown" else "Unknown")
-                
-                if final_tool and final_tool != "Unknown":
-                    size_value = f"File upload failed. Please upload this file using Tools {final_tool} with method {final_method}"
-                else:
                     size_value = error_message
             elif detected_tool and detected_tool != "Unknown":
-                method_for_check = method if method else progress.get("method") or "Hashfile Analytics"
-                size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method_for_check}"
+                method_for_check = method if method else progress.get("method") or detected_method
+                if method_for_check == "Hashfile Analytics":
+                    size_value = f"File upload failed. Please upload this file using Tools {detected_tool} with method {method_for_check}"
+                else:
+                    size_value = f"File upload failed. Please upload this file using Tools {detected_tool}"
             else:
                 size_from_progress = progress.get("size", "Upload Failed! Please try again")
-                method_for_size = method if method else progress.get("method")
-                if "Please upload this file using Tools" in size_from_progress and method_for_size == "Hashfile Analytics" and "with method" not in size_from_progress:
+                method_for_size = method if method else progress.get("method") or detected_method
+                if "Please upload this file using Tools" in size_from_progress:
                     tool_match = size_from_progress.split("Tools ")[1].split()[0] if "Tools " in size_from_progress else None
                     if tool_match:
-                        size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method_for_size}"
+                        if method_for_size == "Hashfile Analytics":
+                            size_value = f"File upload failed. Please upload this file using Tools {tool_match} with method {method_for_size}"
+                        else:
+                            size_value = f"File upload failed. Please upload this file using Tools {tool_match}"
                     else:
                         size_value = size_from_progress
                 else:

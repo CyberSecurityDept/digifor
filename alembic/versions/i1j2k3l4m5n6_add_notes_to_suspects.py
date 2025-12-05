@@ -30,8 +30,8 @@ def upgrade():
     columns = [col['name'] for col in inspector.get_columns('suspects')]
     
     if 'notes' not in columns:
-        # Add notes column to suspects table
-        op.add_column('suspects', sa.Column('notes', sa.Text(), nullable=True))
+    # Add notes column to suspects table
+    op.add_column('suspects', sa.Column('notes', sa.Text(), nullable=True))
 
 
 def downgrade():
@@ -47,6 +47,6 @@ def downgrade():
     columns = [col['name'] for col in inspector.get_columns('suspects')]
     
     if 'notes' in columns:
-        # Remove notes column from suspects table
-        op.drop_column('suspects', 'notes')
+    # Remove notes column from suspects table
+    op.drop_column('suspects', 'notes')
 

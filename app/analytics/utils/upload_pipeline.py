@@ -402,6 +402,374 @@ class UploadService:
         
         return "Unknown"
 
+    def _detect_social_media_correlation_tool_from_structure(self, file_path: str) -> str:
+        try:
+            file_ext = Path(file_path).suffix.lower()
+            
+            if file_ext not in ['.xlsx', '.xls']:
+                return "Unknown"
+            
+            try:
+                engine = "xlrd" if file_ext == '.xls' else "openpyxl"
+                xls = pd.ExcelFile(file_path, engine=engine)
+                sheet_names = [str(s) for s in xls.sheet_names]
+                
+                print(f"[TOOL DETECTION] Analyzing Social Media Correlation columns from {len(sheet_names)} sheets (column-based detection only)...")
+
+                axiom_key_columns = [
+                    'user name', 'user id',
+                    'account id', 'first name', 'last name',
+                    'whatsapp name',
+                    'profile id', 'display name',
+                    'record'
+                ]
+                
+                axiom_column_combinations = [
+                    ['user name', 'user id'],
+                    ['user name', 'id', 'full name'],
+                    ['account id', 'user id', 'first name', 'last name'],
+                    ['whatsapp name', 'phone number'],
+                    ['profile id', 'display name', 'first name', 'last name'],
+                    ['record', 'user name'],
+                    ['record', 'whatsapp name'],
+                    ['record', 'account id']
+                ]
+                
+                cellebrite_key_columns = [
+                    'source', 'author', 'body', 'url', 'account',
+                    'type', 'contact', 'internet', 'addresses',
+                    'username', 'service type', 'account name', 'entries'
+                ]
+                
+                cellebrite_column_combinations = [
+                    ['source', 'author', 'body', 'url', 'account'],
+                    ['type', 'contact', 'internet', 'addresses', 'source', 'name', 'entries'],
+                    ['username', 'service type', 'account name', 'entries', 'source']
+                ]
+                
+                oxygen_key_columns = [
+                    'uid', 'username', 'full name', 'followers', 'following',
+                    'user name', 'user id', 'user picture',
+                    'source', 'service', 'platform', 'application', 'app'
+                ]
+                
+                oxygen_column_combinations = [
+                    ['uid', 'username', 'full name', 'followers', 'following'],
+                    ['user name', 'user id', 'full name', 'phone number', 'user picture'],
+                    ['source', 'service', 'platform']
+                ]
+                
+                tool_scores = {
+                    'Magnet Axiom': 0,
+                    'Cellebrite': 0,
+                    'Oxygen': 0
+                }
+                
+                for sheet_name in sheet_names:
+                    try:
+                        for header_row in [0, 1, 2]:
+                            try:
+                                df_test = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str, header=header_row, nrows=3)
+                                columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                                columns_set = set(columns_lower)
+                                
+                                axiom_key_matches = sum(1 for col in axiom_key_columns if col in columns_set)
+                                for combo in axiom_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Magnet Axiom'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Magnet Axiom column combination in sheet '{sheet_name}': {combo}")
+                                if axiom_key_matches > 0:
+                                    tool_scores['Magnet Axiom'] += axiom_key_matches
+                                
+                                cellebrite_key_matches = sum(1 for col in cellebrite_key_columns if col in columns_set)
+                                for combo in cellebrite_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Cellebrite'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Cellebrite column combination in sheet '{sheet_name}': {combo}")
+                                if cellebrite_key_matches > 0:
+                                    tool_scores['Cellebrite'] += cellebrite_key_matches
+                                
+                                oxygen_key_matches = sum(1 for col in oxygen_key_columns if col in columns_set)
+                                for combo in oxygen_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Oxygen'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Oxygen column combination in sheet '{sheet_name}': {combo}")
+                                if oxygen_key_matches > 0:
+                                    tool_scores['Oxygen'] += oxygen_key_matches
+                                
+                                if tool_scores['Magnet Axiom'] >= 5 or tool_scores['Cellebrite'] >= 5 or tool_scores['Oxygen'] >= 5:
+                                    break
+                                    
+                            except Exception as e:
+                                continue
+                                
+                    except Exception as e:
+                        print(f"[TOOL DETECTION] Error reading sheet '{sheet_name}': {e}")
+                        continue
+
+                max_score = max(tool_scores.values())
+                if max_score > 0:
+                    detected_tool = max(tool_scores, key=tool_scores.get)
+                    print(f"[TOOL DETECTION] Tool scores: {tool_scores}")
+                    print(f"[TOOL DETECTION] Detected {detected_tool} (Social Media Correlation) based on column structure (score: {max_score})")
+                    return detected_tool
+                
+            except Exception as e:
+                print(f"[TOOL DETECTION] Error detecting Social Media Correlation tool from structure: {e}")
+                traceback.print_exc()
+                return "Unknown"
+            
+        except Exception as e:
+            print(f"[TOOL DETECTION] Error in _detect_social_media_correlation_tool_from_structure: {e}")
+            traceback.print_exc()
+            return "Unknown"
+        
+        print(f"[TOOL DETECTION] Could not detect Social Media Correlation tool from column structure")
+        return "Unknown"
+
+    def _detect_contact_correlation_tool_from_structure(self, file_path: str) -> str:
+        try:
+            file_ext = Path(file_path).suffix.lower()
+            
+            if file_ext not in ['.xlsx', '.xls']:
+                return "Unknown"
+            
+            try:
+                engine = "xlrd" if file_ext == '.xls' else "openpyxl"
+                xls = pd.ExcelFile(file_path, engine=engine)
+                sheet_names = [str(s) for s in xls.sheet_names]
+                
+                print(f"[TOOL DETECTION] Analyzing Contact Correlation columns from {len(sheet_names)} sheets (column-based detection only)...")
+                
+                axiom_contacts_columns = [
+                    'display name', 'phone number(s)', 'source account type(s)'
+                ]
+                
+                axiom_calls_columns = [
+                    'direction', 'source', 'type', 'received date/time', 'duration', 'caller', 'recipient(s)', 'status'
+                ]
+                
+                axiom_column_combinations = [
+                    ['display name', 'phone number(s)', 'source account type(s)'],
+                    ['direction', 'source', 'type', 'received date/time', 'duration', 'caller', 'recipient(s)'],
+                    ['display name', 'phone number(s)'],
+                    ['direction', 'caller', 'recipient(s)']
+                ]
+                
+                cellebrite_contacts_columns = [
+                    'type', 'contact', 'internet', 'addresses', 'source', 'name', 'entries', 'interaction statuses'
+                ]
+                
+                cellebrite_column_combinations = [
+                    ['type', 'contact', 'internet', 'addresses', 'source', 'name', 'entries'],
+                    ['type', 'contact', 'internet', 'addresses'],
+                    ['name', 'entries', 'interaction statuses']
+                ]
+                
+                oxygen_contacts_columns = [
+                    'source', 'type', 'contact', 'internet', 'addresses'
+                ]
+                
+                oxygen_column_combinations = [
+                    ['source', 'type', 'contact', 'internet', 'addresses']
+                ]
+                
+                tool_scores = {
+                    'Magnet Axiom': 0,
+                    'Cellebrite': 0,
+                    'Oxygen': 0
+                }
+                
+                for sheet_name in sheet_names:
+                    try:
+                        for header_row in [0, 1, 2]:
+                            try:
+                                df_test = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str, header=header_row, nrows=3)
+                                columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                                columns_set = set(columns_lower)
+                                sheet_lower = sheet_name.lower()
+                                
+                                for combo in axiom_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        score = len(combo) * 2 if len(combo) >= 3 else len(combo)
+                                        tool_scores['Magnet Axiom'] += score
+                                        print(f"[TOOL DETECTION] Found Magnet Axiom column combination in sheet '{sheet_name}': {combo} (score: {score})")
+                                
+                                if 'contact' in sheet_lower or 'call' in sheet_lower:
+                                    contacts_match = sum(1 for col in axiom_contacts_columns if col in columns_set)
+                                    calls_match = sum(1 for col in axiom_calls_columns if col in columns_set)
+                                    if contacts_match >= 2 or calls_match >= 3:
+                                        tool_scores['Magnet Axiom'] += (contacts_match + calls_match)
+                                        print(f"[TOOL DETECTION] Bonus score for contacts/calls sheet '{sheet_name}': contacts={contacts_match}, calls={calls_match}")
+                                
+                                for combo in cellebrite_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        score = len(combo) * 2 if len(combo) >= 4 else len(combo)
+                                        tool_scores['Cellebrite'] += score
+                                        print(f"[TOOL DETECTION] Found Cellebrite column combination in sheet '{sheet_name}': {combo} (score: {score})")
+                                
+                                if sheet_lower == 'contacts':
+                                    contacts_match = sum(1 for col in cellebrite_contacts_columns if col in columns_set)
+                                    if contacts_match >= 4:
+                                        tool_scores['Cellebrite'] += contacts_match
+                                        print(f"[TOOL DETECTION] Bonus score for Cellebrite Contacts sheet: {contacts_match} columns matched")
+                                
+                                for combo in oxygen_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        score = len(combo) * 3
+                                        tool_scores['Oxygen'] += score
+                                        print(f"[TOOL DETECTION] Found Oxygen column combination in sheet '{sheet_name}': {combo} (score: {score})")
+                                
+                                if 'contact' in sheet_lower:
+                                    contacts_match = sum(1 for col in oxygen_contacts_columns if col in columns_set)
+                                    if contacts_match >= 3:
+                                        tool_scores['Oxygen'] += contacts_match * 2
+                                        print(f"[TOOL DETECTION] Bonus score for Oxygen contacts sheet '{sheet_name}': {contacts_match} columns matched")
+                                
+                                if tool_scores['Magnet Axiom'] >= 5 or tool_scores['Cellebrite'] >= 5 or tool_scores['Oxygen'] >= 5:
+                                    break
+                                    
+                            except Exception as e:
+                                continue
+                                
+                    except Exception as e:
+                        print(f"[TOOL DETECTION] Error reading sheet '{sheet_name}': {e}")
+                        continue
+                
+                max_score = max(tool_scores.values())
+                if max_score > 0:
+                    detected_tool = max(tool_scores, key=tool_scores.get)
+                    print(f"[TOOL DETECTION] Tool scores: {tool_scores}")
+                    print(f"[TOOL DETECTION] Detected {detected_tool} (Contact Correlation) based on column structure (score: {max_score})")
+                    return detected_tool
+                
+            except Exception as e:
+                print(f"[TOOL DETECTION] Error detecting Contact Correlation tool from structure: {e}")
+                traceback.print_exc()
+                return "Unknown"
+            
+        except Exception as e:
+            print(f"[TOOL DETECTION] Error in _detect_contact_correlation_tool_from_structure: {e}")
+            traceback.print_exc()
+            return "Unknown"
+        
+        print(f"[TOOL DETECTION] Could not detect Contact Correlation tool from column structure")
+        return "Unknown"
+
+    def _detect_deep_communication_analytics_tool_from_structure(self, file_path: str) -> str:
+        try:
+            file_ext = Path(file_path).suffix.lower()
+            
+            if file_ext not in ['.xlsx', '.xls']:
+                return "Unknown"
+            
+            try:
+                engine = "xlrd" if file_ext == '.xls' else "openpyxl"
+                xls = pd.ExcelFile(file_path, engine=engine)
+                sheet_names = [str(s) for s in xls.sheet_names]
+                
+                print(f"[TOOL DETECTION] Analyzing Deep Communication Analytics columns from {len(sheet_names)} sheets (column-based detection only)...")
+                
+                axiom_key_columns = [
+                    'record', 'sender', 'message', 'timestamp', 'thread id', 'thread_id',
+                    'recipient', 'receiver'
+                ]
+                
+                axiom_column_combinations = [
+                    ['record', 'sender', 'message'],
+                    ['record', 'sender', 'timestamp'],
+                    ['record', 'thread id', 'message'],
+                    ['sender', 'message', 'timestamp']
+                ]
+
+                cellebrite_key_columns = [
+                    'source', 'author', 'body', 'url', 'account'
+                ]
+                
+                cellebrite_column_combinations = [
+                    ['source', 'author', 'body', 'url', 'account']
+                ]
+                
+                oxygen_key_columns = [
+                    'source', 'service', 'platform', 'application', 'app',
+                    'text', 'message', 'timestamp', 'sender', 'receiver', 'participant'
+                ]
+                
+                oxygen_column_combinations = [
+                    ['source', 'service', 'platform'],
+                    ['source', 'text', 'timestamp'],
+                    ['source', 'message', 'timestamp'],
+                    ['service', 'platform', 'application']
+                ]
+                
+                tool_scores = {
+                    'Magnet Axiom': 0,
+                    'Cellebrite': 0,
+                    'Oxygen': 0
+                }
+                
+                for sheet_name in sheet_names:
+                    try:
+                        for header_row in [0, 1, 2]:
+                            try:
+                                df_test = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, dtype=str, header=header_row, nrows=3)
+                                columns_lower = [str(col).lower().strip() for col in df_test.columns]
+                                columns_set = set(columns_lower)
+                                
+                                axiom_key_matches = sum(1 for col in axiom_key_columns if col in columns_set)
+                                for combo in axiom_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Magnet Axiom'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Magnet Axiom column combination in sheet '{sheet_name}': {combo}")
+                                if axiom_key_matches > 0:
+                                    tool_scores['Magnet Axiom'] += axiom_key_matches
+                                
+                                cellebrite_key_matches = sum(1 for col in cellebrite_key_columns if col in columns_set)
+                                for combo in cellebrite_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Cellebrite'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Cellebrite column combination in sheet '{sheet_name}': {combo}")
+                                if cellebrite_key_matches > 0:
+                                    tool_scores['Cellebrite'] += cellebrite_key_matches
+                                
+                                oxygen_key_matches = sum(1 for col in oxygen_key_columns if col in columns_set)
+                                for combo in oxygen_column_combinations:
+                                    if all(col in columns_set for col in combo):
+                                        tool_scores['Oxygen'] += len(combo)
+                                        print(f"[TOOL DETECTION] Found Oxygen column combination in sheet '{sheet_name}': {combo}")
+                                if oxygen_key_matches > 0:
+                                    tool_scores['Oxygen'] += oxygen_key_matches
+                                
+                                if tool_scores['Magnet Axiom'] >= 5 or tool_scores['Cellebrite'] >= 5 or tool_scores['Oxygen'] >= 5:
+                                    break
+                                    
+                            except Exception as e:
+                                continue
+                                
+                    except Exception as e:
+                        print(f"[TOOL DETECTION] Error reading sheet '{sheet_name}': {e}")
+                        continue
+                
+                max_score = max(tool_scores.values())
+                if max_score > 0:
+                    detected_tool = max(tool_scores, key=tool_scores.get)
+                    print(f"[TOOL DETECTION] Tool scores: {tool_scores}")
+                    print(f"[TOOL DETECTION] Detected {detected_tool} (Deep Communication Analytics) based on column structure (score: {max_score})")
+                    return detected_tool
+                
+            except Exception as e:
+                print(f"[TOOL DETECTION] Error detecting Deep Communication Analytics tool from structure: {e}")
+                traceback.print_exc()
+                return "Unknown"
+            
+        except Exception as e:
+            print(f"[TOOL DETECTION] Error in _detect_deep_communication_analytics_tool_from_structure: {e}")
+            traceback.print_exc()
+            return "Unknown"
+        
+        print(f"[TOOL DETECTION] Could not detect Deep Communication Analytics tool from column structure")
+        return "Unknown"
+
     def _validate_file_format(self, file_path: str, tools: str, method: str) -> Dict[str, Any]:
         try:
             file_ext = Path(file_path).suffix.lower()
@@ -433,7 +801,8 @@ class UploadService:
                         "detected_method": "Hashfile Analytics"
                     }
                 
-                detected_tool = self._detect_tool_from_sheets(file_path, method)
+                # Use column-based detection for Deep Communication Analytics
+                detected_tool = self._detect_deep_communication_analytics_tool_from_structure(file_path)
                 if detected_tool and detected_tool != "Unknown":
                     normalized_user_tool = self._normalize_tool_name(tools)
                     if normalized_user_tool != detected_tool:
@@ -470,7 +839,7 @@ class UploadService:
                         "detected_method": "Hashfile Analytics"
                     }
                 
-                detected_tool = self._detect_tool_from_sheets(file_path, method)
+                detected_tool = self._detect_social_media_correlation_tool_from_structure(file_path)
                 if detected_tool and detected_tool != "Unknown":
                     normalized_user_tool = self._normalize_tool_name(tools)
                     if normalized_user_tool != detected_tool:
@@ -507,7 +876,8 @@ class UploadService:
                         "detected_method": "Hashfile Analytics"
                     }
                 
-                detected_tool = self._detect_tool_from_sheets(file_path, method)
+                # Use column-based detection for Contact Correlation
+                detected_tool = self._detect_contact_correlation_tool_from_structure(file_path)
                 if detected_tool and detected_tool != "Unknown":
                     normalized_user_tool = self._normalize_tool_name(tools)
                     if normalized_user_tool != detected_tool:
@@ -787,6 +1157,11 @@ class UploadService:
             })
             
             validation_result = self._validate_file_format(original_path_abs, tools, method)
+
+            validation_passed = validation_result.get("is_valid", False)
+            validated_tool = validation_result.get("detected_tool")
+            validated_method = validation_result.get("detected_method", method)
+            
             if not validation_result["is_valid"]:
                 detected_tool = validation_result.get("detected_tool")
                 detected_method = validation_result.get("detected_method", method)
@@ -880,6 +1255,27 @@ class UploadService:
                     
                     if social_media_result:
                         parsing_result["social_media_count"] = len(social_media_result)
+                    else:
+                        parsing_result["social_media_count"] = 0
+                        if validation_passed:
+                            parsing_result["social_media_error"] = f"Social Media Correlation data not found in file. The file format is correct ({tools} with {method} method), but no social media data exists in this file."
+                            print(f"[WARNING] No social media data found in file for method '{method}' with tools '{tools}'. Tools/method are correct, but data doesn't exist.")
+                        else:
+                            detected_tool_for_error = validated_tool
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                try:
+                                    if os.path.exists(original_path_abs):
+                                        detected_tool_for_error = self._detect_social_media_correlation_tool_from_structure(original_path_abs)
+                                        if detected_tool_for_error and detected_tool_for_error != "Unknown":
+                                            print(f"[TOOL DETECTION] Detected correct tool for Social Media Correlation: {detected_tool_for_error}")
+                                except:
+                                    pass
+                            
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                            
+                            parsing_result["social_media_error"] = f"Upload hash data not found in file with {method} method and {detected_tool_for_error} tools."
+                            print(f"[WARNING] No social media data found in file for method '{method}' with tools '{tools}'. Possible tool/method mismatch.")
                     self._progress[upload_id].update({
                         "message": "Inserting social media data to database...",
                         "percent": 98.5
@@ -911,30 +1307,30 @@ class UploadService:
                     else:
                         parsing_result["chat_messages_count"] = 0
                         
-                        hashfile_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
-                        if hashfile_tool and hashfile_tool != "Unknown":
-                            detected_tool = hashfile_tool
-                            detected_method = "Hashfile Analytics"
-                            parsing_result["detected_tool"] = detected_tool
-                            print(f"[DETECTION] File is actually a hashfile ({hashfile_tool}), redirecting to Hashfile Analytics")
+                        if validation_passed:
+                            parsing_result["chat_messages_error"] = f"Deep Communication Analytics data not found in file. The file format is correct ({tools} with {method} method), but no chat messages data exists in this file."
+                            print(f"[WARNING] No chat messages data found in file for method '{method}' with tools '{tools}'. Tools/method are correct, but data doesn't exist.")
                         else:
-                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                            detected_method = method
-                            parsing_result["detected_tool"] = detected_tool
-                            if not detected_tool or detected_tool == "Unknown":
-                                try:
-                                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                                    parsing_result["detected_tool"] = detected_tool
-                                except:
-                                    pass
+                            hashfile_tool = self._detect_hashfile_tool_from_structure(original_path_abs)
+                            if hashfile_tool and hashfile_tool != "Unknown":
+                                detected_tool = hashfile_tool
+                                detected_method = "Hashfile Analytics"
+                                parsing_result["detected_tool"] = detected_tool
+                                print(f"[DETECTION] File is actually a hashfile ({hashfile_tool}), redirecting to Hashfile Analytics")
+                            else:
+                                detected_tool = validated_tool
+                                if not detected_tool or detected_tool == "Unknown":
+                                    try:
+                                        detected_tool = self._detect_deep_communication_analytics_tool_from_structure(original_path_abs)
+                                        if not detected_tool or detected_tool == "Unknown":
+                                            detected_tool = self._normalize_tool_name(tools) or tools or "Unknown"
+                                    except:
+                                        detected_tool = self._normalize_tool_name(tools) or tools or "Unknown"
+                                detected_method = method
+                                parsing_result["detected_tool"] = detected_tool
                             
-                            if not detected_tool or detected_tool == "Unknown":
-                                detected_tool = self._normalize_tool_name(tools) or tools or "Unknown"
-                                if detected_tool:
-                                    parsing_result["detected_tool"] = detected_tool
-                        
-                        parsing_result["chat_messages_error"] = f"Upload hash data not found in file with {detected_method} method and {detected_tool} tools."
-                        print(f"No chat messages found, setting chat_messages_count to 0. Detected tool: {detected_tool}, method: {detected_method}")
+                            parsing_result["chat_messages_error"] = f"Upload hash data not found in file with {detected_method} method and {detected_tool} tools."
+                            print(f"[WARNING] No chat messages data found in file for method '{method}' with tools '{tools}'. Possible tool/method mismatch. Detected tool: {detected_tool}, method: {detected_method}")
                     self._progress[upload_id].update({
                         "message": "Inserting chat messages data to database...",
                         "percent": 98.5
@@ -996,9 +1392,25 @@ class UploadService:
                         parsing_result["calls_count"] = 0
 
                     if not contacts_result and not calls_result:
-                        detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
-                        parsing_result["contacts_calls_error"] = f"Contacts and calls data not found in file with {method} method and {detected_tool_for_error} tools."
-                        print(f"[WARNING] No contacts or calls data found in file for method '{method}' with tools '{tools}'")
+                        if validation_passed:
+                            parsing_result["contacts_calls_error"] = f"Contact Correlation data not found in file. The file format is correct ({tools} with {method} method), but no contact or call data exists in this file."
+                            print(f"[WARNING] No contacts or calls data found in file for method '{method}' with tools '{tools}'. Tools/method are correct, but data doesn't exist.")
+                        else:
+                            detected_tool_for_error = validated_tool
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                try:
+                                    if os.path.exists(original_path_abs):
+                                        detected_tool_for_error = self._detect_contact_correlation_tool_from_structure(original_path_abs)
+                                        if detected_tool_for_error and detected_tool_for_error != "Unknown":
+                                            print(f"[TOOL DETECTION] Detected correct tool for Contact Correlation: {detected_tool_for_error}")
+                                except:
+                                    pass
+                            
+                            if not detected_tool_for_error or detected_tool_for_error == "Unknown":
+                                detected_tool_for_error = self._normalize_tool_name(tools) or tools or "Unknown"
+                            
+                            parsing_result["contacts_calls_error"] = f"Contacts and calls data not found in file with {method} method and {detected_tool_for_error} tools."
+                            print(f"[WARNING] No contacts or calls data found in file for method '{method}' with tools '{tools}'. Possible tool/method mismatch.")
                     
                     self._progress[upload_id].update({
                         "message": "Inserting contacts and calls data to database...",
@@ -1010,7 +1422,6 @@ class UploadService:
             
             elif method == "Hashfile Analytics":
                 detected_tool_from_file = None
-                
                 try:
                     self._progress[upload_id].update({
                         "message": "Preparing hashfile parsing...",
@@ -1289,8 +1700,18 @@ class UploadService:
                         if not detected_tool or detected_tool == "Unknown":
                             try:
                                 if os.path.exists(original_path_abs):
-                                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
-                                    print(f"[TOOL DETECTION] Detected tool from sheets (fallback): {detected_tool}")
+                                    if method == "Social Media Correlation":
+                                        detected_tool = self._detect_social_media_correlation_tool_from_structure(original_path_abs)
+                                        print(f"[TOOL DETECTION] Detected tool from columns (fallback for Social Media Correlation): {detected_tool}")
+                                    elif method == "Contact Correlation":
+                                        detected_tool = self._detect_contact_correlation_tool_from_structure(original_path_abs)
+                                        print(f"[TOOL DETECTION] Detected tool from columns (fallback for Contact Correlation): {detected_tool}")
+                                    elif method == "Deep Communication Analytics":
+                                        detected_tool = self._detect_deep_communication_analytics_tool_from_structure(original_path_abs)
+                                        print(f"[TOOL DETECTION] Detected tool from columns (fallback for Deep Communication Analytics): {detected_tool}")
+                                    else:
+                                        detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                                        print(f"[TOOL DETECTION] Detected tool from sheets (fallback): {detected_tool}")
                             except:
                                 pass
                         
@@ -1300,13 +1721,27 @@ class UploadService:
                     if not detected_tool:
                         try:
                             if os.path.exists(original_path_abs):
-                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                                if method == "Social Media Correlation":
+                                    detected_tool = self._detect_social_media_correlation_tool_from_structure(original_path_abs)
+                                elif method == "Contact Correlation":
+                                    detected_tool = self._detect_contact_correlation_tool_from_structure(original_path_abs)
+                                elif method == "Deep Communication Analytics":
+                                    detected_tool = self._detect_deep_communication_analytics_tool_from_structure(original_path_abs)
+                                else:
+                                    detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                         except:
                             pass
                     
                     if not detected_tool:
                         try:
-                            detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
+                            if method == "Social Media Correlation":
+                                detected_tool = self._detect_social_media_correlation_tool_from_structure(original_path_abs)
+                            elif method == "Contact Correlation":
+                                detected_tool = self._detect_contact_correlation_tool_from_structure(original_path_abs)
+                            elif method == "Deep Communication Analytics":
+                                detected_tool = self._detect_deep_communication_analytics_tool_from_structure(original_path_abs)
+                            else:
+                                detected_tool = self._detect_tool_from_sheets(original_path_abs, method)
                         except:
                             pass
                     
@@ -1335,9 +1770,20 @@ class UploadService:
                     except Exception as e:
                         print(f"[ERROR HANDLING] Error extracting method/tool from error_msg: {e}")
                 
-                if detected_method_from_error and detected_tool_from_error and detected_tool_from_error != "Unknown":
+                is_no_data_error = (
+                    "Contact Correlation data not found in file. The file format is correct" in error_msg or
+                    "Social Media Correlation data not found in file. The file format is correct" in error_msg or
+                    "Deep Communication Analytics data not found in file. The file format is correct" in error_msg
+                )
+                
+                if is_no_data_error:
+                    print(f"[ERROR HANDLING] Tools and method are correct, but no data found in file")
+                    final_error_msg = error_msg  # Keep the original message about no data
+                    final_method = method or detected_method_from_error or "Hashfile Analytics"
+                    detected_tool = self._normalize_tool_name(tools) or tools or detected_tool_from_error or "Unknown"
+                elif detected_method_from_error and detected_tool_from_error and detected_tool_from_error != "Unknown":
                     print(f"[ERROR HANDLING] Using detected values from error_msg: method={detected_method_from_error}, tool={detected_tool_from_error}")
-                    final_error_msg = error_msg  # Use error_msg as is since it already has correct detected method and tool
+                    final_error_msg = error_msg
                     final_method = detected_method_from_error
                     detected_tool = detected_tool_from_error
                 else:

@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-Forenlytic Analytics - Complete Analysis Script
-===============================================
-Script Python untuk menjalankan analisis forensik lengkap dari awal sampai selesai
-Menggunakan file dari contoh_dataset dan contoh_hashfile
-"""
-
 import requests
 import json
 import os
@@ -107,7 +100,6 @@ class ForenlyticAnalyzer:
             return False
             
     def upload_device_data(self) -> bool:
-        """Upload device data files"""
         self.print_step(2, "Uploading device data...")
         
         device_files = [
