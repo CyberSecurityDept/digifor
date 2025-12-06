@@ -339,15 +339,15 @@ async def save_case_notes(
             status_code=200
         )
     except ValueError as e:
-            logger.error(f"Validation error in save_case_notes: {str(e)}", exc_info=True)
-            return JSONResponse(
-                content={
-                    "status": 400,
-                    "message": "Invalid input data. Please check your request and try again.",
-                    "data": None
-                },
-                status_code=400
-            )
+        logger.error(f"Validation error in edit_case_notes: {str(e)}", exc_info=True)
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": "Invalid input data. Please check your request and try again.",
+                "data": None
+            },
+            status_code=400
+        )
     except Exception as e:
         error_message = str(e).lower()
         if "not found" in error_message:
@@ -363,7 +363,7 @@ async def save_case_notes(
             return JSONResponse(
                 content={
                     "status": 500,
-                    "message": "Failed to save case notes. Please try again later.",
+                    "message": "Failed to edit case notes. Please try again later.",
                     "data": None
                 },
                 status_code=500
@@ -398,15 +398,15 @@ async def edit_case_notes(
             status_code=200
         )
     except ValueError as e:
-            logger.error(f"Validation error in save_case_notes: {str(e)}", exc_info=True)
-            return JSONResponse(
-                content={
-                    "status": 400,
-                    "message": "Invalid input data. Please check your request and try again.",
-                    "data": None
-                },
-                status_code=400
-            )
+        logger.error(f"Validation error in edit_case_notes: {str(e)}", exc_info=True)
+        return JSONResponse(
+            content={
+                "status": 400,
+                "message": "Invalid input data. Please check your request and try again.",
+                "data": None
+            },
+            status_code=400
+        )
     except Exception as e:
         error_message = str(e).lower()
         if "not found" in error_message:

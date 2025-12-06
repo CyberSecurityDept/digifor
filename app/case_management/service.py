@@ -223,25 +223,25 @@ class CaseService:
             if search_clean:
                 search_pattern = f"%{search_clean}%"
                 normalized_status = status_mapping.get(search_clean, search_clean)
-                search_conditions = [
-                        Case.title.ilike(search_pattern),
-                        Case.main_investigator.ilike(search_pattern),
-                        cast(Case.agency_id, String).ilike(search_pattern),
-                    Agency.name.ilike(search_pattern),
-                        cast(Case.created_at, String).ilike(search_pattern),
-                        cast(Case.updated_at, String).ilike(search_pattern),
-                    cast(Case.status, String).ilike(search_pattern)
-                ]
-                
-                if normalized_status in ['Open', 'Closed', 'Re-open']:
-                    search_conditions.append(Case.status == normalized_status)
-                query = query.filter(or_(*search_conditions))
+            search_conditions = [
+                    Case.title.ilike(search_pattern),
+                    Case.main_investigator.ilike(search_pattern),
+                    cast(Case.agency_id, String).ilike(search_pattern),
+                Agency.name.ilike(search_pattern),
+                    cast(Case.created_at, String).ilike(search_pattern),
+                    cast(Case.updated_at, String).ilike(search_pattern),
+                cast(Case.status, String).ilike(search_pattern)
+            ]
+            
+            if normalized_status in ['Open', 'Closed', 'Re-open']:
+                search_conditions.append(Case.status == normalized_status)
+            query = query.filter(or_(*search_conditions))
         if status:
             # Status should already be sanitized from route
             status_clean = status.strip() if status else ""
             if status_clean:
                 normalized_status = status_mapping.get(status_clean, status_clean)
-                query = query.filter(Case.status == normalized_status)
+            query = query.filter(Case.status == normalized_status)
         total_count = query.count()
         if sort_by == "created_at":
             if sort_order and sort_order.lower() == "asc":

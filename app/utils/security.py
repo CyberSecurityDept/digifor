@@ -20,16 +20,45 @@ def validate_sql_injection_patterns(text: Optional[str]) -> bool:
     if not text:
         return True
     
+    # Normalize curly quotes to straight quotes for consistent detection
+    # U+2018 (LEFT SINGLE QUOTATION MARK) -> U+0027 (APOSTROPHE)
+    # U+2019 (RIGHT SINGLE QUOTATION MARK) -> U+0027 (APOSTROPHE)
+    # U+201C (LEFT DOUBLE QUOTATION MARK) -> U+0022 (QUOTATION MARK)
+    # U+201D (RIGHT DOUBLE QUOTATION MARK) -> U+0022 (QUOTATION MARK)
+    text = text.replace('\u2018', "'")  # ' -> '
+    text = text.replace('\u2019', "'")  # ' -> '
+    text = text.replace('\u201C', '"')  # " -> "
+    text = text.replace('\u201D', '"')  # " -> "
+    
     text_lower = text.lower()
     dangerous_patterns = [
+        # UNION SELECT patterns
         "union select",
         "union all select",
+        "'union select",
+        "' union select",
+        "union select null",
+        "union select *",
+        "union select current_user",
+        "union select user",
+        "union select database",
+        "union select version",
+        "union select @@version",
+        "union select schema",
+        "union select table_name",
+        "union select column_name",
+        # SQL command injection
         "'; drop table",
         "'; delete from",
         "'; update ",
         "'; insert into",
         "'; truncate",
         "'; alter table",
+        "'; create table",
+        "'; drop database",
+        "'; exec",
+        "'; execute",
+        # XSS patterns
         "exec(",
         "execute(",
         "script>",
@@ -64,6 +93,15 @@ def validate_sql_injection_patterns(text: Optional[str]) -> bool:
         "\" or \"",
         "\" or 1=1",
         "\" or \"1\"=\"1",
+        # OR/AND without space (e.g., OR'1'='1, AND'1'='1)
+        "or'1'='1",
+        "or'1'='1'",
+        "and'1'='1",
+        "and'1'='1'",
+        "'or'1'='1",
+        "'or'1'='1'",
+        "'and'1'='1",
+        "'and'1'='1'",
         # SQL injection patterns - AND conditions
         "and '1'='1",
         "and '1'='1'",
@@ -86,12 +124,24 @@ def validate_sql_injection_patterns(text: Optional[str]) -> bool:
         return False
     
     sql_injection_patterns = [
+        # OR/AND with 1=1 patterns
         r'\bor\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
         r'\band\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
         r'\bor\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
         r'\band\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
         r'[\'"]\s*or\s*[\'"]',
         r'[\'"]\s*and\s*[\'"]',
+        # UNION SELECT patterns
+        r'[\'"]?\s*union\s+select',
+        r'union\s+select\s+null',
+        r'union\s+select\s+\*',
+        r'union\s+select\s+current_user',
+        r'union\s+select\s+user\b',
+        r'union\s+select\s+database\b',
+        r'union\s+select\s+version\b',
+        r'union\s+select\s+@@version',
+        r'union\s+select\s+table_name',
+        r'union\s+select\s+column_name',
     ]
     
     for pattern in sql_injection_patterns:
@@ -154,4 +204,3 @@ def validate_file_name(filename: Optional[str]) -> bool:
         return False
     
     return True
-

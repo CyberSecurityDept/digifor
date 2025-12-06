@@ -9,6 +9,7 @@ from app.auth.models import User
 from app.case_management.schemas import (
     CaseLogUpdate, CaseLogResponse, CaseLogListResponse
 )
+from app.utils.security import validate_sql_injection_patterns, sanitize_input
 import logging
 
 router = APIRouter(prefix="/case-logs", tags=["Case Log Management"])
@@ -24,6 +25,22 @@ async def update_case_log(
         case = db.query(Case).filter(Case.id == case_id).first()
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
+        
+        if log_data.status:
+            if not validate_sql_injection_patterns(log_data.status):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in status. Please remove any SQL injection attempts or malicious code."
+                )
+            log_data.status = sanitize_input(log_data.status, max_length=50)
+        
+        if log_data.notes:
+            if not validate_sql_injection_patterns(log_data.notes):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code."
+                )
+            log_data.notes = sanitize_input(log_data.notes)
         
         log = case_log_service.update_case_log(db, case_id, log_data.dict(), current_user)
         cleaned_log = {k: v for k, v in log.items() if v is not None}

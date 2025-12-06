@@ -61,15 +61,25 @@ async def create_person(
         if not case:
             raise HTTPException(status_code=404, detail=f"Case with ID {case_id} not found")
         
+        logger.info(f"[SECURITY] create_person - person_name: {repr(person_name)}, is_unknown_person: {is_unknown_person}, type: {type(is_unknown_person)}")
+        
         if not is_unknown_person:
+            logger.info(f"[SECURITY] is_unknown_person is False, validation will run")
             if not person_name or not person_name.strip():
                 raise HTTPException(status_code=400, detail="person_name is required when is_unknown_person is false")
-            if not validate_sql_injection_patterns(person_name):
+            
+            # Validate SQL injection - CRITICAL SECURITY CHECK
+            validation_result = validate_sql_injection_patterns(person_name)
+            logger.info(f"[SECURITY] SQL injection validation result for person_name: {validation_result} (False = blocked, True = allowed)")
+            
+            if not validation_result:
+                logger.warning(f"[SECURITY] SQL injection attempt BLOCKED in person_name: {person_name[:50]}")
                 raise HTTPException(
                     status_code=400,
                     detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
                 )
             person_name = sanitize_input(person_name)
+            logger.info(f"[SECURITY] person_name after sanitization: {repr(person_name)}")
             
             if not suspect_status or not suspect_status.strip():
                 raise HTTPException(status_code=400, detail="suspect_status is required when is_unknown_person is false")
@@ -80,16 +90,35 @@ async def create_person(
                 )
             suspect_status = sanitize_input(suspect_status, max_length=50)
         
+        if evidence_summary and evidence_summary.strip():
+            if not validate_sql_injection_patterns(evidence_summary):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
+                )
+        
+        if evidence_source and evidence_source.strip():
+            if not validate_sql_injection_patterns(evidence_source):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid characters detected in evidence_source. Please remove any SQL injection attempts or malicious code."
+                )
+        
         if evidence_number is not None:
             evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
             if not evidence_number:
                 raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
+            if len(evidence_number) > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail="evidence_number cannot exceed 100 characters. Please use evidence_summary for longer text."
+                )
             if not validate_sql_injection_patterns(evidence_number):
                 raise HTTPException(
                     status_code=400,
                     detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_number = sanitize_input(evidence_number, max_length=50)
+            evidence_number = sanitize_input(evidence_number, max_length=100)
         
         if not evidence_number:
             if not evidence_file:
@@ -169,12 +198,24 @@ async def create_person(
                     status_code=400,
                     detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_summary_clean = sanitize_input(evidence_summary.strip(), max_length=1000)
+            # evidence_summary disimpan di Evidence.description (Text type, unlimited)
+            evidence_summary_clean = sanitize_input(evidence_summary.strip(), max_length=None)
             setattr(existing_evidence, 'description', evidence_summary_clean)
             db.commit()
         
         suspect_id_value = None
         if is_unknown_person:
+            logger.info(f"[SECURITY] is_unknown_person is True, but validating person_name if provided")
+            if person_name and person_name.strip():
+                validation_result = validate_sql_injection_patterns(person_name)
+                logger.info(f"[SECURITY] SQL injection validation result for person_name (unknown person): {validation_result}")
+                if not validation_result:
+                    logger.warning(f"[SECURITY] SQL injection attempt BLOCKED in person_name (unknown person): {person_name[:50]}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+                    )
+                person_name = sanitize_input(person_name)
             final_name = person_name.strip() if person_name and person_name.strip() else "Unknown"
             final_suspect_status = normalize_suspect_status(suspect_status) if suspect_status else None
             if suspect_status and final_suspect_status is None:
@@ -283,7 +324,8 @@ async def create_person(
                         status_code=400,
                         detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
                     )
-                evidence_summary_clean = sanitize_input(evidence_summary.strip(), max_length=1000)
+                # evidence_summary disimpan di Evidence.description (Text type, unlimited)
+                evidence_summary_clean = sanitize_input(evidence_summary.strip(), max_length=None)
                 setattr(existing_evidence, 'description', evidence_summary_clean)
             db.commit()
             evidence = existing_evidence
@@ -296,10 +338,15 @@ async def create_person(
                     )
             source_value = sanitize_input(evidence_source.strip() if evidence_source and isinstance(evidence_source, str) and evidence_source.strip() else None, max_length=100)
             
+            # Sanitize evidence_summary jika ada (Text type, unlimited)
+            evidence_summary_sanitized = None
+            if evidence_summary and evidence_summary.strip():
+                evidence_summary_sanitized = sanitize_input(evidence_summary.strip(), max_length=None)
+            
             evidence_dict = {
                 "evidence_number": evidence_number,
                 "title": evidence_title,
-                "description": evidence_summary,
+                "description": evidence_summary_sanitized,
                 "source": source_value,
                 "evidence_type": None,
                 "case_id": case_id,
@@ -377,7 +424,7 @@ async def create_person(
     except Exception as e:
         logger.error(f"Error in create_person: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=500, 
             detail="An unexpected error occurred while creating person. Please try again later."
         )
 
@@ -450,7 +497,12 @@ async def update_person(
                             status_code=400,
                             detail="person_name cannot be empty"
                         )
-                    new_name = person_name.strip()
+                    if not validate_sql_injection_patterns(person_name):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code."
+                        )
+                    new_name = sanitize_input(person_name.strip())
                     if old_name != new_name:
                         name_changed = True
                     setattr(suspect, 'name', new_name)
@@ -459,6 +511,11 @@ async def update_person(
                         raise HTTPException(
                             status_code=400,
                             detail="suspect_status cannot be empty"
+                        )
+                    if not validate_sql_injection_patterns(suspect_status):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid characters detected in suspect_status. Please remove any SQL injection attempts or malicious code."
                         )
                     normalized_status = normalize_suspect_status(suspect_status)
                     if normalized_status is None:
@@ -493,6 +550,13 @@ async def update_person(
         
         if notes is not None:
             new_notes = notes.strip() if notes else None
+            if new_notes:
+                if not validate_sql_injection_patterns(new_notes):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code."
+                    )
+                new_notes = sanitize_input(new_notes)
             if old_notes != new_notes:
                 notes_changed = True
             setattr(suspect, 'notes', new_notes)
@@ -598,9 +662,9 @@ async def update_person(
     except Exception as e:
         logger.error(f"Error in create_person: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=500, 
             detail="An unexpected error occurred while creating person. Please try again later."
-        )
+            )
 
 @router.delete("/delete-person/{person_id}")
 async def delete_person(
@@ -658,7 +722,7 @@ async def delete_person(
         db.rollback()
         logger.error(f"Error in create_person: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=500, 
             detail="An unexpected error occurred while creating person. Please try again later."
         )
 
@@ -679,7 +743,6 @@ async def save_suspect_notes(
                 content={"status": 404, "message": f"Suspect with ID {suspect_id} not found"}
             )
 
-        # Check akses case
         if suspect.case_id:
             case = db.query(Case).filter(Case.id == suspect.case_id).first()
             if case and not check_case_access(case, current_user):
@@ -688,7 +751,6 @@ async def save_suspect_notes(
                     content={"status": 403, "message": "You do not have permission to access this case"}
                 )
 
-        # Notes sudah ada?
         if suspect.notes and suspect.notes.strip():
             return JSONResponse(
                 status_code=400,
@@ -698,12 +760,10 @@ async def save_suspect_notes(
                 }
             )
 
-        # Simpan ke tabel suspect
         suspect.notes = notes_trimmed
         db.commit()
         db.refresh(suspect)
 
-        # Create case log
         try:
             if suspect.case_id:
                 changed_by = getattr(current_user, "fullname", "") or current_user.email

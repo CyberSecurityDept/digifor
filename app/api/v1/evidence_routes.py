@@ -316,7 +316,8 @@ async def create_evidence(
                     status_code=400,
                     detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_summary = sanitize_input(evidence_summary)
+                
+            evidence_summary = sanitize_input(evidence_summary, max_length=None)
         
         if investigator:
             if not validate_sql_injection_patterns(investigator):
@@ -1038,7 +1039,12 @@ async def update_evidence(
                     status_code=400,
                     detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_number = sanitize_input(evidence_number, max_length=50)
+            if len(evidence_number) > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail="evidence_number cannot exceed 100 characters. Please use evidence_summary for longer text."
+                )
+            evidence_number = sanitize_input(evidence_number, max_length=100)
             
             current_evidence_number = getattr(evidence, 'evidence_number', None)
             
@@ -1081,7 +1087,8 @@ async def update_evidence(
                     status_code=400,
                     detail="Invalid characters detected in evidence_summary. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_summary = sanitize_input(evidence_summary)
+            # evidence_summary disimpan di Evidence.description (Text type, unlimited)
+            evidence_summary = sanitize_input(evidence_summary, max_length=None)
             setattr(evidence, 'description', evidence_summary)
         
         if investigator is not None:
