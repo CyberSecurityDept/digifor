@@ -171,6 +171,9 @@ async def create_person(
 
         evidence_title = case.title if case else evidence_number
         investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+        
+        if investigator_name:
+            investigator_name = sanitize_input(investigator_name, max_length=100)
         existing_evidence = db.query(Evidence).filter(
             Evidence.evidence_number == evidence_number,
             Evidence.case_id == case_id
@@ -224,16 +227,25 @@ async def create_person(
                     detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                 )
             
+            # Sanitize case_name to match Suspect model constraint (String(500))
+            case_name_value = None
+            if case and case.title:
+                case_name_value = sanitize_input(case.title, max_length=500)
+            
+            # Sanitize created_by to match Suspect model constraint (String(255))
+            created_by_value = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            created_by_value = sanitize_input(created_by_value, max_length=255)
+            
             suspect_dict = {
                 "name": final_name,
                 "case_id": case_id,
-                "case_name": case.title if case else None,
+                "case_name": case_name_value,
                 "investigator": investigator_name,
                 "status": final_suspect_status,
                 "is_unknown": True,
                 "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
-                "created_by": getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                "created_by": created_by_value
             }
             
             suspect = Suspect(**suspect_dict)
@@ -267,16 +279,23 @@ async def create_person(
                     detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
                 )
             
+            case_name_value = None
+            if case and case.title:
+                case_name_value = sanitize_input(case.title, max_length=500)
+            
+            created_by_value = getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+            created_by_value = sanitize_input(created_by_value, max_length=255)
+            
             suspect_dict = {
                 "name": person_name_clean,
                 "case_id": case_id,
-                "case_name": case.title if case else None,
+                "case_name": case_name_value,
                 "investigator": investigator_name,
                 "status": final_suspect_status,
                 "is_unknown": False,
                 "evidence_number": evidence_number,
                 "evidence_source": evidence_source,
-                "created_by": getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                "created_by": created_by_value
             }
             
             suspect = Suspect(**suspect_dict)

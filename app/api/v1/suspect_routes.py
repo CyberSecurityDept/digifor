@@ -339,7 +339,7 @@ async def create_suspect(
                     detail="Invalid characters detected in case_name. Please remove any SQL injection attempts or malicious code."
                 )
             case_name = sanitize_input(case_name)
-        
+
         final_status_value = None if is_unknown_flag else final_status
         
         suspect_dict = {
