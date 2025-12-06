@@ -12,147 +12,301 @@ from app.core import security
 from fastapi.security import OAuth2PasswordBearer
 from app.api.deps import get_current_user
 from app.utils.security import validate_sql_injection_patterns, sanitize_input
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, DisconnectionError
 import logging
+
+try:
+    import psycopg2
+    from psycopg2 import OperationalError as Psycopg2OperationalError, InterfaceError as Psycopg2InterfaceError
+except ImportError:
+    psycopg2 = None
+    Psycopg2OperationalError = None
+    Psycopg2InterfaceError = None
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth")
 @router.post("/login")
 def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    if not data.email or not data.email.strip():
-        return JSONResponse(
-            {"status": 400, "message": "Email is required", "data": None},
-            status_code=400
-        )
-    
-    if not validate_sql_injection_patterns(data.email):
-        return JSONResponse(
-            {"status": 400, "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.", "data": None},
-            status_code=400
-        )
-    
-    email = sanitize_input(data.email.strip().lower(), max_length=255)
-    if not email or '@' not in email or '.' not in email.split('@')[1]:
-        return JSONResponse(
-            {"status": 400, "message": "Invalid email format", "data": None},
-            status_code=400
-        )
-    
-    if not data.password or not data.password.strip():
-        return JSONResponse(
-            {"status": 400, "message": "Password is required", "data": None},
-            status_code=400
-        )
-    
-    if not validate_sql_injection_patterns(data.password):
-        return JSONResponse(
-            {"status": 400, "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.", "data": None},
-            status_code=400
-        )
-    
-    password = data.password.strip()
-    if len(password) < 8:
-        return JSONResponse(
-            {"status": 400, "message": "Password must be at least 8 characters long", "data": None},
-            status_code=400
-        )
-    if len(password) > 128:
-        return JSONResponse(
-            {"status": 400, "message": "Password must not exceed 128 characters", "data": None},
-            status_code=400
-        )
-    
-    user = service.get_user_by_email(db, email)
-    if not user:
-        return JSONResponse(
-            {"status": 401, "message": "Invalid credentials", "data": None},
-            status_code=401
-        )
-    
-    if user.is_active is False:
-        return JSONResponse(
-            {"status": 401, "message": "Invalid credentials", "data": None},
-            status_code=401
-        )
-    
-    password_valid = service.verify_password(password, user.hashed_password)
-    if not password_valid:
-        return JSONResponse(
-            {"status": 401, "message": "Invalid credentials", "data": None},
-            status_code=401
-        )
+    try:
+        if not data.email or not data.email.strip():
+            return JSONResponse(
+                {"status": 400, "message": "Email is required", "data": None},
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(data.email):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.", "data": None},
+                status_code=400
+            )
+        
+        email = sanitize_input(data.email.strip().lower(), max_length=255)
+        if not email or '@' not in email or '.' not in email.split('@')[1]:
+            return JSONResponse(
+                {"status": 400, "message": "Invalid email format", "data": None},
+                status_code=400
+            )
+        
+        if not data.password or not data.password.strip():
+            return JSONResponse(
+                {"status": 400, "message": "Password is required", "data": None},
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(data.password):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.", "data": None},
+                status_code=400
+            )
+        
+        password = data.password.strip()
+        if len(password) < 8:
+            return JSONResponse(
+                {"status": 400, "message": "Password must be at least 8 characters long", "data": None},
+                status_code=400
+            )
+        if len(password) > 128:
+            return JSONResponse(
+                {"status": 400, "message": "Password must not exceed 128 characters", "data": None},
+                status_code=400
+            )
+        
+        try:
+            user = service.get_user_by_email(db, email)
+        except (OperationalError, DisconnectionError) as e:
+            logger.error(f"Database connection error during login: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                status_code=503
+            )
+        except SQLAlchemyError as e:
+            if psycopg2 and (isinstance(e, (Psycopg2OperationalError, Psycopg2InterfaceError)) or 
+                           (hasattr(e, '__cause__') and isinstance(e.__cause__, (Psycopg2OperationalError, Psycopg2InterfaceError)))):
+                logger.error(f"Database connection error during login: {str(e)}", exc_info=True)
+                db.rollback()
+                return JSONResponse(
+                    {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                    status_code=503
+                )
+            logger.error(f"Database error during login: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while processing your request. Please try again later.", "data": None},
+                status_code=500
+            )
+        
+        if not user:
+            return JSONResponse(
+                {"status": 401, "message": "Invalid credentials", "data": None},
+                status_code=401
+            )
+        
+        if user.is_active is False:
+            return JSONResponse(
+                {"status": 401, "message": "Invalid credentials", "data": None},
+                status_code=401
+            )
+        
+        password_valid = service.verify_password(password, user.hashed_password)
+        if not password_valid:
+            return JSONResponse(
+                {"status": 401, "message": "Invalid credentials", "data": None},
+                status_code=401
+            )
 
-    access_token = security.create_access_token(subject=str(user.id))
-    
-    refresh_token_obj = service.create_refresh_token(db, user)
+        try:
+            access_token = security.create_access_token(subject=str(user.id))
+        except (JWTError, Exception) as e:
+            logger.error(f"Token creation error during login: {str(e)}", exc_info=True)
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while generating authentication token. Please try again later.", "data": None},
+                status_code=500
+            )
+        
+        try:
+            refresh_token_obj = service.create_refresh_token(db, user)
+        except (OperationalError, DisconnectionError) as e:
+            logger.error(f"Database connection error during refresh token creation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                status_code=503
+            )
+        except SQLAlchemyError as e:
+            if psycopg2 and (isinstance(e, (Psycopg2OperationalError, Psycopg2InterfaceError)) or 
+                           (hasattr(e, '__cause__') and isinstance(e.__cause__, (Psycopg2OperationalError, Psycopg2InterfaceError)))):
+                logger.error(f"Database connection error during refresh token creation: {str(e)}", exc_info=True)
+                db.rollback()
+                return JSONResponse(
+                    {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                    status_code=503
+                )
+            logger.error(f"Database error during refresh token creation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while processing your request. Please try again later.", "data": None},
+                status_code=500
+            )
 
-    user_data = {
-        "id": user.id,
-        "email": user.email,
-        "fullname": user.fullname,
-        "tag": user.tag,
-        "role": user.role
-    }
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "fullname": user.fullname,
+            "tag": user.tag,
+            "role": user.role
+        }
 
-    return JSONResponse(
-        {
-            "status": 200,
-            "message": "Login successful",
-            "data": {
-                "user": user_data,
-                "access_token": access_token,
-                "refresh_token": refresh_token_obj.token
-            }
-        },
-        status_code=200
-    )
+        return JSONResponse(
+            {
+                "status": 200,
+                "message": "Login successful",
+                "data": {
+                    "user": user_data,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token_obj.token
+                }
+            },
+            status_code=200
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during login: {str(e)}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            {"status": 500, "message": "An unexpected error occurred. Please try again later.", "data": None},
+            status_code=500
+        )
 
 @router.post("/refresh")
 def refresh_token(data: schemas.RefreshRequest, db: Session = Depends(get_db)):
-    if not data.refresh_token or not data.refresh_token.strip():
-        return JSONResponse(
-            {"status": 400, "message": "Refresh token is required", "data": None},
-            status_code=400
-        )
-    
-    if not validate_sql_injection_patterns(data.refresh_token):
-        return JSONResponse(
-            {"status": 400, "message": "Invalid characters detected in refresh token. Please remove any SQL injection attempts or malicious code.", "data": None},
-            status_code=400
-        )
-    
-    refresh_token_clean = data.refresh_token.strip()
-    
-    if len(refresh_token_clean) < 20 or len(refresh_token_clean) > 1000:
-        return JSONResponse(
-            {"status": 400, "message": "Invalid refresh token format", "data": None},
-            status_code=400
-        )
-    
-    user = service.use_refresh_token(db, refresh_token_clean)
-    if not user:
-        return JSONResponse(
-            {"status": 401, "message": "Invalid or expired refresh token", "data": None},
-            status_code=401
-        )
+    try:
+        if not data.refresh_token or not data.refresh_token.strip():
+            return JSONResponse(
+                {"status": 400, "message": "Refresh token is required", "data": None},
+                status_code=400
+            )
+        
+        if not validate_sql_injection_patterns(data.refresh_token):
+            return JSONResponse(
+                {"status": 400, "message": "Invalid characters detected in refresh token. Please remove any SQL injection attempts or malicious code.", "data": None},
+                status_code=400
+            )
+        
+        refresh_token_clean = data.refresh_token.strip()
+        
+        if len(refresh_token_clean) < 20 or len(refresh_token_clean) > 1000:
+            return JSONResponse(
+                {"status": 400, "message": "Invalid refresh token format", "data": None},
+                status_code=400
+            )
+        
+        try:
+            user = service.use_refresh_token(db, refresh_token_clean)
+        except (OperationalError, DisconnectionError) as e:
+            logger.error(f"Database connection error during token refresh: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                status_code=503
+            )
+        except SQLAlchemyError as e:
+            if psycopg2 and (isinstance(e, (Psycopg2OperationalError, Psycopg2InterfaceError)) or 
+                           (hasattr(e, '__cause__') and isinstance(e.__cause__, (Psycopg2OperationalError, Psycopg2InterfaceError)))):
+                logger.error(f"Database connection error during token refresh: {str(e)}", exc_info=True)
+                db.rollback()
+                return JSONResponse(
+                    {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                    status_code=503
+                )
+            logger.error(f"Database error during token refresh: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while processing your request. Please try again later.", "data": None},
+                status_code=500
+            )
+        
+        if not user:
+            return JSONResponse(
+                {"status": 401, "message": "Invalid or expired refresh token", "data": None},
+                status_code=401
+            )
 
-    service.revoke_refresh_token(db, refresh_token_clean)
-    
-    new_refresh_token = service.create_refresh_token(db, user)
+        try:
+            service.revoke_refresh_token(db, refresh_token_clean)
+        except (OperationalError, DisconnectionError) as e:
+            logger.error(f"Database connection error during token revocation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                status_code=503
+            )
+        except SQLAlchemyError as e:
+            logger.error(f"Database error during token revocation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while processing your request. Please try again later.", "data": None},
+                status_code=500
+            )
+        
+        try:
+            new_refresh_token = service.create_refresh_token(db, user)
+        except (OperationalError, DisconnectionError) as e:
+            logger.error(f"Database connection error during new token creation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                status_code=503
+            )
+        except SQLAlchemyError as e:
+            if psycopg2 and (isinstance(e, (Psycopg2OperationalError, Psycopg2InterfaceError)) or 
+                           (hasattr(e, '__cause__') and isinstance(e.__cause__, (Psycopg2OperationalError, Psycopg2InterfaceError)))):
+                logger.error(f"Database connection error during new token creation: {str(e)}", exc_info=True)
+                db.rollback()
+                return JSONResponse(
+                    {"status": 503, "message": "Service temporarily unavailable. Please try again later.", "data": None},
+                    status_code=503
+                )
+            logger.error(f"Database error during new token creation: {str(e)}", exc_info=True)
+            db.rollback()
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while processing your request. Please try again later.", "data": None},
+                status_code=500
+            )
 
-    access_token = security.create_access_token(subject=str(user.id))
+        try:
+            access_token = security.create_access_token(subject=str(user.id))
+        except (JWTError, Exception) as e:
+            logger.error(f"Token creation error during refresh: {str(e)}", exc_info=True)
+            return JSONResponse(
+                {"status": 500, "message": "An error occurred while generating authentication token. Please try again later.", "data": None},
+                status_code=500
+            )
 
-    return JSONResponse(
-        {
-            "status": 200,
-            "message": "Token refreshed successfully",
-            "data": {
-                "access_token": access_token,
-                "refresh_token": new_refresh_token.token
-            }
-        },
-        status_code=200
-    )
+        return JSONResponse(
+            {
+                "status": 200,
+                "message": "Token refreshed successfully",
+                "data": {
+                    "access_token": access_token,
+                    "refresh_token": new_refresh_token.token
+                }
+            },
+            status_code=200
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during token refresh: {str(e)}", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            {"status": 500, "message": "An unexpected error occurred. Please try again later.", "data": None},
+            status_code=500
+        )
 
 @router.get(
     "/me",
