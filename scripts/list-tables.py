@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging, os, sys
+from psycopg2 import sql
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
@@ -34,7 +35,9 @@ def list_all_tables():
             
             for i, (table_name, col_count) in enumerate(tables, 1):
                 try:
-                    count_result = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
+                    safe_table = sql.Identifier(table_name)
+                    count_query = sql.SQL("SELECT COUNT(*) FROM {}").format(safe_table)
+                    count_result = conn.execute(text(str(count_query)))
                     row_count = count_result.fetchone()[0]
                     print(f"{i:2d}. {table_name:<30} ({col_count} columns, {row_count:,} rows)")
                 except Exception as e:

@@ -10,6 +10,30 @@ This document describes the comprehensive error handling implemented for the Aut
 
 All error responses follow a consistent format and provide user-friendly messages without exposing technical details.
 
+### Important Note: Server Down vs Application Errors
+
+**Server Down (ECONNREFUSED) - FRONTEND/CLIENT SIDE:**
+When the server/service is completely down or unreachable, you will see connection errors like:
+- `Error: connect ECONNREFUSED <host>:<port>`
+- `Could not send request`
+- Network timeout errors
+
+**These errors occur at the network/client level BEFORE the request reaches the server.** 
+- ❌ **Backend error handling CANNOT handle these errors** (request never reaches the server)
+- ✅ **Frontend/Client MUST handle these errors** (happens before request is sent)
+
+**Error Handling Responsibility:**
+- **Frontend/Client:** Handles network errors (ECONNREFUSED, timeout, network failures)
+- **Backend:** Handles application errors (validation, database, token generation) - only when request reaches server
+
+**Application Errors - BACKEND SIDE:**
+The error handling documented below applies when the server is running but encounters errors during request processing (database connection issues, validation errors, etc.). These are handled by the backend and return proper HTTP status codes.
+
+**To test application-level error handling:**
+- Keep the server running
+- Stop only the database service (to test database connection errors - backend returns 503)
+- Send invalid data (to test validation errors - backend returns 400)
+
 ## Error Response Format
 
 All error responses follow this standard format:
@@ -392,9 +416,182 @@ The system detects database connection errors through multiple mechanisms:
 
 ---
 
+## Frontend/Client Error Handling
+
+### Handling Network Errors (ECONNREFUSED, Timeout, etc.)
+
+**Important:** These errors occur BEFORE the request reaches the server, so they must be handled in the frontend/client code.
+
+```javascript
+async function login(email, password) {
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
+    });
+
+    // Check if response was received
+    if (!response.ok) {
+      // Try to parse error response from backend
+      try {
+        const errorData = await response.json();
+        return {
+          success: false,
+          status: errorData.status,
+          message: errorData.message
+        };
+      } catch (e) {
+        // Response is not JSON (shouldn't happen, but handle it)
+        return {
+          success: false,
+          status: response.status,
+          message: 'An error occurred. Please try again.'
+        };
+      }
+    }
+
+    // Success - parse response
+    const data = await response.json();
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    // Network errors (ECONNREFUSED, timeout, etc.)
+    // These occur BEFORE request reaches server
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      // Network error - server is down or unreachable
+      return {
+        success: false,
+        status: 'NETWORK_ERROR',
+        message: 'Cannot connect to server. Please check if the server is running and try again.'
+      };
+    }
+    
+    if (error.name === 'AbortError') {
+      // Request timeout
+      return {
+        success: false,
+        status: 'TIMEOUT',
+        message: 'Request timed out. Please check your connection and try again.'
+      };
+    }
+
+    // Other errors
+    return {
+      success: false,
+      status: 'UNKNOWN_ERROR',
+      message: 'An unexpected error occurred. Please try again.'
+    };
+  }
+}
+```
+
+### Complete Example with All Error Types
+
+```javascript
+async function handleLogin(email, password) {
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password }),
+      // Add timeout
+      signal: AbortSignal.timeout(10000) // 10 seconds
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.status === 200) {
+      // Success
+      localStorage.setItem('access_token', data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
+      return { success: true, message: 'Login successful' };
+    } else {
+      // Backend returned error (400, 401, 500, 503)
+      return handleBackendError(data);
+    }
+  } catch (error) {
+    // Network/Client-side errors
+    return handleNetworkError(error);
+  }
+}
+
+function handleBackendError(data) {
+  switch (data.status) {
+    case 400:
+      return { 
+        success: false, 
+        message: data.message || 'Invalid input. Please check your email and password.',
+        type: 'VALIDATION_ERROR'
+      };
+    case 401:
+      return { 
+        success: false, 
+        message: 'Invalid credentials. Please check your email and password.',
+        type: 'AUTH_ERROR'
+      };
+    case 500:
+      return { 
+        success: false, 
+        message: 'Server error. Please try again later.',
+        type: 'SERVER_ERROR'
+      };
+    case 503:
+      return { 
+        success: false, 
+        message: 'Service temporarily unavailable. Please try again in a moment.',
+        type: 'SERVICE_UNAVAILABLE'
+      };
+    default:
+      return { 
+        success: false, 
+        message: data.message || 'An error occurred. Please try again.',
+        type: 'UNKNOWN_ERROR'
+      };
+  }
+}
+
+function handleNetworkError(error) {
+  if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    // ECONNREFUSED, network unreachable, etc.
+    return {
+      success: false,
+      message: 'Cannot connect to server. Please check if the server is running.',
+      type: 'NETWORK_ERROR'
+    };
+  }
+  
+  if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+    return {
+      success: false,
+      message: 'Request timed out. Please check your connection.',
+      type: 'TIMEOUT_ERROR'
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Network error. Please check your connection and try again.',
+    type: 'NETWORK_ERROR'
+  };
+}
+```
+
+---
+
 ## Best Practices for Client Implementation
 
-### 1. Error Handling
+### 1. Error Handling (Backend Errors - When Server is Running)
 
 ```javascript
 try {
@@ -990,11 +1187,68 @@ curl -X GET http://localhost:8000/api/v1/auth/me \
 
 ---
 
+## Troubleshooting
+
+### Server Connection Errors (ECONNREFUSED)
+
+**Symptom:** `Error: connect ECONNREFUSED <host>:<port>` or "Could not send request"
+
+**Cause:** The server/service is not running or unreachable.
+
+**Why Error Handling Doesn't Appear:**
+When the server is completely down, the error occurs at the **network/client level** before the request reaches the FastAPI application. The error handling documented in this file only works when:
+- ✅ The server is running and accessible
+- ✅ The request successfully reaches the FastAPI application
+- ✅ Errors occur within the application (validation, database, token generation, etc.)
+
+**Solution:**
+1. Verify the server is running:
+   ```bash
+   # Check if service is running
+   systemctl status digifor  # or your service name
+   
+   # Or check if process is running
+   ps aux | grep uvicorn
+   ```
+
+2. Start the server:
+   ```bash
+   # Using systemd
+   sudo systemctl start digifor
+   
+   # Or manually
+   source venv/bin/activate
+   python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+3. Verify network connectivity:
+   ```bash
+   # Test if port is accessible
+   telnet <host> <port>
+   # or
+   curl http://<host>:<port>/health
+   ```
+
+**Note:** These connection errors occur at the network level and cannot be handled by application-level error handling. The error responses documented in this file only apply when the server is running and the request reaches the application.
+
+### Application-Level Errors
+
+If you're seeing application-level errors (400, 401, 500, 503) but the server is running, refer to the specific error sections above for troubleshooting steps.
+
+**To test application-level error handling:**
+- Keep the server running
+- Stop only the database service (to test database connection errors - will return 503)
+- Send invalid data (to test validation errors - will return 400)
+- Use invalid credentials (to test authentication errors - will return 401)
+
+---
+
 ## Support
 
 For issues or questions regarding error handling:
-- Check server logs for detailed error information
-- Verify database connectivity
-- Review input validation requirements
-- Contact system administrator for persistent 503 errors
+- **Server Connection Issues:** Check if the server process is running and accessible
+- **Application Errors:** Check server logs for detailed error information
+- **Database Errors:** Verify database connectivity and configuration
+- **Validation Errors:** Review input validation requirements
+- **Persistent 503 Errors:** Contact system administrator for service availability issues
 

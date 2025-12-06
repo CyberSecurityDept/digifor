@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2 import sql
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-import logging, os, sys, sqlite3, psycopg2, subprocess
+import logging, os, sys, sqlite3, psycopg2, subprocess, re
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -14,6 +15,47 @@ from app.evidence_management.models import Evidence
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def validate_identifier(identifier: str, identifier_type: str = "database") -> bool:
+    if not identifier or not isinstance(identifier, str):
+        return False
+    
+    if len(identifier) > 63:
+        logger.error(f" {identifier_type} name too long (max 63 characters): {identifier}")
+        return False
+    
+    if not (identifier[0].isalpha() or identifier[0] == '_'):
+        logger.error(f" {identifier_type} name must start with letter or underscore: {identifier}")
+        return False
+    
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', identifier):
+        logger.error(f" {identifier_type} name contains invalid characters: {identifier}")
+        return False
+    
+    sql_keywords = [
+        'select', 'insert', 'update', 'delete', 'drop', 'create', 'alter',
+        'truncate', 'exec', 'execute', 'union', 'script', 'javascript'
+    ]
+    if identifier.lower() in sql_keywords:
+        logger.error(f" {identifier_type} name cannot be a SQL keyword: {identifier}")
+        return False
+    
+    return True
+
+def sanitize_identifier(identifier: str) -> str:
+    if not identifier:
+        return ""
+    
+    sanitized = re.sub(r'[^a-zA-Z0-9_]', '', identifier)
+    
+    if sanitized and not (sanitized[0].isalpha() or sanitized[0] == '_'):
+        sanitized = '_' + sanitized
+    
+    # Limit length
+    if len(sanitized) > 63:
+        sanitized = sanitized[:63]
+    
+    return sanitized
 
 def check_postgres_connection():
     try:
@@ -38,6 +80,14 @@ def check_postgres_connection():
 
 def create_database():
     try:
+        # Validate database name to prevent SQL injection
+        if not validate_identifier(settings.POSTGRES_DB, "database"):
+            logger.error(f" Invalid database name: {settings.POSTGRES_DB}")
+            logger.error(" Database name must contain only letters, numbers, and underscores")
+            logger.error(" Database name must start with a letter or underscore")
+            logger.error(" Database name cannot be a SQL keyword")
+            return False
+        
         conn = psycopg2.connect(
             host=settings.POSTGRES_HOST,
             port=settings.POSTGRES_PORT,
@@ -52,7 +102,9 @@ def create_database():
         exists = cursor.fetchone()
         
         if not exists:
-            cursor.execute(f'CREATE DATABASE "{settings.POSTGRES_DB}"')
+            safe_db_name = sql.Identifier(settings.POSTGRES_DB)
+            create_query = sql.SQL("CREATE DATABASE {}").format(safe_db_name)
+            cursor.execute(create_query)
             logger.info(f" Database '{settings.POSTGRES_DB}' created successfully")
         else:
             logger.info(f" Database '{settings.POSTGRES_DB}' already exists")
@@ -95,18 +147,43 @@ def migrate_data_from_sqlite():
         for table in tables:
             if table == 'sqlite_sequence':
                 continue
+
+            if not validate_identifier(table, "table"):
+                logger.warning(f" Skipping table with invalid name: {table}")
+                continue
+            
             logger.info(f"Migrating table: {table}")
+            
             sqlite_cursor.execute(f"SELECT * FROM {table}")
             rows = sqlite_cursor.fetchall()
             column_names = [description[0] for description in sqlite_cursor.description]
+            
+            valid_columns = []
+            for col in column_names:
+                if validate_identifier(col, "column"):
+                    valid_columns.append(col)
+                else:
+                    logger.warning(f" Skipping column with invalid name in table {table}: {col}")
+            
+            if not valid_columns:
+                logger.warning(f" No valid columns found in table {table}, skipping")
+                continue
+            
             if rows:
                 for row in rows:
                     try:
-                        placeholders = ', '.join(['%s'] * len(row))
-                        columns = ', '.join(column_names)
-                        insert_sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+                        placeholders = ', '.join(['%s'] * len(valid_columns))
                         
-                        pg_session.execute(text(insert_sql), row)
+                        safe_table = sql.Identifier(table)
+                        safe_columns = [sql.Identifier(col) for col in valid_columns]
+                        
+                        insert_query = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+                            safe_table,
+                            sql.SQL(', ').join(safe_columns),
+                            sql.SQL(placeholders)
+                        )
+                        
+                        pg_session.execute(insert_query, row[:len(valid_columns)])
                     except Exception as e:
                         logger.warning(f"  Failed to insert row in {table}: {e}")
                         continue

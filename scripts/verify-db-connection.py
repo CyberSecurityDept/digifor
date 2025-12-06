@@ -6,6 +6,7 @@ sys.path.insert(0, project_root)
 from sqlalchemy import create_engine, text
 from app.core.config import settings
 import psycopg2
+from psycopg2 import sql
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,9 +90,10 @@ def verify_connection():
         print(f"\n📊 Tables in 'public' schema ({len(tables)} total):")
         if tables:
             for i, (table_name, col_count) in enumerate(tables, 1):
-                # Get row count
                 try:
-                    cur.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                    safe_table = sql.Identifier(table_name)
+                    count_query = sql.SQL("SELECT COUNT(*) FROM {}").format(safe_table)
+                    cur.execute(count_query)
                     row_count = cur.fetchone()[0]
                     print(f"   {i:2d}. {table_name:<35} ({col_count:2d} cols, {row_count:6,} rows)")
                 except Exception as e:
