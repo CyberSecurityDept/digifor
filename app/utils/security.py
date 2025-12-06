@@ -48,15 +48,55 @@ def validate_sql_injection_patterns(text: Optional[str]) -> bool:
         "expression(",
         "<!--",
         "-->",
+        # SQL injection patterns - OR conditions
+        "or '1'='1",
+        "or '1'='1'",
+        "or 1=1",
+        "or 'a'='a",
+        "or 'a'='a'",
+        "or \"1\"=\"1",
+        "or \"1\"=\"1\"",
+        "or \"a\"=\"a",
+        "or \"a\"=\"a\"",
+        "' or '",
+        "' or 1=1",
+        "' or '1'='1",
+        "\" or \"",
+        "\" or 1=1",
+        "\" or \"1\"=\"1",
+        # SQL injection patterns - AND conditions
+        "and '1'='1",
+        "and '1'='1'",
+        "and 1=1",
+        "and 'a'='a",
+        "and 'a'='a'",
+        "' and '",
+        "' and 1=1",
+        "' and '1'='1",
+        "\" and \"",
+        "\" and 1=1",
+        "\" and \"1\"=\"1",
     ]
     
     for pattern in dangerous_patterns:
         if pattern in text_lower:
             return False
     
-    # Check for SQL comment patterns
     if re.search(r'--\s|/\*|\*/|#\s', text_lower):
         return False
+    
+    sql_injection_patterns = [
+        r'\bor\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+        r'\band\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+        r'\bor\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
+        r'\band\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
+        r'[\'"]\s*or\s*[\'"]',
+        r'[\'"]\s*and\s*[\'"]',
+    ]
+    
+    for pattern in sql_injection_patterns:
+        if re.search(pattern, text_lower):
+            return False
     
     return True
 

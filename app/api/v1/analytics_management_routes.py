@@ -71,7 +71,8 @@ def create_analytic_with_devices(
     db: Session = Depends(get_db)
 ):
     try:
-        if not analytic_name.strip():
+        # Validate and sanitize analytic_name
+        if not analytic_name or not analytic_name.strip():
             return JSONResponse(
                 content={
                 "status": 400,
@@ -81,7 +82,9 @@ def create_analytic_with_devices(
                 status_code=400
             )
         
+        # Validate SQL injection patterns
         if not validate_sql_injection_patterns(analytic_name):
+            logger.warning(f"SQL injection attempt detected in analytic_name: {analytic_name[:50]}")
             return JSONResponse(
                 content={
                 "status": 400,
@@ -90,7 +93,17 @@ def create_analytic_with_devices(
                 },
                 status_code=400
             )
+        
         analytic_name = sanitize_input(analytic_name, max_length=255)
+        if not analytic_name:
+            return JSONResponse(
+                content={
+                "status": 400,
+                "message": "analytic_name cannot be empty after sanitization",
+                "data": None
+                },
+                status_code=400
+            )
         
         if not validate_sql_injection_patterns(method):
             return JSONResponse(
