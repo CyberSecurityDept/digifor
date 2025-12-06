@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse
 import os,re,json,asyncio, uuid
 from datetime import datetime
 from app.analytics.utils.sdp_crypto import encrypt_to_sdp, generate_keypair
+from app.utils.security import validate_sql_injection_patterns, sanitize_input, validate_file_name
 import logging
 
 logger = logging.getLogger(__name__)  
@@ -85,6 +86,28 @@ async def prepare_convert_to_sdp(file: UploadFile = FastAPIFile(...)):
 @router.get("/file-encryptor/progress")
 async def get_convert_progress(upload_id: str = Query(..., description="Upload ID")):
     try:
+        if not validate_sql_injection_patterns(upload_id):
+            logger.warning(f"SQL injection attempt detected in upload_id: {upload_id[:50]}")
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in upload_id. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        upload_id = sanitize_input(upload_id, max_length=255)
+        if not upload_id:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "upload_id cannot be empty after sanitization",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
         progress = CONVERT_PROGRESS.get(upload_id)
         if not progress:
             return JSONResponse(
@@ -210,6 +233,38 @@ def download_sdp(
     filename: str = Query(..., description="The name of the .sdp file located in the converted folder."),
 ):
     try:
+        if not validate_sql_injection_patterns(filename):
+            logger.warning(f"SQL injection attempt detected in filename: {filename[:50]}")
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in filename. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        if not validate_file_name(filename):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid file name. File name contains dangerous characters.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        filename = sanitize_input(filename, max_length=255)
+        if not filename:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "filename cannot be empty after sanitization",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
         if not filename.lower().endswith(".sdp"):
             return JSONResponse(
                 {"status": 400, "message": "The filename must end with '.sdp'."},

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from collections import defaultdict
 from app.utils.timezone import get_indonesia_time
 from app.core.config import settings
+from app.utils.security import validate_sql_injection_patterns, sanitize_input
 from reportlab.lib.pagesizes import A4  
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, KeepTogether 
@@ -94,6 +95,33 @@ def export_analytics_pdf(
     logger.info(f"PDF Export started - analytic_id={analytic_id}, person_name={person_name}, device_id={device_id}, source={source}")
     
     try:
+        # Validate SQL injection patterns for person_name
+        if person_name:
+            if not validate_sql_injection_patterns(person_name):
+                logger.warning(f"SQL injection attempt detected in person_name: {person_name[:50]}")
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in person_name. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400,
+                )
+            person_name = sanitize_input(person_name, max_length=255)
+        
+        # Validate SQL injection patterns for source
+        if source:
+            if not validate_sql_injection_patterns(source):
+                logger.warning(f"SQL injection attempt detected in source: {source[:50]}")
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in source. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400,
+                )
+            source = sanitize_input(source, max_length=100)
         analytic = db.query(Analytic).filter(Analytic.id == analytic_id).first()
         if not analytic:
             logger.warning(f"Analytic not found - analytic_id={analytic_id}")
@@ -185,6 +213,19 @@ def save_analytic_summary(
 
         summary_text = request.summary.strip() if request.summary else ""
 
+        if summary_text:
+            if not validate_sql_injection_patterns(summary_text):
+                logger.warning(f"SQL injection attempt detected in summary: {summary_text[:50]}")
+                return JSONResponse(
+                    content={
+                        "status": 400,
+                        "message": "Invalid characters detected in summary. Please remove any SQL injection attempts or malicious code.",
+                        "data": None
+                    },
+                    status_code=400,
+                )
+            summary_text = sanitize_input(summary_text)
+
         analytic.summary = summary_text
         db.commit()
         db.refresh(analytic)
@@ -241,8 +282,22 @@ def edit_analytic_summary(
                 content={"status": 400, "message": "Summary cannot be empty", "data": None},
                 status_code=400,
             )
-
-        setattr(analytic, 'summary', str(request.summary).strip())
+        
+        summary_text = str(request.summary).strip()
+        
+        if not validate_sql_injection_patterns(summary_text):
+            logger.warning(f"SQL injection attempt detected in summary: {summary_text[:50]}")
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Invalid characters detected in summary. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        summary_text = sanitize_input(summary_text)
+        setattr(analytic, 'summary', summary_text)
         db.commit()
         db.refresh(analytic)
 

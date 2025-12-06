@@ -8,6 +8,10 @@ from typing import Optional
 from app.auth.models import User
 from app.api.deps import get_current_user
 from app.api.v1.analytics_management_routes import check_analytic_access
+from app.utils.security import validate_sql_injection_patterns, sanitize_input
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -291,4 +295,17 @@ def social_media_correlation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if platform:
+        if not validate_sql_injection_patterns(platform):
+            logger.warning(f"SQL injection attempt detected in platform: {platform[:50]}")
+            return JSONResponse(
+                content={
+                    "status": 400,
+                    "message": "Invalid characters detected in platform. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        platform = sanitize_input(platform, max_length=50)
+    
     return _get_social_media_correlation_data(analytic_id, db, platform, current_user)

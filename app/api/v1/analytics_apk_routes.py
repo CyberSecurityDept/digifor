@@ -8,6 +8,7 @@ from app.analytics.device_management.models import File
 from app.analytics.utils.upload_pipeline import upload_service
 from app.auth.models import User
 from app.api.deps import get_current_user
+from app.utils.security import validate_sql_injection_patterns, sanitize_input, validate_file_name
 import asyncio, time, uuid
 import logging
 
@@ -27,6 +28,39 @@ async def upload_apk(
             return JSONResponse(
                 {"status": 422, "message": "Field 'file_name' is required", "error_field": "file_name"},
                 status_code=422,
+            )
+        
+
+        if not validate_sql_injection_patterns(file_name):
+            logger.warning(f"SQL injection attempt detected in file_name: {file_name[:50]}")
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid characters detected in file_name. Please remove any SQL injection attempts or malicious code.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        if not validate_file_name(file_name):
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "Invalid file name. File name contains dangerous characters.",
+                    "data": None
+                },
+                status_code=400,
+            )
+        
+        file_name = sanitize_input(file_name, max_length=255)
+        if not file_name:
+            return JSONResponse(
+                {
+                    "status": 400,
+                    "message": "file_name cannot be empty after sanitization",
+                    "data": None
+                },
+                status_code=400,
             )
 
         allowed_ext = ["apk", "ipa"]
