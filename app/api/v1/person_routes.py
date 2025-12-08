@@ -119,6 +119,16 @@ async def create_person(
                     detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
                 )
             evidence_number = sanitize_input(evidence_number, max_length=100)
+            
+            existing_evidence = db.query(Evidence).filter(
+                Evidence.evidence_number == evidence_number
+            ).first()
+            
+            if existing_evidence:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Evidence number '{evidence_number}' already exists"
+                )
         
         if not evidence_number:
             if not evidence_file:
