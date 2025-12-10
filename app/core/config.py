@@ -50,7 +50,7 @@ class Settings(BaseSettings):
 
     MOBSF_URL: str = "http://172.15.2.105:5001"
     START_DATE_LICENSE:str = "2025-01-01T00:01:00"
-    END_DATE_LICENSE:str   = "2025-12-10T11:15:00"
+    END_DATE_LICENSE:str   = "2025-12-10T17:00:00"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

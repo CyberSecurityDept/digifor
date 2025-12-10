@@ -27,7 +27,8 @@ def get_all_users(
         query = query.filter(
             or_(
                 func.lower(User.fullname).like(search_term),
-                func.lower(User.email).like(search_term)
+                func.lower(User.email).like(search_term),
+                func.lower(User.tag).like(search_term)
             )
         )
     
