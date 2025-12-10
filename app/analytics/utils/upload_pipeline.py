@@ -413,6 +413,11 @@ class UploadService:
                 engine = "xlrd" if file_ext == '.xls' else "openpyxl"
                 xls = pd.ExcelFile(file_path, engine=engine)
                 sheet_names = [str(s) for s in xls.sheet_names]
+                sheet_names_lower = [s.lower().strip() for s in sheet_names]
+                
+                if any(s == "table of contents" for s in sheet_names_lower):
+                    print(f"[TOOL DETECTION] Detected Oxygen (Social Media) based on 'Table of contents' sheet")
+                    return "Oxygen"
                 
                 print(f"[TOOL DETECTION] Analyzing Social Media Correlation columns from {len(sheet_names)} sheets (column-based detection only)...")
 
