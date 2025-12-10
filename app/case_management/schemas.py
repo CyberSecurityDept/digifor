@@ -86,8 +86,8 @@ class CaseCreate(BaseModel):
         v_stripped = v.strip() if v else ""
         if len(v_stripped) < 3:
             raise ValueError("Case number must be at least 3 characters long")
-        if len(v_stripped) > 120:
-            raise ValueError("Case number must not exceed 120 characters")
+        if len(v_stripped) > 50:
+            raise ValueError("Case number must not exceed 50 characters")
         return v_stripped
 
 class CaseUpdate(BaseModel):

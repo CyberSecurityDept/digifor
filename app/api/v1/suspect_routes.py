@@ -206,17 +206,17 @@ async def create_suspect(
             evidence_number = evidence_number.strip() if isinstance(evidence_number, str) else str(evidence_number).strip()
             if not evidence_number:
                 raise HTTPException(status_code=400, detail="evidence_number cannot be empty when provided manually")
-            if len(evidence_number) > 100:
+            if len(evidence_number) > 50:
                 raise HTTPException(
                     status_code=400,
-                    detail="evidence_number cannot exceed 100 characters. Please use evidence_summary for longer text."
+                    detail="evidence_number cannot exceed 50 characters. Please use evidence_summary for longer text."
                 )
             if not validate_sql_injection_patterns(evidence_number):
                 raise HTTPException(
                     status_code=400,
                     detail="Invalid characters detected in evidence_number. Please remove any SQL injection attempts or malicious code."
                 )
-            evidence_number = sanitize_input(evidence_number, max_length=100)
+            evidence_number = sanitize_input(evidence_number, max_length=50)
             
             existing_evidence = db.query(Evidence).filter(
                 Evidence.evidence_number == evidence_number
