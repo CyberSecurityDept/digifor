@@ -29,6 +29,28 @@ def get_all_users(
     db: Session = Depends(get_db)
 ):
     try:
+        allowed_params = {'skip', 'limit', 'search', 'tag'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                if param_value and not validate_sql_injection_patterns(param_value):
+                    return JSONResponse(
+                        {
+                            "status": 400,
+                            "message": f"Invalid parameter '{param_name}' detected with potential SQL injection attempt. Only 'skip', 'limit', 'search', and 'tag' parameters are allowed.",
+                            "data": None
+                        },
+                        status_code=400
+                    )
+
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": f"Unknown parameter '{param_name}' is not allowed. Only 'skip', 'limit', 'search', and 'tag' parameters are supported.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+        
         if search:
             if not validate_sql_injection_patterns(search):
                 return JSONResponse(

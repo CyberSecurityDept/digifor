@@ -124,14 +124,19 @@ def validate_sql_injection_patterns(text: Optional[str]) -> bool:
         return False
     
     sql_injection_patterns = [
-        # OR/AND with 1=1 patterns
         r'\bor\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
         r'\band\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+
+        r'\d+\s+or\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+        r'\d+\s+and\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+        r'\d+or\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+        r'\d+and\s+[\'"]?1[\'"]?\s*=\s*[\'"]?1[\'"]?',
+
         r'\bor\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
         r'\band\s+[\'"]?[a-z][\'"]?\s*=\s*[\'"]?[a-z][\'"]?',
         r'[\'"]\s*or\s*[\'"]',
         r'[\'"]\s*and\s*[\'"]',
-        # UNION SELECT patterns
+
         r'[\'"]?\s*union\s+select',
         r'union\s+select\s+null',
         r'union\s+select\s+\*',
