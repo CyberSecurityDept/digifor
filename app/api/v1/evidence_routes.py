@@ -71,7 +71,6 @@ async def get_evidence_list(
     db: Session = Depends(get_database)
 ):
     try:
-        # Validate all query parameters to prevent SQL injection via unknown parameters
         allowed_params = {'skip', 'limit', 'search', 'sort_by', 'sort_order'}
         for param_name, param_value in request.query_params.items():
             if param_name not in allowed_params:
@@ -449,8 +448,29 @@ async def create_evidence(
             
             if existing_suspect:
                 suspect_id_value = existing_suspect.id
+                # Update suspect_status if provided
+                if suspect_status is not None:
+                    normalized_status = normalize_suspect_status(suspect_status)
+                    if normalized_status is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        )
+                    setattr(existing_suspect, 'status', normalized_status)
+                    db.commit()
+                    db.refresh(existing_suspect)
             else:
                 investigator_name = getattr(case, 'main_investigator', None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
+                # Normalize suspect_status if provided
+                normalized_status = None
+                if suspect_status is not None:
+                    normalized_status = normalize_suspect_status(suspect_status)
+                    if normalized_status is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid suspect_status value: '{suspect_status}'. Valid values are: {', '.join(VALID_SUSPECT_STATUSES)}"
+                        )
+                
                 new_suspect = Suspect(
                     name=person_name_clean,
                     case_id=case_id,
@@ -458,7 +478,7 @@ async def create_evidence(
                     evidence_number=evidence_number,
                     evidence_source=source,
                     investigator=investigator_name,
-                    status=None,
+                    status=normalized_status,
                     is_unknown=False,
                     created_by=getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
                 )
@@ -546,6 +566,12 @@ async def create_evidence(
         
         investigator_name = investigator or (case.main_investigator if case else None) or getattr(current_user, 'fullname', '') or getattr(current_user, 'email', 'Unknown User')
         
+        suspect_status_value = None
+        if suspect_id_value:
+            suspect = db.query(Suspect).filter(Suspect.id == suspect_id_value).first()
+            if suspect:
+                suspect_status_value = suspect.status
+        
         response_data = {
             "id": evidence.id,
             "case_id": evidence.case_id,
@@ -557,6 +583,7 @@ async def create_evidence(
             "investigator": investigator_name,
             "agency": agency_name,
             "person_name": person_name if person_name and person_name.strip() else None,
+            "suspect_status": suspect_status_value,
             "created_at": created_at_str
         }
         
