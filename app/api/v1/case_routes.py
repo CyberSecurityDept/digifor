@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -132,6 +132,7 @@ async def get_case_detail_comprehensive(
 
 @router.get("/get-all-cases", response_model=CaseListResponse)
 async def get_cases(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
@@ -142,11 +143,25 @@ async def get_cases(
     db: Session = Depends(get_database)
 ):
     try:
+        # Validate all query parameters to prevent SQL injection via unknown parameters
+        allowed_params = {'skip', 'limit', 'search', 'status', 'sort_by', 'sort_order'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                if param_value and not validate_sql_injection_patterns(param_value):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid request. Please check your parameters and try again."
+                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Parameter '{param_name}' is not supported. Please use only 'skip', 'limit', 'search', 'status', 'sort_by', or 'sort_order' parameters."
+                )
+        
         if search:
             if not validate_sql_injection_patterns(search):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in search parameter. Please use valid characters only."
                 )
             search = sanitize_input(search, max_length=255)
         
@@ -154,7 +169,7 @@ async def get_cases(
             if not validate_sql_injection_patterns(status):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in status parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in status parameter. Please use valid characters only."
                 )
             status = sanitize_input(status, max_length=50)
         
@@ -162,7 +177,7 @@ async def get_cases(
             if not validate_sql_injection_patterns(sort_by):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in sort_by parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in sort_by parameter. Please use valid characters only."
                 )
             sort_by = sanitize_input(sort_by, max_length=50)
             if sort_by not in ['created_at', 'id']:
@@ -175,7 +190,7 @@ async def get_cases(
             if not validate_sql_injection_patterns(sort_order):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in sort_order parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in sort_order parameter. Please use valid characters only."
                 )
             sort_order = sanitize_input(sort_order, max_length=10)
             if sort_order.lower() not in ['asc', 'desc']:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Form
+from fastapi import APIRouter, Depends, Query, Form, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
@@ -624,12 +624,38 @@ def start_data_extraction(
 
 @router.get("/analytics/get-all-analytic")
 def get_all_analytic(
+    request: Request,
     search: Optional[str] = Query(None, description="Search by analytics name, method, or notes (summary)"),
     method: Optional[List[str]] = Query(None, description="Filter by one or more methods"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
+        # Validate all query parameters to prevent SQL injection via unknown parameters
+        allowed_params = {'search', 'method'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                # Handle list parameters (method can be multiple values)
+                if isinstance(param_value, list):
+                    param_value = ' '.join(str(v) for v in param_value)
+                if param_value and not validate_sql_injection_patterns(str(param_value)):
+                    return JSONResponse(
+                        {
+                            "status": 400,
+                            "message": "Invalid request. Please check your parameters and try again.",
+                            "data": None
+                        },
+                        status_code=400
+                    )
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": f"Parameter '{param_name}' is not supported. Please use only 'search' or 'method' parameters.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+        
         query = db.query(Analytic)
 
         user_role = getattr(current_user, 'role', None)
@@ -671,7 +697,7 @@ def get_all_analytic(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "message": "Invalid characters detected in search parameter. Please use valid characters only.",
                         "data": None
                     },
                     status_code=400

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -61,6 +61,7 @@ router = APIRouter(prefix="/evidence", tags=["Evidence Management"])
 
 @router.get("/get-evidence-list")
 async def get_evidence_list(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
@@ -70,13 +71,27 @@ async def get_evidence_list(
     db: Session = Depends(get_database)
 ):
     try:
+        # Validate all query parameters to prevent SQL injection via unknown parameters
+        allowed_params = {'skip', 'limit', 'search', 'sort_by', 'sort_order'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                if param_value and not validate_sql_injection_patterns(param_value):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid request. Please check your parameters and try again."
+                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Parameter '{param_name}' is not supported. Please use only 'skip', 'limit', 'search', 'sort_by', or 'sort_order' parameters."
+                )
+        
         query = db.query(Evidence).options(joinedload(Evidence.case))
 
         if search:
             if not validate_sql_injection_patterns(search):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in search parameter. Please use valid characters only."
                 )
             search = sanitize_input(search, max_length=255)
             if search:

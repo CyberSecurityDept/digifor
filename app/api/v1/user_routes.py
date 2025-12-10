@@ -36,7 +36,7 @@ def get_all_users(
                     return JSONResponse(
                         {
                             "status": 400,
-                            "message": f"Invalid parameter '{param_name}' detected with potential SQL injection attempt. Only 'skip', 'limit', 'search', and 'tag' parameters are allowed.",
+                            "message": "Invalid request. Please check your parameters and try again.",
                             "data": None
                         },
                         status_code=400
@@ -45,7 +45,7 @@ def get_all_users(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": f"Unknown parameter '{param_name}' is not allowed. Only 'skip', 'limit', 'search', and 'tag' parameters are supported.",
+                        "message": f"Parameter '{param_name}' is not supported. Please use only 'skip', 'limit', 'search', or 'tag' parameters.",
                         "data": None
                     },
                     status_code=400
@@ -56,7 +56,7 @@ def get_all_users(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "message": "Invalid characters detected in search parameter. Please use valid characters only.",
                         "data": None
                     },
                     status_code=400
@@ -68,7 +68,7 @@ def get_all_users(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": "Invalid characters detected in tag parameter. Please remove any SQL injection attempts or malicious code.",
+                        "message": "Invalid characters detected in tag parameter. Please use valid characters only.",
                         "data": None
                     },
                     status_code=400
@@ -129,7 +129,7 @@ def create_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in fullname. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in fullname. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -140,7 +140,7 @@ def create_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in email. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -151,7 +151,7 @@ def create_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in password. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -161,7 +161,7 @@ def create_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in confirm_password. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in confirm password. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -171,7 +171,7 @@ def create_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in tag. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in tag. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -249,7 +249,7 @@ def update_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in fullname. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in fullname. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -260,7 +260,7 @@ def update_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in email. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in email. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -271,7 +271,7 @@ def update_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in password. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in password. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -281,7 +281,7 @@ def update_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in confirm_password. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in confirm password. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400
@@ -291,7 +291,7 @@ def update_user(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in tag. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in tag. Please use valid characters only.",
                     "data": None
                 },
                 status_code=400

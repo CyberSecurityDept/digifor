@@ -5,7 +5,8 @@ from fastapi import (
     File as FastAPIFile,
     Form,
     Query,
-    BackgroundTasks
+    BackgroundTasks,
+    Request
 )
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -369,7 +370,7 @@ async def upload_data(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in file_name. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in file_name. Please use valid characters only.",
                 },
                 status_code=400,
             )
@@ -379,7 +380,7 @@ async def upload_data(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in notes. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in notes. Please use valid characters only.",
                 },
                 status_code=400,
             )
@@ -389,7 +390,7 @@ async def upload_data(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in type. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in type. Please use valid characters only.",
                 },
                 status_code=400,
             )
@@ -399,7 +400,7 @@ async def upload_data(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in tools. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in tools. Please use valid characters only.",
                 },
                 status_code=400,
             )
@@ -409,7 +410,7 @@ async def upload_data(
             return JSONResponse(
                 {
                     "status": 400,
-                    "message": "Invalid characters detected in method. Please remove any SQL injection attempts or malicious code.",
+                    "message": "Invalid characters detected in method. Please use valid characters only.",
                 },
                 status_code=400,
             )
@@ -1216,12 +1217,35 @@ async def get_upload_progress(upload_id: str, type: str = Query("data", descript
     
 @router.get("/analytics/get-files")
 def get_files(
+    request: Request,
     search: Optional[str] = Query(None, description="Search by file_name, notes, tools, or method"),
     filter: Optional[str] = Query("All", description='Method filter: "Deep Communication Analytics", "Social Media Correlation", "Contact Correlation", "Hashfile Analytics", "All"'),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
+        # Validate all query parameters to prevent SQL injection via unknown parameters
+        allowed_params = {'search', 'filter'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                if param_value and not validate_sql_injection_patterns(str(param_value)):
+                    return JSONResponse(
+                        {
+                            "status": 400,
+                            "message": "Invalid request. Please check your parameters and try again.",
+                            "data": None
+                        },
+                        status_code=400
+                    )
+                return JSONResponse(
+                    {
+                        "status": 400,
+                        "message": f"Parameter '{param_name}' is not supported. Please use only 'search' or 'filter' parameters.",
+                        "data": None
+                    },
+                    status_code=400
+                )
+        
         allowed_methods = {
             "Deep Communication Analytics",
             "Social Media Correlation",
@@ -1253,7 +1277,7 @@ def get_files(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": "Invalid characters detected in filter parameter. Please remove any SQL injection attempts or malicious code.",
+                        "message": "Invalid characters detected in filter parameter. Please use valid characters only.",
                         "data": None
                     },
                     status_code=400
@@ -1268,7 +1292,7 @@ def get_files(
                 return JSONResponse(
                     {
                         "status": 400,
-                        "message": "Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code.",
+                        "message": "Invalid characters detected in search parameter. Please use valid characters only.",
                         "data": None
                     },
                     status_code=400

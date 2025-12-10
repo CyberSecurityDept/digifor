@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Body, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -45,19 +45,37 @@ def normalize_suspect_status(status: Optional[str]) -> Optional[str]:
 
 @router.get("/", response_model=SuspectListResponse)
 async def get_suspects(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
-    status: Optional[List[str]] = Query(None),   # <-- UBAH DI SINI
+    status: Optional[List[str]] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
+        # Validate all query parameters to prevent SQL injection via unknown parameters
+        allowed_params = {'skip', 'limit', 'search', 'status'}
+        for param_name, param_value in request.query_params.items():
+            if param_name not in allowed_params:
+                # Handle list parameters (status can be multiple values)
+                if isinstance(param_value, list):
+                    param_value = ' '.join(str(v) for v in param_value)
+                if param_value and not validate_sql_injection_patterns(str(param_value)):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid request. Please check your parameters and try again."
+                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Parameter '{param_name}' is not supported. Please use only 'skip', 'limit', 'search', or 'status' parameters."
+                )
+        
         if search:
             if not validate_sql_injection_patterns(search):
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid characters detected in search parameter. Please remove any SQL injection attempts or malicious code."
+                    detail="Invalid characters detected in search parameter. Please use valid characters only."
                 )
             search = sanitize_input(search, max_length=255)
         
@@ -68,7 +86,7 @@ async def get_suspects(
                     if not validate_sql_injection_patterns(s):
                         raise HTTPException(
                             status_code=400,
-                            detail="Invalid characters detected in status parameter. Please remove any SQL injection attempts or malicious code."
+                            detail="Invalid characters detected in status parameter. Please use valid characters only."
                         )
                     sanitized_s = sanitize_input(s, max_length=50)
                     if sanitized_s:
