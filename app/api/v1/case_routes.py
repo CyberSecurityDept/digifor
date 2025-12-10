@@ -35,7 +35,13 @@ async def create_case(
                     status_code=400,
                     detail="Invalid characters detected in case_number. Please remove any SQL injection attempts or malicious code."
                 )
-            case_dict_data["case_number"] = sanitize_input(case_dict_data["case_number"], max_length=100)
+            case_number_cleaned = sanitize_input(case_dict_data["case_number"], max_length=120)
+            if case_number_cleaned and len(case_number_cleaned) > 120:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Case number must not exceed 120 characters"
+                )
+            case_dict_data["case_number"] = case_number_cleaned
         
         if case_dict_data.get("title"):
             if not validate_sql_injection_patterns(case_dict_data["title"]):
@@ -230,7 +236,13 @@ async def update_case(
                     status_code=400,
                     detail="Invalid characters detected in case_number. Please remove any SQL injection attempts or malicious code."
                 )
-            case_dict_data["case_number"] = sanitize_input(case_dict_data["case_number"], max_length=100)
+            case_number_cleaned = sanitize_input(case_dict_data["case_number"], max_length=120)
+            if case_number_cleaned and len(case_number_cleaned) > 120:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Case number must not exceed 120 characters"
+                )
+            case_dict_data["case_number"] = case_number_cleaned
         
         if case_dict_data.get("title"):
             if not validate_sql_injection_patterns(case_dict_data["title"]):

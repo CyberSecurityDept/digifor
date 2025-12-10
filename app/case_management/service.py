@@ -102,10 +102,13 @@ class CaseService:
         case_dict.pop("summary", None)
         manual_case_number = case_dict.get("case_number")
         if manual_case_number and manual_case_number.strip():
-            existing_case = db.query(Case).filter(Case.case_number == manual_case_number.strip()).first()
+            manual_case_number = manual_case_number.strip()
+            if len(manual_case_number) > 120:
+                raise HTTPException(status_code=400, detail="Case number must not exceed 120 characters")
+            existing_case = db.query(Case).filter(Case.case_number == manual_case_number).first()
             if existing_case:
                 raise HTTPException(status_code=409, detail=f"Case number '{manual_case_number}' already exists")
-            case_dict["case_number"] = manual_case_number.strip()
+            case_dict["case_number"] = manual_case_number
         else:
             title = case_dict["title"].strip().upper()
             words = title.split()
