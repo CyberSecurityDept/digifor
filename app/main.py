@@ -42,7 +42,7 @@ from app.api.v1 import (
 from fastapi.openapi.utils import get_openapi
 from app.db.init_db import init_db
 from fastapi.staticfiles import StaticFiles
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 logger = setup_logging()
 
@@ -225,14 +225,25 @@ async def root():
 @app.get("/favicon.ico")
 async def favicon():
     return Response(status_code=204)
+WIB = timezone(timedelta(hours=7))
 
-START_DATE = settings.START_DATE_LICENSE
+START_DATE = settings.START_DATE_LICENSE  # format "2025-12-10T11:15:00"
 END_DATE   = settings.END_DATE_LICENSE
+
+
+def to_wib(dt_string: str) -> datetime:
+    """Convert iso string (naive) ke datetime dengan timezone WIB"""
+    dt = datetime.fromisoformat(dt_string)
+    if dt.tzinfo is None:  
+        dt = dt.replace(tzinfo=WIB)  # anggap tanggal dari settings = WIB
+    return dt
+
+
 @app.get("/license")
 async def license_info():
-    now = datetime.utcnow()
-    start = datetime.fromisoformat(START_DATE)
-    end = datetime.fromisoformat(END_DATE)
+    now = datetime.now(WIB)  # waktu saat ini dalam WIB
+    start = to_wib(START_DATE)
+    end = to_wib(END_DATE)
 
     return {
         "status": 200,
@@ -242,7 +253,7 @@ async def license_info():
             "version": settings.VERSION,
             "now": now.isoformat(),
             "start_date": start.isoformat(),
-            "end_date": end.isoformat()
+            "end_date": end.isoformat(),
         }
     }
 
