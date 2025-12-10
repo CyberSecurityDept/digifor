@@ -42,6 +42,7 @@ from app.api.v1 import (
 from fastapi.openapi.utils import get_openapi
 from app.db.init_db import init_db
 from fastapi.staticfiles import StaticFiles
+from datetime import datetime
 
 logger = setup_logging()
 
@@ -115,6 +116,7 @@ def custom_openapi():
         "/openapi.json",
         "/redoc",
         "/favicon.ico",
+        "/license"
     ]
 
     for path, path_item in openapi_schema["paths"].items():
@@ -223,6 +225,26 @@ async def root():
 @app.get("/favicon.ico")
 async def favicon():
     return Response(status_code=204)
+
+START_DATE = settings.START_DATE_LICENSE
+END_DATE   = settings.END_DATE_LICENSE
+@app.get("/license")
+async def license_info():
+    now = datetime.utcnow()
+    start = datetime.fromisoformat(START_DATE)
+    end = datetime.fromisoformat(END_DATE)
+
+    return {
+        "status": 200,
+        "message": "License Information",
+        "data": {
+            "project": settings.PROJECT_NAME,
+            "version": settings.VERSION,
+            "now": now.isoformat(),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat()
+        }
+    }
 
 if __name__ == "__main__":
     uvicorn.run(

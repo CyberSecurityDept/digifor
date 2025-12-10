@@ -26,6 +26,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             '/health/health',
             '/health/health/ready',
             '/health/health/live',
+            "/license"
         ]
 
         public_patterns = [
