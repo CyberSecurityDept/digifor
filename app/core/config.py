@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     MAX_ANALYSIS_THREADS: int = 4
 
     MOBSF_URL: str = "http://172.15.2.105:5001"
-    START_DATE_LICENSE:str = "2025-01-01T00:01:00"
-    END_DATE_LICENSE:str   = "2025-12-11T12:00:00"
+    START_DATE_LICENSE:str = "2026-01-01T00:01:00"
+    END_DATE_LICENSE:str   = "2028-01-01T00:01:00"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
