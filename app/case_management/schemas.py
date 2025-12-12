@@ -218,6 +218,20 @@ class CaseListResponse(BaseModel):
     page: int = Field(..., description="Current page")
     size: int = Field(..., description="Page size")
 
+class CaseSelectItem(BaseModel):
+    id: int = Field(..., description="Case ID")
+    case_number: str = Field(..., description="Case number")
+    title: str = Field(..., description="Case title")
+    
+    class Config:
+        from_attributes = True
+
+class CaseSelectResponse(BaseModel):
+    status: int = Field(200, description="Response status")
+    message: str = Field("Success", description="Response message")
+    data: List[CaseSelectItem]
+    total: int = Field(..., description="Total number of cases")
+
 class CaseLogBase(BaseModel):
     action: str = Field(..., description="Action performed")
     changed_by: str = Field(..., description="User who made the change")

@@ -8,11 +8,12 @@ from app.case_management.service import case_service
 from app.case_management.schemas import (
     Case, CaseCreate, CaseUpdate, CaseResponse, CaseListResponse,
     Agency, AgencyCreate, WorkUnit, WorkUnitCreate, CaseDetailResponse,
-    CaseNotesRequest
+    CaseNotesRequest, CaseSelectResponse, CaseSelectItem
 )
 from fastapi.responses import JSONResponse, FileResponse
 import os
 import logging
+from app.case_management.models import Case
 
 logger = logging.getLogger(__name__)
 from app.core.config import settings
@@ -149,7 +150,6 @@ async def get_cases(
     db: Session = Depends(get_database)
 ):
     try:
-        # Validate all query parameters to prevent SQL injection via unknown parameters
         allowed_params = {'skip', 'limit', 'search', 'status', 'sort_by', 'sort_order'}
         for param_name, param_value in request.query_params.items():
             if param_name not in allowed_params:
@@ -217,6 +217,41 @@ async def get_cases(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
+            detail="Unexpected server error, please try again later"
+        )
+
+@router.get("/list-for-select", response_model=CaseSelectResponse)
+async def get_cases_for_select(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database)
+):
+    try:
+        cases = db.query(Case).order_by(Case.id.desc()).all()
+        
+        case_list = []
+        for case in cases:
+            case_list.append({
+                "id": case.id,
+                "case_number": case.case_number,
+                "title": case.title
+            })
+        
+        if len(case_list) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No cases found. Please create a case first."
+            )
+        
+        return CaseSelectResponse(
+            status=200,
+            message="Cases retrieved successfully for select",
+            data=case_list,
+            total=len(case_list)
+        )
+    except Exception as e:
+        logger.error(f"Error in get_cases_for_select: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
             detail="Unexpected server error, please try again later"
         )
 

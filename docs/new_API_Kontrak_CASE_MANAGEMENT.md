@@ -285,6 +285,112 @@ Authorization: Bearer <access_token>
 
 ---
 
+### 3.1. Get Cases for Select/Dropdown
+
+**Endpoint:** `GET /list-for-select`
+
+**Description:** Retrieves a simplified list of all cases for use in dropdown/select components. This endpoint returns only essential fields (id, case_number, title) without pagination, making it ideal for populating select options in forms such as the create evidence form.
+
+**Query Parameters:** None
+
+**Success Response (200):**
+```json
+{
+  "status": 200,
+  "message": "Cases retrieved successfully for select",
+  "data": [
+    {
+      "id": 3,
+      "case_number": "LC-081125-0003",
+      "title": "Latest Case"
+    },
+    {
+      "id": 2,
+      "case_number": "BMI-081125-0002",
+      "title": "Buronan Maroko Interpol Amerika Serikat"
+    },
+    {
+      "id": 1,
+      "case_number": "BMI-081125-0001",
+      "title": "Buronan Maroko Interpol"
+    }
+  ],
+  "total": 3
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | integer | HTTP status code (200) |
+| `message` | string | Success message |
+| `data` | array | Array of case objects for select options |
+| `data[].id` | integer | Case ID (use as value in select option) |
+| `data[].case_number` | string | Case number (use as part of label in select option) |
+| `data[].title` | string | Case title (use as part of label in select option) |
+| `total` | integer | Total number of cases returned |
+
+**Note:** 
+- Data is sorted by ID in descending order (newest cases first)
+- All cases are returned without pagination for easy dropdown population
+- Use `id` as the value and `case_number` or `title` (or both) as the label in your select component
+
+**Example Request:**
+```
+GET /api/v1/cases/list-for-select
+Authorization: Bearer <access_token>
+```
+
+**Example Usage in Frontend:**
+```javascript
+// Fetch cases for dropdown
+const response = await fetch('/api/v1/cases/list-for-select', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+const result = await response.json();
+
+// Populate select dropdown
+result.data.forEach(case => {
+  const option = document.createElement('option');
+  option.value = case.id;
+  option.textContent = `${case.case_number} - ${case.title}`;
+  selectElement.appendChild(option);
+});
+```
+
+**Error Responses:**
+
+**401 - Unauthorized:**
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+**404 - No Cases Found:**
+```json
+{
+  "detail": "No cases found. Please create a case first."
+}
+```
+
+**500 - Server Error:**
+```json
+{
+  "status": 500,
+  "detail": "Unexpected server error, please try again later"
+}
+```
+
+**Note on Empty Data:**
+- When no cases exist in the system, the endpoint returns status `404` with an error message
+- The response indicates that cases need to be created first before they can be used in dropdowns
+- Frontend should handle the 404 error gracefully by showing a message or disabling the select component
+
+---
+
 ### 4. Update Case
 
 **Endpoint:** `PUT /update-case/{case_id}`
