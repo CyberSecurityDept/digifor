@@ -211,7 +211,7 @@ Authorization: Bearer <access_token>
 |-----------|------|----------|-------------|
 | `skip` | integer | No | Number of records to skip (default: 0, min: 0) |
 | `limit` | integer | No | Number of records to return (default: 10, min: 1, max: 100) |
-| `search` | string | No | Search term for case number, title, or description (max 255 characters) |
+| `search` | string | No | Search term that searches in: `case_number`, `title`, `investigator` (main_investigator), `agency` (agency_name), and `date_create` (created_at) (max 255 characters) |
 | `status` | string | No | Filter by case status: `Open`, `Closed`, `Re-open` (max 50 characters) |
 | `sort_by` | string | No | Field to sort by. Valid values: `created_at`, `id` |
 | `sort_order` | string | No | Sort order. Valid values: `asc` (oldest first), `desc` (newest first) |
@@ -652,7 +652,7 @@ result.data.forEach(case => {
 |-----------|------|----------|-------------|
 | `skip` | integer | No | Number of records to skip (default: 0, min: 0) |
 | `limit` | integer | No | Number of records to return (default: 10, min: 1, max: 100) |
-| `search` | string | No | Search term for evidence number, title, or description (max 255 characters) |
+| `search` | string | No | Search keyword (searches in case_number, case_name, investigator, agency, and create_date) (max 255 characters) |
 | `sort_by` | string | No | Field to sort by. Valid values: `created_at`, `id` |
 | `sort_order` | string | No | Sort order. Valid values: `asc` (oldest first), `desc` (newest first) |
 

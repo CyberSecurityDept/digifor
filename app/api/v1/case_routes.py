@@ -142,7 +142,7 @@ async def get_cases(
     request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Search keyword (searches in case_number, title, investigator, agency, and date_create)"),
     status: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
     sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),

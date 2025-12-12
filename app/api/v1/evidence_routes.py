@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, UploadFile, File, Request
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, cast, String
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Type
 from datetime import datetime, timezone, timedelta
@@ -64,7 +64,7 @@ async def get_evidence_list(
     request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Search keyword (searches in case_number, case_name, investigator, agency, and create_date)"),
     sort_by: Optional[str] = Query(None, description="Field to sort by. Valid values: 'created_at', 'id'"),
     sort_order: Optional[str] = Query(None, description="Sort order. Valid values: 'asc' (oldest first), 'desc' (newest first)"),
     current_user: User = Depends(get_current_user),
@@ -84,7 +84,7 @@ async def get_evidence_list(
                     detail=f"Parameter '{param_name}' is not supported. Please use only 'skip', 'limit', 'search', 'sort_by', or 'sort_order' parameters."
                 )
         
-        query = db.query(Evidence).options(joinedload(Evidence.case))
+        query = db.query(Evidence).options(joinedload(Evidence.case)).join(Case, Evidence.case_id == Case.id, isouter=True).join(Agency, Case.agency_id == Agency.id, isouter=True)
 
         if search:
             if not validate_sql_injection_patterns(search):
@@ -97,9 +97,11 @@ async def get_evidence_list(
                 search_pattern = f"%{search}%"
                 query = query.filter(
                     or_(
-                        Evidence.evidence_number.ilike(search_pattern),
-                        Evidence.title.ilike(search_pattern),
-                        Evidence.description.ilike(search_pattern)
+                        Case.case_number.ilike(search_pattern),
+                        Case.title.ilike(search_pattern),
+                        Case.main_investigator.ilike(search_pattern),
+                        Agency.name.ilike(search_pattern),
+                        cast(Evidence.created_at, String).ilike(search_pattern),
                     )
                 )
         

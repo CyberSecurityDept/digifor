@@ -2379,7 +2379,7 @@ curl -X PUT "http://172.15.2.105/api/v1/case-logs/change-log/1" \
 |-----------|------|----------|---------|-------------|
 | `skip` | integer | No | 0 | Number of records to skip (pagination) |
 | `limit` | integer | No | 10 | Number of records per page (max: 100) |
-| `search` | string | No | - | Search keyword (searches in evidence_number, title, description) |
+| `search` | string | No | - | Search keyword (searches in case_number, case_name, investigator, agency, and create_date) |
 | `sort_by` | string | No | - | Field to sort by. Valid values: `'created_at'`, `'id'` |
 | `sort_order` | string | No | `'desc'` | Sort order. Valid values: `'asc'` (oldest first), `'desc'` (newest first) |
 

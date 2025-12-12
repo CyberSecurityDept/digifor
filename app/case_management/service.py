@@ -221,26 +221,22 @@ class CaseService:
         }
 
         if search:
-            # Search should already be sanitized from route
             search_clean = search.strip() if search else ""
             if search_clean:
                 search_pattern = f"%{search_clean}%"
                 normalized_status = status_mapping.get(search_clean, search_clean)
-            search_conditions = [
+                search_conditions = [
+                    Case.case_number.ilike(search_pattern),
                     Case.title.ilike(search_pattern),
                     Case.main_investigator.ilike(search_pattern),
-                    cast(Case.agency_id, String).ilike(search_pattern),
-                Agency.name.ilike(search_pattern),
+                    Agency.name.ilike(search_pattern),
                     cast(Case.created_at, String).ilike(search_pattern),
-                    cast(Case.updated_at, String).ilike(search_pattern),
-                cast(Case.status, String).ilike(search_pattern)
-            ]
-            
-            if normalized_status in ['Open', 'Closed', 'Re-open']:
-                search_conditions.append(Case.status == normalized_status)
-            query = query.filter(or_(*search_conditions))
+                ]
+                
+                if normalized_status in ['Open', 'Closed', 'Re-open']:
+                    search_conditions.append(Case.status == normalized_status)
+                query = query.filter(or_(*search_conditions))
         if status:
-            # Status should already be sanitized from route
             status_clean = status.strip() if status else ""
             if status_clean:
                 normalized_status = status_mapping.get(status_clean, status_clean)
