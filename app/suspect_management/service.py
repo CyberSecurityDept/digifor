@@ -76,7 +76,7 @@ class SuspectService:
         
         logger.info(f"get_suspects called with skip={skip}, limit={limit}, search={search}, status={status}")
 
-        query = db.query(Suspect)
+        query = db.query(Suspect).join(Case, Suspect.case_id == Case.id, isouter=True).join(Agency, Case.agency_id == Agency.id, isouter=True)
 
         query = query.filter(
             Suspect.status.isnot(None),
@@ -100,10 +100,12 @@ class SuspectService:
 
         if search and search.strip():
             search_clean = search.strip()
+            # Search in: name (Suspect.name), case_name (Case.title), investigator (Case.main_investigator), and agency (Agency.name)
             search_filter = or_(
-                Suspect.name.ilike(f"%{search_clean}%"),
-                Suspect.case_name.ilike(f"%{search_clean}%"),
-                Suspect.investigator.ilike(f"%{search_clean}%")
+                Suspect.name.ilike(f"%{search_clean}%"),  # name
+                Case.title.ilike(f"%{search_clean}%"),  # case name
+                Case.main_investigator.ilike(f"%{search_clean}%"),  # investigator
+                Agency.name.ilike(f"%{search_clean}%")  # agency
             )
             query = query.filter(search_filter)
 

@@ -1598,7 +1598,7 @@ result.data.forEach(case => {
 |-----------|------|----------|-------------|
 | `skip` | integer | No | Number of records to skip (default: 0, min: 0) |
 | `limit` | integer | No | Number of records to return (default: 10, min: 1, max: 100) |
-| `search` | string | No | Search term for suspect name (max 255 characters) |
+| `search` | string | No | Search keyword (searches in name, case_name, investigator, and agency) (max 255 characters) |
 | `status` | string[] | No | Filter by suspect status. Can be multiple values: `Witness`, `Reported`, `Suspected`, `Suspect`, `Defendant` |
 
 **Success Response (200):**

@@ -2980,7 +2980,7 @@ evidence_file: [file]
 |-----------|------|----------|---------|-------------|
 | `skip` | integer | No | 0 | Number of records to skip (pagination) |
 | `limit` | integer | No | 10 | Number of records per page (max: 100) |
-| `search` | string | No | - | Search keyword (searches in name, case name, investigator) |
+| `search` | string | No | - | Search keyword (searches in name, case_name, investigator, and agency) |
 | `status` | string | No | - | Filter by status: `"Witness"`, `"Reported"`, `"Suspected"`, `"Suspect"`, `"Defendant"` |
 
 **Sorting:**

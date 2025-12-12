@@ -48,17 +48,15 @@ async def get_suspects(
     request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="Search keyword (searches in name, case_name, investigator, and agency)"),
     status: Optional[List[str]] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_database)
 ):
     try:
-        # Validate all query parameters to prevent SQL injection via unknown parameters
         allowed_params = {'skip', 'limit', 'search', 'status'}
         for param_name, param_value in request.query_params.items():
             if param_name not in allowed_params:
-                # Handle list parameters (status can be multiple values)
                 if isinstance(param_value, list):
                     param_value = ' '.join(str(v) for v in param_value)
                 if param_value and not validate_sql_injection_patterns(str(param_value)):
